@@ -28,7 +28,7 @@ export default function GenerationInterface({ feature, apiKey, onBack }: Generat
   const [images, setImages] = useState<string[]>([]);
   const [config, setConfig] = useState<GenerationConfig>({
     aspectRatio: '16:9',
-    imageSize: '2K',
+    imageSize: '1K',
     useGoogleSearch: false,
   });
   const [error, setError] = useState<string | null>(null);
