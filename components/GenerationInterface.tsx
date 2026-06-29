@@ -146,6 +146,12 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
     error ||
     (generateMutation.error instanceof Error ? generateMutation.error.message : null);
 
+  // Rough cost estimate. Every generation runs on gemini-3-pro-image-preview,
+  // billed at $120 / 1M output tokens: 1K & 2K ≈ 1120 tokens (~$0.13),
+  // 4K ≈ 2000 tokens (~$0.24); each uploaded input image ≈ 560 tokens (~$0.0011).
+  const OUTPUT_COST: Record<string, number> = { '1K': 0.134, '2K': 0.134, '4K': 0.24 };
+  const estCost = (OUTPUT_COST[config.imageSize ?? '1K'] ?? 0.134) + images.length * 0.0011;
+
   const handleGenerate = () => {
     if (!prompt.trim() && feature.id !== 'image-editing') {
       setError('Please enter a prompt');
@@ -414,6 +420,10 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
               </>
             )}
           </button>
+
+          <p className="mt-2 text-center text-xs text-[var(--foreground-subtle)]">
+            Est. ≈ ${estCost.toFixed(2)} / image · Gemini 3 Pro Image
+          </p>
 
           {/* Error Display */}
           <AnimatePresence>
