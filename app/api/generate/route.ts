@@ -1,17 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { GoogleGenAI } from '@google/genai';
+import { geminiGenerate } from '@/lib/engines/gemini';
+import { pollinationsGenerate } from '@/lib/engines/pollinations';
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { prompt, images, config, apiKey } = body;
-
-    if (!apiKey) {
-      return NextResponse.json(
-        { success: false, error: 'API key is required' },
-        { status: 400 }
-      );
-    }
+    const { engine = 'gemini', prompt, images, config, apiKey } = body;
 
     if (!prompt && !images?.length) {
       return NextResponse.json(
@@ -20,105 +14,31 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Initialize the Google GenAI client
-    const ai = new GoogleGenAI({ apiKey });
-
-    // Use Gemini 3 Pro Image Preview for all image generation
-    // This is the correct model for image generation according to Google docs
-    const modelName = 'gemini-3-pro-image-preview';
-
-    // Prepare the prompt parts array
-    const promptParts: any[] = [];
-
-    // Add text prompt first
-    if (prompt) {
-      promptParts.push({ text: prompt });
-    }
-
-    // Add images if provided
-    if (images && images.length > 0) {
-      for (const imageBase64 of images) {
-        promptParts.push({
-          inlineData: {
-            mimeType: 'image/png',
-            data: imageBase64,
-          },
-        });
+    let result;
+    if (engine === 'pollinations') {
+      result = await pollinationsGenerate({ prompt, aspectRatio: config?.aspectRatio });
+    } else {
+      if (!apiKey) {
+        return NextResponse.json(
+          { success: false, error: 'API key is required' },
+          { status: 400 }
+        );
       }
-    }
-
-    // Prepare generation config
-    const generationConfig: any = {};
-
-    // Add image configuration if specified
-    if (config?.aspectRatio || config?.imageSize) {
-      generationConfig.imageConfig = {};
-      if (config.aspectRatio) {
-        generationConfig.imageConfig.aspectRatio = config.aspectRatio;
-      }
-      if (config.imageSize) {
-        generationConfig.imageConfig.imageSize = config.imageSize;
-      }
-    }
-
-    // Add Google Search tool if requested
-    if (config?.useGoogleSearch) {
-      generationConfig.tools = [{ googleSearch: {} }];
-    }
-
-    // Generation params (imageConfig, tools, …) must be nested under `config`;
-    // passed at the top level the SDK silently ignores them.
-    const response = await ai.models.generateContent({
-      model: modelName,
-      contents: promptParts,
-      config: generationConfig,
-    });
-
-    // Extract image data from response
-    let imageData = null;
-    let textResponse = null;
-
-    if (response.candidates && response.candidates.length > 0) {
-      const candidate = response.candidates[0];
-      if (candidate.content && candidate.content.parts) {
-        for (const part of candidate.content.parts) {
-          if (part.inlineData && part.inlineData.data) {
-            imageData = part.inlineData.data;
-          }
-          if (part.text) {
-            textResponse = part.text;
-          }
-        }
-      }
-    }
-
-    if (!imageData) {
-      console.error('No image data in response:', JSON.stringify(response, null, 2));
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'No image data returned from the API. Please try again.',
-          text: textResponse,
-          debug: response.candidates?.[0]?.finishReason || 'Unknown reason',
-        },
-        { status: 500 }
-      );
+      result = await geminiGenerate({ prompt, images, config, apiKey });
     }
 
     return NextResponse.json({
       success: true,
-      imageData,
-      text: textResponse,
+      imageData: result.imageData,
+      mimeType: result.mimeType,
     });
   } catch (error: any) {
     console.error('Generation error:', error);
-    console.error('Error details:', error.response?.data || error.message);
-
     return NextResponse.json(
       {
         success: false,
-        error: error.message || 'Failed to generate image',
-        details: error.response?.data?.error?.message || error.toString(),
+        error: error?.message || 'Failed to generate image',
+        details: error?.response?.data?.error?.message || error?.toString(),
       },
       { status: 500 }
     );

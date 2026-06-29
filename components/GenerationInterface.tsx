@@ -7,6 +7,8 @@ import { useMutation } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Feature, GenerationConfig } from '@/types';
 import { metaForFeature, SEED_TONES, slugify } from '@/lib/example-prompts';
+import { useAppStore } from '@/store/useAppStore';
+import { enginesForFeature, getEngine } from '@/lib/engines/registry';
 import {
   Upload,
   X,
@@ -33,6 +35,15 @@ export default function GenerationInterface({ feature, apiKey, onBack }: Generat
     imageSize: '1K',
     useGoogleSearch: false,
   });
+
+  // Engines that can run this feature; fall back to the first (Gemini) if the
+  // persisted choice can't (e.g. picked Pollinations then opened an editing mode).
+  const storeEngine = useAppStore((s) => s.engine);
+  const setEngine = useAppStore((s) => s.setEngine);
+  const availableEngines = enginesForFeature(feature);
+  const activeEngine =
+    availableEngines.find((e) => e.id === storeEngine) ?? availableEngines[0];
+
   const [error, setError] = useState<string | null>(null);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   // Pre-rendered, AI-summarized download filename for the current prompt.
@@ -79,7 +90,7 @@ export default function GenerationInterface({ feature, apiKey, onBack }: Generat
   };
 
   const generateMutation = useMutation({
-    mutationFn: async (): Promise<string> => {
+    mutationFn: async (): Promise<{ dataUrl: string; ext: string }> => {
       // Tailor the prompt to the feature.
       let finalPrompt = prompt;
       if (feature.id === 'social-media-thumbnail') {
@@ -106,6 +117,7 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          engine: activeEngine.id,
           prompt: finalPrompt,
           images: images.map((img) => img.split(',')[1]), // strip data: prefix
           config,
@@ -117,7 +129,9 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
       const data = await response.json();
 
       if (data.success && data.imageData) {
-        return data.imageData as string;
+        const mime: string = data.mimeType || 'image/png';
+        const ext = mime.includes('jpeg') || mime.includes('jpg') ? 'jpg' : 'png';
+        return { dataUrl: `data:${mime};base64,${data.imageData}`, ext };
       }
 
       const debugInfo = data.debug ? ` (${data.debug})` : '';
@@ -167,17 +181,22 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
   // Derived view state from the mutation.
   const isGenerating = generateMutation.isPending;
   const generatedImage = generateMutation.isSuccess
-    ? `data:image/png;base64,${generateMutation.data}`
+    ? generateMutation.data.dataUrl
     : null;
+  const downloadExt = generateMutation.data?.ext ?? 'png';
   const displayError =
     error ||
     (generateMutation.error instanceof Error ? generateMutation.error.message : null);
 
-  // Rough cost estimate. Every generation runs on gemini-3-pro-image-preview,
-  // billed at $120 / 1M output tokens: 1K & 2K ≈ 1120 tokens (~$0.13),
-  // 4K ≈ 2000 tokens (~$0.24); each uploaded input image ≈ 560 tokens (~$0.0011).
+  // Cost line, per engine. Gemini runs on gemini-3-pro-image-preview, billed at
+  // $120 / 1M output tokens: 1K & 2K ≈ 1120 tokens (~$0.13), 4K ≈ 2000 tokens
+  // (~$0.24); each uploaded input image ≈ 560 tokens (~$0.0011). Pollinations is free.
   const OUTPUT_COST: Record<string, number> = { '1K': 0.134, '2K': 0.134, '4K': 0.24 };
   const estCost = (OUTPUT_COST[config.imageSize ?? '1K'] ?? 0.134) + images.length * 0.0011;
+  const costLine =
+    activeEngine.id === 'pollinations'
+      ? 'Free · Pollinations (FLUX) · no key needed'
+      : `Est. ≈ $${estCost.toFixed(2)} / image · Gemini 3 Pro Image`;
 
   // Close the full-screen lightbox on Escape.
   useEffect(() => {
@@ -214,7 +233,7 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
       filenameSlug || slugify(prompt) || `nano-banana-${feature.id}`;
     const link = document.createElement('a');
     link.href = generatedImage;
-    link.download = `${base}.png`;
+    link.download = `${base}.${downloadExt}`;
     link.click();
   };
 
@@ -383,6 +402,27 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
                 </h3>
 
                 <div className="space-y-3 sm:space-y-4">
+                  {availableEngines.length > 1 && (
+                    <div>
+                      <label className="block text-sm font-medium mb-2 text-[var(--foreground)]">
+                        Engine
+                      </label>
+                      <select
+                        value={activeEngine.id}
+                        onChange={(e) => setEngine(e.target.value as typeof activeEngine.id)}
+                      >
+                        {availableEngines.map((eng) => (
+                          <option key={eng.id} value={eng.id}>
+                            {eng.label}{eng.free ? ' — Free' : ''}
+                          </option>
+                        ))}
+                      </select>
+                      <p className="mt-1.5 text-xs text-[var(--foreground-subtle)]">
+                        {activeEngine.blurb}
+                      </p>
+                    </div>
+                  )}
+
                   <div>
                     <label className="block text-sm font-medium mb-2 text-[var(--foreground)]">
                       Aspect Ratio
@@ -402,6 +442,7 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
                     </select>
                   </div>
 
+                  {activeEngine.id !== 'pollinations' && (
                   <div>
                     <label className="block text-sm font-medium mb-2 text-[var(--foreground)]">
                       Image Quality
@@ -429,6 +470,7 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
                       Higher quality takes longer but produces better results
                     </p>
                   </div>
+                  )}
 
                   {feature.id === 'search-grounding' && (
                     <div className="flex items-center justify-between p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
@@ -469,7 +511,7 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
           </button>
 
           <p className="mt-2 text-center text-xs text-[var(--foreground-subtle)]">
-            Est. ≈ ${estCost.toFixed(2)} / image · Gemini 3 Pro Image
+            {costLine}
           </p>
 
           {/* Error Display */}
