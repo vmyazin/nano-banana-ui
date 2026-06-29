@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Sparkles, Twitter, Instagram, Globe, Link as LinkIcon } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
 import ApiKeyConfig from '@/components/ApiKeyConfig';
 import FeatureSelector from '@/components/FeatureSelector';
 import GenerationInterface from '@/components/GenerationInterface';
@@ -42,44 +42,6 @@ export default function Home() {
               </div>
             </motion.div>
 
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              className="hidden md:flex items-center gap-3"
-            >
-              <a
-                href="https://x.com/yuvalav"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="p-2 rounded-lg bg-[var(--background-glass)] border border-white/10 hover:border-[var(--neon-cyan)] transition-all text-[var(--foreground-muted)] hover:text-[var(--neon-cyan)]"
-              >
-                <Twitter size={20} />
-              </a>
-              <a
-                href="https://instagram.com/yuval_770"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="p-2 rounded-lg bg-[var(--background-glass)] border border-white/10 hover:border-[var(--neon-pink)] transition-all text-[var(--foreground-muted)] hover:text-[var(--neon-pink)]"
-              >
-                <Instagram size={20} />
-              </a>
-              <a
-                href="https://yuv.ai"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="p-2 rounded-lg bg-[var(--background-glass)] border border-white/10 hover:border-[var(--neon-purple)] transition-all text-[var(--foreground-muted)] hover:text-[var(--neon-purple)]"
-              >
-                <Globe size={20} />
-              </a>
-              <a
-                href="https://linktr.ee/yuvai"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="p-2 rounded-lg bg-[var(--background-glass)] border border-white/10 hover:border-[var(--banana-yellow)] transition-all text-[var(--foreground-muted)] hover:text-[var(--banana-yellow)]"
-              >
-                <LinkIcon size={20} />
-              </a>
-            </motion.div>
           </div>
         </div>
       </header>
