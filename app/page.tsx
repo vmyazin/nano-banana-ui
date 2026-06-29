@@ -252,20 +252,12 @@ function Studio() {
                 📚 API Docs
               </a>
               <a
-                href="https://github.com/hoodini/nano-banana-ui"
+                href="https://github.com/vmyazin/nano-banana-ui"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-xs sm:text-sm font-medium px-4 py-2 rounded-lg bg-[var(--background-glass)] border border-white/10 hover:border-[var(--neon-purple)] text-[var(--foreground-muted)] hover:text-[var(--neon-purple)] transition-all hover:shadow-[var(--glow-purple)]"
               >
                 💻 GitHub
-              </a>
-              <a
-                href="https://linktr.ee/yuvai"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs sm:text-sm font-medium px-4 py-2 rounded-lg bg-[var(--background-glass)] border border-white/10 hover:border-[var(--banana-yellow)] text-[var(--foreground-muted)] hover:text-[var(--banana-yellow)] transition-all hover:shadow-[0_0_20px_rgba(255,237,78,0.3)]"
-              >
-                🔗 LinkTree
               </a>
             </div>
           </div>
