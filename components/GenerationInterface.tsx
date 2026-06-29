@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useMutation } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Feature, GenerationConfig } from '@/types';
+import { metaForFeature, SEED_TONES } from '@/lib/example-prompts';
 import {
   Upload,
   X,
@@ -12,6 +13,7 @@ import {
   Loader2,
   Download,
   ImagePlus,
+  Info,
   Sparkles,
 } from 'lucide-react';
 
@@ -104,6 +106,37 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
     onError: (e) => toast.error(e instanceof Error ? e.message : 'Generation failed'),
   });
 
+  // Generate a fresh, feature-tailored example prompt via gemini-2.5-flash-lite.
+  const exampleMutation = useMutation({
+    mutationFn: async (): Promise<string> => {
+      const seed = SEED_TONES[Math.floor(Math.random() * SEED_TONES.length)];
+      const res = await fetch('/api/example', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ featureId: feature.id, apiKey, seed }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.prompt) {
+        throw new Error(data.error || 'Failed to generate example');
+      }
+      return data.prompt as string;
+    },
+    onSuccess: (p) => setPrompt(p),
+    onError: (e) => {
+      toast.error(e instanceof Error ? e.message : 'Could not generate example');
+      if (feature.examplePrompt) setPrompt(feature.examplePrompt); // graceful fallback
+    },
+  });
+
+  const handleUseExample = () => {
+    // No key yet → use the static example so the button always works.
+    if (!apiKey) {
+      if (feature.examplePrompt) setPrompt(feature.examplePrompt);
+      return;
+    }
+    exampleMutation.mutate();
+  };
+
   // Derived view state from the mutation.
   const isGenerating = generateMutation.isPending;
   const generatedImage = generateMutation.isSuccess
@@ -136,13 +169,6 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
   };
 
   // Special prompt templates for social media
-  const socialMediaTemplates = [
-    'Excited person pointing at [your subject], dramatic lighting, shocked expression',
-    'Before and after transformation scene, split screen effect',
-    'Action scene with motion blur, dynamic angle, urgent energy',
-    'Reveal moment with glowing highlight effects, surprised reaction',
-  ];
-
   return (
     <div className="w-full max-w-[1400px] mx-auto space-y-4 sm:space-y-6">
       {/* Header */}
@@ -231,25 +257,43 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
               <h3 className="display text-lg sm:text-xl font-semibold">
                 Prompt
               </h3>
-              <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-1.5">
                 {feature.examplePrompt && (
                   <button
-                    onClick={() => setPrompt(feature.examplePrompt!)}
-                    className="text-xs text-[var(--banana-yellow)] hover:text-[var(--neon-cyan)] flex items-center gap-1 px-2 py-1 rounded-lg bg-[var(--banana-yellow)]/10 border border-[var(--banana-yellow)]/30"
+                    onClick={handleUseExample}
+                    disabled={exampleMutation.isPending}
+                    className="text-xs text-[var(--banana-yellow)] hover:text-[var(--neon-cyan)] disabled:opacity-60 flex items-center gap-1 px-2 py-1 rounded-lg bg-[var(--banana-yellow)]/10 border border-[var(--banana-yellow)]/30 transition-colors"
                   >
-                    <Sparkles size={14} />
-                    Use Example
+                    {exampleMutation.isPending ? (
+                      <>
+                        <Loader2 size={14} className="animate-spin" />
+                        Thinking…
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles size={14} />
+                        Use Example
+                      </>
+                    )}
                   </button>
                 )}
-                {feature.id === 'social-media-thumbnail' && (
+
+                {/* Reveal the exact instruction Gemini is given */}
+                <div className="relative inline-flex group/tip">
                   <button
-                    onClick={() => setPrompt(socialMediaTemplates[Math.floor(Math.random() * socialMediaTemplates.length)])}
-                    className="text-xs text-[var(--neon-cyan)] hover:text-[var(--neon-purple)] flex items-center gap-1"
+                    type="button"
+                    aria-label="What Gemini is asked to produce"
+                    className="text-[var(--foreground-subtle)] hover:text-[var(--foreground-muted)] cursor-help p-1"
                   >
-                    <Sparkles size={14} />
-                    Random Template
+                    <Info size={14} />
                   </button>
-                )}
+                  <div className="pointer-events-none absolute right-0 top-full mt-2 w-72 sm:w-80 z-30 opacity-0 group-hover/tip:opacity-100 group-focus-within/tip:opacity-100 transition-opacity duration-150 rounded-xl border border-[var(--border)] bg-[var(--background-elevated)] p-3 text-left shadow-[var(--shadow-md)]">
+                    <p className="eyebrow mb-1.5">Gemini is asked</p>
+                    <p className="text-xs leading-relaxed text-[var(--foreground-muted)]">
+                      {metaForFeature(feature.id)}
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
 
