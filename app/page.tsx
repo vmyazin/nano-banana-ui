@@ -1,16 +1,23 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
+import { useQueryState } from 'nuqs';
 import { motion } from 'framer-motion';
 import { Key, Check } from 'lucide-react';
 import ApiKeyConfig from '@/components/ApiKeyConfig';
 import FeatureSelector from '@/components/FeatureSelector';
 import GenerationInterface from '@/components/GenerationInterface';
-import { Feature } from '@/types';
+import { Feature, FEATURES } from '@/types';
 
-export default function Home() {
+function Studio() {
   const [apiKey, setApiKey] = useState<string>('');
-  const [selectedFeature, setSelectedFeature] = useState<Feature | null>(null);
+  // View is driven by the URL (?feature=<id>) so it deep-links, supports
+  // browser back/forward, and survives a refresh.
+  const [featureId, setFeatureId] = useQueryState('feature', { history: 'push' });
+  const selectedFeature: Feature | null =
+    FEATURES.find((f) => f.id === featureId) ?? null;
+  const selectFeature = (feature: Feature) => setFeatureId(feature.id);
+  const clearFeature = () => setFeatureId(null);
   const [keyDialogOpen, setKeyDialogOpen] = useState(false);
 
   return (
@@ -135,7 +142,7 @@ export default function Home() {
               {/* Feature Selector */}
               <FeatureSelector
                 selectedFeature={selectedFeature}
-                onFeatureSelect={setSelectedFeature}
+                onFeatureSelect={selectFeature}
               />
             </motion.div>
           </div>
@@ -143,7 +150,7 @@ export default function Home() {
           <GenerationInterface
             feature={selectedFeature}
             apiKey={apiKey}
-            onBack={() => setSelectedFeature(null)}
+            onBack={clearFeature}
           />
         )}
       </main>
@@ -207,5 +214,14 @@ export default function Home() {
         </div>
       </footer>
     </div>
+  );
+}
+
+export default function Home() {
+  // Suspense boundary required because Studio reads the URL via nuqs/useSearchParams.
+  return (
+    <Suspense fallback={null}>
+      <Studio />
+    </Suspense>
   );
 }
