@@ -272,7 +272,7 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
                     ) : (
                       <>
                         <Sparkles size={14} />
-                        Use Example
+                        Gen Example
                       </>
                     )}
                   </button>
