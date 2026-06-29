@@ -233,7 +233,15 @@ function Studio() {
               </p>
             </div>
 
-            <div className="flex items-center gap-3 sm:gap-4 md:gap-5">
+            <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4 md:gap-5">
+              <a
+                href="https://aistudio.google.com/apikey"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs sm:text-sm font-medium px-4 py-2 rounded-lg bg-[var(--background-glass)] border border-white/10 hover:border-[var(--neon-pink)] text-[var(--foreground-muted)] hover:text-[var(--neon-pink)] transition-all hover:shadow-[0_0_20px_rgba(255,0,110,0.3)]"
+              >
+                🔑 API Keys &amp; Billing
+              </a>
               <a
                 href="https://ai.google.dev/gemini-api/docs/image-generation"
                 target="_blank"
