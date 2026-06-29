@@ -276,6 +276,35 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
             </div>
           </div>
         </div>
+
+        {availableEngines.length > 1 && (
+          <div className="flex flex-wrap items-center gap-2 pt-1">
+            <span className="eyebrow mr-0.5">Engine</span>
+            {availableEngines.map((eng) => {
+              const active = eng.id === activeEngine.id;
+              return (
+                <button
+                  key={eng.id}
+                  type="button"
+                  onClick={() => setEngine(eng.id)}
+                  title={eng.blurb}
+                  className={`inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full border transition-colors ${
+                    active
+                      ? 'border-[var(--neon-cyan)] text-[var(--neon-cyan)] bg-[var(--neon-cyan)]/10'
+                      : 'border-[var(--border)] text-[var(--foreground-muted)] hover:border-[var(--border-hover)] hover:text-[var(--foreground)]'
+                  }`}
+                >
+                  {eng.label}
+                  {eng.free && (
+                    <span className="text-[0.62rem] uppercase tracking-wide text-emerald-400">
+                      Free
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </motion.div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5 md:gap-6">
@@ -415,27 +444,6 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
                 </h3>
 
                 <div className="space-y-3 sm:space-y-4">
-                  {availableEngines.length > 1 && (
-                    <div>
-                      <label className="block text-sm font-medium mb-2 text-[var(--foreground)]">
-                        Engine
-                      </label>
-                      <select
-                        value={activeEngine.id}
-                        onChange={(e) => setEngine(e.target.value as typeof activeEngine.id)}
-                      >
-                        {availableEngines.map((eng) => (
-                          <option key={eng.id} value={eng.id}>
-                            {eng.label}{eng.free ? ' — Free' : ''}
-                          </option>
-                        ))}
-                      </select>
-                      <p className="mt-1.5 text-xs text-[var(--foreground-subtle)]">
-                        {activeEngine.blurb}
-                      </p>
-                    </div>
-                  )}
-
                   {activeEngine.id === 'cloudflare' && !hasCfCreds && (
                     <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3 flex items-center justify-between gap-3">
                       <p className="text-xs text-[var(--foreground-muted)]">
