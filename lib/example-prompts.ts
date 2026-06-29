@@ -37,3 +37,37 @@ export function buildExamplePrompt(featureId: string, seed?: string): string {
   const tone = seed ? ` Lean into a ${seed} tone.` : '';
   return `${meta}${tone}\n\nOutput only the prompt text — no quotes, labels, or explanation.`;
 }
+
+/** Instruction handed to flash-lite to turn a prompt into a short filename slug. */
+export function buildSlugPrompt(prompt: string): string {
+  return `Turn this image-generation prompt into a short, evocative filename slug: 3 to 6 words, all lowercase, hyphen-separated, only letters and hyphens, no file extension. Capture the most striking, specific elements (subject, mood, setting) rather than generic filler.\n\nPrompt: ${prompt}\n\nOutput only the slug.`;
+}
+
+/** Deterministic fallback slug, used when the model is unavailable or returns nothing. */
+export function slugify(text: string, maxWords = 6): string {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .trim()
+    .split(/[\s-]+/)
+    .filter(Boolean)
+    .slice(0, maxWords)
+    .join('-')
+    .slice(0, 60)
+    .replace(/^-+|-+$/g, '');
+}
+
+/** Normalize any model output into a safe kebab-case slug (≤ 6 words). */
+export function cleanSlug(raw: string): string {
+  return raw
+    .toLowerCase()
+    .replace(/\.[a-z0-9]+$/, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .split('-')
+    .filter(Boolean)
+    .slice(0, 6)
+    .join('-')
+    .slice(0, 60)
+    .replace(/^-+|-+$/g, '');
+}

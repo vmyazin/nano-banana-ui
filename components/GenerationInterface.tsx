@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useMutation } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Feature, GenerationConfig } from '@/types';
-import { metaForFeature, SEED_TONES } from '@/lib/example-prompts';
+import { metaForFeature, SEED_TONES, slugify } from '@/lib/example-prompts';
 import {
   Upload,
   X,
@@ -35,7 +35,26 @@ export default function GenerationInterface({ feature, apiKey, onBack }: Generat
   });
   const [error, setError] = useState<string | null>(null);
   const [lightboxOpen, setLightboxOpen] = useState(false);
+  // Pre-rendered, AI-summarized download filename for the current prompt.
+  const [filenameSlug, setFilenameSlug] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Ask flash-lite for a short evocative filename slug for `p` and stash it.
+  // Fire-and-forget — download falls back to a client-side slug if it's not ready.
+  const prerenderSlug = async (p: string) => {
+    if (!p.trim() || !apiKey) return;
+    try {
+      const res = await fetch('/api/slug', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: p, apiKey }),
+      });
+      const data = await res.json();
+      if (res.ok && data.slug) setFilenameSlug(data.slug as string);
+    } catch {
+      /* ignore — downloadImage() falls back to slugify(prompt) */
+    }
+  };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -124,7 +143,11 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
       }
       return data.prompt as string;
     },
-    onSuccess: (p) => setPrompt(p),
+    onSuccess: (p) => {
+      setPrompt(p);
+      setFilenameSlug(null);
+      void prerenderSlug(p); // pre-render the download filename for this example
+    },
     onError: (e) => {
       toast.error(e instanceof Error ? e.message : 'Could not generate example');
       if (feature.examplePrompt) setPrompt(feature.examplePrompt); // graceful fallback
@@ -135,6 +158,7 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
     // No key yet → use the static example so the button always works.
     if (!apiKey) {
       if (feature.examplePrompt) setPrompt(feature.examplePrompt);
+      setFilenameSlug(null);
       return;
     }
     exampleMutation.mutate();
@@ -175,15 +199,22 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
       return;
     }
     setError(null);
+    // Manual / edited prompt with no pre-rendered slug → generate one in
+    // parallel with the image so the download has a meaningful name.
+    if (prompt.trim() && !filenameSlug) {
+      void prerenderSlug(prompt);
+    }
     generateMutation.mutate();
   };
 
   const downloadImage = () => {
     if (!generatedImage) return;
 
+    const base =
+      filenameSlug || slugify(prompt) || `nano-banana-${feature.id}`;
     const link = document.createElement('a');
     link.href = generatedImage;
-    link.download = `nano-banana-${feature.id}-${Date.now()}.png`;
+    link.download = `${base}.png`;
     link.click();
   };
 
@@ -318,7 +349,10 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
 
             <textarea
               value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
+              onChange={(e) => {
+                setPrompt(e.target.value);
+                setFilenameSlug(null); // manual edit invalidates the pre-rendered name
+              }}
               placeholder={
                 feature.id === 'social-media-thumbnail'
                   ? 'Describe the subject, emotion, and key elements you want in your thumbnail...'
