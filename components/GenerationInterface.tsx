@@ -160,7 +160,7 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
               ← Back
             </button>
             <div className="min-w-0">
-              <h2 className="text-lg sm:text-xl md:text-2xl font-bold flex items-center gap-2" style={{ fontFamily: 'Orbitron, monospace' }}>
+              <h2 className="display text-lg sm:text-xl md:text-2xl font-semibold flex items-center gap-2">
                 <span className="text-2xl sm:text-3xl md:text-4xl">{feature.icon}</span>
                 <span className="truncate">{feature.name}</span>
               </h2>
@@ -180,7 +180,7 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
           {/* Image Upload */}
           {feature.requiresImage && (
             <div className="glass-card p-4 sm:p-5 md:p-6 space-y-3 sm:space-y-4">
-              <h3 className="text-lg sm:text-xl font-bold" style={{ fontFamily: 'Orbitron, monospace' }}>
+              <h3 className="display text-lg sm:text-xl font-semibold">
                 Upload Image{feature.requiresMultipleImages ? 's' : ''}
               </h3>
 
@@ -228,7 +228,7 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
           {/* Prompt Input */}
           <div className="glass-card p-4 sm:p-5 md:p-6 space-y-3 sm:space-y-4">
             <div className="flex items-center justify-between gap-2 flex-wrap">
-              <h3 className="text-lg sm:text-xl font-bold" style={{ fontFamily: 'Orbitron, monospace' }}>
+              <h3 className="display text-lg sm:text-xl font-semibold">
                 Prompt
               </h3>
               <div className="flex items-center gap-2 flex-wrap">
@@ -281,7 +281,7 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
             animate={{ opacity: 1, y: 0 }}
             className="glass-card p-6 space-y-4"
           >
-                <h3 className="text-xl font-bold" style={{ fontFamily: 'Orbitron, monospace' }}>
+                <h3 className="display text-xl font-semibold">
                   Generation Settings
                 </h3>
 
@@ -392,7 +392,7 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
           animate={{ opacity: 1, x: 0 }}
           className="glass-card p-6 space-y-4"
         >
-          <h3 className="text-xl font-bold" style={{ fontFamily: 'Orbitron, monospace' }}>
+          <h3 className="display text-xl font-semibold">
             Generated Image
           </h3>
 
