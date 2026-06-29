@@ -3,29 +3,30 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Key, Save, Eye, EyeOff, AlertCircle, X, Loader2 } from 'lucide-react';
+import { useAppStore } from '@/store/useAppStore';
 
 interface ApiKeyConfigProps {
-  onApiKeySet: (key: string) => void;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
-export default function ApiKeyConfig({ onApiKeySet, open, onOpenChange }: ApiKeyConfigProps) {
-  const [apiKey, setApiKey] = useState('');
+export default function ApiKeyConfig({ open, onOpenChange }: ApiKeyConfigProps) {
+  const savedKey = useAppStore((s) => s.apiKey);
+  const setApiKey = useAppStore((s) => s.setApiKey);
+  const isSaved = !!savedKey;
+
+  const [keyInput, setKeyInput] = useState('');
   const [showKey, setShowKey] = useState(false);
-  const [isSaved, setIsSaved] = useState(false);
   const [isValidating, setIsValidating] = useState(false);
   const [validationError, setValidationError] = useState('');
 
+  // Seed the input with the current key whenever the dialog opens.
   useEffect(() => {
-    // Restore a previously saved key from localStorage on load.
-    const savedKey = localStorage.getItem('gemini_api_key');
-    if (savedKey) {
-      setApiKey(savedKey);
-      setIsSaved(true);
-      onApiKeySet(savedKey);
+    if (open) {
+      setKeyInput(savedKey);
+      setValidationError('');
     }
-  }, [onApiKeySet]);
+  }, [open, savedKey]);
 
   const validateApiKey = async (key: string): Promise<boolean> => {
     // Basic format validation for Google API keys
@@ -67,7 +68,7 @@ export default function ApiKeyConfig({ onApiKeySet, open, onOpenChange }: ApiKey
   };
 
   const handleSaveKey = async () => {
-    const trimmedKey = apiKey.trim();
+    const trimmedKey = keyInput.trim();
     if (!trimmedKey) {
       setValidationError('Please enter an API key');
       return;
@@ -76,9 +77,8 @@ export default function ApiKeyConfig({ onApiKeySet, open, onOpenChange }: ApiKey
     const isValid = await validateApiKey(trimmedKey);
 
     if (isValid) {
-      localStorage.setItem('gemini_api_key', trimmedKey);
-      setIsSaved(true);
-      onApiKeySet(trimmedKey);
+      // The Zustand store persists the key to localStorage.
+      setApiKey(trimmedKey);
       setValidationError('');
       onOpenChange(false);
     }
@@ -150,13 +150,13 @@ export default function ApiKeyConfig({ onApiKeySet, open, onOpenChange }: ApiKey
               <div className="relative">
                 <input
                   type={showKey ? 'text' : 'password'}
-                  value={apiKey}
+                  value={keyInput}
                   onChange={(e) => {
-                    setApiKey(e.target.value);
+                    setKeyInput(e.target.value);
                     setValidationError('');
                   }}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter' && apiKey.trim()) handleSaveKey();
+                    if (e.key === 'Enter' && keyInput.trim()) handleSaveKey();
                   }}
                   placeholder="AIzaSy…"
                   className="w-full pr-11"
@@ -191,7 +191,7 @@ export default function ApiKeyConfig({ onApiKeySet, open, onOpenChange }: ApiKey
               <div className="flex gap-3 pt-1">
                 <button
                   onClick={handleSaveKey}
-                  disabled={!apiKey.trim() || isValidating}
+                  disabled={!keyInput.trim() || isValidating}
                   className="btn-primary flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isValidating ? (

@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useQueryState } from 'nuqs';
 import { motion } from 'framer-motion';
 import { Key, Check } from 'lucide-react';
@@ -8,9 +8,17 @@ import ApiKeyConfig from '@/components/ApiKeyConfig';
 import FeatureSelector from '@/components/FeatureSelector';
 import GenerationInterface from '@/components/GenerationInterface';
 import { Feature, FEATURES } from '@/types';
+import { useAppStore } from '@/store/useAppStore';
 
 function Studio() {
-  const [apiKey, setApiKey] = useState<string>('');
+  // API key lives in the persisted Zustand store (single source of truth).
+  const apiKey = useAppStore((s) => s.apiKey);
+  const hasHydrated = useAppStore((s) => s.hasHydrated);
+  useEffect(() => {
+    useAppStore.persist.rehydrate();
+  }, []);
+  const hasKey = hasHydrated && !!apiKey;
+
   // View is driven by the URL (?feature=<id>) so it deep-links, supports
   // browser back/forward, and survives a refresh.
   const [featureId, setFeatureId] = useQueryState('feature', { history: 'push' });
@@ -48,10 +56,10 @@ function Studio() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.05 }}
               onClick={() => setKeyDialogOpen(true)}
-              className={`${apiKey ? 'btn-secondary' : 'btn-primary'} text-sm flex-shrink-0`}
-              title={apiKey ? 'Update your API key' : 'Add your Gemini API key'}
+              className={`${hasKey ? 'btn-secondary' : 'btn-primary'} text-sm flex-shrink-0`}
+              title={hasKey ? 'Update your API key' : 'Add your Gemini API key'}
             >
-              {apiKey ? (
+              {hasKey ? (
                 <>
                   <Check size={15} className="text-emerald-400" />
                   <span className="hidden sm:inline">API&nbsp;Key</span>
@@ -71,7 +79,6 @@ function Studio() {
 
       {/* API Key dialog (controlled by the header CTA) */}
       <ApiKeyConfig
-        onApiKeySet={setApiKey}
         open={keyDialogOpen}
         onOpenChange={setKeyDialogOpen}
       />
