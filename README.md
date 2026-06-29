@@ -1,3 +1,5 @@
+![Nano Banana UI — an open-source AI image studio for Google Gemini](public/hero.png)
+
 # 🍌 YUV.AI Nano Banana Pro Platform
 
 ![Nano Banana Pro](https://img.shields.io/badge/Google-Gemini%20AI-blue?style=for-the-badge&logo=google)
