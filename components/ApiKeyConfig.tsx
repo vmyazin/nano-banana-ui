@@ -2,29 +2,29 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Key, Save, Eye, EyeOff, AlertCircle, CheckCircle2, X, Loader2 } from 'lucide-react';
+import { Key, Save, Eye, EyeOff, AlertCircle, X, Loader2 } from 'lucide-react';
 
 interface ApiKeyConfigProps {
   onApiKeySet: (key: string) => void;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }
 
-export default function ApiKeyConfig({ onApiKeySet }: ApiKeyConfigProps) {
+export default function ApiKeyConfig({ onApiKeySet, open, onOpenChange }: ApiKeyConfigProps) {
   const [apiKey, setApiKey] = useState('');
   const [showKey, setShowKey] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
-  const [showModal, setShowModal] = useState(false);
   const [isValidating, setIsValidating] = useState(false);
   const [validationError, setValidationError] = useState('');
 
   useEffect(() => {
-    // Check if API key exists in localStorage
+    // Restore a previously saved key from localStorage on load.
     const savedKey = localStorage.getItem('gemini_api_key');
     if (savedKey) {
       setApiKey(savedKey);
       setIsSaved(true);
       onApiKeySet(savedKey);
     }
-    // Don't force modal if no key exists - let user explore first
   }, [onApiKeySet]);
 
   const validateApiKey = async (key: string): Promise<boolean> => {
@@ -34,7 +34,6 @@ export default function ApiKeyConfig({ onApiKeySet }: ApiKeyConfigProps) {
       return false;
     }
 
-    // Test the API key with a simple request
     setIsValidating(true);
     setValidationError('');
 
@@ -42,29 +41,24 @@ export default function ApiKeyConfig({ onApiKeySet }: ApiKeyConfigProps) {
       const response = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          prompt: 'test',
-          images: [],
-          config: {},
-          apiKey: key,
-        }),
+        body: JSON.stringify({ prompt: 'test', images: [], config: {}, apiKey: key }),
       });
 
       const data = await response.json();
 
       if (response.ok || data.error?.includes('image data')) {
-        // If we get this far, the API key is valid (even if image generation failed for other reasons)
         return true;
-      } else if (data.error?.toLowerCase().includes('api key') ||
+      } else if (
+        data.error?.toLowerCase().includes('api key') ||
         data.error?.toLowerCase().includes('invalid') ||
-        data.details?.toLowerCase().includes('api_key_invalid')) {
+        data.details?.toLowerCase().includes('api_key_invalid')
+      ) {
         setValidationError('Invalid API key. Please check your key and try again.');
         return false;
       } else {
-        // Other errors mean the key is valid but something else went wrong
         return true;
       }
-    } catch (error) {
+    } catch {
       setValidationError('Could not validate API key. Please try again.');
       return false;
     } finally {
@@ -84,105 +78,72 @@ export default function ApiKeyConfig({ onApiKeySet }: ApiKeyConfigProps) {
     if (isValid) {
       localStorage.setItem('gemini_api_key', trimmedKey);
       setIsSaved(true);
-      setShowModal(false);
       onApiKeySet(trimmedKey);
       setValidationError('');
+      onOpenChange(false);
     }
   };
 
-  const handleUpdateKey = () => {
-    setShowModal(true);
-    setIsSaved(false);
+  const handleClose = () => {
     setValidationError('');
+    onOpenChange(false);
   };
-
-  const handleCloseModal = () => {
-    // Only allow closing if there's already a saved key or user hasn't saved yet
-    setShowModal(false);
-    setValidationError('');
-  };
-
-  const handleSkip = () => {
-    // Allow user to explore without API key
-    setShowModal(false);
-  };
-
-  if (!showModal && isSaved) {
-    return (
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="fixed top-4 right-4 z-40 glass-card p-4 flex items-center justify-between gap-4 shadow-2xl max-w-sm"
-      >
-        <div className="flex items-center gap-3">
-          <CheckCircle2 className="text-green-400 animate-glow-pulse" size={20} />
-          <span className="text-sm text-[var(--foreground-muted)]">API Key Configured</span>
-        </div>
-        <button
-          onClick={handleUpdateKey}
-          className="btn-secondary text-xs py-2 px-4 whitespace-nowrap"
-        >
-          Update Key
-        </button>
-      </motion.div>
-    );
-  }
 
   return (
     <AnimatePresence>
-      {showModal && (
+      {open && (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-3 sm:p-4 md:p-6"
-          onClick={handleCloseModal}
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-md p-3 sm:p-4 md:p-6"
+          onClick={handleClose}
         >
           <motion.div
-            initial={{ y: 50, opacity: 0, scale: 0.95 }}
+            initial={{ y: 24, opacity: 0, scale: 0.98 }}
             animate={{ y: 0, opacity: 1, scale: 1 }}
-            exit={{ y: 50, opacity: 0, scale: 0.95 }}
+            exit={{ y: 24, opacity: 0, scale: 0.98 }}
+            transition={{ duration: 0.2 }}
             onClick={(e) => e.stopPropagation()}
-            className="glass-card p-6 sm:p-7 md:p-8 max-w-2xl w-full relative overflow-hidden max-h-[90vh] overflow-y-auto"
+            className="glass-card p-6 sm:p-7 max-w-lg w-full relative overflow-hidden max-h-[90vh] overflow-y-auto"
           >
+            <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-[var(--neon-cyan)] to-transparent" />
+
             {/* Close button */}
             <button
-              onClick={handleCloseModal}
-              className="absolute top-4 right-4 p-2 rounded-lg bg-[var(--background-elevated)] hover:bg-red-500/20 border border-white/10 hover:border-red-500/50 text-[var(--foreground-muted)] hover:text-red-400 transition-all z-10"
+              onClick={handleClose}
+              className="absolute top-4 right-4 p-1.5 rounded-lg border border-[var(--border)] text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:border-[var(--border-hover)] transition-colors z-10"
               aria-label="Close"
             >
-              <X size={20} />
+              <X size={18} />
             </button>
 
-            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-[var(--neon-cyan)] via-[var(--neon-purple)] to-[var(--neon-pink)]" />
-
-            <div className="flex items-center gap-2 sm:gap-3 mb-4 sm:mb-6 pr-12">
-              <div className="p-2 sm:p-3 rounded-xl bg-gradient-to-br from-[var(--neon-cyan)]/20 to-[var(--neon-purple)]/20 flex-shrink-0">
-                <Key className="text-[var(--neon-cyan)]" size={20} />
+            <div className="flex items-center gap-3 mb-5 pr-10">
+              <div className="p-2.5 rounded-xl border border-[var(--border)] bg-[var(--neon-cyan)]/10 flex-shrink-0">
+                <Key className="text-[var(--neon-cyan)]" size={18} />
               </div>
               <div className="min-w-0">
-                <h2 className="text-xl sm:text-2xl font-bold" style={{ fontFamily: 'Orbitron, monospace' }}>
-                  Configure API Key
+                <h2 className="display text-xl font-semibold text-[var(--foreground)]">
+                  {isSaved ? 'Update API key' : 'Add your API key'}
                 </h2>
-                <p className="text-xs sm:text-sm text-[var(--foreground-muted)]">
-                  Enter your Google AI Studio API key to generate images
+                <p className="text-sm text-[var(--foreground-muted)]">
+                  Connect your Google AI Studio key to generate images
                 </p>
               </div>
             </div>
 
-            <div className="mb-6 p-4 rounded-xl bg-blue-500/10 border border-blue-500/20">
-              <div className="flex gap-2 items-start">
-                <AlertCircle className="text-blue-400 flex-shrink-0 mt-0.5" size={18} />
-                <div className="text-sm text-blue-300">
-                  <p className="font-semibold mb-1">How to get your API key:</p>
-                  <ol className="list-decimal list-inside space-y-1 text-blue-200">
-                    <li>Visit <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" className="underline hover:text-[var(--neon-cyan)]">Google AI Studio</a></li>
-                    <li>Sign in with your Google account</li>
-                    <li>Create a new API key for Gemini</li>
-                    <li>Copy and paste it below</li>
-                  </ol>
-                </div>
-              </div>
+            <div className="mb-5 p-3.5 rounded-xl bg-[var(--surface)] border border-[var(--border)]">
+              <p className="eyebrow mb-2">How to get a key</p>
+              <ol className="list-decimal list-inside space-y-1 text-sm text-[var(--foreground-muted)]">
+                <li>
+                  Visit{' '}
+                  <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" className="text-[var(--neon-cyan)] hover:underline">
+                    Google AI Studio
+                  </a>
+                </li>
+                <li>Sign in and create a new Gemini API key</li>
+                <li>Copy and paste it below</li>
+              </ol>
             </div>
 
             <div className="space-y-4">
@@ -195,12 +156,10 @@ export default function ApiKeyConfig({ onApiKeySet }: ApiKeyConfigProps) {
                     setValidationError('');
                   }}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter' && apiKey.trim()) {
-                      handleSaveKey();
-                    }
+                    if (e.key === 'Enter' && apiKey.trim()) handleSaveKey();
                   }}
-                  placeholder="AIzaSy..."
-                  className="w-full pr-12"
+                  placeholder="AIzaSy…"
+                  className="w-full pr-11"
                   autoFocus
                   disabled={isValidating}
                 />
@@ -208,14 +167,15 @@ export default function ApiKeyConfig({ onApiKeySet }: ApiKeyConfigProps) {
                   onClick={() => setShowKey(!showKey)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--foreground-muted)] hover:text-[var(--neon-cyan)] transition-colors"
                   type="button"
+                  aria-label={showKey ? 'Hide key' : 'Show key'}
                 >
-                  {showKey ? <EyeOff size={20} /> : <Eye size={20} />}
+                  {showKey ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
 
               {validationError && (
                 <motion.div
-                  initial={{ opacity: 0, y: -10 }}
+                  initial={{ opacity: 0, y: -8 }}
                   animate={{ opacity: 1, y: 0 }}
                   className="text-sm text-red-400 p-3 rounded-lg bg-red-500/10 border border-red-500/30 flex items-start gap-2"
                 >
@@ -224,46 +184,32 @@ export default function ApiKeyConfig({ onApiKeySet }: ApiKeyConfigProps) {
                 </motion.div>
               )}
 
-              <div className="text-xs text-[var(--foreground-muted)] p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
-                <strong className="text-yellow-400">Security Note:</strong> Your API key is stored locally in your browser
-                and never sent to any server except Google's Gemini API.
-              </div>
+              <p className="text-xs text-[var(--foreground-subtle)] leading-relaxed">
+                Stored only in your browser&apos;s local storage — never sent anywhere except Google&apos;s Gemini API.
+              </p>
 
-              <div className="flex gap-3">
+              <div className="flex gap-3 pt-1">
                 <button
                   onClick={handleSaveKey}
                   disabled={!apiKey.trim() || isValidating}
-                  className="btn-primary flex-1 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="btn-primary flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isValidating ? (
                     <>
-                      <Loader2 size={20} className="animate-spin" />
-                      Validating...
+                      <Loader2 size={18} className="animate-spin" />
+                      Validating…
                     </>
                   ) : (
                     <>
-                      <Save size={20} />
-                      Save & Continue
+                      <Save size={18} />
+                      Save &amp; continue
                     </>
                   )}
                 </button>
-                {!isSaved && (
-                  <button
-                    onClick={handleSkip}
-                    className="btn-secondary px-6"
-                    disabled={isValidating}
-                  >
-                    Skip for Now
-                  </button>
-                )}
+                <button onClick={handleClose} className="btn-secondary" disabled={isValidating}>
+                  {isSaved ? 'Cancel' : 'Skip for now'}
+                </button>
               </div>
-            </div>
-
-            <div className="mt-6 pt-6 border-t border-white/10 text-center">
-              <p className="text-xs text-[var(--foreground-muted)]">
-                Created by <a href="https://yuv.ai" target="_blank" rel="noopener noreferrer" className="text-[var(--neon-cyan)] hover:underline">Yuval Avidani</a> •
-                <a href="https://linktr.ee/yuvai" target="_blank" rel="noopener noreferrer" className="text-[var(--neon-purple)] hover:underline ml-1">@yuvalav</a>
-              </p>
             </div>
           </motion.div>
         </motion.div>

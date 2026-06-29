@@ -1,47 +1,57 @@
-@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Space+Mono:wght@400;700&family=Syne:wght@400;500;600;700;800&display=swap');
 @import "tailwindcss";
 
 :root {
-  /* Cyber-Creative Theme - Dark Base */
-  --background: #0a0a0f;
-  --background-elevated: #12121a;
-  --background-glass: rgba(18, 18, 26, 0.7);
-  --foreground: #f0f0ff;
-  --foreground-muted: #a0a0b8;
+  /* Base surfaces — near-black with subtle, precise elevation (Linear/Vercel) */
+  --background: #08080b;
+  --background-elevated: #0e0e13;
+  --surface: rgba(255, 255, 255, 0.02);
+  --surface-hover: rgba(255, 255, 255, 0.045);
+  --foreground: #ededf2;
+  --foreground-muted: #8b8b99;
+  --foreground-subtle: #56565f;
 
-  /* Neon Accents */
+  /* Neon accents — unchanged palette, spent sparingly */
   --neon-cyan: #00fff9;
   --neon-purple: #bd00ff;
   --neon-pink: #ff006e;
   --banana-yellow: #ffed4e;
   --electric-blue: #0066ff;
 
-  /* Gradients */
+  /* Hairline borders */
+  --border: rgba(255, 255, 255, 0.08);
+  --border-hover: rgba(255, 255, 255, 0.16);
+
+  /* Gradients (kept for accents) */
   --gradient-primary: linear-gradient(135deg, var(--neon-cyan) 0%, var(--neon-purple) 50%, var(--neon-pink) 100%);
-  --gradient-secondary: linear-gradient(135deg, var(--electric-blue) 0%, var(--neon-cyan) 100%);
   --gradient-accent: linear-gradient(135deg, var(--banana-yellow) 0%, #ff8c42 100%);
 
-  /* Shadows & Glows */
-  --glow-cyan: 0 0 20px rgba(0, 255, 249, 0.5), 0 0 40px rgba(0, 255, 249, 0.3);
-  --glow-purple: 0 0 20px rgba(189, 0, 255, 0.5), 0 0 40px rgba(189, 0, 255, 0.3);
-  --glow-yellow: 0 0 20px rgba(255, 237, 78, 0.5), 0 0 40px rgba(255, 237, 78, 0.3);
+  /* Restrained shadows + a single subtle accent glow */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 8px 30px -12px rgba(0, 0, 0, 0.7);
+  --glow-cyan: 0 0 0 1px rgba(0, 255, 249, 0.35), 0 0 28px -6px rgba(0, 255, 249, 0.45);
 
-  /* Borders */
-  --border-glass: 1px solid rgba(255, 255, 255, 0.1);
-  --border-neon: 2px solid var(--neon-cyan);
+  --radius: 14px;
+  --radius-sm: 9px;
+
+  /* Back-compat aliases so older components map onto the refined system */
+  --background-glass: rgba(255, 255, 255, 0.03);
+  --border-glass: 1px solid var(--border);
+  --border-neon: 1px solid var(--neon-cyan);
+  --gradient-secondary: linear-gradient(135deg, var(--electric-blue), var(--neon-cyan));
+  --glow-purple: 0 0 0 1px rgba(189, 0, 255, 0.35), 0 0 28px -6px rgba(189, 0, 255, 0.45);
+  --glow-yellow: 0 0 0 1px rgba(255, 237, 78, 0.35), 0 0 28px -6px rgba(255, 237, 78, 0.45);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-display: "Orbitron", "Space Mono", monospace;
-  --font-body: "Syne", sans-serif;
-  --font-mono: "Space Mono", monospace;
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-display: var(--font-geist-sans);
 }
 
-/* Keep the reset in Tailwind's base layer so utility classes
-   (mx-auto, px-*, mt-*, etc.) still override it. Unlayered rules
-   would otherwise beat layered Tailwind utilities regardless of specificity. */
+/* Reset stays in the base layer so Tailwind utilities (mx-auto, px-*, mt-*)
+   are never overridden by an unlayered rule. */
 @layer base {
   * {
     box-sizing: border-box;
@@ -53,245 +63,230 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: "Syne", sans-serif;
-  overflow-x: hidden;
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  letter-spacing: -0.011em;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   position: relative;
+  overflow-x: hidden;
 }
 
-/* Animated Background Grid */
+/* Ambient atmosphere — a subtle static grid + a single soft top glow.
+   No pulsing, no heavy blur orbs: the calm Linear/Vercel canvas. */
 body::before {
   content: '';
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-image:
-    linear-gradient(rgba(0, 255, 249, 0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0, 255, 249, 0.03) 1px, transparent 1px);
-  background-size: 50px 50px;
-  pointer-events: none;
+  inset: 0;
   z-index: 0;
-  animation: gridMove 20s linear infinite;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.022) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.022) 1px, transparent 1px);
+  background-size: 56px 56px;
+  -webkit-mask-image: radial-gradient(ellipse 90% 60% at 50% 0%, #000 30%, transparent 75%);
+  mask-image: radial-gradient(ellipse 90% 60% at 50% 0%, #000 30%, transparent 75%);
 }
 
-@keyframes gridMove {
-  0% {
-    transform: translate(0, 0);
-  }
-
-  100% {
-    transform: translate(50px, 50px);
-  }
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(60% 50% at 50% -8%, rgba(0, 255, 249, 0.10), transparent 60%),
+    radial-gradient(50% 45% at 85% 5%, rgba(189, 0, 255, 0.08), transparent 60%);
 }
 
-/* Glassmorphism Card - Enhanced with Premium Spacing */
+/* Surface card — hairline border, calm fill, gradient hairline at the top edge.
+   Hover brightens the border and lifts a touch (no loud glow). */
 .glass-card {
-  background: var(--background-glass);
-  backdrop-filter: blur(20px);
-  border: var(--border-glass);
-  border-radius: 28px;
-  box-shadow:
-    0 10px 40px rgba(0, 0, 0, 0.4),
-    0 2px 8px rgba(0, 0, 0, 0.2),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1);
-  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-md);
+  transition: border-color 0.2s ease, background 0.2s ease, transform 0.2s ease;
 }
 
 .glass-card:hover {
-  border-color: rgba(0, 255, 249, 0.4);
-  box-shadow:
-    0 20px 60px rgba(0, 0, 0, 0.5),
-    var(--glow-cyan),
-    inset 0 1px 0 rgba(255, 255, 255, 0.2);
-  transform: translateY(-4px);
+  border-color: var(--border-hover);
+  background: var(--surface-hover);
 }
 
-/* Neon Text Glow */
-.neon-text {
-  text-shadow:
-    0 0 10px currentColor,
-    0 0 20px currentColor,
-    0 0 30px currentColor;
+/* Refined display headings: clean Geist, tight tracking, optional gradient ink */
+.display {
+  font-family: var(--font-geist-sans), sans-serif;
+  letter-spacing: -0.035em;
+  line-height: 1.02;
 }
 
-/* Custom Scrollbar */
-::-webkit-scrollbar {
-  width: 12px;
-}
-
-::-webkit-scrollbar-track {
-  background: var(--background-elevated);
-}
-
-::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, var(--neon-cyan), var(--neon-purple));
-  border-radius: 6px;
-  border: 2px solid var(--background-elevated);
-}
-
-::-webkit-scrollbar-thumb:hover {
-  box-shadow: var(--glow-cyan);
-}
-
-/* Smooth Animations */
-@keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(30px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes scaleIn {
-  from {
-    opacity: 0;
-    transform: scale(0.9);
-  }
-
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-@keyframes glowPulse {
-
-  0%,
-  100% {
-    filter: brightness(1) drop-shadow(0 0 10px currentColor);
-  }
-
-  50% {
-    filter: brightness(1.2) drop-shadow(0 0 20px currentColor);
-  }
-}
-
-.animate-fade-in-up {
-  animation: fadeInUp 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-}
-
-.animate-scale-in {
-  animation: scaleIn 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-}
-
-.animate-glow-pulse {
-  animation: glowPulse 2s ease-in-out infinite;
-}
-
-/* Button Styles */
-.btn-primary {
+.gradient-text {
   background: var(--gradient-primary);
-  color: white;
-  font-weight: 600;
-  padding: 14px 32px;
-  border-radius: 12px;
-  border: none;
-  cursor: pointer;
-  font-family: "Orbitron", monospace;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* A single, restrained glow for the rare element that earns it */
+.neon-text {
+  text-shadow: 0 0 24px rgba(0, 255, 249, 0.25);
+}
+
+/* Eyebrow / micro-label — the Linear/Vercel uppercase mono tag */
+.eyebrow {
+  font-family: var(--font-geist-mono), monospace;
   text-transform: uppercase;
-  letter-spacing: 1px;
-  position: relative;
-  overflow: hidden;
-  transition: all 0.3s ease;
+  letter-spacing: 0.2em;
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: var(--foreground-muted);
 }
 
-.btn-primary::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
-  transition: left 0.5s ease;
+/* Small bordered pill */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--foreground-muted);
 }
 
-.btn-primary:hover::before {
-  left: 100%;
+/* Buttons — crisp, defined, no shimmer/uppercase/Orbitron */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  background: var(--neon-cyan);
+  color: #04141a;
+  font-weight: 600;
+  font-family: var(--font-geist-sans), sans-serif;
+  padding: 0.65rem 1.25rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: filter 0.2s ease, box-shadow 0.2s ease, transform 0.1s ease;
 }
 
 .btn-primary:hover {
-  transform: translateY(-2px);
+  filter: brightness(1.08);
   box-shadow: var(--glow-cyan);
+}
+
+.btn-primary:active {
+  transform: translateY(1px);
 }
 
 .btn-secondary {
-  background: rgba(0, 255, 249, 0.1);
-  color: var(--neon-cyan);
-  border: 2px solid var(--neon-cyan);
-  font-weight: 600;
-  padding: 12px 28px;
-  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  background: var(--surface);
+  color: var(--foreground);
+  border: 1px solid var(--border);
+  font-weight: 500;
+  font-family: var(--font-geist-sans), sans-serif;
+  padding: 0.6rem 1.1rem;
+  border-radius: var(--radius-sm);
   cursor: pointer;
-  font-family: "Orbitron", monospace;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  transition: all 0.3s ease;
+  transition: border-color 0.2s ease, background 0.2s ease;
 }
 
 .btn-secondary:hover {
-  background: rgba(0, 255, 249, 0.2);
-  box-shadow: var(--glow-cyan);
-  transform: translateY(-2px);
+  background: var(--surface-hover);
+  border-color: var(--border-hover);
 }
 
-/* Input Styles */
+/* Inputs — hairline border, calm focus ring in cyan */
 input,
 textarea,
 select {
-  background: rgba(18, 18, 26, 0.8);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--background-elevated);
+  border: 1px solid var(--border);
   color: var(--foreground);
-  padding: 12px 16px;
-  border-radius: 12px;
-  font-family: "Syne", sans-serif;
-  transition: all 0.3s ease;
+  padding: 0.6rem 0.85rem;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-geist-sans), sans-serif;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 input:focus,
 textarea:focus,
 select:focus {
   outline: none;
-  border-color: var(--neon-cyan);
-  box-shadow: 0 0 0 3px rgba(0, 255, 249, 0.1), var(--glow-cyan);
+  border-color: rgba(0, 255, 249, 0.6);
+  box-shadow: 0 0 0 3px rgba(0, 255, 249, 0.12);
 }
 
 input::placeholder,
 textarea::placeholder {
-  color: var(--foreground-muted);
+  color: var(--foreground-subtle);
 }
 
-/* Loading Animation */
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
+/* Thin, subtle scrollbar */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
 }
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.22);
+  background-clip: padding-box;
+}
+
+/* Animations */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(24px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes glowPulse {
+  0%, 100% { opacity: 0.85; }
+  50% { opacity: 1; }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.animate-fade-in-up { animation: fadeInUp 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+.animate-scale-in { animation: scaleIn 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+.animate-glow-pulse { animation: glowPulse 2.4s ease-in-out infinite; }
 
 .loading-spinner {
-  width: 40px;
-  height: 40px;
+  width: 38px;
+  height: 38px;
   border: 3px solid rgba(0, 255, 249, 0.2);
   border-top-color: var(--neon-cyan);
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
 
-/* Image Gallery Grid */
 .image-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 24px;
-  padding: 24px;
-}
-
-@media (max-width: 768px) {
-  .image-grid {
-    grid-template-columns: 1fr;
-  }
+  gap: 20px;
+  padding: 20px;
 }

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Sparkles } from 'lucide-react';
+import { Key, Check } from 'lucide-react';
 import ApiKeyConfig from '@/components/ApiKeyConfig';
 import FeatureSelector from '@/components/FeatureSelector';
 import GenerationInterface from '@/components/GenerationInterface';
@@ -11,43 +11,63 @@ import { Feature } from '@/types';
 export default function Home() {
   const [apiKey, setApiKey] = useState<string>('');
   const [selectedFeature, setSelectedFeature] = useState<Feature | null>(null);
+  const [keyDialogOpen, setKeyDialogOpen] = useState(false);
 
   return (
     <div className="min-h-screen relative w-full overflow-x-hidden">
-      {/* Animated gradient orbs */}
-      <div className="fixed top-20 right-20 w-96 h-96 bg-[var(--neon-cyan)] rounded-full blur-[150px] opacity-20 animate-pulse pointer-events-none" />
-      <div className="fixed bottom-20 left-20 w-96 h-96 bg-[var(--neon-purple)] rounded-full blur-[150px] opacity-20 animate-pulse pointer-events-none" style={{ animationDelay: '1s' }} />
-
-      {/* Header */}
-      <header className="relative z-10 border-b border-white/10">
-        <div className="w-full max-w-7xl mx-auto px-6 sm:px-8 md:px-12 lg:px-16 py-5 md:py-7">
-          <div className="flex items-center justify-center gap-4">
+      {/* Header — sticky, hairline border, backdrop blur (Linear/Vercel nav) */}
+      <header className="sticky top-0 z-50 border-b border-[var(--border)] bg-[rgba(8,8,11,0.72)] backdrop-blur-xl">
+        <div className="w-full max-w-7xl mx-auto px-6 sm:px-8 md:px-12 lg:px-16 py-3.5 md:py-4">
+          <div className="flex items-center justify-between gap-4">
             <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              className="flex items-center gap-2 sm:gap-4 min-w-0"
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex items-center gap-2.5 min-w-0"
             >
-              <div className="relative flex-shrink-0">
-                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-gradient-to-br from-[var(--banana-yellow)] to-orange-500 flex items-center justify-center text-xl sm:text-2xl animate-glow-pulse">
-                  🍌
-                </div>
+              <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-gradient-to-br from-[var(--banana-yellow)] to-orange-500 flex items-center justify-center text-base sm:text-lg flex-shrink-0 shadow-[0_2px_12px_-2px_rgba(255,237,78,0.4)]">
+                🍌
               </div>
-              <div className="min-w-0 flex-1">
-                <h1 className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold neon-text truncate" style={{ fontFamily: 'Orbitron, monospace', color: 'var(--neon-cyan)' }}>
-                  YUV.AI Nano Banana Pro
+              <div className="min-w-0 flex items-center gap-2.5">
+                <h1 className="display text-base sm:text-lg font-semibold text-[var(--foreground)] truncate">
+                  Nano Banana Pro
                 </h1>
-                <p className="text-xs sm:text-sm text-[var(--foreground-muted)] hidden sm:block">
-                  Powered by Google Gemini Image Generation
-                </p>
+                <span className="hidden md:inline-block h-3.5 w-px bg-[var(--border-hover)]" />
+                <span className="hidden md:inline eyebrow">Gemini Image Studio</span>
               </div>
             </motion.div>
 
+            <motion.button
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.05 }}
+              onClick={() => setKeyDialogOpen(true)}
+              className={`${apiKey ? 'btn-secondary' : 'btn-primary'} text-sm flex-shrink-0`}
+              title={apiKey ? 'Update your API key' : 'Add your Gemini API key'}
+            >
+              {apiKey ? (
+                <>
+                  <Check size={15} className="text-emerald-400" />
+                  <span className="hidden sm:inline">API&nbsp;Key</span>
+                  <span className="sm:hidden">Key</span>
+                </>
+              ) : (
+                <>
+                  <Key size={15} />
+                  <span className="hidden sm:inline">Add&nbsp;API&nbsp;Key</span>
+                  <span className="sm:hidden">Add&nbsp;Key</span>
+                </>
+              )}
+            </motion.button>
           </div>
         </div>
       </header>
 
-      {/* API Key Configuration */}
-      <ApiKeyConfig onApiKeySet={setApiKey} />
+      {/* API Key dialog (controlled by the header CTA) */}
+      <ApiKeyConfig
+        onApiKeySet={setApiKey}
+        open={keyDialogOpen}
+        onOpenChange={setKeyDialogOpen}
+      />
 
       {/* Main Content */}
       <main className="relative z-10 w-full max-w-7xl mx-auto px-6 sm:px-8 md:px-12 lg:px-16 py-6 sm:py-8 md:py-10">
@@ -61,59 +81,54 @@ export default function Home() {
               {/* Hero Section */}
               <div className="text-center space-y-5 sm:space-y-6 md:space-y-8 py-4 sm:py-6 md:py-8">
                 <motion.div
-                  initial={{ opacity: 0, y: 20 }}
+                  initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.2 }}
-                  className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-gradient-to-r from-[var(--neon-cyan)]/20 to-[var(--neon-purple)]/20 border border-[var(--neon-cyan)]/30 text-sm font-semibold text-[var(--neon-cyan)]"
+                  transition={{ delay: 0.05 }}
+                  className="pill"
                 >
-                  <Sparkles size={16} className="animate-glow-pulse" />
-                  Professional AI Image Generation Platform
+                  <span className="w-1.5 h-1.5 rounded-full bg-[var(--neon-cyan)]" />
+                  Professional AI Image Generation
                 </motion.div>
 
                 <motion.h2
-                  initial={{ opacity: 0, y: 20 }}
+                  initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.3 }}
-                  className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl xl:text-8xl font-bold leading-tight px-4"
-                  style={{ fontFamily: 'Orbitron, monospace' }}
+                  transition={{ delay: 0.12 }}
+                  className="display text-5xl sm:text-6xl md:text-7xl lg:text-[5.5rem] font-semibold px-4"
                 >
-                  <span className="text-transparent bg-clip-text bg-gradient-to-r from-[var(--neon-cyan)] via-[var(--neon-purple)] to-[var(--neon-pink)]">
-                    Create Stunning Images
-                  </span>
+                  <span className="gradient-text">Create stunning images</span>
                   <br />
-                  <span className="text-[var(--foreground)]">
-                    with AI Power
-                  </span>
+                  <span className="text-[var(--foreground)]">with AI power</span>
                 </motion.h2>
 
                 <motion.p
-                  initial={{ opacity: 0, y: 20 }}
+                  initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.4 }}
-                  className="text-lg sm:text-xl md:text-2xl text-[var(--foreground-muted)] max-w-4xl mx-auto px-4 leading-relaxed"
+                  transition={{ delay: 0.2 }}
+                  className="text-base sm:text-lg text-[var(--foreground-muted)] max-w-2xl mx-auto px-4 leading-relaxed"
                 >
-                  Harness the full power of Google's Gemini AI to generate, edit, and transform images
-                  with unprecedented quality and control. From text-to-image to viral social media thumbnails.
+                  Harness Google's Gemini to generate, edit, and transform images with
+                  precise control — from text-to-image to viral social thumbnails.
                 </motion.p>
 
                 <motion.div
-                  initial={{ opacity: 0, y: 20 }}
+                  initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.5 }}
-                  className="flex flex-wrap gap-4 sm:gap-6 justify-center pt-2"
+                  transition={{ delay: 0.28 }}
+                  className="flex flex-wrap gap-2.5 justify-center pt-1"
                 >
-                  <div className="glass-card px-8 sm:px-10 py-4 sm:py-5 flex items-center gap-3 shadow-lg">
-                    <span className="w-3 h-3 rounded-full bg-green-400 animate-pulse" />
-                    <span className="text-base sm:text-lg font-semibold">Gemini 2.5 Flash</span>
-                  </div>
-                  <div className="glass-card px-8 sm:px-10 py-4 sm:py-5 flex items-center gap-3 shadow-lg">
-                    <span className="w-3 h-3 rounded-full bg-purple-400 animate-pulse" />
-                    <span className="text-base sm:text-lg font-semibold">Gemini 3 Pro</span>
-                  </div>
-                  <div className="glass-card px-8 sm:px-10 py-4 sm:py-5 flex items-center gap-3 shadow-lg">
-                    <span className="w-3 h-3 rounded-full bg-yellow-400 animate-pulse" />
-                    <span className="text-base sm:text-lg font-semibold">Up to 4K Quality</span>
-                  </div>
+                  <span className="pill">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                    Gemini 2.5 Flash
+                  </span>
+                  <span className="pill">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[var(--neon-purple)]" />
+                    Gemini 3 Pro
+                  </span>
+                  <span className="pill">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[var(--banana-yellow)]" />
+                    Up to 4K Quality
+                  </span>
                 </motion.div>
               </div>
 
@@ -139,20 +154,19 @@ export default function Home() {
           <div className="flex flex-col items-center justify-center gap-6 sm:gap-8 text-center">
             <div className="text-center space-y-2">
               <p className="text-sm sm:text-base text-[var(--foreground-muted)]">
-                Created with <span className="text-[var(--neon-pink)] animate-pulse">💜</span> by{' '}
+                Based on the original{' '}
                 <a
-                  href="https://yuv.ai"
+                  href="https://github.com/hoodini/nano-banana-ui"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-[var(--neon-cyan)] hover:text-[var(--neon-purple)] font-bold transition-colors hover:underline"
                 >
-                  Yuval Avidani
+                  Nano Banana UI
                 </a>
+                {' '}by Yuval Avidani
               </p>
               <p className="text-xs sm:text-sm text-[var(--foreground-muted)]">
-                <span className="font-semibold text-[var(--banana-yellow)]">Founder of YUV.AI</span> •
-                <a href="https://x.com/yuvalav" target="_blank" rel="noopener noreferrer" className="hover:text-[var(--neon-cyan)] transition-colors"> @yuvalav</a> •
-                <a href="https://instagram.com/yuval_770" target="_blank" rel="noopener noreferrer" className="hover:text-[var(--neon-pink)] transition-colors"> @yuval_770</a>
+                A significantly reworked fork — not affiliated with or endorsed by the original author
               </p>
             </div>
 

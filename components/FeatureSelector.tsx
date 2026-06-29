@@ -15,24 +15,25 @@ export default function FeatureSelector({ selectedFeature, onFeatureSelect }: Fe
     show: {
       opacity: 1,
       transition: {
-        staggerChildren: 0.1,
+        staggerChildren: 0.06,
       },
     },
   };
 
   const itemVariants = {
-    hidden: { opacity: 0, y: 20 },
+    hidden: { opacity: 0, y: 16 },
     show: { opacity: 1, y: 0 },
   };
 
   return (
     <div className="w-full space-y-8 sm:space-y-10">
-      <div className="text-center space-y-4 max-w-4xl mx-auto">
-        <h2 className="text-4xl sm:text-5xl md:text-6xl font-bold neon-text" style={{ fontFamily: 'Orbitron, monospace', color: 'var(--neon-cyan)' }}>
-          Choose Your Feature
+      <div className="text-center space-y-3 max-w-2xl mx-auto">
+        <p className="eyebrow">Capabilities</p>
+        <h2 className="display text-3xl sm:text-4xl md:text-5xl font-semibold text-[var(--foreground)]">
+          Choose your feature
         </h2>
-        <p className="text-lg sm:text-xl md:text-2xl text-[var(--foreground-muted)] leading-relaxed">
-          Select from powerful AI image generation and editing capabilities powered by Google Gemini
+        <p className="text-base sm:text-lg text-[var(--foreground-muted)] leading-relaxed">
+          Powerful AI image generation and editing modes, powered by Google Gemini.
         </p>
       </div>
 
@@ -40,7 +41,7 @@ export default function FeatureSelector({ selectedFeature, onFeatureSelect }: Fe
         variants={containerVariants}
         initial="hidden"
         animate="show"
-        className="w-full grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 sm:gap-7 md:gap-8"
+        className="w-full grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 sm:gap-6"
       >
         {FEATURES.map((feature) => {
           const isSelected = selectedFeature?.id === feature.id;
@@ -51,69 +52,65 @@ export default function FeatureSelector({ selectedFeature, onFeatureSelect }: Fe
               key={feature.id}
               variants={itemVariants}
               onClick={() => onFeatureSelect(feature)}
-              className={`glass-card p-8 sm:p-9 md:p-10 text-left relative overflow-hidden group cursor-pointer transition-all duration-300 hover:scale-[1.02] ${isSelected ? 'ring-2 ring-[var(--neon-cyan)] shadow-[var(--glow-cyan)]' : ''
-                }`}
-              whileHover={{ y: -8 }}
-              whileTap={{ scale: 0.98 }}
+              className={`glass-card p-5 sm:p-6 text-left relative overflow-hidden group cursor-pointer ${
+                isSelected ? 'border-[var(--neon-cyan)]/60 shadow-[var(--glow-cyan)]' : ''
+              }`}
+              whileHover={{ y: -4 }}
+              whileTap={{ scale: 0.99 }}
             >
-              {/* Background gradient overlay */}
-              <div
-                className={`absolute inset-0 opacity-0 group-hover:opacity-10 transition-opacity duration-300 ${isSpecial
-                    ? 'bg-gradient-to-br from-yellow-400 to-orange-500'
-                    : 'bg-gradient-to-br from-cyan-400 to-purple-600'
+              {/* Badges row */}
+              <div className="flex items-center justify-between gap-2">
+                <span
+                  className={`inline-flex items-center gap-1.5 text-[0.7rem] font-medium px-2.5 py-1 rounded-full border ${
+                    feature.modelType === 'pro'
+                      ? 'border-[var(--neon-purple)]/40 text-[var(--neon-purple)] bg-[var(--neon-purple)]/10'
+                      : 'border-[var(--neon-cyan)]/40 text-[var(--neon-cyan)] bg-[var(--neon-cyan)]/10'
                   }`}
-              />
+                >
+                  <Zap size={12} />
+                  {feature.modelType === 'pro' ? 'Gemini 3 Pro' : 'Flash 2.5'}
+                </span>
 
-              {/* Special badge */}
-              {isSpecial && (
-                <div className="absolute top-6 right-6 sm:top-7 sm:right-7 bg-gradient-to-r from-[var(--banana-yellow)] to-orange-500 text-black text-xs sm:text-sm font-bold px-4 py-2 sm:px-5 sm:py-2.5 rounded-full flex items-center gap-2 animate-glow-pulse shadow-lg">
-                  <Sparkles size={16} className="sm:w-4 sm:h-4" />
-                  <span>SPECIAL</span>
-                </div>
-              )}
-
-              {/* Model badge */}
-              <div className={`absolute top-6 left-6 sm:top-7 sm:left-7 text-xs sm:text-sm font-bold px-4 py-2 sm:px-5 sm:py-2.5 rounded-full flex items-center gap-2 shadow-lg ${feature.modelType === 'pro'
-                  ? 'bg-gradient-to-r from-[var(--neon-purple)] to-[var(--neon-pink)] text-white'
-                  : 'bg-[var(--neon-cyan)]/20 text-[var(--neon-cyan)] border-2 border-[var(--neon-cyan)]/50'
-                }`}>
-                <Zap size={16} className="sm:w-4 sm:h-4" />
-                {feature.modelType === 'pro' ? 'Gemini 3 Pro' : 'Flash 2.5'}
+                {isSpecial && (
+                  <span className="inline-flex items-center gap-1.5 text-[0.7rem] font-semibold px-2.5 py-1 rounded-full bg-[var(--banana-yellow)] text-black">
+                    <Sparkles size={12} />
+                    Special
+                  </span>
+                )}
               </div>
 
-              {/* Thumbnail image */}
-              <div className="mt-16 sm:mt-18 mb-6 sm:mb-7 aspect-video rounded-2xl bg-gradient-to-br from-[var(--background-elevated)] to-[var(--background)] border-2 border-white/10 relative overflow-hidden shadow-2xl">
-                {/* Animated gradient background */}
-                <div className="absolute inset-0 bg-gradient-to-br from-[var(--neon-cyan)]/5 to-[var(--neon-purple)]/5 animate-pulse" />
-
+              {/* Thumbnail */}
+              <div className="mt-4 mb-5 aspect-video rounded-xl bg-[var(--background-elevated)] border border-[var(--border)] relative overflow-hidden">
                 <img
                   src={feature.thumbnail}
                   alt={feature.name}
-                  className="w-full h-full object-cover relative z-10"
+                  className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
                   loading="lazy"
                 />
               </div>
 
-              <div className="relative z-10 space-y-4 sm:space-y-5">
-                <h3 className="text-xl sm:text-2xl md:text-3xl font-bold text-[var(--foreground)]" style={{ fontFamily: 'Orbitron, monospace' }}>
+              <div className="space-y-2.5">
+                <h3 className="display text-lg sm:text-xl font-semibold text-[var(--foreground)]">
                   {feature.name}
                 </h3>
-                <p className="text-base sm:text-lg text-[var(--foreground-muted)] line-clamp-3 leading-relaxed">
+                <p className="text-sm sm:text-[0.95rem] text-[var(--foreground-muted)] line-clamp-3 leading-relaxed">
                   {feature.description}
                 </p>
 
-                <div className="flex flex-wrap gap-2 sm:gap-2.5 pt-2 sm:pt-3">
-                  {feature.requiresImage && (
-                    <span className="text-xs px-3 py-1.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30">
-                      Requires Image{feature.requiresMultipleImages ? 's' : ''}
-                    </span>
-                  )}
-                  {feature.maxImages && (
-                    <span className="text-xs px-3 py-1.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30">
-                      Up to {feature.maxImages} images
-                    </span>
-                  )}
-                </div>
+                {(feature.requiresImage || feature.maxImages) && (
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    {feature.requiresImage && (
+                      <span className="text-[0.7rem] px-2.5 py-1 rounded-full border border-[var(--border)] text-[var(--foreground-muted)]">
+                        Requires Image{feature.requiresMultipleImages ? 's' : ''}
+                      </span>
+                    )}
+                    {feature.maxImages && (
+                      <span className="text-[0.7rem] px-2.5 py-1 rounded-full border border-[var(--border)] text-[var(--foreground-muted)]">
+                        Up to {feature.maxImages} images
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Selection indicator */}
@@ -121,9 +118,9 @@ export default function FeatureSelector({ selectedFeature, onFeatureSelect }: Fe
                 <motion.div
                   initial={{ scale: 0 }}
                   animate={{ scale: 1 }}
-                  className="absolute bottom-4 right-4 w-8 h-8 rounded-full bg-[var(--neon-cyan)] flex items-center justify-center"
+                  className="absolute bottom-4 right-4 w-7 h-7 rounded-full bg-[var(--neon-cyan)] flex items-center justify-center"
                 >
-                  <svg className="w-5 h-5 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <svg className="w-4 h-4 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                   </svg>
                 </motion.div>
