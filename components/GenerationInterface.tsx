@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useMutation } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -14,6 +14,7 @@ import {
   Download,
   ImagePlus,
   Info,
+  Maximize2,
   Sparkles,
 } from 'lucide-react';
 
@@ -32,6 +33,7 @@ export default function GenerationInterface({ feature, apiKey, onBack }: Generat
     useGoogleSearch: false,
   });
   const [error, setError] = useState<string | null>(null);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -151,6 +153,16 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
   // 4K ≈ 2000 tokens (~$0.24); each uploaded input image ≈ 560 tokens (~$0.0011).
   const OUTPUT_COST: Record<string, number> = { '1K': 0.134, '2K': 0.134, '4K': 0.24 };
   const estCost = (OUTPUT_COST[config.imageSize ?? '1K'] ?? 0.134) + images.length * 0.0011;
+
+  // Close the full-screen lightbox on Escape.
+  useEffect(() => {
+    if (!lightboxOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setLightboxOpen(false);
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [lightboxOpen]);
 
   const handleGenerate = () => {
     if (!prompt.trim() && feature.id !== 'image-editing') {
@@ -471,13 +483,21 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
               <motion.div
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="relative w-full h-full"
+                className="relative w-full h-full group/img"
               >
                 <img
                   src={generatedImage}
                   alt="Generated"
-                  className="w-full h-full object-contain"
+                  onClick={() => setLightboxOpen(true)}
+                  className="w-full h-full object-contain cursor-zoom-in"
                 />
+                <button
+                  onClick={() => setLightboxOpen(true)}
+                  aria-label="View full screen"
+                  className="absolute top-3 right-3 p-2 rounded-lg bg-black/55 backdrop-blur border border-white/10 text-white/80 hover:text-white opacity-0 group-hover/img:opacity-100 transition-opacity"
+                >
+                  <Maximize2 size={16} />
+                </button>
               </motion.div>
             )}
           </div>
@@ -495,6 +515,47 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
           )}
         </motion.div>
       </div>
+
+      {/* Full-screen lightbox for the generated image */}
+      <AnimatePresence>
+        {lightboxOpen && generatedImage && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setLightboxOpen(false)}
+            className="fixed inset-0 z-[70] flex items-center justify-center bg-black/90 backdrop-blur-md p-4 sm:p-8"
+          >
+            <button
+              onClick={() => setLightboxOpen(false)}
+              aria-label="Close preview"
+              className="absolute top-4 right-4 p-2 rounded-lg border border-[var(--border)] text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:border-[var(--border-hover)] transition-colors"
+            >
+              <X size={22} />
+            </button>
+            <motion.img
+              initial={{ scale: 0.96, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.96, opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              src={generatedImage}
+              alt="Generated image, full size"
+              onClick={(e) => e.stopPropagation()}
+              className="max-w-full max-h-full object-contain rounded-xl shadow-2xl"
+            />
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                downloadImage();
+              }}
+              className="absolute bottom-5 left-1/2 -translate-x-1/2 btn-secondary flex items-center gap-2"
+            >
+              <Download size={18} />
+              Download
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
