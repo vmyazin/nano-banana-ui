@@ -2,6 +2,7 @@
 
 import { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useMutation } from '@tanstack/react-query';
 import { Feature, GenerationConfig } from '@/types';
 import {
   Upload,
@@ -28,8 +29,6 @@ export default function GenerationInterface({ feature, apiKey, onBack }: Generat
     imageSize: '2K',
     useGoogleSearch: false,
   });
-  const [generatedImage, setGeneratedImage] = useState<string | null>(null);
-  const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -56,23 +55,9 @@ export default function GenerationInterface({ feature, apiKey, onBack }: Generat
     setImages((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const handleGenerate = async () => {
-    if (!prompt.trim() && feature.id !== 'image-editing') {
-      setError('Please enter a prompt');
-      return;
-    }
-
-    if (feature.requiresImage && images.length === 0) {
-      setError('Please upload at least one image');
-      return;
-    }
-
-    setIsGenerating(true);
-    setError(null);
-    setGeneratedImage(null);
-
-    try {
-      // Prepare the prompt based on feature type
+  const generateMutation = useMutation({
+    mutationFn: async (): Promise<string> => {
+      // Tailor the prompt to the feature.
       let finalPrompt = prompt;
       if (feature.id === 'social-media-thumbnail') {
         finalPrompt = `Create a VIRAL YouTube/Social Media thumbnail with these elements:
@@ -87,7 +72,6 @@ User's custom requirements: ${prompt}
 
 Style: Photorealistic, professional thumbnail editing, viral content aesthetics`;
       } else if (feature.id === 'style-transfer') {
-        // For style transfer, enhance the prompt if images are provided
         if (images.length === 2) {
           finalPrompt = prompt || 'Apply the artistic style and aesthetic from the first image to the content and composition of the second image. Preserve the subject matter of the second image while adopting the color palette, brushstrokes, texture, and artistic techniques of the first image.';
         } else if (images.length === 1) {
@@ -97,12 +81,10 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
 
       const response = await fetch('/api/generate', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           prompt: finalPrompt,
-          images: images.map((img) => img.split(',')[1]), // Remove data:image/...;base64, prefix
+          images: images.map((img) => img.split(',')[1]), // strip data: prefix
           config,
           featureId: feature.id,
           apiKey,
@@ -112,20 +94,35 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
       const data = await response.json();
 
       if (data.success && data.imageData) {
-        setGeneratedImage(`data:image/png;base64,${data.imageData}`);
-      } else {
-        const errorMessage = data.error || 'Failed to generate image';
-        const debugInfo = data.debug ? ` (${data.debug})` : '';
-        const detailsInfo = data.details ? `\n\nDetails: ${data.details}` : '';
-        setError(errorMessage + debugInfo + detailsInfo);
-        console.error('Generation failed:', data);
+        return data.imageData as string;
       }
-    } catch (err) {
-      setError('An error occurred during generation: ' + (err instanceof Error ? err.message : String(err)));
-      console.error('Generation error:', err);
-    } finally {
-      setIsGenerating(false);
+
+      const debugInfo = data.debug ? ` (${data.debug})` : '';
+      const detailsInfo = data.details ? `\n\nDetails: ${data.details}` : '';
+      throw new Error((data.error || 'Failed to generate image') + debugInfo + detailsInfo);
+    },
+  });
+
+  // Derived view state from the mutation.
+  const isGenerating = generateMutation.isPending;
+  const generatedImage = generateMutation.isSuccess
+    ? `data:image/png;base64,${generateMutation.data}`
+    : null;
+  const displayError =
+    error ||
+    (generateMutation.error instanceof Error ? generateMutation.error.message : null);
+
+  const handleGenerate = () => {
+    if (!prompt.trim() && feature.id !== 'image-editing') {
+      setError('Please enter a prompt');
+      return;
     }
+    if (feature.requiresImage && images.length === 0) {
+      setError('Please upload at least one image');
+      return;
+    }
+    setError(null);
+    generateMutation.mutate();
   };
 
   const downloadImage = () => {
@@ -416,14 +413,14 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
 
           {/* Error Display */}
           <AnimatePresence>
-            {error && (
+            {displayError && (
               <motion.div
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
-                className="glass-card p-4 bg-red-500/10 border-red-500/30 text-red-300"
+                className="glass-card p-4 bg-red-500/10 border-red-500/30 text-red-300 whitespace-pre-wrap"
               >
-                {error}
+                {displayError}
               </motion.div>
             )}
           </AnimatePresence>
