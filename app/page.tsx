@@ -205,6 +205,7 @@ function Studio() {
                 feature={selectedFeature}
                 apiKey={apiKey}
                 onBack={clearFeature}
+                onOpenConnections={() => setKeyDialogOpen(true)}
               />
             </motion.div>
           )}

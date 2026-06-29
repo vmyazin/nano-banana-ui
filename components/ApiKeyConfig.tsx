@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Key, Save, Eye, EyeOff, AlertCircle, X, Loader2 } from 'lucide-react';
+import { Key, Eye, EyeOff, AlertCircle, X, Loader2, Cloud, Check } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAppStore } from '@/store/useAppStore';
 
@@ -14,14 +14,20 @@ interface ApiKeyConfigProps {
 export default function ApiKeyConfig({ open, onOpenChange }: ApiKeyConfigProps) {
   const savedKey = useAppStore((s) => s.apiKey);
   const setApiKey = useAppStore((s) => s.setApiKey);
-  const isSaved = !!savedKey;
+  // Cloudflare creds are saved live to the store (no validation round-trip).
+  const cfAccountId = useAppStore((s) => s.cfAccountId);
+  const cfToken = useAppStore((s) => s.cfToken);
+  const setCfAccountId = useAppStore((s) => s.setCfAccountId);
+  const setCfToken = useAppStore((s) => s.setCfToken);
+  const cfConnected = !!cfAccountId && !!cfToken;
 
   const [keyInput, setKeyInput] = useState('');
   const [showKey, setShowKey] = useState(false);
+  const [showCfToken, setShowCfToken] = useState(false);
   const [isValidating, setIsValidating] = useState(false);
   const [validationError, setValidationError] = useState('');
 
-  // Seed the input with the current key whenever the dialog opens.
+  // Seed the Gemini input with the current key whenever the dialog opens.
   useEffect(() => {
     if (open) {
       setKeyInput(savedKey);
@@ -30,9 +36,8 @@ export default function ApiKeyConfig({ open, onOpenChange }: ApiKeyConfigProps) 
   }, [open, savedKey]);
 
   const validateApiKey = async (key: string): Promise<boolean> => {
-    // Basic format validation for Google API keys
     if (!key.startsWith('AIza') || key.length < 39) {
-      setValidationError('Invalid API key format. Google API keys start with "AIza" and are at least 39 characters.');
+      setValidationError('Invalid key format. Google API keys start with "AIza" and are at least 39 characters.');
       return false;
     }
 
@@ -45,7 +50,6 @@ export default function ApiKeyConfig({ open, onOpenChange }: ApiKeyConfigProps) 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt: 'test', images: [], config: {}, apiKey: key }),
       });
-
       const data = await response.json();
 
       if (response.ok || data.error?.includes('image data')) {
@@ -55,35 +59,31 @@ export default function ApiKeyConfig({ open, onOpenChange }: ApiKeyConfigProps) 
         data.error?.toLowerCase().includes('invalid') ||
         data.details?.toLowerCase().includes('api_key_invalid')
       ) {
-        setValidationError('Invalid API key. Please check your key and try again.');
+        setValidationError('Invalid Gemini key. Please check it and try again.');
         return false;
       } else {
         return true;
       }
     } catch {
-      setValidationError('Could not validate API key. Please try again.');
+      setValidationError('Could not validate the Gemini key. Please try again.');
       return false;
     } finally {
       setIsValidating(false);
     }
   };
 
-  const handleSaveKey = async () => {
+  // Validate + save the Gemini key (if entered), then close. Cloudflare creds
+  // are already persisted as they're typed.
+  const handleSave = async () => {
     const trimmedKey = keyInput.trim();
-    if (!trimmedKey) {
-      setValidationError('Please enter an API key');
-      return;
-    }
-
-    const isValid = await validateApiKey(trimmedKey);
-
-    if (isValid) {
-      // The Zustand store persists the key to localStorage.
+    if (trimmedKey && trimmedKey !== savedKey) {
+      const isValid = await validateApiKey(trimmedKey);
+      if (!isValid) return; // keep the dialog open to show the error
       setApiKey(trimmedKey);
-      setValidationError('');
-      onOpenChange(false);
-      toast.success('API key saved');
+      toast.success('Gemini key saved');
     }
+    setValidationError('');
+    onOpenChange(false);
   };
 
   const handleClose = () => {
@@ -111,7 +111,6 @@ export default function ApiKeyConfig({ open, onOpenChange }: ApiKeyConfigProps) 
           >
             <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-[var(--neon-cyan)] to-transparent" />
 
-            {/* Close button */}
             <button
               onClick={handleClose}
               className="absolute top-4 right-4 p-1.5 rounded-lg border border-[var(--border)] text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:border-[var(--border-hover)] transition-colors z-10"
@@ -126,92 +125,128 @@ export default function ApiKeyConfig({ open, onOpenChange }: ApiKeyConfigProps) 
               </div>
               <div className="min-w-0">
                 <h2 className="display text-xl font-semibold text-[var(--foreground)]">
-                  {isSaved ? 'Update API key' : 'Add your API key'}
+                  API connections
                 </h2>
                 <p className="text-sm text-[var(--foreground-muted)]">
-                  Connect your Google AI Studio key to generate images
+                  Add a key for any engine — stored only in your browser
                 </p>
               </div>
             </div>
 
-            <div className="mb-5 p-3.5 rounded-xl bg-[var(--surface)] border border-[var(--border)]">
-              <p className="eyebrow mb-2">How to get a key</p>
-              <ol className="list-decimal list-inside space-y-1 text-sm text-[var(--foreground-muted)]">
-                <li>
-                  Visit{' '}
-                  <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" className="text-[var(--neon-cyan)] hover:underline">
-                    Google AI Studio
+            <div className="space-y-6">
+              {/* Google Gemini */}
+              <section className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="eyebrow">Google Gemini · all modes</p>
+                  <a
+                    href="https://aistudio.google.com/apikey"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-[var(--neon-cyan)] hover:underline"
+                  >
+                    Get a key →
                   </a>
-                </li>
-                <li>Sign in and create a new Gemini API key</li>
-                <li>Copy and paste it below</li>
-              </ol>
-            </div>
+                </div>
+                <div className="relative">
+                  <input
+                    type={showKey ? 'text' : 'password'}
+                    value={keyInput}
+                    onChange={(e) => {
+                      setKeyInput(e.target.value);
+                      setValidationError('');
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleSave();
+                    }}
+                    placeholder="AIzaSy…"
+                    className="w-full pr-11"
+                    disabled={isValidating}
+                  />
+                  <button
+                    onClick={() => setShowKey(!showKey)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--foreground-muted)] hover:text-[var(--neon-cyan)] transition-colors"
+                    type="button"
+                    aria-label={showKey ? 'Hide key' : 'Show key'}
+                  >
+                    {showKey ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+                {validationError && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="text-sm text-red-400 p-3 rounded-lg bg-red-500/10 border border-red-500/30 flex items-start gap-2"
+                  >
+                    <AlertCircle size={16} className="flex-shrink-0 mt-0.5" />
+                    <span>{validationError}</span>
+                  </motion.div>
+                )}
+              </section>
 
-            <div className="space-y-4">
-              <div className="relative">
+              {/* Cloudflare Workers AI */}
+              <section className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="eyebrow flex items-center gap-1.5">
+                    <Cloud size={13} /> Cloudflare · free, text-to-image
+                    {cfConnected && (
+                      <span className="inline-flex items-center gap-1 text-emerald-400 normal-case tracking-normal">
+                        <Check size={12} /> connected
+                      </span>
+                    )}
+                  </p>
+                  <a
+                    href="https://dash.cloudflare.com/profile/api-tokens"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-[var(--neon-cyan)] hover:underline"
+                  >
+                    Create a token →
+                  </a>
+                </div>
                 <input
-                  type={showKey ? 'text' : 'password'}
-                  value={keyInput}
-                  onChange={(e) => {
-                    setKeyInput(e.target.value);
-                    setValidationError('');
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && keyInput.trim()) handleSaveKey();
-                  }}
-                  placeholder="AIzaSy…"
-                  className="w-full pr-11"
-                  autoFocus
-                  disabled={isValidating}
+                  value={cfAccountId}
+                  onChange={(e) => setCfAccountId(e.target.value.trim())}
+                  placeholder="Cloudflare Account ID"
+                  className="w-full"
                 />
-                <button
-                  onClick={() => setShowKey(!showKey)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--foreground-muted)] hover:text-[var(--neon-cyan)] transition-colors"
-                  type="button"
-                  aria-label={showKey ? 'Hide key' : 'Show key'}
-                >
-                  {showKey ? <EyeOff size={18} /> : <Eye size={18} />}
-                </button>
-              </div>
-
-              {validationError && (
-                <motion.div
-                  initial={{ opacity: 0, y: -8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="text-sm text-red-400 p-3 rounded-lg bg-red-500/10 border border-red-500/30 flex items-start gap-2"
-                >
-                  <AlertCircle size={16} className="flex-shrink-0 mt-0.5" />
-                  <span>{validationError}</span>
-                </motion.div>
-              )}
+                <div className="relative">
+                  <input
+                    type={showCfToken ? 'text' : 'password'}
+                    value={cfToken}
+                    onChange={(e) => setCfToken(e.target.value.trim())}
+                    placeholder="Workers AI API token"
+                    className="w-full pr-11"
+                  />
+                  <button
+                    onClick={() => setShowCfToken(!showCfToken)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--foreground-muted)] hover:text-[var(--neon-cyan)] transition-colors"
+                    type="button"
+                    aria-label={showCfToken ? 'Hide token' : 'Show token'}
+                  >
+                    {showCfToken ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+              </section>
 
               <p className="text-xs text-[var(--foreground-subtle)] leading-relaxed">
-                Stored only in your browser&apos;s local storage — never sent anywhere except Google&apos;s Gemini API.
+                Credentials are stored only in your browser&apos;s local storage and sent
+                directly to each provider — never to our servers beyond proxying the request.
               </p>
 
-              <div className="flex gap-3 pt-1">
-                <button
-                  onClick={handleSaveKey}
-                  disabled={!keyInput.trim() || isValidating}
-                  className="btn-primary flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isValidating ? (
-                    <>
-                      <Loader2 size={18} className="animate-spin" />
-                      Validating…
-                    </>
-                  ) : (
-                    <>
-                      <Save size={18} />
-                      Save &amp; continue
-                    </>
-                  )}
-                </button>
-                <button onClick={handleClose} className="btn-secondary" disabled={isValidating}>
-                  {isSaved ? 'Cancel' : 'Skip for now'}
-                </button>
-              </div>
+              <button
+                onClick={handleSave}
+                disabled={isValidating}
+                className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isValidating ? (
+                  <>
+                    <Loader2 size={18} className="animate-spin" />
+                    Validating…
+                  </>
+                ) : (
+                  'Save & close'
+                )}
+              </button>
             </div>
           </motion.div>
         </motion.div>

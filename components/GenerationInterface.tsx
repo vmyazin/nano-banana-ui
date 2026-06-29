@@ -25,9 +25,10 @@ interface GenerationInterfaceProps {
   feature: Feature;
   apiKey: string;
   onBack: () => void;
+  onOpenConnections: () => void;
 }
 
-export default function GenerationInterface({ feature, apiKey, onBack }: GenerationInterfaceProps) {
+export default function GenerationInterface({ feature, apiKey, onBack, onOpenConnections }: GenerationInterfaceProps) {
   const [prompt, setPrompt] = useState('');
   const [images, setImages] = useState<string[]>([]);
   const [config, setConfig] = useState<GenerationConfig>({
@@ -42,8 +43,6 @@ export default function GenerationInterface({ feature, apiKey, onBack }: Generat
   const setEngine = useAppStore((s) => s.setEngine);
   const cfAccountId = useAppStore((s) => s.cfAccountId);
   const cfToken = useAppStore((s) => s.cfToken);
-  const setCfAccountId = useAppStore((s) => s.setCfAccountId);
-  const setCfToken = useAppStore((s) => s.setCfToken);
   const hasCfCreds = !!cfAccountId && !!cfToken;
   const availableEngines = enginesForFeature(feature);
   const activeEngine =
@@ -227,7 +226,8 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
       return;
     }
     if (activeEngine.id === 'cloudflare' && !hasCfCreds) {
-      setError('Connect your Cloudflare account (Account ID + API token) in Generation Settings.');
+      setError('Connect your Cloudflare account first — add your Account ID and API token in API connections.');
+      onOpenConnections();
       return;
     }
     setError(null);
@@ -436,39 +436,18 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
                     </div>
                   )}
 
-                  {activeEngine.id === 'cloudflare' && (
-                    <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3 space-y-2">
-                      <p className="eyebrow">Cloudflare account</p>
-                      <input
-                        value={cfAccountId}
-                        onChange={(e) => setCfAccountId(e.target.value.trim())}
-                        placeholder="Account ID"
-                        className="w-full text-sm"
-                      />
-                      <input
-                        type="password"
-                        value={cfToken}
-                        onChange={(e) => setCfToken(e.target.value.trim())}
-                        placeholder="Workers AI API token"
-                        className="w-full text-sm"
-                      />
-                      <p className="text-xs text-[var(--foreground-subtle)]">
-                        {hasCfCreds ? (
-                          <span className="text-emerald-400">✓ Connected — stored locally in your browser</span>
-                        ) : (
-                          <>
-                            Free daily tier.{' '}
-                            <a
-                              href="https://dash.cloudflare.com/profile/api-tokens"
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-[var(--neon-cyan)] hover:underline"
-                            >
-                              Create a Workers AI token →
-                            </a>
-                          </>
-                        )}
+                  {activeEngine.id === 'cloudflare' && !hasCfCreds && (
+                    <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3 flex items-center justify-between gap-3">
+                      <p className="text-xs text-[var(--foreground-muted)]">
+                        Connect your Cloudflare token to use this engine.
                       </p>
+                      <button
+                        type="button"
+                        onClick={onOpenConnections}
+                        className="btn-secondary text-xs py-1.5 px-3 flex-shrink-0"
+                      >
+                        Connect →
+                      </button>
                     </div>
                   )}
 
