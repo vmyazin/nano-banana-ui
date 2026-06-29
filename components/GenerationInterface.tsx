@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useMutation } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -516,16 +517,19 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
         </motion.div>
       </div>
 
-      {/* Full-screen lightbox for the generated image */}
-      <AnimatePresence>
-        {lightboxOpen && generatedImage && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={() => setLightboxOpen(false)}
-            className="fixed inset-0 z-[70] flex items-center justify-center bg-black/90 backdrop-blur-md p-4 sm:p-8"
-          >
+      {/* Full-screen lightbox — portaled to <body> so it escapes the
+          z-10 stacking context of <main> and covers the header/footer. */}
+      {typeof document !== 'undefined' &&
+        createPortal(
+          <AnimatePresence>
+            {lightboxOpen && generatedImage && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setLightboxOpen(false)}
+                className="fixed inset-0 z-[80] flex items-center justify-center bg-black/90 backdrop-blur-md p-4 sm:p-8"
+              >
             <button
               onClick={() => setLightboxOpen(false)}
               aria-label="Close preview"
@@ -554,8 +558,10 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
               Download
             </button>
           </motion.div>
+            )}
+          </AnimatePresence>,
+          document.body
         )}
-      </AnimatePresence>
     </div>
   );
 }
