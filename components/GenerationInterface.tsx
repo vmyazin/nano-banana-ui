@@ -12,7 +12,6 @@ import {
   Loader2,
   Download,
   ImagePlus,
-  Settings,
   Sparkles,
 } from 'lucide-react';
 
@@ -31,7 +30,6 @@ export default function GenerationInterface({ feature, apiKey, onBack }: Generat
     useGoogleSearch: false,
   });
   const [error, setError] = useState<string | null>(null);
-  const [showSettings, setShowSettings] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -169,43 +167,7 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
               <p className="text-xs sm:text-sm text-[var(--foreground-muted)] line-clamp-2">{feature.description}</p>
             </div>
           </div>
-          <button
-            onClick={() => setShowSettings(!showSettings)}
-            className={`btn-secondary text-xs sm:text-sm py-2.5 px-4 sm:px-5 flex items-center gap-2 flex-shrink-0 self-end sm:self-auto transition-all ${
-              showSettings
-                ? 'bg-[var(--neon-cyan)]/20 border-[var(--neon-cyan)] shadow-[var(--glow-cyan)]'
-                : 'hover:border-[var(--neon-cyan)] hover:bg-[var(--neon-cyan)]/10'
-            }`}
-          >
-            <Settings size={18} className="sm:w-5 sm:h-5" />
-            <span className="font-semibold">Settings</span>
-          </button>
         </div>
-
-        {/* Quick Settings Preview */}
-        {!showSettings && (
-          <div className="flex flex-wrap gap-2 sm:gap-3 items-center text-xs sm:text-sm text-[var(--foreground-muted)]">
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--background-elevated)] border border-white/10">
-              <span className="font-medium text-[var(--neon-cyan)]">{config.aspectRatio}</span>
-              <span>Aspect Ratio</span>
-            </div>
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--background-elevated)] border border-white/10">
-              <span className="font-medium text-[var(--neon-purple)]">{config.imageSize}</span>
-              <span>Quality</span>
-            </div>
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--background-elevated)] border border-white/10">
-              <span className={`font-medium ${feature.modelType === 'pro' ? 'text-[var(--neon-purple)]' : 'text-[var(--neon-cyan)]'}`}>
-                {feature.modelType === 'pro' ? 'Gemini 3 Pro' : 'Gemini 2.5 Flash'}
-              </span>
-            </div>
-            <button
-              onClick={() => setShowSettings(true)}
-              className="text-[var(--neon-cyan)] hover:text-[var(--neon-purple)] transition-colors ml-auto"
-            >
-              Click to adjust →
-            </button>
-          </div>
-        )}
       </motion.div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5 md:gap-6">
@@ -313,15 +275,12 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
             )}
           </div>
 
-          {/* Settings Panel */}
-          <AnimatePresence>
-            {showSettings && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                className="glass-card p-6 space-y-4 overflow-hidden"
-              >
+          {/* Settings Panel — always visible */}
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="glass-card p-6 space-y-4"
+          >
                 <h3 className="text-xl font-bold" style={{ fontFamily: 'Orbitron, monospace' }}>
                   Generation Settings
                 </h3>
@@ -391,9 +350,7 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
                     </div>
                   )}
                 </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+          </motion.div>
 
           {/* Generate Button */}
           <button
