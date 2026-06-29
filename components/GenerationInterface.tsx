@@ -340,7 +340,7 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
                       className="w-full"
                     >
                       <option value="1:1">1:1 (Square - Instagram Post)</option>
-                      <option value="4:5">4:5 (Instagram Portrait)</option>
+                      <option value="3:4">3:4 (Portrait)</option>
                       <option value="9:16">9:16 (Story/Reels)</option>
                       <option value="16:9">16:9 (YouTube Thumbnail)</option>
                       <option value="21:9">21:9 (Ultra Wide)</option>

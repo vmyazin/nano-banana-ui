@@ -66,11 +66,12 @@ export async function POST(request: NextRequest) {
       generationConfig.tools = [{ googleSearch: {} }];
     }
 
-    // Generate content using the correct API structure
+    // Generation params (imageConfig, tools, …) must be nested under `config`;
+    // passed at the top level the SDK silently ignores them.
     const response = await ai.models.generateContent({
       model: modelName,
       contents: promptParts,
-      ...generationConfig,
+      config: generationConfig,
     });
 
     // Extract image data from response
