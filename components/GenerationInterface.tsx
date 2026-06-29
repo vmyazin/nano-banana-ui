@@ -30,7 +30,7 @@ export default function GenerationInterface({ feature, apiKey, onBack }: Generat
     useGoogleSearch: false,
   });
   const [error, setError] = useState<string | null>(null);
-  const [showSettings, setShowSettings] = useState(false);
+  const [showSettings, setShowSettings] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
