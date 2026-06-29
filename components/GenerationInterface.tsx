@@ -3,6 +3,7 @@
 import { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useMutation } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import { Feature, GenerationConfig } from '@/types';
 import {
   Upload,
@@ -101,6 +102,8 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
       const detailsInfo = data.details ? `\n\nDetails: ${data.details}` : '';
       throw new Error((data.error || 'Failed to generate image') + debugInfo + detailsInfo);
     },
+    onSuccess: () => toast.success('Image generated'),
+    onError: (e) => toast.error(e instanceof Error ? e.message : 'Generation failed'),
   });
 
   // Derived view state from the mutation.

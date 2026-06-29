@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Key, Save, Eye, EyeOff, AlertCircle, X, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 import { useAppStore } from '@/store/useAppStore';
 
 interface ApiKeyConfigProps {
@@ -81,6 +82,7 @@ export default function ApiKeyConfig({ open, onOpenChange }: ApiKeyConfigProps) 
       setApiKey(trimmedKey);
       setValidationError('');
       onOpenChange(false);
+      toast.success('API key saved');
     }
   };
 

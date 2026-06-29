@@ -1,14 +1,25 @@
 'use client';
 
 import { Suspense, useEffect, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { useQueryState } from 'nuqs';
-import { motion } from 'framer-motion';
-import { Key, Check } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Key, Check, Command as CommandIcon } from 'lucide-react';
 import ApiKeyConfig from '@/components/ApiKeyConfig';
 import FeatureSelector from '@/components/FeatureSelector';
-import GenerationInterface from '@/components/GenerationInterface';
+import { CommandPalette } from '@/components/CommandPalette';
 import { Feature, FEATURES } from '@/types';
 import { useAppStore } from '@/store/useAppStore';
+
+// Lazy-load the heavy generation workspace so the landing bundle stays light.
+const GenerationInterface = dynamic(() => import('@/components/GenerationInterface'), {
+  ssr: false,
+  loading: () => (
+    <div className="flex items-center justify-center py-24">
+      <div className="loading-spinner" />
+    </div>
+  ),
+});
 
 function Studio() {
   // API key lives in the persisted Zustand store (single source of truth).
@@ -27,6 +38,7 @@ function Studio() {
   const selectFeature = (feature: Feature) => setFeatureId(feature.id);
   const clearFeature = () => setFeatureId(null);
   const [keyDialogOpen, setKeyDialogOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
 
   return (
     <div className="min-h-screen relative w-full overflow-x-hidden">
@@ -51,28 +63,41 @@ function Studio() {
               </div>
             </motion.div>
 
-            <motion.button
+            <motion.div
               initial={{ opacity: 0, y: -8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.05 }}
-              onClick={() => setKeyDialogOpen(true)}
-              className={`${hasKey ? 'btn-secondary' : 'btn-primary'} text-sm flex-shrink-0`}
-              title={hasKey ? 'Update your API key' : 'Add your Gemini API key'}
+              className="flex items-center gap-2 flex-shrink-0"
             >
-              {hasKey ? (
-                <>
-                  <Check size={15} className="text-emerald-400" />
-                  <span className="hidden sm:inline">API&nbsp;Key</span>
-                  <span className="sm:hidden">Key</span>
-                </>
-              ) : (
-                <>
-                  <Key size={15} />
-                  <span className="hidden sm:inline">Add&nbsp;API&nbsp;Key</span>
-                  <span className="sm:hidden">Add&nbsp;Key</span>
-                </>
-              )}
-            </motion.button>
+              <button
+                onClick={() => setPaletteOpen(true)}
+                className="hidden sm:inline-flex items-center gap-1.5 text-xs text-[var(--foreground-muted)] hover:text-[var(--foreground)] border border-[var(--border)] hover:border-[var(--border-hover)] rounded-[9px] px-2.5 py-2 transition-colors"
+                title="Open command menu (⌘K)"
+              >
+                <CommandIcon size={13} />
+                <span className="font-mono">K</span>
+              </button>
+
+              <button
+                onClick={() => setKeyDialogOpen(true)}
+                className={`${hasKey ? 'btn-secondary' : 'btn-primary'} text-sm`}
+                title={hasKey ? 'Update your API key' : 'Add your Gemini API key'}
+              >
+                {hasKey ? (
+                  <>
+                    <Check size={15} className="text-emerald-400" />
+                    <span className="hidden sm:inline">API&nbsp;Key</span>
+                    <span className="sm:hidden">Key</span>
+                  </>
+                ) : (
+                  <>
+                    <Key size={15} />
+                    <span className="hidden sm:inline">Add&nbsp;API&nbsp;Key</span>
+                    <span className="sm:hidden">Add&nbsp;Key</span>
+                  </>
+                )}
+              </button>
+            </motion.div>
           </div>
         </div>
       </header>
@@ -83,10 +108,25 @@ function Studio() {
         onOpenChange={setKeyDialogOpen}
       />
 
+      {/* ⌘K command palette */}
+      <CommandPalette
+        open={paletteOpen}
+        onOpenChange={setPaletteOpen}
+        onOpenApiKey={() => setKeyDialogOpen(true)}
+      />
+
       {/* Main Content */}
       <main className="relative z-10 w-full max-w-7xl mx-auto px-6 sm:px-8 md:px-12 lg:px-16 py-6 sm:py-8 md:py-10">
-        {!selectedFeature ? (
-          <div className="w-full">
+        <AnimatePresence mode="wait">
+          {!selectedFeature ? (
+            <motion.div
+              key="picker"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.18 }}
+              className="w-full"
+            >
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -152,14 +192,23 @@ function Studio() {
                 onFeatureSelect={selectFeature}
               />
             </motion.div>
-          </div>
-        ) : (
-          <GenerationInterface
-            feature={selectedFeature}
-            apiKey={apiKey}
-            onBack={clearFeature}
-          />
-        )}
+            </motion.div>
+          ) : (
+            <motion.div
+              key={selectedFeature.id}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.18 }}
+            >
+              <GenerationInterface
+                feature={selectedFeature}
+                apiKey={apiKey}
+                onBack={clearFeature}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
       </main>
 
       {/* Footer */}
