@@ -21,11 +21,11 @@ export default function Home() {
       {/* Header */}
       <header className="relative z-10 border-b border-white/10">
         <div className="w-full max-w-7xl mx-auto px-6 sm:px-8 md:px-12 lg:px-16 py-5 md:py-7">
-          <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center justify-center gap-4">
             <motion.div
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
-              className="flex items-center gap-2 sm:gap-4 flex-1 min-w-0"
+              className="flex items-center gap-2 sm:gap-4 min-w-0"
             >
               <div className="relative flex-shrink-0">
                 <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-gradient-to-br from-[var(--banana-yellow)] to-orange-500 flex items-center justify-center text-xl sm:text-2xl animate-glow-pulse">
@@ -50,16 +50,16 @@ export default function Home() {
       <ApiKeyConfig onApiKeySet={setApiKey} />
 
       {/* Main Content */}
-      <main className="relative z-10 w-full max-w-7xl mx-auto px-6 sm:px-8 md:px-12 lg:px-16 py-12 sm:py-16 md:py-20 lg:py-24">
+      <main className="relative z-10 w-full max-w-7xl mx-auto px-6 sm:px-8 md:px-12 lg:px-16 py-6 sm:py-8 md:py-10">
         {!selectedFeature ? (
           <div className="w-full">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="w-full space-y-16 sm:space-y-20 md:space-y-24 lg:space-y-28"
+              className="w-full space-y-10 sm:space-y-12 md:space-y-14"
             >
               {/* Hero Section */}
-              <div className="text-center space-y-8 sm:space-y-10 md:space-y-12 py-12 sm:py-16 md:py-20">
+              <div className="text-center space-y-5 sm:space-y-6 md:space-y-8 py-4 sm:py-6 md:py-8">
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -100,7 +100,7 @@ export default function Home() {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.5 }}
-                  className="flex flex-wrap gap-6 sm:gap-8 justify-center pt-8"
+                  className="flex flex-wrap gap-4 sm:gap-6 justify-center pt-2"
                 >
                   <div className="glass-card px-8 sm:px-10 py-4 sm:py-5 flex items-center gap-3 shadow-lg">
                     <span className="w-3 h-3 rounded-full bg-green-400 animate-pulse" />
@@ -134,10 +134,10 @@ export default function Home() {
       </main>
 
       {/* Footer */}
-      <footer className="relative z-10 border-t border-white/10 mt-24 sm:mt-32 md:mt-40">
-        <div className="w-full max-w-7xl mx-auto px-6 sm:px-8 md:px-12 lg:px-16 py-12 sm:py-16 md:py-20">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-6 sm:gap-8">
-            <div className="text-center md:text-left space-y-2">
+      <footer className="relative z-10 border-t border-white/10 mt-10 sm:mt-12 md:mt-16">
+        <div className="w-full max-w-7xl mx-auto px-6 sm:px-8 md:px-12 lg:px-16 py-8 sm:py-10 md:py-12">
+          <div className="flex flex-col items-center justify-center gap-6 sm:gap-8 text-center">
+            <div className="text-center space-y-2">
               <p className="text-sm sm:text-base text-[var(--foreground-muted)]">
                 Created with <span className="text-[var(--neon-pink)] animate-pulse">💜</span> by{' '}
                 <a

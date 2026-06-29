@@ -26,8 +26,8 @@ export default function FeatureSelector({ selectedFeature, onFeatureSelect }: Fe
   };
 
   return (
-    <div className="w-full space-y-12 sm:space-y-16">
-      <div className="text-center space-y-6 max-w-4xl mx-auto">
+    <div className="w-full space-y-8 sm:space-y-10">
+      <div className="text-center space-y-4 max-w-4xl mx-auto">
         <h2 className="text-4xl sm:text-5xl md:text-6xl font-bold neon-text" style={{ fontFamily: 'Orbitron, monospace', color: 'var(--neon-cyan)' }}>
           Choose Your Feature
         </h2>
@@ -40,7 +40,7 @@ export default function FeatureSelector({ selectedFeature, onFeatureSelect }: Fe
         variants={containerVariants}
         initial="hidden"
         animate="show"
-        className="w-full grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8 sm:gap-10 md:gap-12"
+        className="w-full grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 sm:gap-7 md:gap-8"
       >
         {FEATURES.map((feature) => {
           const isSelected = selectedFeature?.id === feature.id;
