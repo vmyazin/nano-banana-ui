@@ -7,11 +7,16 @@ interface AppState {
   apiKey: string;
   /** Selected image generation engine (persisted). */
   engine: EngineId;
+  /** Cloudflare Workers AI credentials (persisted). */
+  cfAccountId: string;
+  cfToken: string;
   /** True once the persisted state has rehydrated on the client. */
   hasHydrated: boolean;
   setApiKey: (key: string) => void;
   clearApiKey: () => void;
   setEngine: (engine: EngineId) => void;
+  setCfAccountId: (v: string) => void;
+  setCfToken: (v: string) => void;
   setHasHydrated: (v: boolean) => void;
 }
 
@@ -28,16 +33,20 @@ export const useAppStore = create<AppState>()(
     (set) => ({
       apiKey: '',
       engine: 'gemini',
+      cfAccountId: '',
+      cfToken: '',
       hasHydrated: false,
       setApiKey: (key) => set({ apiKey: key }),
       clearApiKey: () => set({ apiKey: '' }),
       setEngine: (engine) => set({ engine }),
+      setCfAccountId: (v) => set({ cfAccountId: v }),
+      setCfToken: (v) => set({ cfToken: v }),
       setHasHydrated: (v) => set({ hasHydrated: v }),
     }),
     {
       name: 'nano-banana-store',
       storage: createJSONStorage(() => localStorage),
-      partialize: (s) => ({ apiKey: s.apiKey, engine: s.engine }),
+      partialize: (s) => ({ apiKey: s.apiKey, engine: s.engine, cfAccountId: s.cfAccountId, cfToken: s.cfToken }),
       skipHydration: true,
       onRehydrateStorage: () => (state) => {
         if (!state) return;

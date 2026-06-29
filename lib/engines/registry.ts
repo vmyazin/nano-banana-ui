@@ -3,19 +3,23 @@ import type { Feature } from '@/types';
 // Dependency-free engine metadata + capability gating. Safe to import from both
 // client components and server routes (no provider SDKs here).
 
-export type EngineId = 'gemini' | 'pollinations';
+export type EngineId = 'gemini' | 'pollinations' | 'cloudflare';
 
 export interface EngineMeta {
   id: EngineId;
   label: string;
   blurb: string;
-  /** Requires the user to supply an API key (stored client-side). */
+  /** Requires the user to supply credentials (stored client-side). */
   requiresApiKey: boolean;
   /** Can accept uploaded reference images (editing / composition / style). */
   supportsInputImages: boolean;
   /** Can ground generation with Google Search. */
   supportsGoogleSearch: boolean;
-  /** Free to use. */
+  /** Honors the aspect-ratio control. */
+  supportsAspectRatio: boolean;
+  /** Honors the image-quality (1K/2K/4K) control. */
+  supportsImageSize: boolean;
+  /** Free to use (free tier / no cost). */
   free: boolean;
 }
 
@@ -27,6 +31,8 @@ export const ENGINES: EngineMeta[] = [
     requiresApiKey: true,
     supportsInputImages: true,
     supportsGoogleSearch: true,
+    supportsAspectRatio: true,
+    supportsImageSize: true,
     free: false,
   },
   {
@@ -36,6 +42,19 @@ export const ENGINES: EngineMeta[] = [
     requiresApiKey: false,
     supportsInputImages: false,
     supportsGoogleSearch: false,
+    supportsAspectRatio: true,
+    supportsImageSize: false,
+    free: true,
+  },
+  {
+    id: 'cloudflare',
+    label: 'Cloudflare · FLUX',
+    blurb: 'Free daily tier · FLUX.1 [schnell] · Cloudflare token',
+    requiresApiKey: true,
+    supportsInputImages: false,
+    supportsGoogleSearch: false,
+    supportsAspectRatio: false,
+    supportsImageSize: false,
     free: true,
   },
 ];

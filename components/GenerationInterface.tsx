@@ -40,6 +40,11 @@ export default function GenerationInterface({ feature, apiKey, onBack }: Generat
   // persisted choice can't (e.g. picked Pollinations then opened an editing mode).
   const storeEngine = useAppStore((s) => s.engine);
   const setEngine = useAppStore((s) => s.setEngine);
+  const cfAccountId = useAppStore((s) => s.cfAccountId);
+  const cfToken = useAppStore((s) => s.cfToken);
+  const setCfAccountId = useAppStore((s) => s.setCfAccountId);
+  const setCfToken = useAppStore((s) => s.setCfToken);
+  const hasCfCreds = !!cfAccountId && !!cfToken;
   const availableEngines = enginesForFeature(feature);
   const activeEngine =
     availableEngines.find((e) => e.id === storeEngine) ?? availableEngines[0];
@@ -123,6 +128,8 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
           config,
           featureId: feature.id,
           apiKey,
+          cfAccountId,
+          cfToken,
         }),
       });
 
@@ -196,7 +203,9 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
   const costLine =
     activeEngine.id === 'pollinations'
       ? 'Free · Pollinations (FLUX) · no key needed'
-      : `Est. ≈ $${estCost.toFixed(2)} / image · Gemini 3 Pro Image`;
+      : activeEngine.id === 'cloudflare'
+        ? 'Free daily tier · Cloudflare · FLUX.1 [schnell]'
+        : `Est. ≈ $${estCost.toFixed(2)} / image · Gemini 3 Pro Image`;
 
   // Close the full-screen lightbox on Escape.
   useEffect(() => {
@@ -215,6 +224,10 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
     }
     if (feature.requiresImage && images.length === 0) {
       setError('Please upload at least one image');
+      return;
+    }
+    if (activeEngine.id === 'cloudflare' && !hasCfCreds) {
+      setError('Connect your Cloudflare account (Account ID + API token) in Generation Settings.');
       return;
     }
     setError(null);
@@ -423,6 +436,43 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
                     </div>
                   )}
 
+                  {activeEngine.id === 'cloudflare' && (
+                    <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3 space-y-2">
+                      <p className="eyebrow">Cloudflare account</p>
+                      <input
+                        value={cfAccountId}
+                        onChange={(e) => setCfAccountId(e.target.value.trim())}
+                        placeholder="Account ID"
+                        className="w-full text-sm"
+                      />
+                      <input
+                        type="password"
+                        value={cfToken}
+                        onChange={(e) => setCfToken(e.target.value.trim())}
+                        placeholder="Workers AI API token"
+                        className="w-full text-sm"
+                      />
+                      <p className="text-xs text-[var(--foreground-subtle)]">
+                        {hasCfCreds ? (
+                          <span className="text-emerald-400">✓ Connected — stored locally in your browser</span>
+                        ) : (
+                          <>
+                            Free daily tier.{' '}
+                            <a
+                              href="https://dash.cloudflare.com/profile/api-tokens"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[var(--neon-cyan)] hover:underline"
+                            >
+                              Create a Workers AI token →
+                            </a>
+                          </>
+                        )}
+                      </p>
+                    </div>
+                  )}
+
+                  {activeEngine.supportsAspectRatio && (
                   <div>
                     <label className="block text-sm font-medium mb-2 text-[var(--foreground)]">
                       Aspect Ratio
@@ -441,8 +491,9 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
                       <option value="4:3">4:3 (Standard)</option>
                     </select>
                   </div>
+                  )}
 
-                  {activeEngine.id !== 'pollinations' && (
+                  {activeEngine.supportsImageSize && (
                   <div>
                     <label className="block text-sm font-medium mb-2 text-[var(--foreground)]">
                       Image Quality
