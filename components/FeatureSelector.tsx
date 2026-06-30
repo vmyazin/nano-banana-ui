@@ -2,6 +2,7 @@
 
 import { motion } from 'framer-motion';
 import { Feature, FEATURES } from '@/types';
+import { enginesForFeature } from '@/lib/engines/registry';
 import { Sparkles, Zap } from 'lucide-react';
 
 interface FeatureSelectorProps {
@@ -46,6 +47,7 @@ export default function FeatureSelector({ selectedFeature, onFeatureSelect }: Fe
         {FEATURES.map((feature) => {
           const isSelected = selectedFeature?.id === feature.id;
           const isSpecial = feature.category === 'special';
+          const hasFreeEngine = enginesForFeature(feature).some((e) => e.free);
 
           return (
             <motion.button
@@ -60,16 +62,24 @@ export default function FeatureSelector({ selectedFeature, onFeatureSelect }: Fe
             >
               {/* Badges row */}
               <div className="flex items-center justify-between gap-2">
-                <span
-                  className={`inline-flex items-center gap-1.5 text-[0.7rem] font-medium px-2.5 py-1 rounded-full border ${
-                    feature.modelType === 'pro'
-                      ? 'border-[var(--neon-purple)]/40 text-[var(--neon-purple)] bg-[var(--neon-purple)]/10'
-                      : 'border-[var(--neon-cyan)]/40 text-[var(--neon-cyan)] bg-[var(--neon-cyan)]/10'
-                  }`}
-                >
-                  <Zap size={12} />
-                  {feature.modelType === 'pro' ? 'Gemini 3 Pro' : 'Flash 2.5'}
-                </span>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span
+                    className={`inline-flex items-center gap-1.5 text-[0.7rem] font-medium px-2.5 py-1 rounded-full border ${
+                      feature.modelType === 'pro'
+                        ? 'border-[var(--neon-purple)]/40 text-[var(--neon-purple)] bg-[var(--neon-purple)]/10'
+                        : 'border-[var(--neon-cyan)]/40 text-[var(--neon-cyan)] bg-[var(--neon-cyan)]/10'
+                    }`}
+                  >
+                    <Zap size={12} />
+                    {feature.modelType === 'pro' ? 'Gemini 3 Pro' : 'Flash 2.5'}
+                  </span>
+
+                  {hasFreeEngine && (
+                    <span className="inline-flex items-center text-[0.7rem] font-medium px-2.5 py-1 rounded-full border border-emerald-400/40 text-emerald-400 bg-emerald-400/10">
+                      Free option
+                    </span>
+                  )}
+                </div>
 
                 {isSpecial && (
                   <span className="inline-flex items-center gap-1.5 text-[0.7rem] font-semibold px-2.5 py-1 rounded-full bg-[var(--banana-yellow)] text-black">
