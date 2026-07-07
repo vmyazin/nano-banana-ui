@@ -1,117 +1,93 @@
-![Nano Banana UI — an open-source AI image studio for Google Gemini](public/hero.png)
+![Nano Banana UI — an open-source AI image studio with Gemini, Pollinations, and Cloudflare engines](public/hero.png)
 
-# 🍌 YUV.AI Nano Banana Pro Platform
+# 🍌 Nano Banana UI
 
 ![Nano Banana Pro](https://img.shields.io/badge/Google-Gemini%20AI-blue?style=for-the-badge&logo=google)
-![Next.js](https://img.shields.io/badge/Next.js-15-black?style=for-the-badge&logo=next.js)
+![Next.js](https://img.shields.io/badge/Next.js-16-black?style=for-the-badge&logo=next.js)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-blue?style=for-the-badge&logo=typescript)
 
-A stunning, professional-grade web application for generating and editing images using Google's Gemini AI (Nano Banana Pro). Built with Next.js, TypeScript, and Framer Motion for a beautiful, responsive user experience.
-
-## 📸 Screenshots
-
-### Homepage
-![Homepage](./public/screenshots/homepage.png)
-
-### Thumbnail Generator
-![Thumbnail Generator](./public/screenshots/tumbnail-generator.png)
-
-### Viral Generator
-![Viral Generator](./public/screenshots/viral-generator.png)
+A multi-engine AI image studio for generating and editing images. Built on [Yuval Avidani's YUV.AI Nano Banana Pro Platform](https://github.com/hoodini/nano-banana-ui), extended with free FLUX engines, a redesigned UI, and a pluggable engine layer.
 
 ## ✨ Features
 
-### 🎨 Image Generation Capabilities
+### 🎨 Six Generation Modes
 
-- **Text-to-Image**: Generate stunning images from text descriptions using Gemini 2.5 Flash
-- **Image Editing**: Edit existing images with text prompts - add, remove, or modify elements
-- **Multi-Image Composition**: Combine up to 14 reference images to create new scenes
-- **Search-Grounded Generation**: Generate images based on real-time information from Google Search
-- **High-Resolution Generation**: Create professional 4K images with Gemini 3 Pro
-- **🚀 Social Media Thumbnail Generator**: Create viral-worthy thumbnails with dramatic scenes, bold text, and eye-catching elements
+- **Text to Image** — photorealistic scenes from text
+- **AI Image Editing** — transform uploaded images with prompts
+- **Multi-Image Composition** — combine up to 14 reference images
+- **Real-Time Search Visualization** — images grounded in live Google Search data
+- **Viral Thumbnail Generator** — scroll-stopping social media thumbnails
+- **Style Transfer** — apply artistic styles from reference images
 
-### 🎯 Special Features
+### ⚡ Three Image Engines
 
-- **Secure API Key Management**: Your API key is stored locally in your browser
-- **Dynamic Feature Selection**: Choose from 6 different image generation modes
-- **Configurable Settings**: Adjust aspect ratio (9:16, 16:9, 1:1, 4:5, etc.) and quality (1K, 2K, 4K)
-- **Instant Download**: Download generated images with one click
-- **Mobile Responsive**: Beautiful UI that works on all devices
-- **Cyber-Creative Design**: Stunning glassmorphism effects with neon accents
+| Engine | Model | Cost | Credentials | Best for |
+|--------|-------|------|-------------|----------|
+| **Google Gemini** | `gemini-3-pro-image-preview` | Paid (API usage) | Google AI Studio API key | All six modes — editing, multi-image, search grounding, 4K |
+| **Pollinations · FLUX** | FLUX via `image.pollinations.ai` | Free | None | Text-to-image only, no key required |
+| **Cloudflare · FLUX** | `@cf/black-forest-labs/flux-1-schnell` | Free daily tier | Cloudflare Account ID + API token | Text-to-image only |
+
+Engines are selected per session via clickable pills in the feature header. Features that need uploaded images, Google Search grounding, or advanced controls automatically fall back to Gemini.
+
+### 🎯 Studio Features
+
+- **API connections dialog** — manage Gemini and Cloudflare credentials in one place (stored in browser `localStorage`)
+- **Per-image cost estimate** — shown under the Generate button for Gemini runs
+- **Full-screen lightbox** — preview generated images before download
+- **AI-generated example prompts** — one-click "Gen Example" with a meta-prompt tooltip
+- **AI download filenames** — filenames derived from your prompt
+- **Deep-linkable views** — URL-synced feature state (`?feature=text-to-image`)
+- **Command palette** — `⌘K` to jump between modes
+- **Configurable settings** — aspect ratio and quality (1K / 2K / 4K) where the active engine supports them
 
 ## 🚀 Getting Started
 
 ### Prerequisites
 
-- Node.js 18+ installed
-- A Google AI Studio API key (get it [here](https://aistudio.google. com/apikey))
+- Node.js 18+
+- **For Gemini modes**: a [Google AI Studio API key](https://aistudio.google.com/apikey)
+- **For Cloudflare FLUX** (optional): a [Cloudflare Workers AI token](https://dash.cloudflare.com/?to=/:account/ai/workers-ai) and Account ID
+
+Pollinations requires no credentials.
 
 ### Installation
 
-1. Clone the repository:
-
 ```bash
-git clone https://github.com/hoodini/nano-banana-ui.git
+git clone https://github.com/vmyazin/nano-banana-ui.git
 cd nano-banana-ui
-```
-
-2. Install dependencies:
-
-```bash
 npm install
-```
-
-3.  Run the development server:
-
-```bash
 npm run dev
 ```
 
-4. Open [http://localhost:3000](http://localhost:3000) in your browser
-
-5. Enter your Google AI Studio API key when prompted
+Open [http://localhost:3000](http://localhost:3000), connect your API credentials, pick a feature, choose an engine, and generate.
 
 ## 🎨 Usage
 
-### Getting Your API Key
+### Connecting Providers
 
-1. Visit [Google AI Studio](https://aistudio.google.com/apikey)
-2. Sign in with your Google account
-3.  Create a new API key for Gemini
-4. Copy and paste it into the app
+1. Click **API connections** in the header
+2. **Google Gemini** — paste your AI Studio key (validated on save)
+3. **Cloudflare Workers AI** — enter Account ID and API token (saved immediately)
 
 ### Generating Images
 
-1. **Select a Feature**: Choose from text-to-image, image editing, multi-image composition, or special features
-2. **Upload Images** (if required): Upload reference images for editing or composition
-3.  **Enter Your Prompt**: Describe what you want to generate
-4.  **Configure Settings**: Adjust aspect ratio and quality
-5. **Generate**: Click the generate button and watch the magic happen!
-6. **Download**: Download your generated image
-
-### Social Media Thumbnail Generator
-
-The special **Social Media Thumbnail Generator** creates viral-worthy thumbnails automatically:
-
-- Upload a character reference image
-- Describe the scene and emotion you want
-- The AI automatically adds:
-  - Dramatic, shocked facial expressions
-  - Big, bold text overlays
-  - Arrows and highlighting elements
-  - High contrast and saturated colors
-  - Professional thumbnail styling
-
-Perfect for YouTube, Instagram, and social media content!
+1. **Select a feature** from the landing grid (or `⌘K`)
+2. **Choose an engine** — Gemini for full capability; Pollinations or Cloudflare for free text-to-image
+3. **Upload images** if the mode requires them (Gemini only)
+4. **Enter a prompt** — or click **Gen Example** for an AI-suggested starting point
+5. **Adjust settings** — aspect ratio, quality, Google Search (Gemini only)
+6. **Generate** — preview in the lightbox, then download
 
 ## 🛠️ Tech Stack
 
-- **Framework**: Next.js 15 with App Router
+- **Framework**: Next.js 16 (App Router)
 - **Language**: TypeScript
-- **Styling**: Tailwind CSS with custom cyber-creative theme
-- **Animations**: Framer Motion
-- **AI**: Google Generative AI SDK (@google/generative-ai)
-- **Icons**: Lucide React
+- **Styling**: Tailwind CSS 4 — Geist typography, hairline borders, restrained neon accents
+- **State**: Zustand (persisted API credentials + engine choice)
+- **Data fetching**: TanStack Query
+- **URL state**: nuqs
+- **UI polish**: Framer Motion, Sonner toasts, cmdk command palette
+- **AI SDKs**: `@google/genai` (Gemini), fetch adapters for Pollinations and Cloudflare
 
 ## 🎯 Project Structure
 
@@ -119,77 +95,66 @@ Perfect for YouTube, Instagram, and social media content!
 nano-banana-ui/
 ├── app/
 │   ├── api/
-│   │   └── generate/
-│   │       └── route. ts          # API route for image generation
-│   ├── globals. css               # Custom cyber-creative theme
-│   ├── layout. tsx                # Root layout
-│   └── page.tsx                  # Main page
+│   │   ├── generate/route.ts     # Engine dispatcher (gemini | pollinations | cloudflare)
+│   │   ├── example/route.ts      # AI example-prompt generation
+│   │   └── slug/route.ts         # AI download filename generation
+│   ├── globals.css
+│   ├── layout.tsx
+│   ├── page.tsx
+│   └── providers.tsx
 ├── components/
-│   ├── ApiKeyConfig.tsx          # API key configuration modal
-│   ├── FeatureSelector.tsx       # Feature selection grid
-│   └── GenerationInterface.tsx   # Image generation interface
-├── types/
-│   └── index.ts                  # TypeScript type definitions
-└── public/                       # Static assets
+│   ├── ApiKeyConfig.tsx          # Unified API connections dialog
+│   ├── CommandPalette.tsx
+│   ├── FeatureSelector.tsx
+│   └── GenerationInterface.tsx
+├── lib/
+│   ├── engines/
+│   │   ├── registry.ts           # Engine metadata + per-feature capability gating
+│   │   ├── gemini.ts
+│   │   ├── pollinations.ts
+│   │   └── cloudflare.ts
+│   └── example-prompts.ts
+├── store/
+│   └── useAppStore.ts            # Persisted credentials + engine preference
+└── types/
+    └── index.ts
 ```
 
-## 🌈 Design Philosophy
+## 📝 API & Models
 
-This application features a **Cyber-Creative Studio** aesthetic:
-
-- Dark theme with vibrant neon accents (electric blues, cyber purples, banana yellows)
-- Glassmorphism effects for depth and modern feel
-- Bold, geometric typography with Orbitron and Syne fonts
-- Smooth animations and micro-interactions
-- Professional yet playful vibe
-
-## 📝 API Documentation
-
-The app uses the Google Gemini API for image generation. Check out the [official API docs](https://ai.google. dev/gemini-api/docs/image-generation) for more details.
-
-### Supported Models
-
-- **gemini-2.5-flash-image**: Fast generation for text-to-image and basic editing
-- **gemini-3-pro-image-preview**: Advanced features with 4K support, multi-image, and search grounding
+- [Google Gemini Image Generation docs](https://ai.google.dev/gemini-api/docs/image-generation)
+- **Gemini**: `gemini-3-pro-image-preview` — all modes, aspect ratio, 1K/2K/4K, Google Search tool
+- **Pollinations**: `image.pollinations.ai` — FLUX text-to-image, aspect-ratio mapping, no auth
+- **Cloudflare**: Workers AI `flux-1-schnell` — fixed output size, 8 inference steps
 
 ## 🔒 Security
 
-- API keys are stored in browser localStorage
-- Keys are never sent to any server except Google's Gemini API
-- No backend storage of user data or images
-- All generation happens securely through Next.js API routes
+- API keys and Cloudflare credentials are stored in browser `localStorage` only
+- Credentials are sent to the respective provider APIs through Next.js API routes
+- No backend storage of user data or generated images
 
 ## 🤝 Contributing
 
-Contributions are welcome! Feel free to:
+Contributions welcome — report bugs, suggest features, or open pull requests.
 
-- Report bugs
-- Suggest new features
-- Submit pull requests
-- Improve documentation
+## 👨‍💻 Maintainer
 
-## 👨‍💻 Creator
-
-**Yuval Avidani**
-- 🌐 Website: [yuv.ai](https://yuv.ai)
-- 🐦 Twitter: [@yuvalav](https://x.com/yuvalav)
-- 📸 Instagram: [@yuval_770](https://instagram.com/yuval_770)
-- 🔗 LinkTree: [linktr.ee/yuvai](https://linktr.ee/yuvai)
-
-Founder of YUV.AI - Building the future of AI-powered creativity.
+**Vasily Myazin** — [GitHub @vmyazin](https://github.com/vmyazin)
 
 ## 📄 License
 
-This project is open source and available under the MIT License.
+MIT License.
 
 ## 🙏 Acknowledgments
 
-- Google Gemini team for the amazing AI models
-- Vercel for Next.js
-- The open-source community
+- [Yuval Avidani](https://yuv.ai) — original YUV.AI Nano Banana Pro Platform
+- [Pollinations](https://pollinations.ai) — free FLUX image API
+- Cloudflare Workers AI — free-tier FLUX.1 schnell
+- Google Gemini team, Vercel / Next.js, and the open-source community
 
 ---
 
-Made with 💜 by [Yuval Avidani](https://yuv.ai)
 
 **Star ⭐ this repo if you find it useful!**
+
+Enahanced with 💜 by [Vasily Simon](https://github.com/vmyazin)
