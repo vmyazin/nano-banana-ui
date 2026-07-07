@@ -1,3 +1,4 @@
+// app/page.tsx
 'use client';
 
 import { Suspense, useEffect, useState } from 'react';
@@ -218,19 +219,23 @@ function Studio() {
           <div className="flex flex-col items-center justify-center gap-6 sm:gap-8 text-center">
             <div className="text-center space-y-2">
               <p className="text-sm sm:text-base text-[var(--foreground-muted)]">
-                Based on the original{' '}
                 <a
-                  href="https://github.com/hoodini/nano-banana-ui"
+                  href="https://github.com/vmyazin/nano-banana-ui"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-[var(--neon-cyan)] hover:text-[var(--neon-purple)] font-bold transition-colors hover:underline"
                 >
                   Nano Banana UI
                 </a>
-                {' '}by Yuval Avidani
-              </p>
-              <p className="text-xs sm:text-sm text-[var(--foreground-muted)]">
-                A significantly reworked fork — not affiliated with or endorsed by the original author
+                {' '}— maintained by{' '}
+                <a
+                  href="https://github.com/vmyazin"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[var(--neon-cyan)] hover:text-[var(--neon-purple)] font-bold transition-colors hover:underline"
+                >
+                  Vasily Myazin
+                </a>
               </p>
             </div>
 

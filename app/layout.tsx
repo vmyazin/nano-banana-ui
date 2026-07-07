@@ -1,3 +1,4 @@
+// app/layout.tsx
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
@@ -16,12 +17,12 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://nbanana.mzork.com"),
-  title: "Nano Banana Pro — AI Image Studio",
-  description: "Generate, edit, and transform images with Google Gemini.",
+  title: "Nano Banana UI — AI Image Studio",
+  description: "Generate and edit images with Google Gemini, Pollinations FLUX, and Cloudflare Workers AI.",
   openGraph: {
     title: "Nano Banana UI — AI Image Studio",
     description:
-      "An open-source studio for Google Gemini — generate, edit, compose, and style.",
+      "Multi-engine AI image studio — Gemini, Pollinations FLUX, and Cloudflare Workers AI.",
     url: "https://nbanana.mzork.com",
     siteName: "Nano Banana UI",
     type: "website",
@@ -30,7 +31,7 @@ export const metadata: Metadata = {
         url: "/og.png",
         width: 2400,
         height: 1260,
-        alt: "Nano Banana UI — AI image studio for Google Gemini",
+        alt: "Nano Banana UI — multi-engine AI image studio",
       },
     ],
   },
@@ -38,7 +39,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Nano Banana UI — AI Image Studio",
     description:
-      "An open-source studio for Google Gemini — generate, edit, compose, and style.",
+      "Multi-engine AI image studio — Gemini, Pollinations FLUX, and Cloudflare Workers AI.",
     images: ["/og.png"],
   },
 };

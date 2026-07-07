@@ -6,7 +6,7 @@
 ![Next.js](https://img.shields.io/badge/Next.js-16-black?style=for-the-badge&logo=next.js)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-blue?style=for-the-badge&logo=typescript)
 
-A multi-engine AI image studio for generating and editing images. Built on [Yuval Avidani's YUV.AI Nano Banana Pro Platform](https://github.com/hoodini/nano-banana-ui), extended with free FLUX engines, a redesigned UI, and a pluggable engine layer.
+A multi-engine AI image studio for generating and editing images with Google Gemini, Pollinations FLUX, and Cloudflare Workers AI. Built with Next.js, TypeScript, and a pluggable engine layer.
 
 ## ✨ Features
 
@@ -147,7 +147,7 @@ MIT License.
 
 ## 🙏 Acknowledgments
 
-- [Yuval Avidani](https://yuv.ai) — original YUV.AI Nano Banana Pro Platform
+- [Yuval Avidani](https://yuv.ai) — early Nano Banana UI inspiration
 - [Pollinations](https://pollinations.ai) — free FLUX image API
 - Cloudflare Workers AI — free-tier FLUX.1 schnell
 - Google Gemini team, Vercel / Next.js, and the open-source community
