@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useMutation } from '@tanstack/react-query';
@@ -27,6 +27,20 @@ interface GenerationInterfaceProps {
   onBack: () => void;
   onOpenConnections: () => void;
 }
+
+const readImageAsDataUrl = (file: File): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        resolve(reader.result);
+      } else {
+        reject(new Error('Image could not be read'));
+      }
+    };
+    reader.onerror = () => reject(reader.error ?? new Error('Image could not be read'));
+    reader.readAsDataURL(file);
+  });
 
 export default function GenerationInterface({ feature, apiKey, onBack, onOpenConnections }: GenerationInterfaceProps) {
   const [prompt, setPrompt] = useState('');
@@ -71,23 +85,49 @@ export default function GenerationInterface({ feature, apiKey, onBack, onOpenCon
     }
   };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
+  const addImageFiles = useCallback(async (files: File[]) => {
+    const imageFiles = files.filter((file) => file.type.startsWith('image/'));
+    if (imageFiles.length === 0) return;
+
     const maxImages = feature.maxImages || 1;
 
-    if (images.length + files.length > maxImages) {
+    if (images.length + imageFiles.length > maxImages) {
       setError(`Maximum ${maxImages} images allowed`);
       return;
     }
 
-    files.forEach((file) => {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImages((prev) => [...prev, reader.result as string]);
-      };
-      reader.readAsDataURL(file);
-    });
+    try {
+      const dataUrls = await Promise.all(imageFiles.map(readImageAsDataUrl));
+      setImages((prev) => [...prev, ...dataUrls]);
+      setError(null);
+    } catch {
+      setError('Unable to read one or more images');
+    }
+  }, [feature.maxImages, images.length]);
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    void addImageFiles(Array.from(e.target.files || []));
+    e.target.value = '';
   };
+
+  useEffect(() => {
+    if (!feature.requiresImage) return;
+
+    const handlePaste = (event: ClipboardEvent) => {
+      const imageFiles = Array.from(event.clipboardData?.items || [])
+        .filter((item) => item.kind === 'file' && item.type.startsWith('image/'))
+        .map((item) => item.getAsFile())
+        .filter((file): file is File => file !== null);
+
+      if (imageFiles.length === 0) return;
+
+      event.preventDefault();
+      void addImageFiles(imageFiles);
+    };
+
+    document.addEventListener('paste', handlePaste);
+    return () => document.removeEventListener('paste', handlePaste);
+  }, [addImageFiles, feature.requiresImage]);
 
   const removeImage = (index: number) => {
     setImages((prev) => prev.filter((_, i) => i !== index));
@@ -331,12 +371,16 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
               />
 
               <button
+                type="button"
                 onClick={() => fileInputRef.current?.click()}
                 className="w-full py-4 border-2 border-dashed border-[var(--neon-cyan)]/30 rounded-xl hover:border-[var(--neon-cyan)] hover:bg-[var(--neon-cyan)]/5 transition-all flex flex-col items-center gap-2 text-[var(--foreground-muted)] hover:text-[var(--neon-cyan)]"
               >
                 <ImagePlus size={32} />
                 <span className="font-medium">
                   Click to upload{feature.requiresMultipleImages && ` (max ${feature.maxImages})`}
+                </span>
+                <span className="text-xs text-[var(--foreground-subtle)]">
+                  or paste with ⌘V / Ctrl+V
                 </span>
               </button>
 
@@ -350,7 +394,9 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
                         className="w-full aspect-square object-cover rounded-lg"
                       />
                       <button
+                        type="button"
                         onClick={() => removeImage(index)}
+                        aria-label={`Remove upload ${index + 1}`}
                         className="absolute top-2 right-2 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
                       >
                         <X size={16} />
