@@ -44,7 +44,8 @@ Engines are selected per session via clickable pills in the feature header. Feat
 
 ### Prerequisites
 
-- Node.js 18+
+- Node.js 20.9+
+- pnpm 10.32+ (enabled through Corepack)
 - **For Gemini modes**: a [Google AI Studio API key](https://aistudio.google.com/apikey)
 - **For Cloudflare FLUX** (optional): a [Cloudflare Workers AI token](https://dash.cloudflare.com/?to=/:account/ai/workers-ai) and Account ID
 
@@ -55,8 +56,9 @@ Pollinations requires no credentials.
 ```bash
 git clone https://github.com/vmyazin/nano-banana-ui.git
 cd nano-banana-ui
-npm install
-npm run dev
+corepack enable
+pnpm install
+pnpm dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000), connect your API credentials, pick a feature, choose an engine, and generate.
