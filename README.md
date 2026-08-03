@@ -1,12 +1,13 @@
-![Nano Banana UI — an open-source AI image and video studio with Gemini, Kie, Pollinations, and Cloudflare](public/hero.png)
+# Scene Assembly
 
-# 🍌 Nano Banana UI
-
-![Nano Banana Pro](https://img.shields.io/badge/Google-Gemini%20AI-blue?style=for-the-badge&logo=google)
+[![Live demo](https://img.shields.io/badge/Live-nbanana.mzork.com-00d8d8?style=for-the-badge)](https://nbanana.mzork.com)
+![Multi-engine studio](https://img.shields.io/badge/AI-Multi--engine%20studio-c026d3?style=for-the-badge)
 ![Next.js](https://img.shields.io/badge/Next.js-16-black?style=for-the-badge&logo=next.js)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-blue?style=for-the-badge&logo=typescript)
 
-A multi-provider AI media studio for generating and editing images with Google Gemini, Kie.ai, Pollinations FLUX, and Cloudflare Workers AI. Kie adds a browser-local BYOK catalog for image and video generation. Built with Next.js, TypeScript, and typed provider adapters.
+An open-source, multi-engine studio for generating, editing, and composing images—and creating video—with Google Gemini, Kie.ai, Pollinations FLUX, and Cloudflare Workers AI. Bring your own provider credentials, choose the engine that fits the job, and keep all configuration in your browser.
+
+> **Scene Assembly was formerly called Nano Banana UI.** The repository and live-demo URLs retain the former slug during the transition; the product itself is provider-neutral.
 
 ## ✨ Features
 
@@ -68,8 +69,8 @@ Pollinations requires no credentials.
 ### Installation
 
 ```bash
-git clone https://github.com/vmyazin/nano-banana-ui.git
-cd nano-banana-ui
+git clone https://github.com/vmyazin/nano-banana-ui.git scene-assembly
+cd scene-assembly
 corepack enable
 pnpm install
 pnpm dev
@@ -119,7 +120,7 @@ Open [http://localhost:3000](http://localhost:3000), connect your API credential
 ## 🎯 Project Structure
 
 ```
-nano-banana-ui/
+scene-assembly/
 ├── app/
 │   ├── api/
 │   │   ├── generate/route.ts     # Engine dispatcher (Gemini, Kie, Pollinations, Cloudflare)
@@ -187,14 +188,15 @@ MIT License.
 
 ## 🙏 Acknowledgments
 
-- [Yuval Avidani](https://yuv.ai) — early Nano Banana UI inspiration
+- [Yuval Avidani](https://yuv.ai) — creator of the original Nano Banana UI that Scene Assembly evolved from
 - [Pollinations](https://pollinations.ai) — free FLUX image API
 - Cloudflare Workers AI — free-tier FLUX.1 schnell
 - Google Gemini team, Vercel / Next.js, and the open-source community
 
 ---
 
+Last reviewed: August 2, 2026.
 
 **Star ⭐ this repo if you find it useful!**
 
-Enahanced with 💜 by [Vasily Simon](https://github.com/vmyazin)
+Maintained with 💜 by [Vasily Simon](https://github.com/vmyazin)

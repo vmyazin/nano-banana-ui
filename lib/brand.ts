@@ -17,6 +17,13 @@ export const brand = {
   shortName: 'Scene Assembly',
   githubUrl: 'https://github.com/vmyazin/nano-banana-ui',
   siteUrl: 'https://nbanana.mzork.com',
+  /** Document / social card title: "Scene Assembly — Multi-engine image studio" */
+  metaTitle: 'Scene Assembly — Multi-engine image studio',
+  /** Search / social description — provider-neutral, engines named as capabilities. */
+  metaDescription:
+    'A multi-engine image studio — generate and edit with Gemini, Pollinations, Cloudflare, and more.',
+  /** Open Graph image alt text. */
+  ogImageAlt: 'Scene Assembly — a multi-engine image studio',
   maintainer: {
     name: 'Vasily Simon',
     url: 'https://github.com/vmyazin',

@@ -16,16 +16,13 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-const metaDescription =
-  "A multi-engine image studio — generate and edit with Gemini, Pollinations, Cloudflare, and more.";
-
 export const metadata: Metadata = {
   metadataBase: new URL(brand.siteUrl),
-  title: `${brand.name} — ${brand.tagline}`,
-  description: metaDescription,
+  title: brand.metaTitle,
+  description: brand.metaDescription,
   openGraph: {
-    title: `${brand.name} — ${brand.tagline}`,
-    description: metaDescription,
+    title: brand.metaTitle,
+    description: brand.metaDescription,
     url: brand.siteUrl,
     siteName: brand.name,
     type: "website",
@@ -34,14 +31,14 @@ export const metadata: Metadata = {
         url: "/og.png",
         width: 2400,
         height: 1260,
-        alt: `${brand.name} — ${brand.description}`,
+        alt: brand.ogImageAlt,
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: `${brand.name} — ${brand.tagline}`,
-    description: metaDescription,
+    title: brand.metaTitle,
+    description: brand.metaDescription,
     images: ["/og.png"],
   },
 };
