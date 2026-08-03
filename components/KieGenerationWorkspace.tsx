@@ -298,32 +298,34 @@ export default function KieGenerationWorkspace({
                 <h3 className="display text-lg font-semibold">Compatible model</h3>
                 <p className="mt-0.5 text-xs text-[var(--foreground-muted)]">{models.length} verified {mediaType} model families for this flow</p>
               </div>
-              <div className="relative w-40 max-w-[48%]">
-                <Search className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--foreground-subtle)]" size={14} />
+              <div className="flex w-40 max-w-[48%] items-center gap-2">
+                <Search className="pointer-events-none shrink-0 text-[var(--foreground-subtle)]" size={14} />
                 <input
                   aria-label="Search compatible models"
                   value={modelSearch}
                   onChange={(event) => setModelSearch(event.target.value)}
                   placeholder="Find a model"
-                  className="w-full py-1.5 pl-8 pr-2 text-xs"
+                  className="min-w-0 flex-1 py-1.5 text-xs"
                 />
               </div>
             </div>
-            <label htmlFor="kie-model" className="sr-only">Model</label>
-            <select
-              id="kie-model"
-              aria-label="Model"
-              value={selectedModel.id}
-              onChange={(event) => setModel(event.target.value)}
-              className="w-full"
-            >
-              {(matchingModels.length > 0 ? matchingModels : models).map((model) => (
-                <option key={model.id} value={model.id}>{model.label} · {model.provider}</option>
-              ))}
-            </select>
-            <p className="rounded-lg border border-[var(--border)] bg-[var(--background-elevated)]/60 p-3 text-sm text-[var(--foreground-muted)]">
-              <span className="font-medium text-[var(--foreground)]">{selectedModel.label}:</span> {selectedModel.description}
-            </p>
+            <div className="space-y-2">
+              <label htmlFor="kie-model" className="sr-only">Model</label>
+              <select
+                id="kie-model"
+                aria-label="Model"
+                value={selectedModel.id}
+                onChange={(event) => setModel(event.target.value)}
+                className="w-full"
+              >
+                {(matchingModels.length > 0 ? matchingModels : models).map((model) => (
+                  <option key={model.id} value={model.id}>{model.label} · {model.provider}</option>
+                ))}
+              </select>
+              <p className="px-0.5 text-sm leading-relaxed text-[var(--foreground-muted)]">
+                <span className="font-medium text-[var(--foreground)]">{selectedModel.label}:</span> {selectedModel.description}
+              </p>
+            </div>
           </section>
 
           {inputMode === 'image' && (

@@ -28,6 +28,10 @@ describe('Kie generation workspace', () => {
     expect((screen.getByLabelText('Model') as HTMLSelectElement).value).toBe('veo-3-1');
     expect((screen.getByLabelText('Generation mode') as HTMLSelectElement).value).toBe('TEXT_2_VIDEO');
     expect(screen.getByText(/temporary Kie URLs/i)).toBeTruthy();
+    const searchInput = screen.getByLabelText('Search compatible models');
+    expect(searchInput.className).toContain('flex-1');
+    expect(searchInput.parentElement?.className).toContain('flex');
+    expect(screen.getByText(/Cinematic text-to-video and image-to-video/i).className).not.toContain('border');
   });
 
   it('renders a completed video as a native preview with an immediate download action', () => {
