@@ -1,3 +1,5 @@
+![Scene Assembly — a multi-engine image studio for generating, editing, and composing visual scenes](.github/social-preview.png)
+
 # Scene Assembly
 
 [![Live demo](https://img.shields.io/badge/Live-nbanana.mzork.com-00d8d8?style=for-the-badge)](https://nbanana.mzork.com)
