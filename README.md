@@ -179,7 +179,7 @@ Contributions welcome — report bugs, suggest features, or open pull requests.
 
 ## 👨‍💻 Maintainer
 
-**Vasily Myazin** — [GitHub @vmyazin](https://github.com/vmyazin)
+**Vasily Simon** — [GitHub @vmyazin](https://github.com/vmyazin)
 
 ## 📄 License
 
