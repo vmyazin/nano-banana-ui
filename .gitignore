@@ -23,6 +23,7 @@
 # misc
 .DS_Store
 *.pem
+/.codebase-memory/
 
 # debug
 npm-debug.log*
