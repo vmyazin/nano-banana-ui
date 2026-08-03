@@ -5,12 +5,13 @@ import { Suspense, useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { useQueryState } from 'nuqs';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Key, Check, Command as CommandIcon } from 'lucide-react';
+import { Key, Check, Command as CommandIcon, Layers } from 'lucide-react';
 import ApiKeyConfig from '@/components/ApiKeyConfig';
 import FeatureSelector from '@/components/FeatureSelector';
 import { CommandPalette } from '@/components/CommandPalette';
 import VideoWorkspace from '@/components/VideoWorkspace';
 import { Feature, FEATURES } from '@/types';
+import { brand } from '@/lib/brand';
 import { useAppStore } from '@/store/useAppStore';
 
 // Lazy-load the heavy generation workspace so the landing bundle stays light.
@@ -64,17 +65,17 @@ function Studio() {
             <motion.div
               initial={{ opacity: 0, y: -8 }}
               animate={{ opacity: 1, y: 0 }}
-              className="flex items-center gap-2.5 min-w-0"
+              className="brand-mark flex items-center gap-2.5 min-w-0"
             >
-              <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-gradient-to-br from-[var(--banana-yellow)] to-orange-500 flex items-center justify-center text-base sm:text-lg flex-shrink-0 shadow-[0_2px_12px_-2px_rgba(255,237,78,0.4)]">
-                🍌
+              <div className="brand-mark-icon w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-gradient-to-br from-[var(--neon-cyan)] to-[var(--neon-purple)] flex items-center justify-center flex-shrink-0 shadow-[0_2px_12px_-2px_rgba(0,245,255,0.35)]">
+                <Layers className="w-4 h-4 sm:w-[18px] sm:h-[18px] text-black" aria-hidden />
               </div>
               <div className="min-w-0 flex items-center gap-2.5">
                 <h1 className="display text-base sm:text-lg font-semibold text-[var(--foreground)] truncate">
-                  Nano Banana Pro
+                  {brand.name}
                 </h1>
                 <span className="hidden md:inline-block h-3.5 w-px bg-[var(--border-hover)]" />
-                <span className="hidden md:inline eyebrow">Multi-model media studio</span>
+                <span className="hidden md:inline eyebrow">{brand.tagline}</span>
               </div>
             </motion.div>
 
@@ -82,7 +83,7 @@ function Studio() {
               <button
                 type="button"
                 onClick={() => selectWorkspace('image')}
-                className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors sm:text-sm ${activeWorkspace === 'image' ? 'bg-[var(--banana-yellow)]/15 text-[var(--banana-yellow)]' : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)]'}`}
+                className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors sm:text-sm ${activeWorkspace === 'image' ? 'bg-[var(--brand-accent)]/15 text-[var(--brand-accent)]' : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)]'}`}
               >
                 Image
               </button>
@@ -188,7 +189,7 @@ function Studio() {
                   className="pill"
                 >
                   <span className="w-1.5 h-1.5 rounded-full bg-[var(--neon-cyan)]" />
-                  Professional AI Image Generation
+                  {brand.description}
                 </motion.div>
 
                 <motion.h2
@@ -208,8 +209,7 @@ function Studio() {
                   transition={{ delay: 0.2 }}
                   className="text-base sm:text-lg text-[var(--foreground-muted)] max-w-2xl mx-auto px-4 leading-relaxed"
                 >
-                  Harness Google&apos;s Gemini to generate, edit, and transform images with
-                  precise control — from text-to-image to viral social thumbnails.
+                  {brand.heroBlurb}
                 </motion.p>
 
                 <motion.div
@@ -220,15 +220,15 @@ function Studio() {
                 >
                   <span className="pill">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                    Gemini 2.5 Flash
+                    Gemini
                   </span>
                   <span className="pill">
                     <span className="w-1.5 h-1.5 rounded-full bg-[var(--neon-purple)]" />
-                    Gemini 3 Pro
+                    Pollinations
                   </span>
                   <span className="pill">
-                    <span className="w-1.5 h-1.5 rounded-full bg-[var(--banana-yellow)]" />
-                    Up to 4K Quality
+                    <span className="w-1.5 h-1.5 rounded-full bg-[var(--brand-accent)]" />
+                    Cloudflare
                   </span>
                 </motion.div>
               </div>
@@ -260,28 +260,31 @@ function Studio() {
       </main>
 
       {/* Footer */}
-      <footer className="relative z-10 border-t border-white/10 mt-10 sm:mt-12 md:mt-16">
+      <footer className="site-footer relative z-10 border-t border-white/10 mt-10 sm:mt-12 md:mt-16">
         <div className="w-full max-w-7xl mx-auto px-6 sm:px-8 md:px-12 lg:px-16 py-8 sm:py-10 md:py-12">
           <div className="flex flex-col items-center justify-center gap-6 sm:gap-8 text-center">
             <div className="text-center space-y-2">
               <p className="text-sm sm:text-base text-[var(--foreground-muted)]">
                 <a
-                  href="https://github.com/vmyazin/nano-banana-ui"
+                  href={brand.githubUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-[var(--neon-cyan)] hover:text-[var(--neon-purple)] font-bold transition-colors hover:underline"
                 >
-                  Nano Banana UI
+                  {brand.shortName}
                 </a>
                 {' '}— maintained by{' '}
                 <a
-                  href="https://github.com/vmyazin"
+                  href={brand.maintainer.url}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-[var(--neon-cyan)] hover:text-[var(--neon-purple)] font-bold transition-colors hover:underline"
                 >
-                  Vasily Myazin
+                  {brand.maintainer.name}
                 </a>
+              </p>
+              <p className="text-xs sm:text-sm text-[var(--foreground-muted)]">
+                {brand.description}
               </p>
             </div>
 
@@ -303,7 +306,7 @@ function Studio() {
                 📚 API Docs
               </a>
               <a
-                href="https://github.com/vmyazin/nano-banana-ui"
+                href={brand.githubUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-xs sm:text-sm font-medium px-4 py-2 rounded-lg bg-[var(--background-glass)] border border-white/10 hover:border-[var(--neon-purple)] text-[var(--foreground-muted)] hover:text-[var(--neon-purple)] transition-all hover:shadow-[var(--glow-purple)]"
@@ -313,10 +316,16 @@ function Studio() {
             </div>
           </div>
 
-          {/* Powered by section */}
+          {/* Engines available — capability context, not product identity */}
           <div className="mt-8 pt-6 border-t border-white/5 text-center">
             <p className="text-xs text-[var(--foreground-muted)]">
-              Powered by <span className="font-semibold text-[var(--neon-cyan)]">Google Gemini 2.5 Flash</span> & <span className="font-semibold text-[var(--neon-purple)]">Gemini 3 Pro</span> Image Generation
+              Engines:{' '}
+              <span className="font-semibold text-[var(--neon-cyan)]">Gemini</span>
+              {', '}
+              <span className="font-semibold text-[var(--neon-purple)]">Pollinations</span>
+              {', '}
+              <span className="font-semibold text-[var(--brand-accent)]">Cloudflare</span>
+              {' '}&amp; more
             </p>
           </div>
         </div>

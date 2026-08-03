@@ -1,3 +1,4 @@
+/* app/globals.css */
 @import "tailwindcss";
 
 :root {
@@ -14,7 +15,7 @@
   --neon-cyan: #00fff9;
   --neon-purple: #bd00ff;
   --neon-pink: #ff006e;
-  --banana-yellow: #ffed4e;
+  --brand-accent: #ffed4e;
   --electric-blue: #0066ff;
 
   /* Hairline borders */
@@ -23,7 +24,7 @@
 
   /* Gradients (kept for accents) */
   --gradient-primary: linear-gradient(135deg, var(--neon-cyan) 0%, var(--neon-purple) 50%, var(--neon-pink) 100%);
-  --gradient-accent: linear-gradient(135deg, var(--banana-yellow) 0%, #ff8c42 100%);
+  --gradient-accent: linear-gradient(135deg, var(--brand-accent) 0%, #ff8c42 100%);
 
   /* Restrained shadows + a single subtle accent glow */
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);

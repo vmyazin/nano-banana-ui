@@ -1,6 +1,12 @@
+// store/useAppStore.ts
 import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
+import { persist, createJSONStorage, type StateStorage } from 'zustand/middleware';
 import type { EngineId } from '@/lib/engines/registry';
+
+/** Public persist key after rebrand. */
+const STORAGE_KEY = 'scene-assembly-store';
+/** Pre-rebrand Zustand persist key — read once, then retired. */
+const LEGACY_STORAGE_KEY = 'nano-banana-store';
 
 interface AppState {
   /** The user's Gemini API key (persisted to localStorage). */
@@ -28,8 +34,36 @@ interface AppState {
 }
 
 /**
- * Centralized client state. Persists the API key under `nano-banana-store`
- * and migrates the legacy raw `gemini_api_key` value from older versions.
+ * One-time bridge: if `scene-assembly-store` is missing, copy the full
+ * `nano-banana-store` blob (credentials, engine, preferences) into it.
+ * Runs on first getItem so rehydration sees the migrated payload.
+ */
+function createMigratingStorage(): StateStorage {
+  return {
+    getItem: (name) => {
+      const existing = localStorage.getItem(name);
+      if (existing != null) return existing;
+
+      const legacy = localStorage.getItem(LEGACY_STORAGE_KEY);
+      if (legacy == null) return null;
+
+      localStorage.setItem(name, legacy);
+      localStorage.removeItem(LEGACY_STORAGE_KEY);
+      return legacy;
+    },
+    setItem: (name, value) => {
+      localStorage.setItem(name, value);
+    },
+    removeItem: (name) => {
+      localStorage.removeItem(name);
+    },
+  };
+}
+
+/**
+ * Centralized client state. Persists under `scene-assembly-store`, migrating
+ * from the legacy `nano-banana-store` key on first load, and still lifting the
+ * older raw `gemini_api_key` value when no API key is present after rehydrate.
  *
  * Hydration is deferred (`skipHydration`) and kicked off from a mount effect
  * so the server and first client render agree (no hydration mismatch on the
@@ -57,8 +91,8 @@ export const useAppStore = create<AppState>()(
       setHasHydrated: (v) => set({ hasHydrated: v }),
     }),
     {
-      name: 'nano-banana-store',
-      storage: createJSONStorage(() => localStorage),
+      name: STORAGE_KEY,
+      storage: createJSONStorage(() => createMigratingStorage()),
       partialize: (s) => ({
         apiKey: s.apiKey,
         engine: s.engine,
@@ -71,6 +105,7 @@ export const useAppStore = create<AppState>()(
       skipHydration: true,
       onRehydrateStorage: () => (state) => {
         if (!state) return;
+        // Legacy pre-Zustand key (older app versions stored the Gemini key raw).
         if (!state.apiKey && typeof localStorage !== 'undefined') {
           const legacy = localStorage.getItem('gemini_api_key');
           if (legacy) state.setApiKey(legacy);

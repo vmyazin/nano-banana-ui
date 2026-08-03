@@ -2,6 +2,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
+import { brand } from "@/lib/brand";
 import { Providers } from "./providers";
 import "./globals.css";
 
@@ -15,31 +16,32 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const metaDescription =
+  "A multi-engine image studio — generate and edit with Gemini, Pollinations, Cloudflare, and more.";
+
 export const metadata: Metadata = {
-  metadataBase: new URL("https://nbanana.mzork.com"),
-  title: "Nano Banana UI — AI Media Studio",
-  description: "Generate images and videos with Google Gemini, Kie.ai, Pollinations FLUX, and Cloudflare Workers AI.",
+  metadataBase: new URL(brand.siteUrl),
+  title: `${brand.name} — ${brand.tagline}`,
+  description: metaDescription,
   openGraph: {
-    title: "Nano Banana UI — AI Media Studio",
-    description:
-      "Multi-provider AI media studio — Gemini, Kie.ai, Pollinations FLUX, and Cloudflare Workers AI.",
-    url: "https://nbanana.mzork.com",
-    siteName: "Nano Banana UI",
+    title: `${brand.name} — ${brand.tagline}`,
+    description: metaDescription,
+    url: brand.siteUrl,
+    siteName: brand.name,
     type: "website",
     images: [
       {
         url: "/og.png",
         width: 2400,
         height: 1260,
-        alt: "Nano Banana UI — multi-provider AI media studio",
+        alt: `${brand.name} — ${brand.description}`,
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Nano Banana UI — AI Media Studio",
-    description:
-      "Multi-provider AI media studio — Gemini, Kie.ai, Pollinations FLUX, and Cloudflare Workers AI.",
+    title: `${brand.name} — ${brand.tagline}`,
+    description: metaDescription,
     images: ["/og.png"],
   },
 };

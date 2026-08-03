@@ -1,3 +1,4 @@
+// components/GenerationInterface.tsx
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
@@ -283,7 +284,7 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
     if (!generatedImage) return;
 
     const base =
-      filenameSlug || slugify(prompt) || `nano-banana-${feature.id}`;
+      filenameSlug || slugify(prompt) || `scene-assembly-${feature.id}`;
     const link = document.createElement('a');
     link.href = generatedImage;
     link.download = `${base}.${downloadExt}`;
@@ -433,7 +434,7 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
                   <button
                     onClick={handleUseExample}
                     disabled={exampleMutation.isPending}
-                    className="text-xs text-[var(--banana-yellow)] hover:text-[var(--neon-cyan)] disabled:opacity-60 flex items-center gap-1 px-2 py-1 rounded-lg bg-[var(--banana-yellow)]/10 border border-[var(--banana-yellow)]/30 transition-colors"
+                    className="text-xs text-[var(--brand-accent)] hover:text-[var(--neon-cyan)] disabled:opacity-60 flex items-center gap-1 px-2 py-1 rounded-lg bg-[var(--brand-accent)]/10 border border-[var(--brand-accent)]/30 transition-colors"
                   >
                     {exampleMutation.isPending ? (
                       <>
@@ -483,8 +484,8 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
             />
 
             {feature.id === 'social-media-thumbnail' && (
-              <div className="p-3 rounded-lg bg-[var(--banana-yellow)]/10 border border-[var(--banana-yellow)]/30 text-sm">
-                <p className="text-[var(--banana-yellow)] font-semibold mb-1">💡 Pro Tip:</p>
+              <div className="p-3 rounded-lg bg-[var(--brand-accent)]/10 border border-[var(--brand-accent)]/30 text-sm">
+                <p className="text-[var(--brand-accent)] font-semibold mb-1">💡 Pro Tip:</p>
                 <p className="text-[var(--foreground-muted)]">
                   Describe the emotion and action you want! The AI will automatically add dramatic effects,
                   bold text, and viral thumbnail styling.

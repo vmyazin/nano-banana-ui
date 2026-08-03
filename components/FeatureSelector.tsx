@@ -1,3 +1,4 @@
+// components/FeatureSelector.tsx
 'use client';
 
 import { motion } from 'framer-motion';
@@ -34,7 +35,8 @@ export default function FeatureSelector({ selectedFeature, onFeatureSelect }: Fe
           Choose your feature
         </h2>
         <p className="text-base sm:text-lg text-[var(--foreground-muted)] leading-relaxed">
-          Powerful AI image generation and editing modes, powered by Google Gemini.
+          Powerful AI image generation and editing modes across Gemini, Pollinations,
+          Cloudflare, and more.
         </p>
       </div>
 
@@ -82,7 +84,7 @@ export default function FeatureSelector({ selectedFeature, onFeatureSelect }: Fe
                 </div>
 
                 {isSpecial && (
-                  <span className="inline-flex items-center gap-1.5 text-[0.7rem] font-semibold px-2.5 py-1 rounded-full bg-[var(--banana-yellow)] text-black">
+                  <span className="inline-flex items-center gap-1.5 text-[0.7rem] font-semibold px-2.5 py-1 rounded-full bg-[var(--brand-accent)] text-black">
                     <Sparkles size={12} />
                     Special
                   </span>
