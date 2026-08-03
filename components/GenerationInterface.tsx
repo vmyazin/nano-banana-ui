@@ -15,6 +15,7 @@ import {
   type EngineMeta,
 } from '@/lib/engines/registry';
 import KieGenerationWorkspace from '@/components/KieGenerationWorkspace';
+import SegmentedToggleGroup from '@/components/SegmentedToggleGroup';
 import {
   X,
   Wand2,
@@ -46,6 +47,11 @@ const readImageAsDataUrl = (file: File): Promise<string> =>
     reader.onerror = () => reject(reader.error ?? new Error('Image could not be read'));
     reader.readAsDataURL(file);
   });
+
+const RESOLUTION_OPTIONS = ['1K', '2K', '4K'].map((value) => ({
+  label: value,
+  value,
+}));
 
 interface EngineSelectorProps {
   engines: EngineMeta[];
@@ -575,32 +581,19 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
                   )}
 
                   {activeEngine.supportsImageSize && (
-                  <div>
-                    <label className="block text-sm font-medium mb-2 text-[var(--foreground)]">
-                      Image Quality
-                      {feature.modelType === 'flash' && (
-                        <span className="ml-2 text-xs text-[var(--neon-cyan)] font-normal">
-                          (Gemini 2.5 Flash)
-                        </span>
-                      )}
-                      {feature.modelType === 'pro' && (
-                        <span className="ml-2 text-xs text-[var(--neon-purple)] font-normal">
-                          (Gemini 3 Pro)
-                        </span>
-                      )}
-                    </label>
-                    <select
-                      value={config.imageSize}
-                      onChange={(e) => setConfig({ ...config, imageSize: e.target.value as NonNullable<GenerationConfig['imageSize']> })}
-                      className="w-full"
-                    >
-                      <option value="1K">1K - Fast Generation</option>
-                      <option value="2K">2K - Balanced Quality</option>
-                      <option value="4K">4K - Maximum Quality</option>
-                    </select>
-                    <p className="text-xs text-[var(--foreground-muted)] mt-1.5">
-                      Higher quality takes longer but produces better results
-                    </p>
+                  <div className="space-y-2">
+                    <span className="block text-sm font-medium text-[var(--foreground)]">
+                      Resolution
+                    </span>
+                    <SegmentedToggleGroup
+                      label="Resolution"
+                      options={RESOLUTION_OPTIONS}
+                      value={config.imageSize ?? '1K'}
+                      onChange={(value) => setConfig({
+                        ...config,
+                        imageSize: value as NonNullable<GenerationConfig['imageSize']>,
+                      })}
+                    />
                   </div>
                   )}
 

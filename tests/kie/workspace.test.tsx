@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import KieGenerationWorkspace from '../../components/KieGenerationWorkspace';
 import { useAppStore } from '../../store/useAppStore';
 import { useKieJobsStore } from '../../store/useKieJobsStore';
@@ -95,5 +95,44 @@ describe('Kie generation workspace', () => {
       featureId: 'text-to-image',
       apiKey: 'gemini_test_key',
     });
+  });
+
+  it.each([
+    {
+      mediaType: 'image' as const,
+      modelState: { kieImageModel: 'nano-banana-pro' },
+      choices: ['1K', '2K', '4K'],
+      selected: '1K',
+      next: '2K',
+    },
+    {
+      mediaType: 'video' as const,
+      modelState: { kieVideoModel: 'kling-3-0' },
+      choices: ['480p', '720p', '1080p'],
+      selected: '720p',
+      next: '1080p',
+    },
+  ])('renders $mediaType resolution as horizontal toggles', ({ mediaType, modelState, choices, selected, next }) => {
+    useAppStore.setState(modelState);
+
+    render(
+      <KieGenerationWorkspace
+        mediaType={mediaType}
+        inputMode="text"
+        onBack={() => undefined}
+        onOpenConnections={() => undefined}
+      />
+    );
+
+    const resolution = screen.getByRole('radiogroup', { name: 'Resolution' });
+
+    expect(resolution.className).toContain('flex');
+    expect(within(resolution).getAllByRole('radio').map((choice) => choice.textContent)).toEqual(choices);
+    expect(screen.queryByRole('combobox', { name: 'Resolution' })).toBeNull();
+    expect(screen.getByRole('radio', { name: selected }).getAttribute('aria-checked')).toBe('true');
+
+    fireEvent.click(screen.getByRole('radio', { name: next }));
+
+    expect(screen.getByRole('radio', { name: next }).getAttribute('aria-checked')).toBe('true');
   });
 });

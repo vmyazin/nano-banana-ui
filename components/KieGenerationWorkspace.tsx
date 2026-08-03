@@ -10,6 +10,7 @@ import { currentKieTime, isKieJobTerminal } from '@/lib/kie/queue';
 import type { KieFieldDefinition, KieInputMode, MediaType } from '@/lib/kie/types';
 import { useAppStore } from '@/store/useAppStore';
 import { useKieJobsStore } from '@/store/useKieJobsStore';
+import SegmentedToggleGroup from '@/components/SegmentedToggleGroup';
 
 interface KieGenerationWorkspaceProps {
   mediaType: MediaType;
@@ -256,6 +257,23 @@ export default function KieGenerationWorkspace({
             className="h-4 w-4 accent-[var(--neon-cyan)]"
           />
         </label>
+      );
+    }
+
+    if (field.type === 'select' && field.key === 'resolution') {
+      return (
+        <div key={field.key} className="space-y-1.5">
+          <span className="block text-sm font-medium text-[var(--foreground)]">{field.label}</span>
+          <SegmentedToggleGroup
+            label={field.label}
+            options={field.options ?? []}
+            value={(values[field.key] ?? field.defaultValue ?? '') as string | number}
+            onChange={(value) => updateValues(field.key, value)}
+          />
+          {field.description && (
+            <span className="block text-xs text-[var(--foreground-subtle)]">{field.description}</span>
+          )}
+        </div>
       );
     }
 

@@ -132,4 +132,34 @@ describe('GenerationInterface engine selection', () => {
       Node.DOCUMENT_POSITION_FOLLOWING
     );
   });
+
+  it('renders Gemini resolution choices as concise horizontal toggles', () => {
+    useAppStore.setState({ engine: 'gemini' });
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <GenerationInterface
+          feature={textToImage}
+          apiKey="gemini_test_key"
+          onBack={() => undefined}
+          onOpenConnections={() => undefined}
+        />
+      </QueryClientProvider>
+    );
+
+    const resolution = screen.getByRole('radiogroup', { name: 'Resolution' });
+    const choices = within(resolution).getAllByRole('radio');
+
+    expect(resolution.className).toContain('flex');
+    expect(choices.map((choice) => choice.textContent)).toEqual(['1K', '2K', '4K']);
+    expect(screen.queryByText(/Fast Generation|Balanced Quality|Maximum Quality/)).toBeNull();
+    expect(screen.getByRole('radio', { name: '1K' }).getAttribute('aria-checked')).toBe('true');
+
+    fireEvent.click(screen.getByRole('radio', { name: '2K' }));
+
+    expect(screen.getByRole('radio', { name: '2K' }).getAttribute('aria-checked')).toBe('true');
+  });
 });
