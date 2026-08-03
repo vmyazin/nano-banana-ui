@@ -28,18 +28,7 @@ export default function FeatureSelector({ selectedFeature, onFeatureSelect }: Fe
   };
 
   return (
-    <div className="w-full space-y-8 sm:space-y-10">
-      <div className="text-center space-y-3 max-w-2xl mx-auto">
-        <p className="eyebrow">Capabilities</p>
-        <h2 className="display text-3xl sm:text-4xl md:text-5xl font-semibold text-[var(--foreground)]">
-          Choose your feature
-        </h2>
-        <p className="text-base sm:text-lg text-[var(--foreground-muted)] leading-relaxed">
-          Powerful AI image generation and editing modes across Gemini, Pollinations,
-          Cloudflare, and more.
-        </p>
-      </div>
-
+    <div className="feature-selector w-full">
       <motion.div
         variants={containerVariants}
         initial="hidden"
