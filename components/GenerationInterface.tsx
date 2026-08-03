@@ -8,9 +8,9 @@ import { toast } from 'sonner';
 import { Feature, GenerationConfig } from '@/types';
 import { metaForFeature, SEED_TONES, slugify } from '@/lib/example-prompts';
 import { useAppStore } from '@/store/useAppStore';
-import { enginesForFeature, getEngine } from '@/lib/engines/registry';
+import { enginesForFeature } from '@/lib/engines/registry';
+import KieGenerationWorkspace from '@/components/KieGenerationWorkspace';
 import {
-  Upload,
   X,
   Wand2,
   Loader2,
@@ -290,6 +290,20 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
     link.click();
   };
 
+  if (activeEngine.id === 'kie') {
+    return (
+      <KieGenerationWorkspace
+        mediaType="image"
+        inputMode={feature.requiresImage ? 'image' : 'text'}
+        title={feature.name}
+        description={feature.description}
+        initialPrompt={feature.examplePrompt}
+        onBack={onBack}
+        onOpenConnections={onOpenConnections}
+      />
+    );
+  }
+
   // Special prompt templates for social media
   return (
     <div className="w-full max-w-[1400px] mx-auto space-y-4 sm:space-y-6">
@@ -512,7 +526,7 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
                     </label>
                     <select
                       value={config.aspectRatio}
-                      onChange={(e) => setConfig({ ...config, aspectRatio: e.target.value as any })}
+                      onChange={(e) => setConfig({ ...config, aspectRatio: e.target.value as NonNullable<GenerationConfig['aspectRatio']> })}
                       className="w-full"
                     >
                       <option value="1:1">1:1 (Square - Instagram Post)</option>
@@ -543,7 +557,7 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
                     </label>
                     <select
                       value={config.imageSize}
-                      onChange={(e) => setConfig({ ...config, imageSize: e.target.value as any })}
+                      onChange={(e) => setConfig({ ...config, imageSize: e.target.value as NonNullable<GenerationConfig['imageSize']> })}
                       className="w-full"
                     >
                       <option value="1K">1K - Fast Generation</option>

@@ -10,6 +10,10 @@ interface AppState {
   /** Cloudflare Workers AI credentials (persisted). */
   cfAccountId: string;
   cfToken: string;
+  /** Kie.ai BYOK credentials and per-media model preferences (persisted). */
+  kieApiKey: string;
+  kieImageModel: string;
+  kieVideoModel: string;
   /** True once the persisted state has rehydrated on the client. */
   hasHydrated: boolean;
   setApiKey: (key: string) => void;
@@ -17,6 +21,9 @@ interface AppState {
   setEngine: (engine: EngineId) => void;
   setCfAccountId: (v: string) => void;
   setCfToken: (v: string) => void;
+  setKieApiKey: (key: string) => void;
+  setKieImageModel: (modelId: string) => void;
+  setKieVideoModel: (modelId: string) => void;
   setHasHydrated: (v: boolean) => void;
 }
 
@@ -35,18 +42,32 @@ export const useAppStore = create<AppState>()(
       engine: 'gemini',
       cfAccountId: '',
       cfToken: '',
+      kieApiKey: '',
+      kieImageModel: 'nano-banana-pro',
+      kieVideoModel: 'veo-3-1',
       hasHydrated: false,
       setApiKey: (key) => set({ apiKey: key }),
       clearApiKey: () => set({ apiKey: '' }),
       setEngine: (engine) => set({ engine }),
       setCfAccountId: (v) => set({ cfAccountId: v }),
       setCfToken: (v) => set({ cfToken: v }),
+      setKieApiKey: (key) => set({ kieApiKey: key }),
+      setKieImageModel: (modelId) => set({ kieImageModel: modelId }),
+      setKieVideoModel: (modelId) => set({ kieVideoModel: modelId }),
       setHasHydrated: (v) => set({ hasHydrated: v }),
     }),
     {
       name: 'nano-banana-store',
       storage: createJSONStorage(() => localStorage),
-      partialize: (s) => ({ apiKey: s.apiKey, engine: s.engine, cfAccountId: s.cfAccountId, cfToken: s.cfToken }),
+      partialize: (s) => ({
+        apiKey: s.apiKey,
+        engine: s.engine,
+        cfAccountId: s.cfAccountId,
+        cfToken: s.cfToken,
+        kieApiKey: s.kieApiKey,
+        kieImageModel: s.kieImageModel,
+        kieVideoModel: s.kieVideoModel,
+      }),
       skipHydration: true,
       onRehydrateStorage: () => (state) => {
         if (!state) return;

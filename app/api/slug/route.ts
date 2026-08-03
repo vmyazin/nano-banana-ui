@@ -29,9 +29,9 @@ export async function POST(request: NextRequest) {
 
     const slug = cleanSlug(text) || slugify(prompt) || 'image';
     return NextResponse.json({ slug });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return NextResponse.json(
-      { error: error?.message || 'Failed to generate slug' },
+      { error: error instanceof Error ? error.message : 'Failed to generate slug' },
       { status: 500 }
     );
   }

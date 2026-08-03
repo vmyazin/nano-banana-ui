@@ -3,7 +3,7 @@ import type { Feature } from '@/types';
 // Dependency-free engine metadata + capability gating. Safe to import from both
 // client components and server routes (no provider SDKs here).
 
-export type EngineId = 'gemini' | 'pollinations' | 'cloudflare';
+export type EngineId = 'gemini' | 'pollinations' | 'cloudflare' | 'kie';
 
 export interface EngineMeta {
   id: EngineId;
@@ -56,6 +56,17 @@ export const ENGINES: EngineMeta[] = [
     supportsAspectRatio: false,
     supportsImageSize: false,
     free: true,
+  },
+  {
+    id: 'kie',
+    label: 'Kie.ai',
+    blurb: 'BYOK · 15 flagship image and video model families',
+    requiresApiKey: true,
+    supportsInputImages: true,
+    supportsGoogleSearch: false,
+    supportsAspectRatio: true,
+    supportsImageSize: true,
+    free: false,
   },
 ];
 

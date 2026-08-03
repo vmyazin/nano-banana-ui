@@ -3,6 +3,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'sonner';
 import { useState } from 'react';
+import KieJobsProvider from '@/components/KieJobsProvider';
 
 export function Providers({ children }: { children: React.ReactNode }) {
   // One client per browser session (created lazily, never on the server twice).
@@ -18,7 +19,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      {children}
+      <KieJobsProvider>{children}</KieJobsProvider>
       <Toaster
         theme="dark"
         position="bottom-right"

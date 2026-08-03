@@ -20,20 +20,31 @@ export default function ApiKeyConfig({ open, onOpenChange }: ApiKeyConfigProps) 
   const setCfAccountId = useAppStore((s) => s.setCfAccountId);
   const setCfToken = useAppStore((s) => s.setCfToken);
   const cfConnected = !!cfAccountId && !!cfToken;
+  const savedKieKey = useAppStore((s) => s.kieApiKey);
+  const setKieApiKey = useAppStore((s) => s.setKieApiKey);
+  const kieConnected = !!savedKieKey;
 
   const [keyInput, setKeyInput] = useState('');
   const [showKey, setShowKey] = useState(false);
   const [showCfToken, setShowCfToken] = useState(false);
+  const [kieKeyInput, setKieKeyInput] = useState('');
+  const [showKieKey, setShowKieKey] = useState(false);
   const [isValidating, setIsValidating] = useState(false);
   const [validationError, setValidationError] = useState('');
+  const [kieValidationError, setKieValidationError] = useState('');
 
   // Seed the Gemini input with the current key whenever the dialog opens.
   useEffect(() => {
-    if (open) {
+    if (!open) return;
+
+    const resetId = window.setTimeout(() => {
       setKeyInput(savedKey);
+      setKieKeyInput(savedKieKey);
       setValidationError('');
-    }
-  }, [open, savedKey]);
+      setKieValidationError('');
+    }, 0);
+    return () => window.clearTimeout(resetId);
+  }, [open, savedKey, savedKieKey]);
 
   const validateApiKey = async (key: string): Promise<boolean> => {
     if (!key.startsWith('AIza') || key.length < 39) {
@@ -72,6 +83,32 @@ export default function ApiKeyConfig({ open, onOpenChange }: ApiKeyConfigProps) 
     }
   };
 
+  const validateKieApiKey = async (key: string): Promise<boolean> => {
+    if (!key.trim()) {
+      setKieValidationError('Enter your Kie API key.');
+      return false;
+    }
+
+    setIsValidating(true);
+    setKieValidationError('');
+    try {
+      const response = await fetch('/api/kie/validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiKey: key }),
+      });
+      const data = await response.json();
+      if (response.ok && data.success) return true;
+      setKieValidationError(data.error || 'Kie could not validate this key.');
+      return false;
+    } catch {
+      setKieValidationError('Could not reach Kie to validate this key. Please try again.');
+      return false;
+    } finally {
+      setIsValidating(false);
+    }
+  };
+
   // Validate + save the Gemini key (if entered), then close. Cloudflare creds
   // are already persisted as they're typed.
   const handleSave = async () => {
@@ -82,12 +119,21 @@ export default function ApiKeyConfig({ open, onOpenChange }: ApiKeyConfigProps) 
       setApiKey(trimmedKey);
       toast.success('Gemini key saved');
     }
+    const trimmedKieKey = kieKeyInput.trim();
+    if (trimmedKieKey && trimmedKieKey !== savedKieKey) {
+      const isValid = await validateKieApiKey(trimmedKieKey);
+      if (!isValid) return;
+      setKieApiKey(trimmedKieKey);
+      toast.success('Kie key validated and saved');
+    }
     setValidationError('');
+    setKieValidationError('');
     onOpenChange(false);
   };
 
   const handleClose = () => {
     setValidationError('');
+    setKieValidationError('');
     onOpenChange(false);
   };
 
@@ -181,6 +227,62 @@ export default function ApiKeyConfig({ open, onOpenChange }: ApiKeyConfigProps) 
                     <span>{validationError}</span>
                   </motion.div>
                 )}
+              </section>
+
+              {/* Kie.ai */}
+              <section className="space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="eyebrow flex items-center gap-1.5">
+                    Kie.ai · image and video BYOK
+                    {kieConnected && (
+                      <span className="inline-flex items-center gap-1 text-emerald-400 normal-case tracking-normal">
+                        <Check size={12} /> connected
+                      </span>
+                    )}
+                  </p>
+                  <a
+                    href="https://kie.ai/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-[var(--neon-cyan)] hover:underline"
+                  >
+                    Get a key →
+                  </a>
+                </div>
+                <div className="relative">
+                  <input
+                    aria-label="Kie API key"
+                    type={showKieKey ? 'text' : 'password'}
+                    value={kieKeyInput}
+                    onChange={(event) => {
+                      setKieKeyInput(event.target.value);
+                      setKieValidationError('');
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') void handleSave();
+                    }}
+                    placeholder="Kie API key"
+                    className="w-full pr-11"
+                    disabled={isValidating}
+                  />
+                  <button
+                    onClick={() => setShowKieKey(!showKieKey)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--foreground-muted)] hover:text-[var(--neon-cyan)] transition-colors"
+                    type="button"
+                    aria-label={showKieKey ? 'Hide Kie key' : 'Show Kie key'}
+                  >
+                    {showKieKey ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+                {kieValidationError && (
+                  <div className="flex items-start gap-2 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-400">
+                    <AlertCircle size={16} className="mt-0.5 shrink-0" />
+                    <span>{kieValidationError}</span>
+                  </div>
+                )}
+                <p className="text-xs text-[var(--foreground-subtle)]">
+                  Validated with your Kie credit endpoint. The key stays in browser storage and is never logged or persisted by this app.
+                </p>
               </section>
 
               {/* Cloudflare Workers AI */}

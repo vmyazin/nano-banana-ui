@@ -17,12 +17,12 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://nbanana.mzork.com"),
-  title: "Nano Banana UI — AI Image Studio",
-  description: "Generate and edit images with Google Gemini, Pollinations FLUX, and Cloudflare Workers AI.",
+  title: "Nano Banana UI — AI Media Studio",
+  description: "Generate images and videos with Google Gemini, Kie.ai, Pollinations FLUX, and Cloudflare Workers AI.",
   openGraph: {
-    title: "Nano Banana UI — AI Image Studio",
+    title: "Nano Banana UI — AI Media Studio",
     description:
-      "Multi-engine AI image studio — Gemini, Pollinations FLUX, and Cloudflare Workers AI.",
+      "Multi-provider AI media studio — Gemini, Kie.ai, Pollinations FLUX, and Cloudflare Workers AI.",
     url: "https://nbanana.mzork.com",
     siteName: "Nano Banana UI",
     type: "website",
@@ -31,15 +31,15 @@ export const metadata: Metadata = {
         url: "/og.png",
         width: 2400,
         height: 1260,
-        alt: "Nano Banana UI — multi-engine AI image studio",
+        alt: "Nano Banana UI — multi-provider AI media studio",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Nano Banana UI — AI Image Studio",
+    title: "Nano Banana UI — AI Media Studio",
     description:
-      "Multi-engine AI image studio — Gemini, Pollinations FLUX, and Cloudflare Workers AI.",
+      "Multi-provider AI media studio — Gemini, Kie.ai, Pollinations FLUX, and Cloudflare Workers AI.",
     images: ["/og.png"],
   },
 };

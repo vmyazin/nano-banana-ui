@@ -9,6 +9,7 @@ import { Key, Check, Command as CommandIcon } from 'lucide-react';
 import ApiKeyConfig from '@/components/ApiKeyConfig';
 import FeatureSelector from '@/components/FeatureSelector';
 import { CommandPalette } from '@/components/CommandPalette';
+import VideoWorkspace from '@/components/VideoWorkspace';
 import { Feature, FEATURES } from '@/types';
 import { useAppStore } from '@/store/useAppStore';
 
@@ -25,19 +26,32 @@ const GenerationInterface = dynamic(() => import('@/components/GenerationInterfa
 function Studio() {
   // API key lives in the persisted Zustand store (single source of truth).
   const apiKey = useAppStore((s) => s.apiKey);
+  const kieApiKey = useAppStore((s) => s.kieApiKey);
   const hasHydrated = useAppStore((s) => s.hasHydrated);
   useEffect(() => {
     useAppStore.persist.rehydrate();
   }, []);
-  const hasKey = hasHydrated && !!apiKey;
+  const hasKey = hasHydrated && !!(apiKey || kieApiKey);
 
   // View is driven by the URL (?feature=<id>) so it deep-links, supports
   // browser back/forward, and survives a refresh.
   const [featureId, setFeatureId] = useQueryState('feature', { history: 'push' });
+  const [workspace, setWorkspace] = useQueryState('workspace', { history: 'push' });
+  const [videoMode, setVideoMode] = useQueryState('videoMode', { history: 'push' });
+  const activeWorkspace = workspace === 'video' ? 'video' : 'image';
+  const activeVideoMode = videoMode === 'image' ? 'image' : 'text';
   const selectedFeature: Feature | null =
     FEATURES.find((f) => f.id === featureId) ?? null;
   const selectFeature = (feature: Feature) => setFeatureId(feature.id);
   const clearFeature = () => setFeatureId(null);
+  const selectWorkspace = (nextWorkspace: 'image' | 'video') => {
+    if (nextWorkspace === 'video') {
+      void setFeatureId(null);
+      void setWorkspace('video');
+      return;
+    }
+    void setWorkspace(null);
+  };
   const [keyDialogOpen, setKeyDialogOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
 
@@ -60,9 +74,26 @@ function Studio() {
                   Nano Banana Pro
                 </h1>
                 <span className="hidden md:inline-block h-3.5 w-px bg-[var(--border-hover)]" />
-                <span className="hidden md:inline eyebrow">Gemini Image Studio</span>
+                <span className="hidden md:inline eyebrow">Multi-model media studio</span>
               </div>
             </motion.div>
+
+            <nav aria-label="Workspace" className="flex items-center rounded-xl border border-[var(--border)] bg-[var(--background-elevated)]/70 p-1">
+              <button
+                type="button"
+                onClick={() => selectWorkspace('image')}
+                className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors sm:text-sm ${activeWorkspace === 'image' ? 'bg-[var(--banana-yellow)]/15 text-[var(--banana-yellow)]' : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)]'}`}
+              >
+                Image
+              </button>
+              <button
+                type="button"
+                onClick={() => selectWorkspace('video')}
+                className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors sm:text-sm ${activeWorkspace === 'video' ? 'bg-[var(--neon-purple)]/15 text-[var(--neon-purple)]' : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)]'}`}
+              >
+                Video
+              </button>
+            </nav>
 
             <motion.div
               initial={{ opacity: 0, y: -8 }}
@@ -119,7 +150,22 @@ function Studio() {
       {/* Main Content */}
       <main className="relative z-10 w-full max-w-7xl mx-auto px-6 sm:px-8 md:px-12 lg:px-16 py-6 sm:py-8 md:py-10">
         <AnimatePresence mode="wait">
-          {!selectedFeature ? (
+          {activeWorkspace === 'video' ? (
+            <motion.div
+              key={`video-${activeVideoMode}`}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.18 }}
+            >
+              <VideoWorkspace
+                inputMode={activeVideoMode}
+                onInputModeChange={(mode) => void setVideoMode(mode === 'text' ? null : 'image')}
+                onExit={() => selectWorkspace('image')}
+                onOpenConnections={() => setKeyDialogOpen(true)}
+              />
+            </motion.div>
+          ) : !selectedFeature ? (
             <motion.div
               key="picker"
               initial={{ opacity: 0 }}
@@ -162,7 +208,7 @@ function Studio() {
                   transition={{ delay: 0.2 }}
                   className="text-base sm:text-lg text-[var(--foreground-muted)] max-w-2xl mx-auto px-4 leading-relaxed"
                 >
-                  Harness Google's Gemini to generate, edit, and transform images with
+                  Harness Google&apos;s Gemini to generate, edit, and transform images with
                   precise control — from text-to-image to viral social thumbnails.
                 </motion.p>
 

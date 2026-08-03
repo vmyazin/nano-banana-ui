@@ -2,10 +2,80 @@ import { NextRequest, NextResponse } from 'next/server';
 import { geminiGenerate } from '@/lib/engines/gemini';
 import { pollinationsGenerate } from '@/lib/engines/pollinations';
 import { cloudflareGenerate } from '@/lib/engines/cloudflare';
+import { createKieTask, getKieTask } from '@/lib/kie/client';
+import { resolveKieVariant, validateKieInput } from '@/lib/kie/catalog';
+import type { KieInputMode, KieProtocol } from '@/lib/kie/types';
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object';
+}
+
+function isInputMode(value: unknown): value is KieInputMode {
+  return value === 'text' || value === 'image';
+}
+
+function isProtocol(value: unknown): value is KieProtocol {
+  return value === 'market' || value === 'veo';
+}
+
+async function handleKieRequest(body: Record<string, unknown>) {
+  try {
+    const apiKey = typeof body.apiKey === 'string' ? body.apiKey.trim() : '';
+    if (!apiKey) {
+      return NextResponse.json({ success: false, error: 'Kie API key is required' }, { status: 400 });
+    }
+
+    if (body.operation === 'status') {
+      if (typeof body.taskId !== 'string' || !isProtocol(body.protocol)) {
+        return NextResponse.json({ success: false, error: 'Task ID and Kie protocol are required' }, { status: 400 });
+      }
+
+      const task = await getKieTask({ apiKey, protocol: body.protocol, taskId: body.taskId });
+      return NextResponse.json({ success: true, task });
+    }
+
+    if (typeof body.modelId !== 'string' || !isInputMode(body.inputMode) || typeof body.prompt !== 'string' || !body.prompt.trim()) {
+      return NextResponse.json({ success: false, error: 'A Kie model, mode, and prompt are required' }, { status: 400 });
+    }
+
+    const uploadUrls = Array.isArray(body.uploadUrls)
+      ? body.uploadUrls.filter((url): url is string => typeof url === 'string')
+      : [];
+    const values = isRecord(body.values)
+      ? Object.fromEntries(
+          Object.entries(body.values).filter((entry): entry is [string, string | number | boolean] =>
+            typeof entry[1] === 'string' || typeof entry[1] === 'number' || typeof entry[1] === 'boolean'
+          )
+        )
+      : {};
+    const variant = resolveKieVariant(body.modelId, body.inputMode);
+    const validationError = validateKieInput(variant, { prompt: body.prompt, uploadUrls });
+    if (validationError) {
+      return NextResponse.json({ success: false, error: validationError }, { status: 400 });
+    }
+    const task = await createKieTask({
+      apiKey,
+      variant,
+      prompt: body.prompt.trim(),
+      uploadUrls,
+      values,
+    });
+
+    return NextResponse.json({ success: true, ...task });
+  } catch (error: unknown) {
+    const status =
+      error !== null && typeof error === 'object' && 'status' in error && typeof error.status === 'number'
+        ? error.status
+        : 500;
+    const message = error instanceof Error ? error.message : 'Kie could not process this request.';
+    return NextResponse.json({ success: false, error: message }, { status });
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
+    if (isRecord(body) && body.engine === 'kie') return handleKieRequest(body);
     const { engine = 'gemini', prompt, images, config, apiKey, cfAccountId, cfToken } = body;
 
     if (!prompt && !images?.length) {
@@ -41,13 +111,14 @@ export async function POST(request: NextRequest) {
       imageData: result.imageData,
       mimeType: result.mimeType,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Generation error:', error);
+    const message = error instanceof Error ? error.message : 'Failed to generate image';
     return NextResponse.json(
       {
         success: false,
-        error: error?.message || 'Failed to generate image',
-        details: error?.response?.data?.error?.message || error?.toString(),
+        error: message,
+        details: message,
       },
       { status: 500 }
     );

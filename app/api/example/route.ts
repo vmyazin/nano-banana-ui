@@ -42,9 +42,9 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({ prompt: text });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return NextResponse.json(
-      { error: error?.message || 'Failed to generate example' },
+      { error: error instanceof Error ? error.message : 'Failed to generate example' },
       { status: 500 }
     );
   }

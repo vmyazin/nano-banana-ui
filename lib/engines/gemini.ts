@@ -21,7 +21,7 @@ const MODEL = 'gemini-3-pro-image-preview';
 export async function geminiGenerate(opts: GeminiOpts): Promise<EngineResult> {
   const ai = new GoogleGenAI({ apiKey: opts.apiKey });
 
-  const promptParts: any[] = [];
+  const promptParts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> = [];
   if (opts.prompt) promptParts.push({ text: opts.prompt });
   for (const img of opts.images || []) {
     promptParts.push({ inlineData: { mimeType: 'image/png', data: img } });
@@ -29,7 +29,10 @@ export async function geminiGenerate(opts: GeminiOpts): Promise<EngineResult> {
 
   // Generation params must be nested under `config` (not spread at top level),
   // or @google/genai silently ignores imageConfig/tools.
-  const config: any = {};
+  const config: {
+    imageConfig?: { aspectRatio?: string; imageSize?: string };
+    tools?: Array<{ googleSearch: Record<string, never> }>;
+  } = {};
   if (opts.config?.aspectRatio || opts.config?.imageSize) {
     config.imageConfig = {};
     if (opts.config.aspectRatio) config.imageConfig.aspectRatio = opts.config.aspectRatio;
