@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Download, ImagePlus, Loader2, Search, Sparkles, Trash2, Video } from 'lucide-react';
 import { toast } from 'sonner';
+import { SEED_TONES } from '@/lib/example-prompts';
 import { submitKieJob, uploadKieFiles } from '@/lib/kie/browser';
 import { defaultKieValues, modelsForKieMode, resolveKieVariant, validateKieInput } from '@/lib/kie/catalog';
 import { currentKieTime, isKieJobTerminal } from '@/lib/kie/queue';
@@ -18,6 +19,8 @@ interface KieGenerationWorkspaceProps {
   title?: string;
   description?: string;
   initialPrompt?: string;
+  exampleFeatureId?: string;
+  engineSelector?: ReactNode;
 }
 
 interface UploadedReference {
@@ -40,7 +43,10 @@ export default function KieGenerationWorkspace({
   title,
   description,
   initialPrompt = '',
+  exampleFeatureId,
+  engineSelector,
 }: KieGenerationWorkspaceProps) {
+  const geminiApiKey = useAppStore((state) => state.apiKey);
   const kieApiKey = useAppStore((state) => state.kieApiKey);
   const kieImageModel = useAppStore((state) => state.kieImageModel);
   const kieVideoModel = useAppStore((state) => state.kieVideoModel);
@@ -62,6 +68,7 @@ export default function KieGenerationWorkspace({
   const [references, setReferences] = useState<UploadedReference[]>([]);
   const [modelSearch, setModelSearch] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [isGeneratingExample, setIsGeneratingExample] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const referencesRef = useRef<UploadedReference[]>([]);
@@ -73,6 +80,8 @@ export default function KieGenerationWorkspace({
     (job) => job.modelId === selectedModel.id && job.mediaType === mediaType && job.inputMode === inputMode
   );
   const resultUrl = latestJob?.state === 'success' ? latestJob.resultUrls[0] : undefined;
+  const resolvedExampleFeatureId =
+    exampleFeatureId ?? (mediaType === 'video' ? `${inputMode}-to-video` : 'text-to-image');
 
   useEffect(() => {
     referencesRef.current = references;
@@ -142,6 +151,38 @@ export default function KieGenerationWorkspace({
       if (reference) URL.revokeObjectURL(reference.previewUrl);
       return current.filter((_, currentIndex) => currentIndex !== index);
     });
+  };
+
+  const generateExample = async () => {
+    if (!geminiApiKey) return;
+
+    setIsGeneratingExample(true);
+    setError(null);
+    try {
+      const seed = SEED_TONES[Math.floor(Math.random() * SEED_TONES.length)];
+      const response = await fetch('/api/example', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          featureId: resolvedExampleFeatureId,
+          apiKey: geminiApiKey,
+          seed,
+        }),
+      });
+      const data = (await response.json()) as { prompt?: string; error?: string };
+      if (!response.ok || !data.prompt) {
+        throw new Error(data.error || 'Could not generate an example prompt.');
+      }
+      setPrompt(data.prompt);
+    } catch (exampleError) {
+      const message = exampleError instanceof Error
+        ? exampleError.message
+        : 'Could not generate an example prompt.';
+      setError(message);
+      toast.error(message);
+    } finally {
+      setIsGeneratingExample(false);
+    }
   };
 
   const submit = async () => {
@@ -290,6 +331,8 @@ export default function KieGenerationWorkspace({
         </div>
       </section>
 
+      {engineSelector}
+
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 lg:gap-6">
         <div className="space-y-5">
           <section className="glass-card space-y-4 p-4 sm:p-5 md:p-6">
@@ -374,7 +417,21 @@ export default function KieGenerationWorkspace({
           )}
 
           <section className="glass-card space-y-3 p-4 sm:p-5 md:p-6">
-            <label htmlFor="kie-prompt" className="display block text-lg font-semibold">Prompt</label>
+            <div className="flex items-center justify-between gap-3">
+              <label htmlFor="kie-prompt" className="display block text-lg font-semibold">Prompt</label>
+              {geminiApiKey && (
+                <button
+                  type="button"
+                  onClick={() => void generateExample()}
+                  disabled={isGeneratingExample}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--brand-accent)]/30 bg-[var(--brand-accent)]/10 px-2.5 py-1.5 text-xs font-medium text-[var(--brand-accent)] transition-colors hover:text-[var(--neon-cyan)] disabled:cursor-not-allowed disabled:opacity-60"
+                  title="Generate an example prompt with your connected Gemini key"
+                >
+                  {isGeneratingExample ? <Loader2 className="animate-spin" size={14} /> : <Sparkles size={14} />}
+                  {isGeneratingExample ? 'Thinking…' : 'Gen Example'}
+                </button>
+              )}
+            </div>
             <textarea
               id="kie-prompt"
               value={prompt}

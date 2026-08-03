@@ -52,6 +52,7 @@ export default function VideoWorkspace({
       <KieGenerationWorkspace
         mediaType="video"
         inputMode={inputMode}
+        exampleFeatureId={`${inputMode}-to-video`}
         onBack={onExit}
         onOpenConnections={onOpenConnections}
       />

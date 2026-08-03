@@ -9,7 +9,11 @@ import { toast } from 'sonner';
 import { Feature, GenerationConfig } from '@/types';
 import { metaForFeature, SEED_TONES, slugify } from '@/lib/example-prompts';
 import { useAppStore } from '@/store/useAppStore';
-import { enginesForFeature } from '@/lib/engines/registry';
+import {
+  enginesForFeature,
+  type EngineId,
+  type EngineMeta,
+} from '@/lib/engines/registry';
 import KieGenerationWorkspace from '@/components/KieGenerationWorkspace';
 import {
   X,
@@ -42,6 +46,50 @@ const readImageAsDataUrl = (file: File): Promise<string> =>
     reader.onerror = () => reject(reader.error ?? new Error('Image could not be read'));
     reader.readAsDataURL(file);
   });
+
+interface EngineSelectorProps {
+  engines: EngineMeta[];
+  activeEngineId: EngineId;
+  onSelect: (engineId: EngineId) => void;
+}
+
+function EngineSelector({ engines, activeEngineId, onSelect }: EngineSelectorProps) {
+  if (engines.length <= 1) return null;
+
+  return (
+    <section
+      aria-label="Generation engine"
+      className="glass-card px-4 py-3 sm:px-5"
+    >
+      <div className="flex flex-wrap items-center gap-2 pt-1">
+        <span className="eyebrow mr-0.5">Engine</span>
+        {engines.map((engine) => {
+          const active = engine.id === activeEngineId;
+          return (
+            <button
+              key={engine.id}
+              type="button"
+              onClick={() => onSelect(engine.id)}
+              title={engine.blurb}
+              className={`inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full border transition-colors ${
+                active
+                  ? 'border-[var(--neon-cyan)] text-[var(--neon-cyan)] bg-[var(--neon-cyan)]/10'
+                  : 'border-[var(--border)] text-[var(--foreground-muted)] hover:border-[var(--border-hover)] hover:text-[var(--foreground)]'
+              }`}
+            >
+              {engine.label}
+              {engine.free && (
+                <span className="text-[0.62rem] uppercase tracking-wide text-emerald-400">
+                  Free
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
 
 export default function GenerationInterface({ feature, apiKey, onBack, onOpenConnections }: GenerationInterfaceProps) {
   const [prompt, setPrompt] = useState('');
@@ -299,6 +347,14 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
         title={feature.name}
         description={feature.description}
         initialPrompt={feature.examplePrompt}
+        exampleFeatureId={feature.id}
+        engineSelector={
+          <EngineSelector
+            engines={availableEngines}
+            activeEngineId={activeEngine.id}
+            onSelect={setEngine}
+          />
+        }
         onBack={onBack}
         onOpenConnections={onOpenConnections}
       />
@@ -331,36 +387,13 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
             </div>
           </div>
         </div>
-
-        {availableEngines.length > 1 && (
-          <div className="flex flex-wrap items-center gap-2 pt-1">
-            <span className="eyebrow mr-0.5">Engine</span>
-            {availableEngines.map((eng) => {
-              const active = eng.id === activeEngine.id;
-              return (
-                <button
-                  key={eng.id}
-                  type="button"
-                  onClick={() => setEngine(eng.id)}
-                  title={eng.blurb}
-                  className={`inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full border transition-colors ${
-                    active
-                      ? 'border-[var(--neon-cyan)] text-[var(--neon-cyan)] bg-[var(--neon-cyan)]/10'
-                      : 'border-[var(--border)] text-[var(--foreground-muted)] hover:border-[var(--border-hover)] hover:text-[var(--foreground)]'
-                  }`}
-                >
-                  {eng.label}
-                  {eng.free && (
-                    <span className="text-[0.62rem] uppercase tracking-wide text-emerald-400">
-                      Free
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        )}
       </motion.div>
+
+      <EngineSelector
+        engines={availableEngines}
+        activeEngineId={activeEngine.id}
+        onSelect={setEngine}
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5 md:gap-6">
         {/* Input Section */}

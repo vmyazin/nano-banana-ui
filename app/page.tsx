@@ -3,6 +3,7 @@
 
 import { Suspense, useEffect, useLayoutEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
+import Link from 'next/link';
 import { useQueryState } from 'nuqs';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Key, Check, Command as CommandIcon, Layers } from 'lucide-react';
@@ -66,22 +67,28 @@ function Studio() {
       <header className="sticky top-0 z-50 border-b border-[var(--border)] bg-[rgba(8,8,11,0.72)] backdrop-blur-xl">
         <div className="w-full max-w-7xl mx-auto px-6 sm:px-8 md:px-12 lg:px-16 py-3.5 md:py-4">
           <div className="flex items-center justify-between gap-4">
-            <motion.div
-              initial={{ opacity: 0, y: -8 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="brand-mark flex items-center gap-2.5 min-w-0"
+            <Link
+              href="/"
+              aria-label="Go to Scene Assembly home"
+              className="block min-w-0 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--neon-cyan)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]"
             >
-              <div className="brand-mark-icon w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-gradient-to-br from-[var(--neon-cyan)] to-[var(--neon-purple)] flex items-center justify-center flex-shrink-0 shadow-[0_2px_12px_-2px_rgba(0,245,255,0.35)]">
-                <Layers className="w-4 h-4 sm:w-[18px] sm:h-[18px] text-black" aria-hidden />
-              </div>
-              <div className="min-w-0 flex items-center gap-2.5">
-                <h1 className="display text-base sm:text-lg font-semibold text-[var(--foreground)] truncate">
-                  {brand.name}
-                </h1>
-                <span className="hidden md:inline-block h-3.5 w-px bg-[var(--border-hover)]" />
-                <span className="hidden md:inline eyebrow">{brand.tagline}</span>
-              </div>
-            </motion.div>
+              <motion.div
+                initial={{ opacity: 0, y: -8 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="brand-mark flex items-center gap-2.5 min-w-0"
+              >
+                <div className="brand-mark-icon w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-gradient-to-br from-[var(--neon-cyan)] to-[var(--neon-purple)] flex items-center justify-center flex-shrink-0 shadow-[0_2px_12px_-2px_rgba(0,245,255,0.35)]">
+                  <Layers className="w-4 h-4 sm:w-[18px] sm:h-[18px] text-black" aria-hidden />
+                </div>
+                <div className="min-w-0 flex items-center gap-2.5">
+                  <h1 className="display text-base sm:text-lg font-semibold text-[var(--foreground)] truncate">
+                    {brand.name}
+                  </h1>
+                  <span className="hidden md:inline-block h-3.5 w-px bg-[var(--border-hover)]" />
+                  <span className="hidden md:inline eyebrow">{brand.tagline}</span>
+                </div>
+              </motion.div>
+            </Link>
 
             <nav aria-label="Workspace" className="flex items-center rounded-xl border border-[var(--border)] bg-[var(--background-elevated)]/70 p-1">
               <button

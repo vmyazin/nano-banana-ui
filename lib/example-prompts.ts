@@ -15,6 +15,10 @@ export const EXAMPLE_META_PROMPTS: Record<string, string> = {
     'Produce ONE punchy concept for a viral YouTube or social thumbnail: a dramatic scene with a bold, curiosity-driving idea, in about one sentence. Make it eye-catching and varied.',
   'style-transfer':
     'Produce ONE artistic style-transfer instruction that applies a distinctive visual style or aesthetic to an image, in about one sentence. Vary the style each time.',
+  'text-to-video':
+    'Produce ONE vivid text-to-video prompt describing a scene, its motion, camera movement, lighting, and mood in about one sentence. Vary the subject and cinematic approach each time.',
+  'image-to-video':
+    'Produce ONE concise image-to-video instruction describing how the supplied image should move, including subject motion and camera movement, in about one sentence.',
 };
 
 export const DEFAULT_EXAMPLE_META =

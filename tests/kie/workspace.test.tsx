@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import KieGenerationWorkspace from '../../components/KieGenerationWorkspace';
 import { useAppStore } from '../../store/useAppStore';
 import { useKieJobsStore } from '../../store/useKieJobsStore';
@@ -7,12 +7,15 @@ import { useKieJobsStore } from '../../store/useKieJobsStore';
 describe('Kie generation workspace', () => {
   beforeEach(() => {
     useAppStore.setState({
+      apiKey: 'gemini_test_key',
       kieApiKey: 'kie_test_key',
       kieImageModel: 'nano-banana-pro',
       kieVideoModel: 'veo-3-1',
     });
     useKieJobsStore.getState().clearJobs();
   });
+
+  afterEach(() => vi.restoreAllMocks());
 
   it('renders the compatible video model and its documented dynamic controls', () => {
     render(
@@ -60,5 +63,37 @@ describe('Kie generation workspace', () => {
 
     expect(container.querySelector('video')?.getAttribute('src')).toBe('https://temp.kie.ai/video.mp4');
     expect((container.querySelector('a[download]') as HTMLAnchorElement).href).toBe('https://temp.kie.ai/video.mp4');
+  });
+
+  it('uses the saved Gemini key to generate an example prompt', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ prompt: 'A luminous glass city above the clouds' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    );
+
+    render(
+      <KieGenerationWorkspace
+        mediaType="image"
+        inputMode="text"
+        exampleFeatureId="text-to-image"
+        onBack={() => undefined}
+        onOpenConnections={() => undefined}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Gen Example' }));
+
+    await waitFor(() => {
+      expect((screen.getByLabelText('Prompt') as HTMLTextAreaElement).value).toBe(
+        'A luminous glass city above the clouds'
+      );
+    });
+    expect(fetchMock).toHaveBeenCalledWith('/api/example', expect.objectContaining({ method: 'POST' }));
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toMatchObject({
+      featureId: 'text-to-image',
+      apiKey: 'gemini_test_key',
+    });
   });
 });

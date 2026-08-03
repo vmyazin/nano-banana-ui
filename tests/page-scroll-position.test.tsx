@@ -1,4 +1,4 @@
-import { render } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import Home from '../app/page';
 
@@ -22,5 +22,14 @@ describe('Home', () => {
     render(<Home />);
 
     expect(scrollTo).toHaveBeenCalledWith(0, 0);
+  });
+
+  it('links the brand mark to the home page', () => {
+    vi.spyOn(window, 'scrollTo').mockImplementation(() => undefined);
+    render(<Home />);
+
+    expect(
+      screen.getByRole('link', { name: 'Go to Scene Assembly home' }).getAttribute('href')
+    ).toBe('/');
   });
 });
