@@ -1,7 +1,7 @@
 // app/page.tsx
 'use client';
 
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useLayoutEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { useQueryState } from 'nuqs';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -25,6 +25,10 @@ const GenerationInterface = dynamic(() => import('@/components/GenerationInterfa
 });
 
 function Studio() {
+  useLayoutEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
   // API key lives in the persisted Zustand store (single source of truth).
   const apiKey = useAppStore((s) => s.apiKey);
   const kieApiKey = useAppStore((s) => s.kieApiKey);
