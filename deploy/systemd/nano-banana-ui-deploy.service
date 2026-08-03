@@ -1,0 +1,18 @@
+[Unit]
+Description=Deploy nano-banana-ui from origin/main
+Wants=network-online.target
+After=network-online.target
+ConditionPathIsDirectory=/home/vasily/apps/nano-banana-ui/.git
+
+[Service]
+Type=oneshot
+User=vasily
+WorkingDirectory=/home/vasily/apps/nano-banana-ui
+Environment=HOME=/home/vasily
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+Environment=CI=1
+ExecStart=/home/vasily/apps/nano-banana-ui/scripts/deploy-production.sh
+TimeoutStartSec=20min
+
+[Install]
+WantedBy=multi-user.target

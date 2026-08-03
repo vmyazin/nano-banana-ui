@@ -1,0 +1,13 @@
+[Unit]
+Description=Check nano-banana-ui for deployable updates every minute
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=1min
+AccuracySec=5s
+RandomizedDelaySec=5s
+Persistent=true
+Unit=nano-banana-ui-deploy.service
+
+[Install]
+WantedBy=timers.target
