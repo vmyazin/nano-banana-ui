@@ -46,7 +46,7 @@ export default function SegmentedToggleGroup({
       className="flex w-full items-center gap-2"
     >
       {options.map((option, optionIndex) => {
-        const selected = String(option.value) === String(value);
+        const selected = Object.is(option.value, value);
 
         return (
           <button

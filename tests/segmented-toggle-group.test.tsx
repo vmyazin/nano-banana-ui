@@ -72,4 +72,46 @@ describe('SegmentedToggleGroup', () => {
 
     expect(onChange).toHaveBeenCalledWith(2);
   });
+
+  it('preserves exact numeric and string option identity for selection, arrows, and clicks', () => {
+    const typedOptions = [
+      { label: 'Numeric one', value: 1 },
+      { label: 'String one', value: '1' },
+    ];
+    const onChange = vi.fn();
+    const { rerender } = render(
+      <SegmentedToggleGroup
+        label="Typed value"
+        options={typedOptions}
+        value={1}
+        onChange={onChange}
+      />
+    );
+    const numeric = screen.getByRole('radio', { name: 'Numeric one' });
+    const string = screen.getByRole('radio', { name: 'String one' });
+
+    expect(screen.getAllByRole('radio').filter((radio) => radio.getAttribute('aria-checked') === 'true')).toEqual([numeric]);
+    numeric.focus();
+    fireEvent.keyDown(numeric, { key: 'ArrowRight' });
+    fireEvent.click(numeric);
+    expect(onChange).toHaveBeenNthCalledWith(1, '1');
+    expect(onChange).toHaveBeenNthCalledWith(2, 1);
+    expect(document.activeElement).toBe(string);
+
+    rerender(
+      <SegmentedToggleGroup
+        label="Typed value"
+        options={typedOptions}
+        value="1"
+        onChange={onChange}
+      />
+    );
+    expect(screen.getAllByRole('radio').filter((radio) => radio.getAttribute('aria-checked') === 'true')).toEqual([string]);
+    string.focus();
+    fireEvent.keyDown(string, { key: 'ArrowRight' });
+    fireEvent.click(string);
+    expect(onChange).toHaveBeenNthCalledWith(3, 1);
+    expect(onChange).toHaveBeenNthCalledWith(4, '1');
+    expect(document.activeElement).toBe(numeric);
+  });
 });

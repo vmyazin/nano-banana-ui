@@ -161,6 +161,27 @@ describe('ModelControls', () => {
     expect(onChange).toHaveBeenCalledWith('resolution', '2K');
   });
 
+  it('preserves exact numeric and string values for resolution controls', () => {
+    const onChange = renderControls(
+      [{
+        key: 'resolution',
+        label: 'Typed resolution',
+        type: 'select',
+        defaultValue: '1',
+        options: [{ label: 'Numeric one', value: 1 }, { label: 'String one', value: '1' }],
+      }],
+      {}
+    );
+    const numeric = screen.getByRole('radio', { name: 'Numeric one' });
+    const string = screen.getByRole('radio', { name: 'String one' });
+
+    expect(numeric.getAttribute('aria-checked')).toBe('false');
+    expect(string.getAttribute('aria-checked')).toBe('true');
+    fireEvent.click(numeric);
+
+    expect(onChange).toHaveBeenCalledWith('resolution', 1);
+  });
+
   it('keeps colliding sanitized keys and duplicate namespaces uniquely associated', () => {
     const fields: ModelControlField[] = [
       { key: 'prompt/style', label: 'Slash style', type: 'text', description: 'Slash description.' },
