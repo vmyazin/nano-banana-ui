@@ -5,6 +5,7 @@ import type { FalInputMode, FalMediaType, FalTask, FalValue } from './types';
 
 const FAL_PRICING_URL =
   'https://api.fal.ai/v1/models/pricing?endpoint_id=fal-ai%2Fnano-banana-2';
+const FAL_REQUEST_ID_PATTERN = /^[A-Za-z0-9_-]{8,128}$/;
 
 export class FalApiError extends Error {
   constructor(
@@ -56,8 +57,45 @@ async function withSafeFalErrors<T>(
 }
 
 function requireRequestId(value: unknown, status: number): string {
-  if (typeof value !== 'string' || !value.trim()) throw safeError(status);
-  return value.trim();
+  if (typeof value !== 'string' || !FAL_REQUEST_ID_PATTERN.test(value)) throw safeError(status);
+  return value;
+}
+
+function singleAttemptFetch(): typeof fetch {
+  const transport = globalThis.fetch.bind(globalThis);
+  let outcome: Promise<Response> | undefined;
+
+  return async (input, init) => {
+    // queue.submit retries independently of client retry settings. Replaying a clone lets the
+    // SDK preserve its response handling without issuing a second billable network request.
+    outcome ??= Promise.resolve().then(() => transport(input, init));
+    const response = await outcome;
+    return response.clone();
+  };
+}
+
+function rawResultUrl(mediaType: FalMediaType, payload: unknown): unknown {
+  const record = asRecord(payload);
+  if (mediaType === 'video') return asRecord(record.video).url;
+  const image = Array.isArray(record.images) ? record.images[0] : undefined;
+  return asRecord(image).url;
+}
+
+function requireSafeResultUrl(value: unknown): string {
+  if (typeof value !== 'string' || /\s/.test(value)) throw safeError(502);
+
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw safeError(502);
+  }
+  const isFalCdn = url.hostname === 'fal.media' || url.hostname.endsWith('.fal.media');
+  if (url.protocol !== 'https:' || url.username || url.password || !isFalCdn) {
+    throw safeError(502);
+  }
+
+  return value;
 }
 
 function normalizedLogs(value: unknown): string[] {
@@ -104,7 +142,10 @@ export async function submitFalTask(args: {
     });
 
     return withSafeFalErrors(async () => {
-      const client = createFalClient({ credentials: args.apiKey });
+      const client = createFalClient({
+        credentials: args.apiKey,
+        fetch: singleAttemptFetch(),
+      });
       const response = await client.queue.submit(variant.endpointId, {
         input,
         headers: { 'X-Fal-Store-IO': '0' },
@@ -148,12 +189,14 @@ export async function getFalTask(args: {
       const resultRequestId = requireRequestId(resultRecord.requestId, 502);
       if (resultRequestId !== requestId) throw safeError(502);
       const media = extractFalResult(args.mediaType, resultRecord.data);
+      const resultUrl = requireSafeResultUrl(rawResultUrl(args.mediaType, resultRecord.data));
+      if (resultUrl !== media.url) throw safeError(502);
 
       return {
         requestId,
         state: 'success',
         logs,
-        resultUrl: media.url,
+        resultUrl,
         ...(media.mimeType ? { mimeType: media.mimeType } : {}),
       };
     });

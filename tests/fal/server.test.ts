@@ -23,6 +23,15 @@ import {
 } from '../../lib/fal/server';
 
 const apiKey = 'id:secret';
+const validSubmitArgs = {
+  apiKey,
+  modelId: 'nano-banana-2',
+  mediaType: 'image' as const,
+  inputMode: 'text' as const,
+  prompt: 'A yellow banana',
+  uploadUrls: [],
+  values: {},
+};
 
 function falError(status: number, message = 'raw provider failure') {
   return Object.assign(new Error(message), {
@@ -63,6 +72,7 @@ function activeStatus(
 
 describe('fal server adapter', () => {
   afterEach(() => {
+    vi.useRealTimers();
     vi.resetAllMocks();
     vi.unstubAllGlobals();
   });
@@ -81,6 +91,64 @@ describe('fal server adapter', () => {
     );
     expect(client.storage.upload).toEqual(expect.any(Function));
   });
+
+  it.each(['502 response', 'transport failure'] as const)(
+    'allows only one actual submit POST after a %s',
+    async (failure) => {
+      const actual = await vi.importActual<typeof import('@fal-ai/client')>('@fal-ai/client');
+      const transport =
+        failure === '502 response'
+          ? vi.fn().mockImplementation(() =>
+              Promise.resolve(
+                new Response(JSON.stringify({ message: `upstream ${apiKey}` }), {
+                  status: 502,
+                  headers: { 'Content-Type': 'application/json' },
+                })
+              )
+            )
+          : vi.fn().mockRejectedValue(
+              Object.assign(new TypeError(`fetch failed ${apiKey}`), {
+                cause: { code: 'ECONNRESET' },
+              })
+            );
+      vi.stubGlobal('fetch', transport);
+      createFalClient.mockImplementation((config) =>
+        actual.createFalClient({ ...config, suppressLocalCredentialsWarning: true })
+      );
+      vi.useFakeTimers();
+
+      const outcome = submitFalTask(validSubmitArgs).catch((caught: unknown) => caught);
+      await vi.runAllTimersAsync();
+      const error = await outcome;
+
+      expect(error).toBeInstanceOf(FalApiError);
+      expect(error).toMatchObject({
+        status: 502,
+        message: 'fal is temporarily unavailable. Please try again.',
+      });
+      expect(String(error)).not.toContain(apiKey);
+      expect(transport).toHaveBeenCalledOnce();
+      expect(transport).toHaveBeenCalledWith(
+        'https://queue.fal.run/fal-ai/nano-banana-2',
+        expect.objectContaining({
+          method: 'POST',
+          headers: expect.objectContaining({
+            Authorization: `Key ${apiKey}`,
+            'x-fal-store-io': '0',
+            'x-fal-object-lifecycle-preference': JSON.stringify({
+              expiration_duration_seconds: 604800,
+            }),
+          }),
+          body: JSON.stringify({
+            prompt: 'A yellow banana',
+            aspect_ratio: 'auto',
+            resolution: '1K',
+            enable_web_search: false,
+          }),
+        })
+      );
+    }
+  );
 
   it('validates the key with the non-billable pricing endpoint', async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response('{}', { status: 200 }));
@@ -134,7 +202,7 @@ describe('fal server adapter', () => {
   });
 
   it('submits only the catalog endpoint with allow-listed input and privacy settings', async () => {
-    const submit = vi.fn().mockResolvedValue(queuedResponse('req_123'));
+    const submit = vi.fn().mockResolvedValue(queuedResponse('req_0123'));
     createFalClient.mockReturnValue({ queue: { submit } });
 
     await expect(
@@ -152,9 +220,12 @@ describe('fal server adapter', () => {
           endpoint: 'attacker/endpoint',
         },
       })
-    ).resolves.toEqual({ requestId: 'req_123' });
+    ).resolves.toEqual({ requestId: 'req_0123' });
 
-    expect(createFalClient).toHaveBeenCalledWith({ credentials: apiKey });
+    expect(createFalClient).toHaveBeenCalledWith({
+      credentials: apiKey,
+      fetch: expect.any(Function),
+    });
     expect(submit).toHaveBeenCalledWith('fal-ai/veo3.1/fast', {
       input: {
         prompt: 'A crane flying over a lake',
@@ -270,6 +341,77 @@ describe('fal server adapter', () => {
       }
     );
   }
+
+  const invalidRequestIds = [
+    ['too short', 'short'],
+    ['too long', 'r'.repeat(129)],
+    ['traversal', '../../../other'],
+    ['slash', 'request/other'],
+    ['query', 'request_123?logs=1'],
+    ['hash', 'request_123#other'],
+    ['whitespace', 'request 123'],
+  ] as const;
+  const callerIdOperations = [
+    [
+      'status',
+      (requestId: string) =>
+        getFalTask({
+          apiKey,
+          modelId: 'nano-banana-2',
+          mediaType: 'image',
+          inputMode: 'text',
+          requestId,
+        }),
+    ],
+    [
+      'cancel',
+      (requestId: string) =>
+        cancelFalTask({
+          apiKey,
+          modelId: 'nano-banana-2',
+          mediaType: 'image',
+          inputMode: 'text',
+          requestId,
+        }),
+    ],
+  ] as const;
+
+  for (const [operation, call] of callerIdOperations) {
+    it.each(invalidRequestIds)(`rejects a %s caller request ID before ${operation}`, async (_case, id) => {
+      const sdkOperation = vi.fn();
+      createFalClient.mockReturnValue({
+        queue: { status: sdkOperation, cancel: sdkOperation },
+      });
+
+      const error = await call(id).catch((caught: unknown) => caught);
+
+      expect(error).toBeInstanceOf(FalApiError);
+      expect(error).toMatchObject({
+        status: 400,
+        message: 'fal could not complete that request.',
+      });
+      expect(String(error)).not.toContain(id);
+      expect(createFalClient).not.toHaveBeenCalled();
+      expect(sdkOperation).not.toHaveBeenCalled();
+    });
+  }
+
+  it.each(invalidRequestIds)(
+    'rejects a %s provider submit request ID without returning it',
+    async (_case, id) => {
+      const submit = vi.fn().mockResolvedValue(queuedResponse(id));
+      createFalClient.mockReturnValue({ queue: { submit } });
+
+      const error = await submitFalTask(validSubmitArgs).catch((caught: unknown) => caught);
+
+      expect(error).toBeInstanceOf(FalApiError);
+      expect(error).toMatchObject({
+        status: 502,
+        message: 'fal is temporarily unavailable. Please try again.',
+      });
+      expect(String(error)).not.toContain(id);
+    }
+  );
 
   it.each([
     ['IN_QUEUE', 'queued'],
@@ -388,6 +530,68 @@ describe('fal server adapter', () => {
     expect(String(error)).not.toContain('provider_body');
   });
 
+  it.each([
+    ['javascript scheme', 'javascript:alert(1)'],
+    ['data scheme', 'data:video/mp4;base64,AAAA'],
+    ['insecure HTTP', 'http://v3.fal.media/output.mp4'],
+    ['relative URL', '/files/output.mp4'],
+    ['malformed URL', '::not a URL::'],
+    ['credentials', 'https://user:password@v3.fal.media/output.mp4'],
+    ['embedded whitespace', 'https://v3.fal.media/out put.mp4'],
+    ['surrounding whitespace', ' https://v3.fal.media/output.mp4 '],
+    ['non-fal host', 'https://example.com/output.mp4'],
+    ['lookalike fal host', 'https://fal.media.example.com/output.mp4'],
+  ])('rejects a result URL with %s', async (_case, url) => {
+    const requestId = 'req_url_check';
+    const status = vi.fn().mockResolvedValue(activeStatus('COMPLETED', requestId));
+    const result = vi.fn().mockResolvedValue({
+      data: { video: { url, content_type: 'video/mp4', file_size: 1234 } },
+      requestId,
+    });
+    createFalClient.mockReturnValue({ queue: { status, result } });
+
+    const error = await getFalTask({
+      apiKey,
+      modelId: 'veo-3-1-fast',
+      mediaType: 'video',
+      inputMode: 'text',
+      requestId,
+    }).catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(FalApiError);
+    expect(error).toMatchObject({
+      status: 502,
+      message: 'fal is temporarily unavailable. Please try again.',
+    });
+    expect(String(error)).not.toContain(url);
+  });
+
+  it('accepts a credential-free HTTPS result on the fal CDN', async () => {
+    const requestId = 'req_safe_url';
+    const status = vi.fn().mockResolvedValue(activeStatus('COMPLETED', requestId));
+    const result = vi.fn().mockResolvedValue({
+      data: {
+        video: {
+          url: 'https://fal.media/files/output.mp4',
+          content_type: 'video/mp4',
+          file_size: 1234,
+        },
+      },
+      requestId,
+    });
+    createFalClient.mockReturnValue({ queue: { status, result } });
+
+    await expect(
+      getFalTask({
+        apiKey,
+        modelId: 'veo-3-1-fast',
+        mediaType: 'video',
+        inputMode: 'text',
+        requestId,
+      })
+    ).resolves.toMatchObject({ resultUrl: 'https://fal.media/files/output.mp4' });
+  });
+
   it('rejects missing request and result identifiers safely', async () => {
     const status = vi.fn().mockResolvedValue(activeStatus('COMPLETED', 'req_missing_result_id'));
     const result = vi.fn().mockResolvedValue({
@@ -473,7 +677,7 @@ describe('fal server adapter', () => {
 
     expect(createFalClient.mock.calls).toEqual([
       [{ credentials: 'key:one' }],
-      [{ credentials: 'key:two' }],
+      [{ credentials: 'key:two', fetch: expect.any(Function) }],
       [{ credentials: 'key:three' }],
       [{ credentials: 'key:four' }],
     ]);
