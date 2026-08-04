@@ -337,6 +337,36 @@ describe('fal browser route transport', () => {
     });
   });
 
+  it('accepts omitted video MIME metadata but rejects a supplied non-video MIME', async () => {
+    const videoArgs = {
+      ...taskArgs,
+      modelId: 'veo-3-1-fast',
+      mediaType: 'video' as const,
+    };
+    const resultUrl = 'https://v3.fal.media/output.mp4';
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({
+        success: true,
+        task: successTask({ resultUrl, mimeType: undefined }),
+      }))
+      .mockResolvedValueOnce(jsonResponse({
+        success: true,
+        task: successTask({ resultUrl, mimeType: 'image/png' }),
+      }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const taskWithoutMime = await getFalJobStatus(videoArgs);
+    expect(taskWithoutMime).toMatchObject({
+      state: 'success',
+      resultUrl,
+    });
+    expect(taskWithoutMime).not.toHaveProperty('mimeType');
+    await expect(getFalJobStatus(videoArgs)).rejects.toThrow(
+      'fal did not return a valid task status.'
+    );
+  });
+
   it.each(['short', 'request/id/is/not/allowed', 'r'.repeat(129)])(
     'rejects invalid outgoing request ID %s before status or cancel fetch',
     async (invalidRequestId) => {

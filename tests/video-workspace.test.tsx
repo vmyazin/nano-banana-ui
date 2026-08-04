@@ -1,9 +1,21 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import VideoWorkspace from '../components/VideoWorkspace';
 import { useAppStore } from '../store/useAppStore';
 import { useFalJobsStore } from '../store/useFalJobsStore';
+
+const { cancelFalJobMock, submitFalJobMock, uploadFalFilesMock } = vi.hoisted(() => ({
+  cancelFalJobMock: vi.fn(),
+  submitFalJobMock: vi.fn(),
+  uploadFalFilesMock: vi.fn(),
+}));
+
+vi.mock('../lib/fal/browser', () => ({
+  cancelFalJob: cancelFalJobMock,
+  submitFalJob: submitFalJobMock,
+  uploadFalFiles: uploadFalFilesMock,
+}));
 
 vi.mock('../components/KieGenerationWorkspace', () => ({
   default: ({
@@ -23,9 +35,21 @@ vi.mock('../components/KieGenerationWorkspace', () => ({
   ),
 }));
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+}
+
 describe('VideoWorkspace provider selection', () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     localStorage.clear();
+    uploadFalFilesMock.mockResolvedValue([]);
+    submitFalJobMock.mockResolvedValue({ requestId: 'request_submit01' });
+    cancelFalJobMock.mockResolvedValue(undefined);
     useAppStore.setState({
       falApiKey: '',
       videoEngine: 'kie',
@@ -104,14 +128,55 @@ describe('VideoWorkspace provider selection', () => {
     expect(onOpenConnections).toHaveBeenCalledTimes(2);
   });
 
+  it('cancels a stale billed fal submit exactly once when switching providers', async () => {
+    const pending = deferred<{ requestId: string }>();
+    submitFalJobMock.mockReturnValue(pending.promise);
+    useAppStore.setState({
+      falApiKey: 'fal-key-secret',
+      videoEngine: 'fal',
+      falVideoModel: 'veo-3-1-fast',
+    });
+    render(
+      <VideoWorkspace
+        inputMode="text"
+        onInputModeChange={() => undefined}
+        onExit={() => undefined}
+        onOpenConnections={() => undefined}
+      />
+    );
+    fireEvent.change(screen.getByLabelText('Prompt'), { target: { value: 'A moonlit ocean' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Generate video' }));
+    await waitFor(() => expect(submitFalJobMock).toHaveBeenCalledOnce());
+    const signal = submitFalJobMock.mock.calls[0][1].signal as AbortSignal;
+
+    fireEvent.click(screen.getByRole('radio', { name: /Kie\.ai/i }));
+    expect(signal.aborted).toBe(false);
+    expect(screen.getByTestId('kie-workspace')).toBeInTheDocument();
+    await act(async () => {
+      pending.resolve({ requestId: 'request_stale_provider' });
+      await pending.promise;
+    });
+
+    expect(submitFalJobMock).toHaveBeenCalledOnce();
+    expect(cancelFalJobMock).toHaveBeenCalledOnce();
+    expect(cancelFalJobMock).toHaveBeenCalledWith({
+      apiKey: 'fal-key-secret',
+      modelId: 'veo-3-1-fast',
+      mediaType: 'video',
+      inputMode: 'text',
+      requestId: 'request_stale_provider',
+    });
+    expect(useFalJobsStore.getState().jobs).toEqual([]);
+  });
+
   it('preserves fal provider, model, and jobs while changing modes or providers', () => {
-    useAppStore.setState({ videoEngine: 'fal', falVideoModel: 'sora-2-pro' });
+    useAppStore.setState({ videoEngine: 'fal', falVideoModel: 'hailuo-2-3-pro' });
     useFalJobsStore.getState().upsertJob({
       id: 'request_keep01',
       requestId: 'request_keep01',
       state: 'queued',
       logs: [],
-      modelId: 'sora-2-pro',
+      modelId: 'hailuo-2-3-pro',
       mediaType: 'video',
       inputMode: 'text',
       prompt: 'Keep running',
@@ -142,7 +207,7 @@ describe('VideoWorkspace provider selection', () => {
     fireEvent.click(screen.getByRole('radio', { name: /Kie\.ai/i }));
     fireEvent.click(screen.getByRole('radio', { name: /fal\.ai/i }));
 
-    expect(useAppStore.getState()).toMatchObject({ videoEngine: 'fal', falVideoModel: 'sora-2-pro' });
+    expect(useAppStore.getState()).toMatchObject({ videoEngine: 'fal', falVideoModel: 'hailuo-2-3-pro' });
     expect(useFalJobsStore.getState().jobs).toHaveLength(1);
     expect(useFalJobsStore.getState().jobs[0].requestId).toBe('request_keep01');
   });

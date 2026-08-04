@@ -30,6 +30,9 @@ interface LocalReference {
 
 interface SubmissionOperation {
   controller: AbortController;
+  phase: 'uploading' | 'submitting';
+  stale: boolean;
+  reconciled: boolean;
   token: symbol;
 }
 
@@ -47,7 +50,9 @@ const cancellationError = 'fal could not cancel this job. Please try again.';
 const allowedImageMimeTypes = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/avif']);
 
 function isSafeFalVideoUrl(value: string | undefined, mimeType: string | undefined): value is string {
-  if (!value || !mimeType?.toLowerCase().startsWith('video/') || value !== value.trim() || /\s/.test(value)) {
+  const hasInvalidMimeType = mimeType !== undefined
+    && !/^video\/[a-z0-9][a-z0-9!#$&^_.+-]*$/i.test(mimeType);
+  if (!value || hasInvalidMimeType || value !== value.trim() || /\s/.test(value)) {
     return false;
   }
   try {
@@ -198,7 +203,8 @@ function FalGenerationWorkspaceSession({
     return () => {
       const operation = submissionRef.current;
       if (operation) {
-        operation.controller.abort();
+        operation.stale = true;
+        if (operation.phase === 'uploading') operation.controller.abort();
         submissionRef.current = null;
       }
     };
@@ -208,14 +214,22 @@ function FalGenerationWorkspaceSession({
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
-      submissionRef.current?.controller.abort();
+      const operation = submissionRef.current;
+      if (operation) {
+        operation.stale = true;
+        if (operation.phase === 'uploading') operation.controller.abort();
+      }
       submissionRef.current = null;
       referencesRef.current.forEach((reference) => URL.revokeObjectURL(reference.previewUrl));
     };
   }, []);
 
   const abortSubmission = () => {
-    submissionRef.current?.controller.abort();
+    const operation = submissionRef.current;
+    if (operation) {
+      operation.stale = true;
+      if (operation.phase === 'uploading') operation.controller.abort();
+    }
     submissionRef.current = null;
     setSubmittingVariantId(null);
   };
@@ -289,12 +303,17 @@ function FalGenerationWorkspaceSession({
 
     const operation: SubmissionOperation = {
       controller: new AbortController(),
+      phase: 'uploading',
+      stale: false,
+      reconciled: false,
       token: Symbol('fal-submit'),
     };
     submissionRef.current = operation;
     setError(null);
     setSubmittingVariantId(variant.id);
-    const isCurrent = () => mountedRef.current && submissionRef.current?.token === operation.token;
+    const isCurrent = () => mountedRef.current
+      && !operation.stale
+      && submissionRef.current?.token === operation.token;
 
     try {
       const uploadUrls = await uploadFalFiles(
@@ -303,6 +322,7 @@ function FalGenerationWorkspaceSession({
         { signal: operation.controller.signal }
       );
       if (!isCurrent()) return;
+      operation.phase = 'submitting';
       const { requestId } = await submitFalJob({
         apiKey: apiKey.trim(),
         modelId: selectedModel.id,
@@ -312,7 +332,23 @@ function FalGenerationWorkspaceSession({
         uploadUrls,
         values,
       }, { signal: operation.controller.signal });
-      if (!isCurrent()) return;
+      if (!isCurrent()) {
+        if (!operation.reconciled) {
+          operation.reconciled = true;
+          try {
+            await cancelFalJob({
+              apiKey: apiKey.trim(),
+              modelId: selectedModel.id,
+              mediaType: 'video',
+              inputMode,
+              requestId,
+            });
+          } catch {
+            // Best effort only: the stale operation must never surface provider details or stale UI.
+          }
+        }
+        return;
+      }
       const now = Date.now();
       upsertJob({
         id: requestId,
@@ -328,6 +364,8 @@ function FalGenerationWorkspaceSession({
         pollAttempt: 0,
       });
     } catch {
+      // A failed submit with no request ID cannot be reconciled without provider idempotency.
+      // Never retry automatically: doing so could bill a second accepted request.
       if (isCurrent() && !operation.controller.signal.aborted) setError(submissionError);
     } finally {
       if (isCurrent()) {

@@ -35,10 +35,12 @@ const labels = [
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
-  const promise = new Promise<T>((resolvePromise) => {
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
     resolve = resolvePromise;
+    reject = rejectPromise;
   });
-  return { promise, resolve };
+  return { promise, reject, resolve };
 }
 
 function renderWorkspace(inputMode: 'text' | 'image' = 'text', props: {
@@ -221,7 +223,7 @@ describe('FalGenerationWorkspace', () => {
     expect(screen.queryByAltText('Reference 1')).toBeNull();
   });
 
-  it('disables duplicate submission and ignores a stale completion after unmount', async () => {
+  it('disables duplicate submission and reconciles a stale completion after unmount', async () => {
     const pending = deferred<{ requestId: string }>();
     submitFalJobMock.mockReturnValue(pending.promise);
     const view = renderWorkspace();
@@ -232,12 +234,76 @@ describe('FalGenerationWorkspace', () => {
     await waitFor(() => expect(submitFalJobMock).toHaveBeenCalledOnce());
     const signal = submitFalJobMock.mock.calls[0][1].signal as AbortSignal;
     view.unmount();
-    expect(signal.aborted).toBe(true);
+    expect(signal.aborted).toBe(false);
     await act(async () => {
       pending.resolve({ requestId: 'request_stale01' });
       await pending.promise;
     });
+    expect(cancelFalJobMock).toHaveBeenCalledOnce();
+    expect(cancelFalJobMock).toHaveBeenCalledWith({
+      apiKey: 'fal-key-secret',
+      modelId: 'veo-3-1-fast',
+      mediaType: 'video',
+      inputMode: 'text',
+      requestId: 'request_stale01',
+    });
     expect(useFalJobsStore.getState().jobs).toEqual([]);
+  });
+
+  it('reconciles a stale billed submit after changing models without storing it', async () => {
+    const pending = deferred<{ requestId: string }>();
+    submitFalJobMock.mockReturnValue(pending.promise);
+    renderWorkspace();
+    fireEvent.change(screen.getByLabelText('Prompt'), { target: { value: 'A moonlit ocean' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Generate video' }));
+    await waitFor(() => expect(submitFalJobMock).toHaveBeenCalledOnce());
+    const signal = submitFalJobMock.mock.calls[0][1].signal as AbortSignal;
+
+    fireEvent.change(screen.getByRole('combobox', { name: 'Model' }), {
+      target: { value: 'veo-3-1' },
+    });
+    expect(signal.aborted).toBe(false);
+    expect(screen.getByRole('button', { name: 'Generate video' })).toBeEnabled();
+    await act(async () => {
+      pending.resolve({ requestId: 'request_stale_model' });
+      await pending.promise;
+    });
+
+    expect(submitFalJobMock).toHaveBeenCalledOnce();
+    expect(cancelFalJobMock).toHaveBeenCalledOnce();
+    expect(cancelFalJobMock).toHaveBeenCalledWith({
+      apiKey: 'fal-key-secret',
+      modelId: 'veo-3-1-fast',
+      mediaType: 'video',
+      inputMode: 'text',
+      requestId: 'request_stale_model',
+    });
+    expect(useFalJobsStore.getState().jobs).toEqual([]);
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('reconciles a stale billed submit after Back without storing it or showing stale UI', async () => {
+    const pending = deferred<{ requestId: string }>();
+    submitFalJobMock.mockReturnValue(pending.promise);
+    const onBack = vi.fn();
+    renderWorkspace('text', { onBack });
+    fireEvent.change(screen.getByLabelText('Prompt'), { target: { value: 'A moonlit ocean' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Generate video' }));
+    await waitFor(() => expect(submitFalJobMock).toHaveBeenCalledOnce());
+    const signal = submitFalJobMock.mock.calls[0][1].signal as AbortSignal;
+
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+    expect(onBack).toHaveBeenCalledOnce();
+    expect(signal.aborted).toBe(false);
+    await act(async () => {
+      pending.resolve({ requestId: 'request_stale_back' });
+      await pending.promise;
+    });
+
+    expect(submitFalJobMock).toHaveBeenCalledOnce();
+    expect(cancelFalJobMock).toHaveBeenCalledOnce();
+    expect(useFalJobsStore.getState().jobs).toEqual([]);
+    expect(screen.queryByRole('alert')).toBeNull();
   });
 
   it('queues exactly once when mounted under StrictMode', async () => {
@@ -255,7 +321,7 @@ describe('FalGenerationWorkspace', () => {
     expect(useFalJobsStore.getState().jobs).toHaveLength(1);
   });
 
-  it('aborts and ignores an in-flight submission when input mode changes', async () => {
+  it('reconciles an in-flight billed submission when input mode changes', async () => {
     const pending = deferred<{ requestId: string }>();
     submitFalJobMock.mockReturnValue(pending.promise);
     const view = renderWorkspace();
@@ -267,7 +333,7 @@ describe('FalGenerationWorkspace', () => {
     view.rerender(
       <FalGenerationWorkspace inputMode="image" onBack={() => undefined} onOpenConnections={() => undefined} />
     );
-    expect(signal.aborted).toBe(true);
+    expect(signal.aborted).toBe(false);
     expect(screen.getByRole('button', { name: 'Generate video' })).toBeEnabled();
     view.rerender(
       <FalGenerationWorkspace inputMode="text" onBack={() => undefined} onOpenConnections={() => undefined} />
@@ -277,7 +343,39 @@ describe('FalGenerationWorkspace', () => {
       pending.resolve({ requestId: 'request_wrongmode1' });
       await pending.promise;
     });
+    expect(cancelFalJobMock).toHaveBeenCalledOnce();
+    expect(cancelFalJobMock).toHaveBeenCalledWith({
+      apiKey: 'fal-key-secret',
+      modelId: 'veo-3-1-fast',
+      mediaType: 'video',
+      inputMode: 'text',
+      requestId: 'request_wrongmode1',
+    });
     expect(useFalJobsStore.getState().jobs).toEqual([]);
+  });
+
+  it('does not resubmit a stale transport failure when no request ID can be reconciled', async () => {
+    const pending = deferred<{ requestId: string }>();
+    submitFalJobMock.mockReturnValue(pending.promise);
+    renderWorkspace();
+    fireEvent.change(screen.getByLabelText('Prompt'), { target: { value: 'A moonlit ocean' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Generate video' }));
+    await waitFor(() => expect(submitFalJobMock).toHaveBeenCalledOnce());
+
+    fireEvent.change(screen.getByRole('combobox', { name: 'Model' }), {
+      target: { value: 'veo-3-1' },
+    });
+    await act(async () => {
+      // Without provider idempotency, a transport failure cannot reveal an accepted request ID.
+      // The safe behavior is to neither retry nor invent a job that cannot be polled or cancelled.
+      pending.reject(new TypeError('connection closed after send'));
+      await pending.promise.catch(() => undefined);
+    });
+
+    expect(submitFalJobMock).toHaveBeenCalledOnce();
+    expect(cancelFalJobMock).not.toHaveBeenCalled();
+    expect(useFalJobsStore.getState().jobs).toEqual([]);
+    expect(screen.queryByRole('alert')).toBeNull();
   });
 
   it('opens connections for a missing key without uploading or submitting', () => {
@@ -332,6 +430,28 @@ describe('FalGenerationWorkspace', () => {
     expect(container.querySelector('video')?.getAttribute('src')).toBe(SAFE_VIDEO_URL);
     expect(container.querySelector('a[download]')).toHaveAttribute('href', SAFE_VIDEO_URL);
     expect(container.innerHTML).not.toContain('evil.example');
+  });
+
+  it('renders a safe fal.media video when MIME metadata is omitted but rejects a supplied non-video MIME', () => {
+    useFalJobsStore.getState().upsertJob(makeJob('success', {
+      id: 'request_success_missing_mime',
+      requestId: 'request_success_missing_mime',
+      resultUrl: SAFE_VIDEO_URL,
+      mimeType: undefined,
+    }));
+    useFalJobsStore.getState().upsertJob(makeJob('success', {
+      id: 'request_success_invalid_mime',
+      requestId: 'request_success_invalid_mime',
+      resultUrl: 'https://v3.fal.media/files/tiger/not-video.mp4',
+      mimeType: 'image/png',
+      updatedAt: NOW - 1,
+    }));
+
+    const { container } = renderWorkspace();
+
+    expect(container.querySelector('video')?.getAttribute('src')).toBe(SAFE_VIDEO_URL);
+    expect(container.querySelector('a[download]')).toHaveAttribute('href', SAFE_VIDEO_URL);
+    expect(container.innerHTML).not.toContain('not-video.mp4');
   });
 
   it('cancels an active job exactly once and replaces it with a full cancelled snapshot', async () => {

@@ -151,7 +151,11 @@ function jsonPost(body: Record<string, unknown>, signal?: AbortSignal): RequestI
   };
 }
 
-function isFalTask(value: unknown, expectedRequestId: string): value is FalTask {
+function isFalTask(
+  value: unknown,
+  expectedRequestId: string,
+  expectedMediaType: FalMediaType
+): value is FalTask {
   if (!isRecord(value)) return false;
   if (
     value.requestId !== expectedRequestId ||
@@ -166,9 +170,17 @@ function isFalTask(value: unknown, expectedRequestId: string): value is FalTask 
 
   if (value.resultUrl !== undefined && !isSafeFalUrl(value.resultUrl)) return false;
   if (value.state === 'success' && !isSafeFalUrl(value.resultUrl)) return false;
+  if (
+    value.mimeType !== undefined
+    && (
+      typeof value.mimeType !== 'string'
+      || !new RegExp(`^${expectedMediaType}/[a-z0-9][a-z0-9!#$&^_.+-]*$`, 'i').test(value.mimeType)
+    )
+  ) {
+    return false;
+  }
   return (
-    (value.mimeType === undefined || typeof value.mimeType === 'string') &&
-    (value.error === undefined || typeof value.error === 'string')
+    value.error === undefined || typeof value.error === 'string'
   );
 }
 
@@ -238,7 +250,7 @@ export async function getFalJobStatus(
     }, options.signal),
     args.apiKey
   );
-  if (!isFalTask(data.task, args.requestId)) {
+  if (!isFalTask(data.task, args.requestId, args.mediaType)) {
     throw new Error('fal did not return a valid task status.');
   }
   return data.task;
