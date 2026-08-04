@@ -22,13 +22,13 @@ vi.mock('../../lib/fal/browser', () => ({
 const NOW = new Date('2026-08-04T12:00:00.000Z').getTime();
 const SAFE_VIDEO_URL = 'https://v3.fal.media/files/tiger/result.mp4';
 const labels = [
-  'Veo 3.1',
+  'Veo 3.1 Standard',
   'Veo 3.1 Fast',
-  'Seedance 2.0',
+  'Seedance 2.0 Standard',
   'Seedance 2.0 Fast',
   'Kling 3 Standard',
   'Kling 3 Pro',
-  'Sora 2',
+  'Sora 2 Standard',
   'Sora 2 Pro',
   'Wan 2.7',
 ];

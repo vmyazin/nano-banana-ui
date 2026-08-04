@@ -215,7 +215,7 @@ const wanFields = (includeAspectRatio: boolean): FalFieldDefinition[] => [
 export const FAL_VIDEO_MODELS: FalModelDefinition[] = [
   videoModel(
     'veo-3-1',
-    'Veo 3.1',
+    'Veo 3.1 Standard',
     'Google',
     'High-quality video generation with native audio.',
     'fal-ai/veo3.1',
@@ -235,7 +235,7 @@ export const FAL_VIDEO_MODELS: FalModelDefinition[] = [
   ),
   videoModel(
     'seedance-2',
-    'Seedance 2.0',
+    'Seedance 2.0 Standard',
     'ByteDance',
     'Cinematic video generation with synchronized audio.',
     'bytedance/seedance-2.0/text-to-video',
@@ -275,7 +275,7 @@ export const FAL_VIDEO_MODELS: FalModelDefinition[] = [
   ),
   videoModel(
     'sora-2',
-    'Sora 2',
+    'Sora 2 Standard',
     'OpenAI',
     'Sora 2 text- and image-guided video generation.',
     'fal-ai/sora-2/text-to-video',

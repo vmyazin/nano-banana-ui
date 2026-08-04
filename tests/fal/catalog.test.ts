@@ -48,6 +48,17 @@ describe('fal model catalog', () => {
       'sora-2-pro',
       'wan-2-7',
     ]);
+    expect(FAL_VIDEO_MODELS.map((model) => model.label)).toEqual([
+      'Veo 3.1 Standard',
+      'Veo 3.1 Fast',
+      'Seedance 2.0 Standard',
+      'Seedance 2.0 Fast',
+      'Kling 3 Standard',
+      'Kling 3 Pro',
+      'Sora 2 Standard',
+      'Sora 2 Pro',
+      'Wan 2.7',
+    ]);
   });
 
   it('maps the Nano Banana text and edit endpoints exactly', () => {
