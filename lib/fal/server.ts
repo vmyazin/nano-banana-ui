@@ -32,23 +32,26 @@ function asRecord(value: unknown): Record<string, unknown> {
   return value !== null && typeof value === 'object' ? (value as Record<string, unknown>) : {};
 }
 
-function errorStatus(error: unknown): number {
+function errorStatus(error: unknown, fallbackStatus: number): number {
   const status = asRecord(error).status;
   return typeof status === 'number' && Number.isInteger(status) && status >= 400 && status <= 599
     ? status
-    : 502;
+    : fallbackStatus;
 }
 
 function safeError(status: number): FalApiError {
   return new FalApiError(publicMessage(status), status);
 }
 
-async function withSafeFalErrors<T>(operation: () => Promise<T>): Promise<T> {
+async function withSafeFalErrors<T>(
+  operation: () => Promise<T>,
+  fallbackStatus = 502
+): Promise<T> {
   try {
     return await operation();
   } catch (error) {
     if (error instanceof FalApiError) throw error;
-    throw safeError(errorStatus(error));
+    throw safeError(errorStatus(error, fallbackStatus));
   }
 }
 
@@ -92,24 +95,26 @@ export async function submitFalTask(args: {
   uploadUrls: string[];
   values: Record<string, FalValue>;
 }): Promise<{ requestId: string }> {
-  const variant = resolveFalVariant(args.modelId, args.mediaType, args.inputMode);
-  const input = buildFalInput(variant, {
-    prompt: args.prompt,
-    uploadUrls: args.uploadUrls,
-    values: args.values,
-  });
-
   return withSafeFalErrors(async () => {
-    const client = createFalClient({ credentials: args.apiKey });
-    const response = await client.queue.submit(variant.endpointId, {
-      input,
-      headers: { 'X-Fal-Store-IO': '0' },
-      storageSettings: { expiresIn: '7d' },
+    const variant = resolveFalVariant(args.modelId, args.mediaType, args.inputMode);
+    const input = buildFalInput(variant, {
+      prompt: args.prompt,
+      uploadUrls: args.uploadUrls,
+      values: args.values,
     });
-    const record = asRecord(response);
-    const requestId = requireRequestId(record.request_id ?? record.requestId, 502);
-    return { requestId };
-  });
+
+    return withSafeFalErrors(async () => {
+      const client = createFalClient({ credentials: args.apiKey });
+      const response = await client.queue.submit(variant.endpointId, {
+        input,
+        headers: { 'X-Fal-Store-IO': '0' },
+        storageSettings: { expiresIn: '7d' },
+      });
+      const record = asRecord(response);
+      const requestId = requireRequestId(record.request_id ?? record.requestId, 502);
+      return { requestId };
+    });
+  }, 400);
 }
 
 export async function getFalTask(args: {
@@ -119,38 +124,40 @@ export async function getFalTask(args: {
   inputMode: FalInputMode;
   requestId: string;
 }): Promise<FalTask> {
-  const requestId = requireRequestId(args.requestId, 400);
-  const variant = resolveFalVariant(args.modelId, args.mediaType, args.inputMode);
-
   return withSafeFalErrors(async () => {
-    const client = createFalClient({ credentials: args.apiKey });
-    const response = await client.queue.status(variant.endpointId, {
-      requestId,
-      logs: true,
+    const requestId = requireRequestId(args.requestId, 400);
+    const variant = resolveFalVariant(args.modelId, args.mediaType, args.inputMode);
+
+    return withSafeFalErrors(async () => {
+      const client = createFalClient({ credentials: args.apiKey });
+      const response = await client.queue.status(variant.endpointId, {
+        requestId,
+        logs: true,
+      });
+      const record = asRecord(response);
+      const responseRequestId = requireRequestId(record.request_id, 502);
+      if (responseRequestId !== requestId) throw safeError(502);
+      const logs = normalizedLogs(record.logs);
+
+      if (record.status === 'IN_QUEUE') return { requestId, state: 'queued', logs };
+      if (record.status === 'IN_PROGRESS') return { requestId, state: 'running', logs };
+      if (record.status !== 'COMPLETED') throw safeError(502);
+
+      const result = await client.queue.result(variant.endpointId, { requestId });
+      const resultRecord = asRecord(result);
+      const resultRequestId = requireRequestId(resultRecord.requestId, 502);
+      if (resultRequestId !== requestId) throw safeError(502);
+      const media = extractFalResult(args.mediaType, resultRecord.data);
+
+      return {
+        requestId,
+        state: 'success',
+        logs,
+        resultUrl: media.url,
+        ...(media.mimeType ? { mimeType: media.mimeType } : {}),
+      };
     });
-    const record = asRecord(response);
-    const responseRequestId = requireRequestId(record.request_id, 502);
-    if (responseRequestId !== requestId) throw safeError(502);
-    const logs = normalizedLogs(record.logs);
-
-    if (record.status === 'IN_QUEUE') return { requestId, state: 'queued', logs };
-    if (record.status === 'IN_PROGRESS') return { requestId, state: 'running', logs };
-    if (record.status !== 'COMPLETED') throw safeError(502);
-
-    const result = await client.queue.result(variant.endpointId, { requestId });
-    const resultRecord = asRecord(result);
-    const resultRequestId = requireRequestId(resultRecord.requestId, 502);
-    if (resultRequestId !== requestId) throw safeError(502);
-    const media = extractFalResult(args.mediaType, resultRecord.data);
-
-    return {
-      requestId,
-      state: 'success',
-      logs,
-      resultUrl: media.url,
-      ...(media.mimeType ? { mimeType: media.mimeType } : {}),
-    };
-  });
+  }, 400);
 }
 
 export async function cancelFalTask(args: {
@@ -160,11 +167,13 @@ export async function cancelFalTask(args: {
   inputMode: FalInputMode;
   requestId: string;
 }): Promise<void> {
-  const requestId = requireRequestId(args.requestId, 400);
-  const variant = resolveFalVariant(args.modelId, args.mediaType, args.inputMode);
-
   await withSafeFalErrors(async () => {
-    const client = createFalClient({ credentials: args.apiKey });
-    await client.queue.cancel(variant.endpointId, { requestId });
-  });
+    const requestId = requireRequestId(args.requestId, 400);
+    const variant = resolveFalVariant(args.modelId, args.mediaType, args.inputMode);
+
+    await withSafeFalErrors(async () => {
+      const client = createFalClient({ credentials: args.apiKey });
+      await client.queue.cancel(variant.endpointId, { requestId });
+    });
+  }, 400);
 }

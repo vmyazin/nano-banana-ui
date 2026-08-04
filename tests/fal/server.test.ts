@@ -1,6 +1,15 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-const { createFalClient } = vi.hoisted(() => ({ createFalClient: vi.fn() }));
+type FalClient = ReturnType<typeof import('@fal-ai/client').createFalClient>;
+type FalClientConfig = Parameters<typeof import('@fal-ai/client').createFalClient>[0];
+type FalClientDouble = {
+  queue?: Partial<FalClient['queue']>;
+  storage?: Partial<FalClient['storage']>;
+};
+
+const { createFalClient } = vi.hoisted(() => ({
+  createFalClient: vi.fn<(config?: FalClientConfig) => FalClientDouble>(),
+}));
 
 vi.mock('@fal-ai/client', () => ({ createFalClient }));
 
@@ -56,6 +65,21 @@ describe('fal server adapter', () => {
   afterEach(() => {
     vi.resetAllMocks();
     vi.unstubAllGlobals();
+  });
+
+  it('matches the installed SDK surface without making a network request', async () => {
+    const actual = await vi.importActual<typeof import('@fal-ai/client')>('@fal-ai/client');
+    const client = actual.createFalClient({ credentials: 'contract-test:dummy' });
+
+    expect(client.queue).toEqual(
+      expect.objectContaining({
+        submit: expect.any(Function),
+        status: expect.any(Function),
+        result: expect.any(Function),
+        cancel: expect.any(Function),
+      })
+    );
+    expect(client.storage.upload).toEqual(expect.any(Function));
   });
 
   it('validates the key with the non-billable pricing endpoint', async () => {
@@ -168,25 +192,84 @@ describe('fal server adapter', () => {
     expect(String(error)).not.toContain('provider_message');
   });
 
-  it('rejects an unknown model or variant before creating a client or submitting', async () => {
-    const submit = vi.fn();
-    createFalClient.mockReturnValue({ queue: { submit } });
+  const attackerText = `attacker-controlled ${apiKey} raw provider failure body containing`;
+  const invalidCatalogValues = [
+    ['model', { modelId: attackerText }],
+    ['media type', { mediaType: attackerText as never }],
+    ['input mode', { inputMode: attackerText as never }],
+  ] as const;
+  const catalogOperations = [
+    [
+      'submit',
+      (overrides: Record<string, unknown>) =>
+        submitFalTask({
+          apiKey,
+          modelId: 'nano-banana-2',
+          mediaType: 'image',
+          inputMode: 'text',
+          prompt: 'Do not submit invalid catalog values',
+          uploadUrls: [],
+          values: {},
+          ...overrides,
+        } as Parameters<typeof submitFalTask>[0]),
+    ],
+    [
+      'status',
+      (overrides: Record<string, unknown>) =>
+        getFalTask({
+          apiKey,
+          modelId: 'nano-banana-2',
+          mediaType: 'image',
+          inputMode: 'text',
+          requestId: 'req_invalid_catalog',
+          ...overrides,
+        } as Parameters<typeof getFalTask>[0]),
+    ],
+    [
+      'cancel',
+      (overrides: Record<string, unknown>) =>
+        cancelFalTask({
+          apiKey,
+          modelId: 'nano-banana-2',
+          mediaType: 'image',
+          inputMode: 'text',
+          requestId: 'req_invalid_catalog',
+          ...overrides,
+        } as Parameters<typeof cancelFalTask>[0]),
+    ],
+  ] as const;
 
-    await expect(
-      submitFalTask({
-        apiKey,
-        modelId: 'attacker-controlled-model',
-        mediaType: 'video',
-        inputMode: 'text',
-        prompt: 'Do not submit this',
-        uploadUrls: [],
-        values: {},
-      })
-    ).rejects.toThrow(/selected fal model/i);
+  for (const [operation, call] of catalogOperations) {
+    it.each(invalidCatalogValues)(
+      `sanitizes an attacker-controlled %s before ${operation}`,
+      async (_field, overrides) => {
+        const sdkOperation = vi.fn().mockRejectedValue(falError(422));
+        createFalClient.mockReturnValue({
+          storage: { upload: sdkOperation },
+          queue: {
+            submit: sdkOperation,
+            status: sdkOperation,
+            result: sdkOperation,
+            cancel: sdkOperation,
+          },
+        });
 
-    expect(createFalClient).not.toHaveBeenCalled();
-    expect(submit).not.toHaveBeenCalled();
-  });
+        const error = await call(overrides).catch((caught: unknown) => caught);
+
+        expect(error).toBeInstanceOf(FalApiError);
+        expect(error).toMatchObject({
+          status: 400,
+          message: 'fal could not complete that request.',
+        });
+        expect(String(error)).not.toContain('attacker-controlled');
+        expect(String(error)).not.toContain(apiKey);
+        expect(String(error)).not.toContain('raw provider failure');
+        expect(String(error)).not.toContain('body containing');
+        expect(createFalClient).not.toHaveBeenCalled();
+        expect(sdkOperation).not.toHaveBeenCalled();
+      }
+    );
+  }
 
   it.each([
     ['IN_QUEUE', 'queued'],
@@ -195,8 +278,8 @@ describe('fal server adapter', () => {
     const logs =
       status === 'IN_PROGRESS'
         ? [
-        { message: 'Preparing request', timestamp: '2026-08-04T12:00:00.000Z' },
-        { message: 'Rendering frame', timestamp: '2026-08-04T12:00:01.000Z' },
+            { message: 'Preparing request', timestamp: '2026-08-04T12:00:00.000Z' },
+            { message: 'Rendering frame', timestamp: '2026-08-04T12:00:01.000Z' },
           ]
         : [];
     const queueStatus = vi.fn().mockResolvedValue(activeStatus(status, 'req_status', logs));
