@@ -126,6 +126,155 @@ describe('fal model catalog', () => {
     });
   });
 
+  it('rejects invalid number values and accepts declared boundaries and defaults', () => {
+    const variant = resolveFalVariant('kling-3-standard', 'video', 'text');
+
+    for (const duration of [2, 15.5, 16, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(() =>
+        buildFalInput(variant, {
+          prompt: 'Animate this scene',
+          uploadUrls: [],
+          values: { duration },
+        })
+      ).toThrow('Invalid fal setting "duration".');
+    }
+
+    expect(
+      buildFalInput(variant, {
+        prompt: 'Animate this scene',
+        uploadUrls: [],
+        values: { duration: 3 },
+      }).duration
+    ).toBe(3);
+    expect(
+      buildFalInput(variant, {
+        prompt: 'Animate this scene',
+        uploadUrls: [],
+        values: { duration: 15 },
+      }).duration
+    ).toBe(15);
+    expect(
+      buildFalInput(variant, {
+        prompt: 'Animate this scene',
+        uploadUrls: [],
+        values: {},
+      }).duration
+    ).toBe(5);
+  });
+
+  it('rejects values outside select allow-lists', () => {
+    const variant = resolveFalVariant('veo-3-1-fast', 'video', 'image');
+
+    expect(() =>
+      buildFalInput(variant, {
+        prompt: 'Animate this scene',
+        uploadUrls: ['https://v3.fal.media/reference.png'],
+        values: { aspect_ratio: '4:3' },
+      })
+    ).toThrow('Invalid fal setting "aspect_ratio".');
+    expect(
+      buildFalInput(variant, {
+        prompt: 'Animate this scene',
+        uploadUrls: ['https://v3.fal.media/reference.png'],
+        values: { aspect_ratio: '9:16' },
+      }).aspect_ratio
+    ).toBe('9:16');
+  });
+
+  it('honors fractional number steps without rejecting floating-point equivalents', () => {
+    const base = resolveFalVariant('kling-3-standard', 'video', 'text');
+    const variant = {
+      ...base,
+      fields: [
+        {
+          key: 'strength',
+          label: 'Strength',
+          type: 'number' as const,
+          defaultValue: 0.3,
+          min: 0,
+          max: 1,
+          step: 0.1,
+        },
+      ],
+    };
+
+    expect(buildFalInput(variant, { prompt: 'Test', uploadUrls: [], values: {} }).strength).toBe(
+      0.3
+    );
+    expect(() =>
+      buildFalInput(variant, {
+        prompt: 'Test',
+        uploadUrls: [],
+        values: { strength: 0.35 },
+      })
+    ).toThrow('Invalid fal setting "strength".');
+  });
+
+  it('rejects wrong boolean types without echoing their values', () => {
+    const variant = resolveFalVariant('veo-3-1-fast', 'video', 'text');
+
+    expect(() =>
+      buildFalInput(variant, {
+        prompt: 'Animate this scene',
+        uploadUrls: [],
+        values: { generate_audio: 'secret-provider-value' },
+      })
+    ).toThrow('Invalid fal setting "generate_audio".');
+    expect(() =>
+      buildFalInput(variant, {
+        prompt: 'Animate this scene',
+        uploadUrls: [],
+        values: { generate_audio: null as never },
+      })
+    ).toThrow('Invalid fal setting "generate_audio".');
+    expect(() =>
+      buildFalInput(variant, {
+        prompt: 'Animate this scene',
+        uploadUrls: [],
+        values: { generate_audio: '' },
+      })
+    ).toThrow('Invalid fal setting "generate_audio".');
+  });
+
+  it('validates defaults and trims or omits declared text settings', () => {
+    const variant = resolveFalVariant('kling-3-standard', 'video', 'text');
+    const invalidDefault = {
+      ...variant,
+      fields: variant.fields.map((field) =>
+        field.key === 'duration' ? { ...field, defaultValue: 'five' } : field
+      ),
+    };
+
+    expect(() =>
+      buildFalInput(invalidDefault, {
+        prompt: 'Animate this scene',
+        uploadUrls: [],
+        values: {},
+      })
+    ).toThrow('Invalid fal setting "duration".');
+    expect(
+      buildFalInput(variant, {
+        prompt: 'Animate this scene',
+        uploadUrls: [],
+        values: { negative_prompt: '  blur and smoke  ' },
+      }).negative_prompt
+    ).toBe('blur and smoke');
+    expect(
+      buildFalInput(variant, {
+        prompt: 'Animate this scene',
+        uploadUrls: [],
+        values: { negative_prompt: '   ' },
+      })
+    ).not.toHaveProperty('negative_prompt');
+    expect(() =>
+      buildFalInput(variant, {
+        prompt: 'Animate this scene',
+        uploadUrls: [],
+        values: { negative_prompt: 42 },
+      })
+    ).toThrow('Invalid fal setting "negative_prompt".');
+  });
+
   it('declares the verified controls and constraints for every video family', () => {
     const field = (modelId: string, inputMode: 'text' | 'image', key: string) =>
       resolveFalVariant(modelId, 'video', inputMode).fields.find((candidate) => candidate.key === key);
@@ -228,9 +377,27 @@ describe('fal model catalog', () => {
     expect(() => extractFalResult('video', { video: { content_type: 'video/mp4' } })).toThrow(/usable media URL/i);
   });
 
+  it('trims result URLs and rejects whitespace-only URLs', () => {
+    expect(extractFalResult('image', { images: [{ url: '  https://fal/image.png  ' }] }).url).toBe(
+      'https://fal/image.png'
+    );
+    expect(() => extractFalResult('image', { images: [{ url: '   ' }] })).toThrow(
+      /usable media URL/i
+    );
+    expect(() => extractFalResult('video', { video: { url: '\n\t' } })).toThrow(
+      /usable media URL/i
+    );
+  });
+
   it('rejects unknown model IDs and incompatible media variants safely', () => {
     expect(() => resolveFalVariant('not-a-model', 'video', 'text')).toThrow(/does not support|unknown/i);
     expect(() => resolveFalVariant('nano-banana-2', 'video', 'text')).toThrow(/does not support|incompatible/i);
     expect(() => resolveFalVariant('veo-3-1', 'image', 'text')).toThrow(/does not support|incompatible/i);
+  });
+
+  it('rejects invalid runtime media types instead of treating them as video', () => {
+    expect(() => resolveFalVariant('veo-3-1', 'audio' as never, 'text')).toThrow(
+      'Invalid fal media type.'
+    );
   });
 });

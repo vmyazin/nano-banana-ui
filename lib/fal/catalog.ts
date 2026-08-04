@@ -316,6 +316,10 @@ export function resolveFalVariant(
   mediaType: FalMediaType,
   inputMode: FalInputMode
 ): FalModelVariant {
+  if (mediaType !== 'image' && mediaType !== 'video') {
+    throw new Error('Invalid fal media type.');
+  }
+
   const model = modelsForFalMode(mediaType, inputMode).find((candidate) => candidate.id === modelId);
   const variant = model?.variants.find((candidate) => candidate.inputMode === inputMode);
 
@@ -352,6 +356,44 @@ export function validateFalInput(
   return null;
 }
 
+function normalizeFalFieldValue(
+  field: FalFieldDefinition,
+  value: FalValue
+): FalValue | undefined {
+  let normalized: FalValue = value;
+
+  if (field.type === 'boolean') {
+    if (typeof value !== 'boolean') throw new Error(`Invalid fal setting "${field.key}".`);
+  } else if (field.type === 'number') {
+    if (typeof value !== 'number' || !Number.isFinite(value)) {
+      throw new Error(`Invalid fal setting "${field.key}".`);
+    }
+    if (field.min !== undefined && value < field.min) {
+      throw new Error(`Invalid fal setting "${field.key}".`);
+    }
+    if (field.max !== undefined && value > field.max) {
+      throw new Error(`Invalid fal setting "${field.key}".`);
+    }
+    if (field.step !== undefined) {
+      const offset = value - (field.min ?? 0);
+      const steps = offset / field.step;
+      if (Math.abs(steps - Math.round(steps)) > 1e-9) {
+        throw new Error(`Invalid fal setting "${field.key}".`);
+      }
+    }
+  } else if (field.type === 'select') {
+    if (!field.options?.some((option) => option.value === value)) {
+      throw new Error(`Invalid fal setting "${field.key}".`);
+    }
+  } else {
+    if (typeof value !== 'string') throw new Error(`Invalid fal setting "${field.key}".`);
+    normalized = value.trim();
+    if (!normalized) return undefined;
+  }
+
+  return normalized;
+}
+
 export function buildFalInput(
   variant: FalModelVariant,
   args: { prompt: string; uploadUrls: string[]; values: Record<string, FalValue> }
@@ -361,8 +403,11 @@ export function buildFalInput(
     input[variant.imageInputKey] = variant.imageInputMultiple ? args.uploadUrls : args.uploadUrls[0];
   }
   for (const field of variant.fields) {
-    const value = args.values[field.key] ?? field.defaultValue;
-    if (value !== undefined && value !== '') input[field.key] = value;
+    const suppliedValue = args.values[field.key];
+    const value = suppliedValue === undefined ? field.defaultValue : suppliedValue;
+    if (value === undefined) continue;
+    const normalized = normalizeFalFieldValue(field, value);
+    if (normalized !== undefined) input[field.key] = normalized;
   }
   return input;
 }
@@ -377,11 +422,12 @@ export function extractFalResult(mediaType: FalMediaType, payload: unknown) {
         : undefined
       : record.video;
   const file = media !== null && typeof media === 'object' ? (media as Record<string, unknown>) : {};
-  if (typeof file.url !== 'string' || !file.url) {
+  const url = typeof file.url === 'string' ? file.url.trim() : '';
+  if (!url) {
     throw new Error('fal completed without a usable media URL.');
   }
   return {
-    url: file.url,
+    url,
     mimeType: typeof file.content_type === 'string' ? file.content_type : undefined,
   };
 }
