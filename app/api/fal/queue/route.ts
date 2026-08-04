@@ -6,10 +6,25 @@ import {
   getFalTask,
   submitFalTask,
 } from '@/lib/fal/server';
+import { resolveFalVariant, validateFalInput } from '@/lib/fal/catalog';
 import type { FalInputMode, FalMediaType, FalValue } from '@/lib/fal/types';
 
 const GENERIC_FAL_ERROR = 'Something went wrong while contacting fal.';
 const REQUEST_ID_PATTERN = /^[A-Za-z0-9_-]{8,128}$/;
+const MAX_QUEUE_BODY_BYTES = 64 * 1024;
+const MAX_API_KEY_LENGTH = 1024;
+const MAX_MODEL_ID_LENGTH = 128;
+const MAX_PROMPT_LENGTH = 20_000;
+const MAX_UPLOAD_URLS = 16;
+const MAX_UPLOAD_URL_LENGTH = 4096;
+const MAX_VALUE_ENTRIES = 64;
+const MAX_VALUE_KEY_LENGTH = 128;
+const MAX_VALUE_STRING_LENGTH = 4096;
+
+function declaredBodyTooLarge(request: NextRequest): boolean {
+  const value = request.headers?.get('content-length');
+  return value !== null && /^\d+$/.test(value) && Number(value) > MAX_QUEUE_BODY_BYTES;
+}
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return false;
@@ -45,6 +60,41 @@ function isUploadUrls(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((url) => typeof url === 'string');
 }
 
+function submitFieldsTooLarge(args: {
+  prompt: string;
+  uploadUrls: string[];
+  values: Record<string, FalValue>;
+}): boolean {
+  const entries = Object.entries(args.values);
+  return (
+    args.prompt.length > MAX_PROMPT_LENGTH ||
+    args.uploadUrls.length > MAX_UPLOAD_URLS ||
+    args.uploadUrls.some((url) => url.length > MAX_UPLOAD_URL_LENGTH) ||
+    entries.length > MAX_VALUE_ENTRIES ||
+    entries.some(
+      ([key, value]) =>
+        key.length > MAX_VALUE_KEY_LENGTH ||
+        (typeof value === 'string' && value.length > MAX_VALUE_STRING_LENGTH)
+    )
+  );
+}
+
+function supportsFalRequest(args: {
+  modelId: string;
+  mediaType: FalMediaType;
+  inputMode: FalInputMode;
+  prompt: string;
+  uploadUrls: string[];
+}): boolean {
+  try {
+    const variant = resolveFalVariant(args.modelId, args.mediaType, args.inputMode);
+    if (args.inputMode === 'text' && args.uploadUrls.length > 0) return false;
+    return validateFalInput(variant, args) === null;
+  } catch {
+    return false;
+  }
+}
+
 function errorResponse(error: unknown) {
   if (error instanceof FalApiError) {
     return NextResponse.json({ success: false, error: error.message }, { status: error.status });
@@ -57,6 +107,13 @@ function invalidRequest(message: string) {
 }
 
 export async function POST(request: NextRequest) {
+  if (declaredBodyTooLarge(request)) {
+    return NextResponse.json(
+      { success: false, error: 'The request body is too large.' },
+      { status: 413 }
+    );
+  }
+
   let body: unknown;
   try {
     body = await request.json();
@@ -84,15 +141,36 @@ export async function POST(request: NextRequest) {
       ) {
         return invalidRequest('The submit request contains missing or invalid fields.');
       }
-
-      const { requestId } = await submitFalTask({
-        apiKey: body.apiKey.trim(),
-        modelId: body.modelId.trim(),
+      if (
+        body.apiKey.length > MAX_API_KEY_LENGTH ||
+        body.modelId.length > MAX_MODEL_ID_LENGTH
+      ) {
+        return invalidRequest('The submit request contains missing or invalid fields.');
+      }
+      const submitArgs = {
+        apiKey: body.apiKey,
+        modelId: body.modelId,
         mediaType: body.mediaType,
         inputMode: body.inputMode,
-        prompt: body.prompt.trim(),
+        prompt: body.prompt,
         uploadUrls: body.uploadUrls,
         values: body.values,
+      };
+      if (submitFieldsTooLarge(submitArgs)) {
+        return NextResponse.json(
+          { success: false, error: 'The request body is too large.' },
+          { status: 413 }
+        );
+      }
+      if (!supportsFalRequest(submitArgs)) {
+        return invalidRequest('The selected fal request is not supported.');
+      }
+
+      const { requestId } = await submitFalTask({
+        ...submitArgs,
+        apiKey: submitArgs.apiKey.trim(),
+        modelId: submitArgs.modelId.trim(),
+        prompt: submitArgs.prompt.trim(),
       });
       return NextResponse.json({ success: true, requestId });
     }
@@ -103,7 +181,9 @@ export async function POST(request: NextRequest) {
       !isMediaType(body.mediaType) ||
       !isInputMode(body.inputMode) ||
       typeof body.requestId !== 'string' ||
-      !REQUEST_ID_PATTERN.test(body.requestId)
+      !REQUEST_ID_PATTERN.test(body.requestId) ||
+      body.apiKey.length > MAX_API_KEY_LENGTH ||
+      body.modelId.length > MAX_MODEL_ID_LENGTH
     ) {
       return invalidRequest('The queue request contains missing or invalid fields.');
     }

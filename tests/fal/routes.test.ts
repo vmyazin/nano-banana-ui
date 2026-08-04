@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import type { NextRequest } from 'next/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -44,9 +46,13 @@ function jsonRequest(path: string, body: unknown): NextRequest {
   }) as NextRequest;
 }
 
-function formRequest(entries: Array<[string, FormDataEntryValue]>): NextRequest {
-  const form = new Map<string, FormDataEntryValue>(entries);
-  return { formData: async () => form } as unknown as NextRequest;
+function formRequest(entries: Array<[string, string | Blob]>): NextRequest {
+  const form = new FormData();
+  for (const [name, value] of entries) form.append(name, value);
+  return new Request('http://localhost/api/fal/upload', {
+    method: 'POST',
+    body: form,
+  }) as NextRequest;
 }
 
 const submitBody = {
@@ -72,6 +78,18 @@ describe('fal API routes', () => {
   afterEach(() => vi.clearAllMocks());
 
   describe('validate', () => {
+    it('rejects an oversized declared body before parsing JSON', async () => {
+      const json = vi.fn().mockResolvedValue({ apiKey: 'id:secret' });
+      const response = await validatePost({
+        headers: new Headers({ 'content-length': String(4 * 1024 + 1) }),
+        json,
+      } as unknown as NextRequest);
+
+      expect(response.status).toBe(413);
+      expect(json).not.toHaveBeenCalled();
+      expect(validateFalApiKey).not.toHaveBeenCalled();
+    });
+
     it('validates an API key and returns no provider data', async () => {
       validateFalApiKey.mockResolvedValue(undefined);
 
@@ -92,6 +110,17 @@ describe('fal API routes', () => {
       }
     );
 
+    it('bounds the API key after parsing when Content-Length is unavailable', async () => {
+      validateFalApiKey.mockResolvedValue(undefined);
+      const response = await validatePost({
+        headers: new Headers(),
+        json: async () => ({ apiKey: 'k'.repeat(1025) }),
+      } as unknown as NextRequest);
+
+      expect(response.status).toBe(400);
+      expect(validateFalApiKey).not.toHaveBeenCalled();
+    });
+
     it('returns a safe 400 for malformed JSON', async () => {
       const response = await validatePost(
         new Request('http://localhost/api/fal/validate', {
@@ -110,14 +139,25 @@ describe('fal API routes', () => {
   });
 
   describe('upload', () => {
+    it('rejects an oversized declared multipart body before parsing it', async () => {
+      const formData = vi.fn();
+      const response = await uploadPost({
+        headers: new Headers({ 'content-length': String(21 * 1024 * 1024 + 1) }),
+        formData,
+      } as unknown as NextRequest);
+
+      expect(response.status).toBe(413);
+      expect(formData).not.toHaveBeenCalled();
+      expect(uploadFalFile).not.toHaveBeenCalled();
+    });
+
     it('uploads a File and returns only its URL', async () => {
       uploadFalFile.mockResolvedValue('https://fal.media/source.png');
-      const file = new File(['source'], 'source.png', { type: 'image/png' });
 
       const response = await uploadPost(
         formRequest([
           ['apiKey', 'id:secret'],
-          ['file', file],
+          ['file', new File(['source'], 'source.png', { type: 'image/png' })],
         ])
       );
 
@@ -126,15 +166,18 @@ describe('fal API routes', () => {
         success: true,
         url: 'https://fal.media/source.png',
       });
-      expect(uploadFalFile).toHaveBeenCalledWith({ apiKey: 'id:secret', file });
+      expect(uploadFalFile).toHaveBeenCalledWith({
+        apiKey: 'id:secret',
+        file: expect.objectContaining({ name: 'source.png', size: 6, type: 'image/png' }),
+      });
     });
 
     it.each([
-      { entries: [['file', new File(['source'], 'source.png')]] },
+      { entries: [['file', 'not-a-file']] },
       {
         entries: [
           ['apiKey', '   '],
-          ['file', new File(['source'], 'source.png')],
+          ['file', 'not-a-file'],
         ],
       },
       { entries: [['apiKey', 'id:secret']] },
@@ -144,7 +187,7 @@ describe('fal API routes', () => {
           ['file', 'not-a-file'],
         ],
       },
-    ] as Array<{ entries: Array<[string, FormDataEntryValue]> }>)(
+    ] as Array<{ entries: Array<[string, string | Blob]> }>)(
       'rejects invalid multipart fields before calling the adapter',
       async ({ entries }) => {
         const response = await uploadPost(formRequest(entries));
@@ -168,9 +211,62 @@ describe('fal API routes', () => {
       });
       expect(uploadFalFile).not.toHaveBeenCalled();
     });
+
+    it('rejects an unsupported file MIME type from real multipart parsing', async () => {
+      const response = await uploadPost(
+        formRequest([
+          ['apiKey', 'id:secret'],
+          ['file', new File(['plain text'], 'source.txt', { type: 'text/plain' })],
+        ])
+      );
+
+      expect(response.status).toBe(415);
+      expect(uploadFalFile).not.toHaveBeenCalled();
+    });
+
+    it('rejects a source file larger than 20 MiB', async () => {
+      const response = await uploadPost(
+        formRequest([
+          ['apiKey', 'id:secret'],
+          [
+            'file',
+            new File([new Uint8Array(20 * 1024 * 1024 + 1)], 'source.png', {
+              type: 'image/png',
+            }),
+          ],
+        ])
+      );
+
+      expect(response.status).toBe(413);
+      expect(uploadFalFile).not.toHaveBeenCalled();
+    });
+
+    it('bounds the multipart API key after parsing', async () => {
+      const response = await uploadPost(
+        formRequest([
+          ['apiKey', 'k'.repeat(1025)],
+          ['file', 'not-a-file'],
+        ])
+      );
+
+      expect(response.status).toBe(400);
+      expect(uploadFalFile).not.toHaveBeenCalled();
+    });
   });
 
   describe('queue', () => {
+    it('rejects an oversized declared JSON body before parsing it', async () => {
+      const json = vi.fn().mockResolvedValue(submitBody);
+      const response = await queuePost({
+        headers: new Headers({ 'content-length': String(64 * 1024 + 1) }),
+        json,
+      } as unknown as NextRequest);
+
+      expect(response.status).toBe(413);
+      expect(json).not.toHaveBeenCalled();
+      expect(submitFalTask).not.toHaveBeenCalled();
+    });
+
     it('submits only allow-listed, validated fields', async () => {
       submitFalTask.mockResolvedValue({ requestId: 'req_wan_1234' });
 
@@ -242,6 +338,108 @@ describe('fal API routes', () => {
 
       expect(response.status).toBe(200);
       expect(submitFalTask).toHaveBeenCalledWith(expect.objectContaining({ values: body.values }));
+    });
+
+    it.each([
+      {
+        name: 'image mode without a reference',
+        body: {
+          ...submitBody,
+          modelId: 'nano-banana-2',
+          mediaType: 'image',
+          inputMode: 'image',
+          uploadUrls: [],
+          values: {},
+        },
+      },
+      {
+        name: 'Nano edit with more than 14 references',
+        body: {
+          ...submitBody,
+          modelId: 'nano-banana-2',
+          mediaType: 'image',
+          inputMode: 'image',
+          uploadUrls: Array.from({ length: 15 }, (_, index) => `https://fal.media/${index}.png`),
+          values: {},
+        },
+      },
+      { name: 'an unknown model', body: { ...submitBody, modelId: 'unknown-model' } },
+      {
+        name: 'an incompatible model and media type',
+        body: { ...submitBody, modelId: 'nano-banana-2', mediaType: 'video' },
+      },
+      {
+        name: 'references supplied to text mode',
+        body: { ...submitBody, uploadUrls: ['https://fal.media/reference.png'] },
+      },
+    ])('rejects $name before calling the billable adapter', async ({ body }) => {
+      submitFalTask.mockResolvedValue({ requestId: 'request_12345678' });
+
+      const response = await queuePost(jsonRequest('/api/fal/queue', body));
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toEqual({
+        success: false,
+        error: 'The selected fal request is not supported.',
+      });
+      expect(submitFalTask).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      { name: 'API key length', body: { ...submitBody, apiKey: 'k'.repeat(1025) }, status: 400 },
+      { name: 'model ID length', body: { ...submitBody, modelId: 'm'.repeat(129) }, status: 400 },
+      { name: 'prompt length', body: { ...submitBody, prompt: 'p'.repeat(20_001) }, status: 413 },
+      {
+        name: 'upload URL count',
+        body: {
+          ...submitBody,
+          uploadUrls: Array.from({ length: 17 }, (_, index) => `https://fal.media/${index}.png`),
+        },
+        status: 413,
+      },
+      {
+        name: 'individual upload URL length',
+        body: { ...submitBody, uploadUrls: [`https://fal.media/${'u'.repeat(4097)}`] },
+        status: 413,
+      },
+      {
+        name: 'values entry count',
+        body: {
+          ...submitBody,
+          values: Object.fromEntries(Array.from({ length: 65 }, (_, index) => [`key${index}`, true])),
+        },
+        status: 413,
+      },
+      {
+        name: 'value key length',
+        body: { ...submitBody, values: { ['k'.repeat(129)]: true } },
+        status: 413,
+      },
+      {
+        name: 'string value length',
+        body: { ...submitBody, values: { negative_prompt: 'v'.repeat(4097) } },
+        status: 413,
+      },
+    ])('bounds $name after parsing', async ({ body, status }) => {
+      submitFalTask.mockResolvedValue({ requestId: 'request_12345678' });
+
+      const response = await queuePost({
+        headers: new Headers(),
+        json: async () => body,
+      } as unknown as NextRequest);
+
+      expect(response.status).toBe(status);
+      expect(submitFalTask).not.toHaveBeenCalled();
+    });
+
+    it('rejects non-finite numeric values before the adapter', async () => {
+      const response = await queuePost({
+        headers: new Headers(),
+        json: async () => ({ ...submitBody, values: { duration: Number.POSITIVE_INFINITY } }),
+      } as unknown as NextRequest);
+
+      expect(response.status).toBe(400);
+      expect(submitFalTask).not.toHaveBeenCalled();
     });
 
     it.each(['status', 'cancel'] as const)('passes catalog and request IDs only for %s', async (operation) => {
@@ -319,7 +517,7 @@ describe('fal API routes', () => {
       uploadFalFile,
       () => uploadPost(formRequest([
         ['apiKey', 'id:secret'],
-        ['file', new File(['source'], 'source.png')],
+        ['file', new File(['source'], 'source.png', { type: 'image/png' })],
       ])),
     ],
     ['queue', submitFalTask, () => queuePost(jsonRequest('/api/fal/queue', submitBody))],
@@ -342,7 +540,7 @@ describe('fal API routes', () => {
       uploadFalFile,
       () => uploadPost(formRequest([
         ['apiKey', 'id:secret'],
-        ['file', new File(['source'], 'source.png')],
+        ['file', new File(['source'], 'source.png', { type: 'image/png' })],
       ])),
     ],
     ['queue', submitFalTask, () => queuePost(jsonRequest('/api/fal/queue', submitBody))],

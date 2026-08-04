@@ -3,6 +3,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { FalApiError, validateFalApiKey } from '@/lib/fal/server';
 
 const GENERIC_FAL_ERROR = 'Something went wrong while contacting fal.';
+const MAX_VALIDATE_BODY_BYTES = 4 * 1024;
+const MAX_API_KEY_LENGTH = 1024;
+
+function declaredBodyTooLarge(request: NextRequest): boolean {
+  const value = request.headers?.get('content-length');
+  return value !== null && /^\d+$/.test(value) && Number(value) > MAX_VALIDATE_BODY_BYTES;
+}
 
 function errorResponse(error: unknown) {
   if (error instanceof FalApiError) {
@@ -12,6 +19,13 @@ function errorResponse(error: unknown) {
 }
 
 export async function POST(request: NextRequest) {
+  if (declaredBodyTooLarge(request)) {
+    return NextResponse.json(
+      { success: false, error: 'The request body is too large.' },
+      { status: 413 }
+    );
+  }
+
   let body: unknown;
   try {
     body = await request.json();
@@ -27,7 +41,8 @@ export async function POST(request: NextRequest) {
     typeof body !== 'object' ||
     !('apiKey' in body) ||
     typeof body.apiKey !== 'string' ||
-    !body.apiKey.trim()
+    !body.apiKey.trim() ||
+    body.apiKey.length > MAX_API_KEY_LENGTH
   ) {
     return NextResponse.json(
       { success: false, error: 'A fal API key is required.' },
