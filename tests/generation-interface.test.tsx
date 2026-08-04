@@ -62,6 +62,20 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 
+const SOCIAL_THUMBNAIL_PROMPT = (prompt: string) => `Create a VIRAL YouTube/Social Media thumbnail with these elements:
+- DRAMATIC, eye-catching scene with shocked/surprised facial expression
+- BIG, BOLD text overlays with key phrases (use vibrant colors like yellow, red, white)
+- Arrows, circles, or highlighting elements pointing to important parts
+- High contrast and saturated colors for maximum impact
+- Professional editing style that screams "CLICK ME!"
+- Energy and urgency in the composition
+
+User's custom requirements: ${prompt}
+
+Style: Photorealistic, professional thumbnail editing, viral content aesthetics`;
+
+const STYLE_TRANSFER_PROMPT = 'Apply the artistic style and aesthetic from the first image to the content and composition of the second image. Preserve the subject matter of the second image while adopting the color palette, brushstrokes, texture, and artistic techniques of the first image.';
+
 describe('GenerationInterface engine selection', () => {
   beforeEach(() => {
     useAppStore.setState({
@@ -236,6 +250,78 @@ describe('GenerationInterface fal image generation', () => {
       view.unmount();
     }
   });
+
+  it.each(FEATURES)(
+    'runs $id through fal with its feature prompt, references, and exact options',
+    async (feature) => {
+      const prompt = `Matrix prompt for ${feature.id}`;
+      const referenceCount = feature.id === 'multi-image-compose' || feature.id === 'style-transfer'
+        ? 2
+        : feature.requiresImage
+          ? 1
+          : 0;
+      const expectedPrompt = feature.id === 'social-media-thumbnail'
+        ? SOCIAL_THUMBNAIL_PROMPT(prompt)
+        : feature.id === 'style-transfer'
+          ? STYLE_TRANSFER_PROMPT
+          : prompt;
+      useAppStore.setState({ engine: 'gemini' });
+      mockedRunFalImage.mockResolvedValue({
+        url: `https://v3.fal.media/files/${feature.id}.png`,
+        mimeType: 'image/png',
+      });
+      const fetchMock = vi.fn();
+      vi.stubGlobal('fetch', fetchMock);
+      renderInterface(feature);
+
+      fireEvent.click(screen.getByRole('button', { name: /fal\.ai.*Nano Banana 2/i }));
+      const files = Array.from({ length: referenceCount }, (_, index) =>
+        new File([`${feature.id}-${index}`], `${feature.id}-${index}.png`, {
+          type: 'image/png',
+        })
+      );
+      if (files.length > 0) {
+        fireEvent.change(document.querySelector('input[type="file"]')!, {
+          target: { files },
+        });
+        await waitFor(() =>
+          expect(screen.getByAltText(`Upload ${files.length}`)).toBeTruthy()
+        );
+      }
+      if (feature.id !== 'style-transfer') {
+        fireEvent.change(screen.getByRole('textbox'), { target: { value: prompt } });
+      }
+      fireEvent.change(screen.getByRole('combobox'), {
+        target: { value: '3:4' },
+      });
+      fireEvent.click(screen.getByRole('radio', { name: '2K' }));
+      if (feature.id === 'search-grounding') {
+        fireEvent.click(screen.getByRole('checkbox'));
+      }
+      const expectedDataUrls = files.map((_, index) =>
+        screen.getByAltText(`Upload ${index + 1}`).getAttribute('src')
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: 'Generate Image' }));
+
+      await waitFor(() => expect(mockedRunFalImage).toHaveBeenCalledTimes(1));
+      expect(mockedRunFalImage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          apiKey: 'fal_id:fal_secret',
+          prompt: expectedPrompt,
+          dataUrls: expectedDataUrls,
+          values: {
+            aspect_ratio: '3:4',
+            resolution: '2K',
+            enable_web_search: feature.id === 'search-grounding',
+          },
+          signal: expect.any(AbortSignal),
+        }),
+        {}
+      );
+      expect(fetchMock).not.toHaveBeenCalled();
+    }
+  );
 
   it('routes text-only generation through fal with the exact mapped values', async () => {
     useAppStore.setState({ engine: 'gemini' });
@@ -455,6 +541,98 @@ describe('GenerationInterface fal image generation', () => {
   );
 
   it.each([
+    ['Google Gemini', 'gemini', 'resolve'],
+    ['Google Gemini', 'gemini', 'reject'],
+    ['Kie.ai', 'kie', 'resolve'],
+    ['Kie.ai', 'kie', 'reject'],
+  ] as const)(
+    'aborts fal when switching to %s (%s) and ignores a late %s',
+    async (engineLabel, engineId, lateOutcome) => {
+      const run = deferred<{ url: string; mimeType?: string }>();
+      mockedRunFalImage.mockImplementation(() => run.promise);
+      const fetchMock = vi.fn();
+      vi.stubGlobal('fetch', fetchMock);
+      const toastError = vi.spyOn(toast, 'error');
+      const toastSuccess = vi.spyOn(toast, 'success');
+      renderInterface();
+
+      fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Old fal scene' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Generate Image' }));
+      await waitFor(() => expect(mockedRunFalImage).toHaveBeenCalledTimes(1));
+      const signal = mockedRunFalImage.mock.calls[0][0].signal!;
+
+      fireEvent.click(screen.getByRole('button', { name: engineLabel }));
+
+      expect(signal.aborted).toBe(true);
+      expect(useAppStore.getState().engine).toBe(engineId);
+      if (engineId === 'kie') expect(screen.getByTestId('kie-workspace')).toBeTruthy();
+
+      await act(async () => {
+        if (lateOutcome === 'resolve') {
+          run.resolve({
+            url: 'https://v3.fal.media/files/old-provider.png',
+            mimeType: 'image/png',
+          });
+        } else {
+          run.reject(new Error('old provider failure fal_id:fal_secret'));
+        }
+        await Promise.resolve();
+      });
+
+      expect(useAppStore.getState().engine).toBe(engineId);
+      expect(screen.queryByAltText('Generated')).toBeNull();
+      expect(screen.queryByText('Unable to generate this image with fal. Please try again.')).toBeNull();
+      expect(toastError).not.toHaveBeenCalled();
+      expect(toastSuccess).not.toHaveBeenCalled();
+      expect(mockedCancelFalJob).not.toHaveBeenCalled();
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(mockedRunFalImage).toHaveBeenCalledTimes(1);
+    }
+  );
+
+  it('allows the newly selected provider to generate after aborting stale fal work', async () => {
+    const falRun = deferred<{ url: string; mimeType?: string }>();
+    mockedRunFalImage.mockImplementation(() => falRun.promise);
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        success: true,
+        imageData: 'bmV3LXByb3ZpZGVy',
+        mimeType: 'image/png',
+      }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const toastError = vi.spyOn(toast, 'error');
+    renderInterface();
+
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Provider handoff' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Generate Image' }));
+    await waitFor(() => expect(mockedRunFalImage).toHaveBeenCalledTimes(1));
+    const falSignal = mockedRunFalImage.mock.calls[0][0].signal!;
+    fireEvent.click(screen.getByRole('button', { name: 'Google Gemini' }));
+    expect(falSignal.aborted).toBe(true);
+
+    await act(async () => {
+      falRun.resolve({
+        url: 'https://v3.fal.media/files/stale-handoff.png',
+        mimeType: 'image/png',
+      });
+    });
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Generate Image' })).toBeTruthy());
+    fireEvent.click(screen.getByRole('button', { name: 'Generate Image' }));
+
+    await waitFor(() =>
+      expect(screen.getByAltText('Generated').getAttribute('src')).toBe(
+        'data:image/png;base64,bmV3LXByb3ZpZGVy'
+      )
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith('/api/generate', expect.anything());
+    expect(toastError).not.toHaveBeenCalled();
+    expect(mockedCancelFalJob).not.toHaveBeenCalled();
+  });
+
+  it.each([
     ['back navigation', 'resolve'],
     ['back navigation', 'reject'],
     ['component unmount', 'resolve'],
@@ -511,6 +689,119 @@ describe('GenerationInterface fal image generation', () => {
 
     expect(screen.getByText('fal usage rates apply · Nano Banana 2')).toBeTruthy();
     expect(screen.queryByText(/\$\d/)).toBeNull();
+  });
+
+  it('rejects a remote image whose declared size exceeds 20 MiB', async () => {
+    mockedRunFalImage.mockResolvedValue({
+      url: 'https://v3.fal.media/files/declared-too-large.png',
+      mimeType: 'image/png',
+    });
+    const fetchMock = vi.fn().mockResolvedValue(new Response('small body', {
+      status: 200,
+      headers: {
+        'Content-Type': 'image/png',
+        'Content-Length': String(20 * 1024 * 1024 + 1),
+      },
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+    const createObjectURL = vi.fn();
+    const revokeObjectURL = vi.fn();
+    Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: createObjectURL });
+    Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: revokeObjectURL });
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+    renderInterface();
+
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Large declared image' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Generate Image' }));
+    await waitFor(() => expect(screen.getByAltText('Generated')).toBeTruthy());
+    fireEvent.click(screen.getByRole('button', { name: 'Download Image' }));
+
+    await waitFor(() =>
+      expect(screen.getByText('Unable to download this image. Please try again.')).toBeTruthy()
+    );
+    const signal = fetchMock.mock.calls[0][1].signal as AbortSignal;
+    expect(signal.aborted).toBe(true);
+    expect(createObjectURL).not.toHaveBeenCalled();
+    expect(revokeObjectURL).not.toHaveBeenCalled();
+    expect(clickSpy).not.toHaveBeenCalled();
+    expect(document.body.textContent).not.toContain(String(20 * 1024 * 1024 + 1));
+    expect(document.body.textContent).not.toContain('declared-too-large');
+  });
+
+  it('cancels a streamed remote image when chunks exceed 20 MiB', async () => {
+    mockedRunFalImage.mockResolvedValue({
+      url: 'https://v3.fal.media/files/stream-too-large.png',
+      mimeType: 'image/png',
+    });
+    const cancelStream = vi.fn();
+    const chunks = [
+      new Uint8Array(20 * 1024 * 1024),
+      new Uint8Array([1]),
+    ];
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        const chunk = chunks.shift();
+        if (chunk) controller.enqueue(chunk);
+      },
+      cancel: cancelStream,
+    });
+    const fetchMock = vi.fn().mockResolvedValue(new Response(body, {
+      status: 200,
+      headers: { 'Content-Type': 'image/png' },
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+    const createObjectURL = vi.fn();
+    const revokeObjectURL = vi.fn();
+    Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: createObjectURL });
+    Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: revokeObjectURL });
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+    renderInterface();
+
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Large streamed image' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Generate Image' }));
+    await waitFor(() => expect(screen.getByAltText('Generated')).toBeTruthy());
+    fireEvent.click(screen.getByRole('button', { name: 'Download Image' }));
+
+    await waitFor(() =>
+      expect(screen.getByText('Unable to download this image. Please try again.')).toBeTruthy()
+    );
+    const signal = fetchMock.mock.calls[0][1].signal as AbortSignal;
+    expect(signal.aborted).toBe(true);
+    expect(cancelStream).toHaveBeenCalledTimes(1);
+    expect(createObjectURL).not.toHaveBeenCalled();
+    expect(revokeObjectURL).not.toHaveBeenCalled();
+    expect(clickSpy).not.toHaveBeenCalled();
+    expect(document.body.textContent).not.toContain('stream-too-large');
+  });
+
+  it('uses the verified remote response MIME for the download extension', async () => {
+    mockedRunFalImage.mockResolvedValue({
+      url: 'https://v3.fal.media/files/mime-mismatch.jpg',
+      mimeType: 'image/jpeg',
+    });
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
+      new Response(new Blob(['webp'], { type: 'image/webp' }), {
+        status: 200,
+        headers: { 'Content-Type': 'image/webp' },
+      })
+    ));
+    const createObjectURL = vi.fn(() => 'blob:verified-mime');
+    const revokeObjectURL = vi.fn();
+    Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: createObjectURL });
+    Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: revokeObjectURL });
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+    renderInterface();
+
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Verified MIME' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Generate Image' }));
+    await waitFor(() => expect(screen.getByAltText('Generated')).toBeTruthy());
+    fireEvent.click(screen.getByRole('button', { name: 'Download Image' }));
+
+    await waitFor(() => expect(clickSpy).toHaveBeenCalledTimes(1));
+    const link = clickSpy.mock.instances[0] as HTMLAnchorElement;
+    expect(link.download).toBe('verified-mime.webp');
+    expect(createObjectURL).toHaveBeenCalledTimes(1);
+    expect(revokeObjectURL).toHaveBeenCalledTimes(1);
   });
 
   it.each(['resolve', 'reject'] as const)(

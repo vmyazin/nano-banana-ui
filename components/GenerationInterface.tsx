@@ -56,6 +56,7 @@ const RESOLUTION_OPTIONS = ['1K', '2K', '4K'].map((value) => ({
 
 const FAL_GENERATION_ERROR = 'Unable to generate this image with fal. Please try again.';
 const DOWNLOAD_ERROR = 'Unable to download this image. Please try again.';
+const MAX_REMOTE_IMAGE_BYTES = 20 * 1024 * 1024;
 const SUPPORTED_RASTER_MIMES = new Set([
   'image/jpeg',
   'image/png',
@@ -72,6 +73,77 @@ class LocalFalCancellation extends Error {
 
 function isAbortError(error: unknown) {
   return error instanceof DOMException && error.name === 'AbortError';
+}
+
+class RemoteImageTooLarge extends Error {
+  constructor() {
+    super(DOWNLOAD_ERROR);
+    this.name = 'RemoteImageTooLarge';
+  }
+}
+
+async function boundedImageBlob(
+  response: Response,
+  mimeType: string,
+  signal: AbortSignal
+) {
+  const declaredLength = response.headers.get('Content-Length')?.trim();
+  if (declaredLength && /^\d+$/.test(declaredLength)) {
+    const size = Number(declaredLength);
+    if (!Number.isSafeInteger(size) || size > MAX_REMOTE_IMAGE_BYTES) {
+      throw new RemoteImageTooLarge();
+    }
+  }
+
+  if (!response.body) {
+    const blob = await response.blob();
+    if (blob.size > MAX_REMOTE_IMAGE_BYTES) throw new RemoteImageTooLarge();
+    return new Blob([blob], { type: mimeType });
+  }
+
+  const reader = response.body.getReader();
+  const chunks: ArrayBuffer[] = [];
+  let totalBytes = 0;
+  let readerCancelled = false;
+  const cancelReader = async () => {
+    if (readerCancelled) return;
+    readerCancelled = true;
+    try {
+      await reader.cancel();
+    } catch {
+      // The stream may already be errored or closed.
+    }
+  };
+
+  try {
+    while (true) {
+      if (signal.aborted) {
+        await cancelReader();
+        throw new DOMException('Download aborted', 'AbortError');
+      }
+      const { done, value } = await reader.read();
+      if (signal.aborted) {
+        await cancelReader();
+        throw new DOMException('Download aborted', 'AbortError');
+      }
+      if (done) break;
+      totalBytes += value.byteLength;
+      if (totalBytes > MAX_REMOTE_IMAGE_BYTES) {
+        await cancelReader();
+        throw new RemoteImageTooLarge();
+      }
+      const ownedChunk = new Uint8Array(value.byteLength);
+      ownedChunk.set(value);
+      chunks.push(ownedChunk.buffer);
+    }
+  } catch (caught) {
+    await cancelReader();
+    throw caught;
+  } finally {
+    reader.releaseLock();
+  }
+
+  return new Blob(chunks, { type: mimeType });
 }
 
 function normalizedMimeType(mimeType?: string | null) {
@@ -437,7 +509,9 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
   }, [lightboxOpen]);
 
   const handleGenerate = () => {
-    if (!prompt.trim() && feature.id !== 'image-editing') {
+    const hasFeatureDefaultPrompt =
+      feature.id === 'image-editing' || feature.id === 'style-transfer';
+    if (!prompt.trim() && !hasFeatureDefaultPrompt) {
       setError('Please enter a prompt');
       return;
     }
@@ -464,13 +538,27 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
     generateMutation.mutate();
   };
 
-  const handleBack = () => {
+  const abortActiveGeneration = () => {
     generationOperationRef.current += 1;
     generationAbortRef.current?.abort();
     generationAbortRef.current = null;
+  };
+
+  const abortActiveDownload = () => {
     downloadOperationRef.current += 1;
     downloadAbortRef.current?.abort();
     downloadAbortRef.current = null;
+  };
+
+  const handleEngineSelect = (engineId: EngineId) => {
+    abortActiveGeneration();
+    abortActiveDownload();
+    setEngine(engineId);
+  };
+
+  const handleBack = () => {
+    abortActiveGeneration();
+    abortActiveDownload();
     onBack();
   };
 
@@ -517,21 +605,19 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
         throw new Error(DOWNLOAD_ERROR);
       }
 
-      const blob = await response.blob();
+      const blob = await boundedImageBlob(response, responseMime, controller.signal);
       if (!isCurrentOperation()) return;
-      if (!SUPPORTED_RASTER_MIMES.has(normalizedMimeType(blob.type))) {
-        throw new Error(DOWNLOAD_ERROR);
-      }
 
       objectUrl = URL.createObjectURL(blob);
 
       const link = document.createElement('a');
       link.href = objectUrl;
-      link.download = `${base}.${downloadExt}`;
+      link.download = `${base}.${extensionForMimeType(responseMime)}`;
       link.click();
     } catch (caught) {
       if (!isCurrentOperation() || isAbortError(caught)) return;
       setError(DOWNLOAD_ERROR);
+      controller.abort();
     } finally {
       if (objectUrl) URL.revokeObjectURL(objectUrl);
       if (
@@ -556,7 +642,7 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
           <EngineSelector
             engines={availableEngines}
             activeEngineId={activeEngine.id}
-            onSelect={setEngine}
+            onSelect={handleEngineSelect}
           />
         }
         onBack={handleBack}
@@ -596,7 +682,7 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
       <EngineSelector
         engines={availableEngines}
         activeEngineId={activeEngine.id}
-        onSelect={setEngine}
+        onSelect={handleEngineSelect}
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5 md:gap-6">
