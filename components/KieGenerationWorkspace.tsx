@@ -7,10 +7,10 @@ import { SEED_TONES } from '@/lib/example-prompts';
 import { submitKieJob, uploadKieFiles } from '@/lib/kie/browser';
 import { defaultKieValues, modelsForKieMode, resolveKieVariant, validateKieInput } from '@/lib/kie/catalog';
 import { currentKieTime, isKieJobTerminal } from '@/lib/kie/queue';
-import type { KieFieldDefinition, KieInputMode, MediaType } from '@/lib/kie/types';
+import type { KieInputMode, MediaType } from '@/lib/kie/types';
 import { useAppStore } from '@/store/useAppStore';
 import { useKieJobsStore } from '@/store/useKieJobsStore';
-import SegmentedToggleGroup from '@/components/SegmentedToggleGroup';
+import ModelControls from '@/components/ModelControls';
 
 interface KieGenerationWorkspaceProps {
   mediaType: MediaType;
@@ -239,90 +239,6 @@ export default function KieGenerationWorkspace({
     }
   };
 
-  const renderField = (field: KieFieldDefinition) => {
-    const fieldId = `kie-${variantKey}-${field.key}`;
-    if (field.type === 'boolean') {
-      return (
-        <label key={field.key} htmlFor={fieldId} className="flex items-center justify-between gap-4 rounded-lg border border-[var(--border)] bg-[var(--background-elevated)]/60 p-3">
-          <span>
-            <span className="block text-sm font-medium text-[var(--foreground)]">{field.label}</span>
-            {field.description && <span className="mt-0.5 block text-xs text-[var(--foreground-muted)]">{field.description}</span>}
-          </span>
-          <input
-            id={fieldId}
-            aria-label={field.label}
-            type="checkbox"
-            checked={Boolean(values[field.key])}
-            onChange={(event) => updateValues(field.key, event.target.checked)}
-            className="h-4 w-4 accent-[var(--neon-cyan)]"
-          />
-        </label>
-      );
-    }
-
-    if (field.type === 'select' && field.key === 'resolution') {
-      return (
-        <div key={field.key} className="space-y-1.5">
-          <span className="block text-sm font-medium text-[var(--foreground)]">{field.label}</span>
-          <SegmentedToggleGroup
-            label={field.label}
-            options={field.options ?? []}
-            value={(values[field.key] ?? field.defaultValue ?? '') as string | number}
-            onChange={(value) => updateValues(field.key, value)}
-          />
-          {field.description && (
-            <span className="block text-xs text-[var(--foreground-subtle)]">{field.description}</span>
-          )}
-        </div>
-      );
-    }
-
-    return (
-      <label key={field.key} htmlFor={fieldId} className="block space-y-1.5">
-        <span className="block text-sm font-medium text-[var(--foreground)]">{field.label}</span>
-        {field.type === 'select' ? (
-          <select
-            id={fieldId}
-            aria-label={field.label}
-            value={String(values[field.key] ?? '')}
-            onChange={(event) => updateValues(field.key, event.target.value)}
-            className="w-full"
-          >
-            {field.options?.map((option) => (
-              <option key={String(option.value)} value={String(option.value)}>{option.label}</option>
-            ))}
-          </select>
-        ) : field.type === 'number' ? (
-          <input
-            id={fieldId}
-            aria-label={field.label}
-            type="number"
-            min={field.min}
-            max={field.max}
-            step={field.step}
-            value={Number(values[field.key] ?? field.defaultValue ?? 0)}
-            onChange={(event) => updateValues(field.key, Number(event.target.value))}
-            className="w-full"
-          />
-        ) : field.type === 'file' ? (
-          <input id={fieldId} aria-label={field.label} type="file" className="w-full" />
-        ) : (
-          <input
-            id={fieldId}
-            aria-label={field.label}
-            type="text"
-            value={String(values[field.key] ?? '')}
-            onChange={(event) => updateValues(field.key, event.target.value)}
-            className="w-full"
-          />
-        )}
-        {field.description && (
-          <span className="block text-xs text-[var(--foreground-subtle)]">{field.description}</span>
-        )}
-      </label>
-    );
-  };
-
   return (
     <div className="mx-auto w-full max-w-[1400px] space-y-5 sm:space-y-6">
       <section className="glass-card p-4 sm:p-5 md:p-6">
@@ -464,7 +380,14 @@ export default function KieGenerationWorkspace({
               <h3 className="display text-lg font-semibold">Model controls</h3>
               <p className="mt-0.5 text-xs text-[var(--foreground-muted)]">Only controls supported by {selectedModel.label} are shown.</p>
             </div>
-            <div className="grid gap-4 sm:grid-cols-2">{variant.fields.map(renderField)}</div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <ModelControls
+                namespace={`kie-${variantKey}`}
+                fields={variant.fields}
+                values={values}
+                onChange={updateValues}
+              />
+            </div>
           </section>
 
           <button
