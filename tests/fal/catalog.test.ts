@@ -400,4 +400,10 @@ describe('fal model catalog', () => {
       'Invalid fal media type.'
     );
   });
+
+  it('rejects invalid runtime media types when filtering models', () => {
+    expect(() => modelsForFalMode('audio' as never, 'text')).toThrow(
+      'Invalid fal media type.'
+    );
+  });
 });

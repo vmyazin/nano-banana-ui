@@ -303,7 +303,13 @@ export const FAL_VIDEO_MODELS: FalModelDefinition[] = [
   ),
 ];
 
-export function modelsForFalMode(
+function assertFalMediaType(mediaType: unknown): asserts mediaType is FalMediaType {
+  if (mediaType !== 'image' && mediaType !== 'video') {
+    throw new Error('Invalid fal media type.');
+  }
+}
+
+function compatibleFalModels(
   mediaType: FalMediaType,
   inputMode: FalInputMode
 ): FalModelDefinition[] {
@@ -311,16 +317,23 @@ export function modelsForFalMode(
   return models.filter((model) => model.variants.some((variant) => variant.inputMode === inputMode));
 }
 
+export function modelsForFalMode(
+  mediaType: FalMediaType,
+  inputMode: FalInputMode
+): FalModelDefinition[] {
+  assertFalMediaType(mediaType);
+  return compatibleFalModels(mediaType, inputMode);
+}
+
 export function resolveFalVariant(
   modelId: string,
   mediaType: FalMediaType,
   inputMode: FalInputMode
 ): FalModelVariant {
-  if (mediaType !== 'image' && mediaType !== 'video') {
-    throw new Error('Invalid fal media type.');
-  }
-
-  const model = modelsForFalMode(mediaType, inputMode).find((candidate) => candidate.id === modelId);
+  assertFalMediaType(mediaType);
+  const model = compatibleFalModels(mediaType, inputMode).find(
+    (candidate) => candidate.id === modelId
+  );
   const variant = model?.variants.find((candidate) => candidate.inputMode === inputMode);
 
   if (!variant) {
