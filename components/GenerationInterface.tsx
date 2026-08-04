@@ -8,6 +8,7 @@ import { useMutation } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Feature, GenerationConfig } from '@/types';
 import { metaForFeature, SEED_TONES, slugify } from '@/lib/example-prompts';
+import { runFalImage } from '@/lib/fal/browser';
 import { useAppStore } from '@/store/useAppStore';
 import {
   enginesForFeature,
@@ -52,6 +53,37 @@ const RESOLUTION_OPTIONS = ['1K', '2K', '4K'].map((value) => ({
   label: value,
   value,
 }));
+
+const FAL_GENERATION_ERROR = 'Unable to generate this image with fal. Please try again.';
+const DOWNLOAD_ERROR = 'Unable to download this image. Please try again.';
+const SUPPORTED_RASTER_MIMES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/avif',
+]);
+
+function normalizedMimeType(mimeType?: string | null) {
+  return mimeType?.split(';', 1)[0].trim().toLowerCase() ?? '';
+}
+
+function extensionForMimeType(mimeType?: string) {
+  const normalized = normalizedMimeType(mimeType);
+  if (normalized === 'image/jpeg') return 'jpg';
+  if (normalized === 'image/webp') return 'webp';
+  if (normalized === 'image/avif') return 'avif';
+  return 'png';
+}
+
+function isSafeFalMediaUrl(value: string) {
+  try {
+    const url = new URL(value);
+    const isFalMedia = url.hostname === 'fal.media' || url.hostname.endsWith('.fal.media');
+    return url.protocol === 'https:' && !url.username && !url.password && isFalMedia;
+  } catch {
+    return false;
+  }
+}
 
 interface EngineSelectorProps {
   engines: EngineMeta[];
@@ -112,6 +144,7 @@ export default function GenerationInterface({ feature, apiKey, onBack, onOpenCon
   const setEngine = useAppStore((s) => s.setEngine);
   const cfAccountId = useAppStore((s) => s.cfAccountId);
   const cfToken = useAppStore((s) => s.cfToken);
+  const falApiKey = useAppStore((s) => s.falApiKey);
   const hasCfCreds = !!cfAccountId && !!cfToken;
   const availableEngines = enginesForFeature(feature);
   const activeEngine =
@@ -122,6 +155,18 @@ export default function GenerationInterface({ feature, apiKey, onBack, onOpenCon
   // Pre-rendered, AI-summarized download filename for the current prompt.
   const [filenameSlug, setFilenameSlug] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const generationAbortRef = useRef<AbortController | null>(null);
+  const downloadAbortRef = useRef<AbortController | null>(null);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      generationAbortRef.current?.abort();
+      downloadAbortRef.current?.abort();
+    };
+  }, []);
 
   // Ask flash-lite for a short evocative filename slug for `p` and stash it.
   // Fire-and-forget — download falls back to a client-side slug if it's not ready.
@@ -212,6 +257,41 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
         }
       }
 
+      if (activeEngine.id === 'fal') {
+        generationAbortRef.current?.abort();
+        const controller = new AbortController();
+        generationAbortRef.current = controller;
+
+        try {
+          const result = await runFalImage({
+            apiKey: falApiKey,
+            prompt: finalPrompt,
+            dataUrls: images,
+            values: {
+              aspect_ratio: config.aspectRatio ?? 'auto',
+              resolution: config.imageSize ?? '1K',
+              enable_web_search: Boolean(config.useGoogleSearch),
+            },
+            signal: controller.signal,
+          }, {});
+
+          if (controller.signal.aborted || generationAbortRef.current !== controller) {
+            throw new Error(FAL_GENERATION_ERROR);
+          }
+
+          return {
+            dataUrl: result.url,
+            ext: extensionForMimeType(result.mimeType),
+          };
+        } catch {
+          throw new Error(FAL_GENERATION_ERROR);
+        } finally {
+          if (generationAbortRef.current === controller) {
+            generationAbortRef.current = null;
+          }
+        }
+      }
+
       const response = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -299,7 +379,9 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
       ? 'Free · Pollinations (FLUX) · no key needed'
       : activeEngine.id === 'cloudflare'
         ? 'Free daily tier · Cloudflare · FLUX.1 [schnell]'
-        : `Est. ≈ $${estCost.toFixed(2)} / image · Gemini 3 Pro Image`;
+        : activeEngine.id === 'fal'
+          ? 'fal usage rates apply · Nano Banana 2'
+          : `Est. ≈ $${estCost.toFixed(2)} / image · Gemini 3 Pro Image`;
 
   // Close the full-screen lightbox on Escape.
   useEffect(() => {
@@ -325,6 +407,11 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
       onOpenConnections();
       return;
     }
+    if (activeEngine.id === 'fal' && !falApiKey.trim()) {
+      setError('Connect your fal API key first in API connections.');
+      onOpenConnections();
+      return;
+    }
     setError(null);
     // Manual / edited prompt with no pre-rendered slug → generate one in
     // parallel with the image so the download has a meaningful name.
@@ -334,15 +421,65 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
     generateMutation.mutate();
   };
 
-  const downloadImage = () => {
+  const handleBack = () => {
+    generationAbortRef.current?.abort();
+    downloadAbortRef.current?.abort();
+    onBack();
+  };
+
+  const downloadImage = async () => {
     if (!generatedImage) return;
 
     const base =
       filenameSlug || slugify(prompt) || `scene-assembly-${feature.id}`;
-    const link = document.createElement('a');
-    link.href = generatedImage;
-    link.download = `${base}.${downloadExt}`;
-    link.click();
+
+    if (generatedImage.startsWith('data:image/')) {
+      const link = document.createElement('a');
+      link.href = generatedImage;
+      link.download = `${base}.${downloadExt}`;
+      link.click();
+      return;
+    }
+
+    if (!isSafeFalMediaUrl(generatedImage)) {
+      setError(DOWNLOAD_ERROR);
+      return;
+    }
+
+    downloadAbortRef.current?.abort();
+    const controller = new AbortController();
+    downloadAbortRef.current = controller;
+    let objectUrl: string | null = null;
+
+    try {
+      const response = await fetch(generatedImage, { signal: controller.signal });
+      const responseMime = normalizedMimeType(response.headers.get('Content-Type'));
+      if (!response.ok || !SUPPORTED_RASTER_MIMES.has(responseMime)) {
+        throw new Error(DOWNLOAD_ERROR);
+      }
+
+      const blob = await response.blob();
+      if (!SUPPORTED_RASTER_MIMES.has(normalizedMimeType(blob.type))) {
+        throw new Error(DOWNLOAD_ERROR);
+      }
+
+      objectUrl = URL.createObjectURL(blob);
+      if (controller.signal.aborted || !mountedRef.current) return;
+
+      const link = document.createElement('a');
+      link.href = objectUrl;
+      link.download = `${base}.${downloadExt}`;
+      link.click();
+    } catch {
+      if (!controller.signal.aborted && mountedRef.current) {
+        setError(DOWNLOAD_ERROR);
+      }
+    } finally {
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      if (downloadAbortRef.current === controller) {
+        downloadAbortRef.current = null;
+      }
+    }
   };
 
   if (activeEngine.id === 'kie') {
@@ -361,7 +498,7 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
             onSelect={setEngine}
           />
         }
-        onBack={onBack}
+        onBack={handleBack}
         onOpenConnections={onOpenConnections}
       />
     );
@@ -379,7 +516,7 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
           <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
             <button
-              onClick={onBack}
+              onClick={handleBack}
               className="btn-secondary text-xs sm:text-sm py-2 px-3 sm:px-4 flex-shrink-0"
             >
               ← Back
@@ -559,6 +696,21 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
                     </div>
                   )}
 
+                  {activeEngine.id === 'fal' && !falApiKey.trim() && (
+                    <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3 flex items-center justify-between gap-3">
+                      <p className="text-xs text-[var(--foreground-muted)]">
+                        Connect your fal API key to use this engine.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={onOpenConnections}
+                        className="btn-secondary text-xs py-1.5 px-3 flex-shrink-0"
+                      >
+                        Connect →
+                      </button>
+                    </div>
+                  )}
+
                   {activeEngine.supportsAspectRatio && (
                   <div>
                     <label className="block text-sm font-medium mb-2 text-[var(--foreground)]">
@@ -708,7 +860,7 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
             <motion.button
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              onClick={downloadImage}
+              onClick={() => void downloadImage()}
               className="btn-secondary w-full flex items-center justify-center gap-2"
             >
               <Download size={20} />
@@ -751,7 +903,7 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                downloadImage();
+                void downloadImage();
               }}
               className="absolute bottom-5 left-1/2 -translate-x-1/2 btn-secondary flex items-center gap-2"
             >
