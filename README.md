@@ -43,7 +43,7 @@ Kie’s in-app catalog intentionally covers these flagship families:
 - **Image (8):** Nano Banana Pro, Nano Banana 2, GPT Image 2, FLUX.2 Pro, Seedream 5 Pro, Imagen 4 Ultra, Ideogram V3, Z-Image
 - **Video (7):** Veo 3.1, Kling 3.0, Seedance 2, Wan 2.7, Hailuo 2.3 Pro, Grok Imagine, PixVerse V6
 
-fal.ai has a separate, static catalog of exactly nine curated and verified video choices: **Veo 3.1 Standard**, **Veo 3.1 Fast**, **Seedance 2.0 Standard**, **Seedance 2.0 Fast**, **Kling 3 Standard**, **Kling 3 Pro**, **Sora 2 Standard**, **Sora 2 Pro**, and **Wan 2.7**. Each supports text-to-video and image-to-video.
+fal.ai has a separate, static catalog of exactly nine curated and verified video choices: **Veo 3.1 Standard**, **Veo 3.1 Fast**, **Seedance 2.0 Standard**, **Seedance 2.0 Fast**, **Kling 3 Standard**, **Kling 3 Pro**, **MiniMax Hailuo 2.3 Standard**, **MiniMax Hailuo 2.3 Pro**, and **Wan 2.7**. Each supports text-to-video and image-to-video.
 
 Both providers create tab-local, in-memory jobs. For fal, the app uses the [asynchronous queue](https://fal.ai/docs/documentation/model-apis/inference/queue) to submit, check status, retrieve results, and cancel. Polling stops at success/failure or after 15 minutes; the app never auto-resubmits, and job history is not restored after a reload. Download completed media promptly because provider URLs are temporary.
 

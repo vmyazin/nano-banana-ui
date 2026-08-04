@@ -28,8 +28,8 @@ const labels = [
   'Seedance 2.0 Fast',
   'Kling 3 Standard',
   'Kling 3 Pro',
-  'Sora 2 Standard',
-  'Sora 2 Pro',
+  'MiniMax Hailuo 2.3 Standard',
+  'MiniMax Hailuo 2.3 Pro',
   'Wan 2.7',
 ];
 
@@ -109,7 +109,7 @@ describe('FalGenerationWorkspace', () => {
     expect(within(model).getAllByRole('option').map((option) => option.textContent?.split(' · ')[0])).toEqual(labels);
 
     fireEvent.change(screen.getByRole('searchbox', { name: 'Search fal video models' }), {
-      target: { value: 'OpenAI' },
+      target: { value: 'MiniMax' },
     });
     expect(within(model).getAllByRole('option')).toHaveLength(2);
     fireEvent.change(screen.getByRole('searchbox', { name: 'Search fal video models' }), {
@@ -133,10 +133,10 @@ describe('FalGenerationWorkspace', () => {
 
   it('persists model selection and resets controls to each mode-specific catalog default', () => {
     const view = renderWorkspace();
-    fireEvent.change(screen.getByRole('combobox', { name: 'Model' }), { target: { value: 'sora-2-pro' } });
-    expect(useAppStore.getState().falVideoModel).toBe('sora-2-pro');
-    expect(screen.getByRole('combobox', { name: 'Duration' })).toHaveDisplayValue('4');
-    fireEvent.change(screen.getByRole('combobox', { name: 'Duration' }), { target: { value: '3' } });
+    fireEvent.change(screen.getByRole('combobox', { name: 'Model' }), { target: { value: 'hailuo-2-3-standard' } });
+    expect(useAppStore.getState().falVideoModel).toBe('hailuo-2-3-standard');
+    expect(screen.getByRole('combobox', { name: 'Duration' })).toHaveDisplayValue('6');
+    fireEvent.change(screen.getByRole('combobox', { name: 'Duration' }), { target: { value: '1' } });
 
     useAppStore.getState().setFalVideoModel('veo-3-1-fast');
     view.rerender(
@@ -144,7 +144,7 @@ describe('FalGenerationWorkspace', () => {
     );
     expect(screen.getByRole('combobox', { name: 'Aspect ratio' })).toHaveDisplayValue('auto');
     expect(screen.getByRole('combobox', { name: 'Duration' })).toHaveDisplayValue('8s');
-    expect(screen.queryByText('3')).not.toBeInTheDocument();
+    expect(screen.queryByText('10')).not.toBeInTheDocument();
   });
 
   it('requires exactly one image reference before upload and keeps its preview removable', async () => {

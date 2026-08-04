@@ -164,8 +164,7 @@ const seedanceFields = (resolutions: string[]): FalFieldDefinition[] => [
     'duration',
     'Duration',
     'auto',
-    ['auto', ...Array.from({ length: 12 }, (_, index) => index + 4)],
-    { min: 4, max: 15, step: 1 }
+    ['auto', ...Array.from({ length: 12 }, (_, index) => String(index + 4))]
   ),
   selectField('resolution', 'Resolution', '720p', resolutions),
   booleanField('generate_audio', 'Generate audio', true),
@@ -182,7 +181,12 @@ const seedanceFields = (resolutions: string[]): FalFieldDefinition[] => [
 ];
 
 const klingFields = (includeAspectRatio: boolean): FalFieldDefinition[] => [
-  numberField('duration', 'Duration', 5, 3, 15),
+  selectField(
+    'duration',
+    'Duration',
+    '5',
+    Array.from({ length: 13 }, (_, index) => String(index + 3))
+  ),
   booleanField('generate_audio', 'Generate audio', true),
   ...(includeAspectRatio
     ? [selectField('aspect_ratio', 'Aspect ratio', '16:9', ['16:9', '9:16', '1:1'])]
@@ -190,17 +194,12 @@ const klingFields = (includeAspectRatio: boolean): FalFieldDefinition[] => [
   textField('negative_prompt', 'Negative prompt', 'Describe visual elements to avoid.'),
 ];
 
-const soraFields = (pro: boolean): FalFieldDefinition[] => [
-  selectField('duration', 'Duration', 4, [4, 8, 12, 16, 20]),
-  selectField(
-    'resolution',
-    'Resolution',
-    pro ? '1080p' : 'auto',
-    pro ? ['720p', '1080p', 'true_1080p'] : ['auto', '720p']
-  ),
-  selectField('aspect_ratio', 'Aspect ratio', '16:9', ['16:9', '9:16']),
-  booleanField('delete_video', 'Delete video after generation', false),
+const HAILUO_STANDARD_FIELDS = [
+  selectField('duration', 'Duration', '6', ['6', '10']),
+  booleanField('prompt_optimizer', 'Optimize prompt', true),
 ];
+
+const HAILUO_PRO_FIELDS = [booleanField('prompt_optimizer', 'Optimize prompt', true)];
 
 const wanFields = (includeAspectRatio: boolean): FalFieldDefinition[] => [
   numberField('duration', 'Duration', 5, 2, 15),
@@ -274,22 +273,22 @@ export const FAL_VIDEO_MODELS: FalModelDefinition[] = [
     'start_image_url'
   ),
   videoModel(
-    'sora-2',
-    'Sora 2 Standard',
-    'OpenAI',
-    'Sora 2 text- and image-guided video generation.',
-    'fal-ai/sora-2/text-to-video',
-    'fal-ai/sora-2/image-to-video',
-    soraFields(false)
+    'hailuo-2-3-standard',
+    'MiniMax Hailuo 2.3 Standard',
+    'MiniMax',
+    'Cost-efficient Hailuo 2.3 video generation at 768p.',
+    'fal-ai/minimax/hailuo-2.3/standard/text-to-video',
+    'fal-ai/minimax/hailuo-2.3/standard/image-to-video',
+    HAILUO_STANDARD_FIELDS
   ),
   videoModel(
-    'sora-2-pro',
-    'Sora 2 Pro',
-    'OpenAI',
-    'Sora 2 Pro video generation with higher resolution options.',
-    'fal-ai/sora-2/text-to-video/pro',
-    'fal-ai/sora-2/image-to-video/pro',
-    soraFields(true)
+    'hailuo-2-3-pro',
+    'MiniMax Hailuo 2.3 Pro',
+    'MiniMax',
+    'Higher-resolution Hailuo 2.3 video generation at 1080p.',
+    'fal-ai/minimax/hailuo-2.3/pro/text-to-video',
+    'fal-ai/minimax/hailuo-2.3/pro/image-to-video',
+    HAILUO_PRO_FIELDS
   ),
   videoModel(
     'wan-2-7',

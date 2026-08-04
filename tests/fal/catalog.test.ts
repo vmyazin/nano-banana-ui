@@ -29,8 +29,16 @@ const VIDEO_ENDPOINTS = [
     'fal-ai/kling-video/v3/pro/text-to-video',
     'fal-ai/kling-video/v3/pro/image-to-video',
   ],
-  ['sora-2', 'fal-ai/sora-2/text-to-video', 'fal-ai/sora-2/image-to-video'],
-  ['sora-2-pro', 'fal-ai/sora-2/text-to-video/pro', 'fal-ai/sora-2/image-to-video/pro'],
+  [
+    'hailuo-2-3-standard',
+    'fal-ai/minimax/hailuo-2.3/standard/text-to-video',
+    'fal-ai/minimax/hailuo-2.3/standard/image-to-video',
+  ],
+  [
+    'hailuo-2-3-pro',
+    'fal-ai/minimax/hailuo-2.3/pro/text-to-video',
+    'fal-ai/minimax/hailuo-2.3/pro/image-to-video',
+  ],
   ['wan-2-7', 'fal-ai/wan/v2.7/text-to-video', 'fal-ai/wan/v2.7/image-to-video'],
 ] as const;
 
@@ -44,8 +52,8 @@ describe('fal model catalog', () => {
       'seedance-2-fast',
       'kling-3-standard',
       'kling-3-pro',
-      'sora-2',
-      'sora-2-pro',
+      'hailuo-2-3-standard',
+      'hailuo-2-3-pro',
       'wan-2-7',
     ]);
     expect(FAL_VIDEO_MODELS.map((model) => model.label)).toEqual([
@@ -55,8 +63,8 @@ describe('fal model catalog', () => {
       'Seedance 2.0 Fast',
       'Kling 3 Standard',
       'Kling 3 Pro',
-      'Sora 2 Standard',
-      'Sora 2 Pro',
+      'MiniMax Hailuo 2.3 Standard',
+      'MiniMax Hailuo 2.3 Pro',
       'Wan 2.7',
     ]);
   });
@@ -100,6 +108,81 @@ describe('fal model catalog', () => {
     });
   });
 
+  it('uses the documented Hailuo 2.3 controls and string duration schema', () => {
+    const standardText = resolveFalVariant('hailuo-2-3-standard', 'video', 'text');
+    const standardImage = resolveFalVariant('hailuo-2-3-standard', 'video', 'image');
+    const proText = resolveFalVariant('hailuo-2-3-pro', 'video', 'text');
+    const proImage = resolveFalVariant('hailuo-2-3-pro', 'video', 'image');
+
+    expect(buildFalInput(standardText, {
+      prompt: 'A lantern floating on a pond',
+      uploadUrls: [],
+      values: {},
+    })).toEqual({
+      prompt: 'A lantern floating on a pond',
+      duration: '6',
+      prompt_optimizer: true,
+    });
+    expect(buildFalInput(standardImage, {
+      prompt: 'Animate the lantern',
+      uploadUrls: ['https://v3.fal.media/lantern.png'],
+      values: { duration: '10', prompt_optimizer: false },
+    })).toEqual({
+      prompt: 'Animate the lantern',
+      image_url: 'https://v3.fal.media/lantern.png',
+      duration: '10',
+      prompt_optimizer: false,
+    });
+    expect(buildFalInput(proText, {
+      prompt: 'A lantern floating on a pond',
+      uploadUrls: [],
+      values: {},
+    })).toEqual({
+      prompt: 'A lantern floating on a pond',
+      prompt_optimizer: true,
+    });
+    expect(buildFalInput(proImage, {
+      prompt: 'Animate the lantern',
+      uploadUrls: ['https://v3.fal.media/lantern.png'],
+      values: {},
+    })).toEqual({
+      prompt: 'Animate the lantern',
+      image_url: 'https://v3.fal.media/lantern.png',
+      prompt_optimizer: true,
+    });
+    expect(() => buildFalInput(standardText, {
+      prompt: 'A lantern floating on a pond',
+      uploadUrls: [],
+      values: { duration: 6 },
+    })).toThrow('Invalid fal setting "duration".');
+  });
+
+  it('serializes Seedance and Kling manual durations as string enum values', () => {
+    const seedance = resolveFalVariant('seedance-2', 'video', 'text');
+    const kling = resolveFalVariant('kling-3-standard', 'video', 'text');
+
+    expect(buildFalInput(seedance, {
+      prompt: 'A camera move',
+      uploadUrls: [],
+      values: { duration: '4' },
+    }).duration).toBe('4');
+    expect(buildFalInput(kling, {
+      prompt: 'A camera move',
+      uploadUrls: [],
+      values: { duration: '15' },
+    }).duration).toBe('15');
+    expect(() => buildFalInput(seedance, {
+      prompt: 'A camera move',
+      uploadUrls: [],
+      values: { duration: 4 },
+    })).toThrow('Invalid fal setting "duration".');
+    expect(() => buildFalInput(kling, {
+      prompt: 'A camera move',
+      uploadUrls: [],
+      values: { duration: 15 },
+    })).toThrow('Invalid fal setting "duration".');
+  });
+
   it('maps only declared Nano edit inputs and applies field defaults', () => {
     const edit = resolveFalVariant('nano-banana-2', 'image', 'image');
 
@@ -138,9 +221,9 @@ describe('fal model catalog', () => {
   });
 
   it('rejects invalid number values and accepts declared boundaries and defaults', () => {
-    const variant = resolveFalVariant('kling-3-standard', 'video', 'text');
+    const variant = resolveFalVariant('wan-2-7', 'video', 'text');
 
-    for (const duration of [2, 15.5, 16, Number.NaN, Number.POSITIVE_INFINITY]) {
+    for (const duration of [1, 15.5, 16, Number.NaN, Number.POSITIVE_INFINITY]) {
       expect(() =>
         buildFalInput(variant, {
           prompt: 'Animate this scene',
@@ -154,9 +237,9 @@ describe('fal model catalog', () => {
       buildFalInput(variant, {
         prompt: 'Animate this scene',
         uploadUrls: [],
-        values: { duration: 3 },
+        values: { duration: 2 },
       }).duration
-    ).toBe(3);
+    ).toBe(2);
     expect(
       buildFalInput(variant, {
         prompt: 'Animate this scene',
@@ -301,7 +384,14 @@ describe('fal model catalog', () => {
       '4k',
     ]);
 
-    expect(field('seedance-2', 'text', 'duration')).toMatchObject({ min: 4, max: 15, step: 1 });
+    expect(field('seedance-2', 'text', 'duration')).toMatchObject({
+      type: 'select',
+      defaultValue: 'auto',
+    });
+    expect(field('seedance-2', 'text', 'duration')?.options?.map(({ value }) => value)).toEqual([
+      'auto',
+      ...Array.from({ length: 12 }, (_, index) => String(index + 4)),
+    ]);
     expect(field('seedance-2', 'text', 'resolution')?.options?.map(({ value }) => value)).toEqual([
       '480p',
       '720p',
@@ -320,28 +410,28 @@ describe('fal model catalog', () => {
       'bitrate_mode',
     ]);
 
-    expect(field('kling-3-standard', 'text', 'duration')).toMatchObject({ min: 3, max: 15, step: 1 });
+    expect(field('kling-3-standard', 'text', 'duration')).toMatchObject({
+      type: 'select',
+      defaultValue: '5',
+    });
+    expect(field('kling-3-standard', 'text', 'duration')?.options?.map(({ value }) => value)).toEqual(
+      Array.from({ length: 13 }, (_, index) => String(index + 3))
+    );
     expect(field('kling-3-standard', 'text', 'aspect_ratio')).toBeDefined();
     expect(field('kling-3-standard', 'image', 'aspect_ratio')).toBeUndefined();
     expect(field('kling-3-pro', 'image', 'negative_prompt')).toBeDefined();
 
-    expect(field('sora-2', 'text', 'duration')?.options?.map(({ value }) => value)).toEqual([
-      4,
-      8,
-      12,
-      16,
-      20,
+    expect(resolveFalVariant('hailuo-2-3-standard', 'video', 'text').fields.map(({ key }) => key)).toEqual([
+      'duration',
+      'prompt_optimizer',
     ]);
-    expect(field('sora-2', 'text', 'resolution')?.options?.map(({ value }) => value)).toEqual([
-      'auto',
-      '720p',
+    expect(field('hailuo-2-3-standard', 'text', 'duration')?.options?.map(({ value }) => value)).toEqual([
+      '6',
+      '10',
     ]);
-    expect(field('sora-2-pro', 'text', 'resolution')?.options?.map(({ value }) => value)).toEqual([
-      '720p',
-      '1080p',
-      'true_1080p',
+    expect(resolveFalVariant('hailuo-2-3-pro', 'video', 'image').fields.map(({ key }) => key)).toEqual([
+      'prompt_optimizer',
     ]);
-    expect(field('sora-2-pro', 'image', 'delete_video')).toBeDefined();
 
     expect(field('wan-2-7', 'text', 'duration')).toMatchObject({ min: 2, max: 15, step: 1 });
     expect(field('wan-2-7', 'text', 'aspect_ratio')).toBeDefined();

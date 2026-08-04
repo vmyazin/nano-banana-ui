@@ -318,9 +318,9 @@ describe('FalJobsProvider', () => {
     {
       name: 'model change',
       mutate(job: FalJob) {
-        useFalJobsStore.getState().upsertJob({ ...job, modelId: 'fal-ai/sora-2' });
+        useFalJobsStore.getState().upsertJob({ ...job, modelId: 'hailuo-2-3-standard' });
       },
-      expected: { modelId: 'fal-ai/sora-2', state: 'queued' },
+      expected: { modelId: 'hailuo-2-3-standard', state: 'queued' },
     },
     {
       name: 'terminal transition',

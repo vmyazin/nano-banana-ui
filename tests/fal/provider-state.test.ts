@@ -30,11 +30,11 @@ describe('fal provider state', () => {
   it('updates the BYOK key, video provider, and selected fal model', () => {
     useAppStore.getState().setFalApiKey('id:secret');
     useAppStore.getState().setVideoEngine('fal');
-    useAppStore.getState().setFalVideoModel('sora-2-pro');
+    useAppStore.getState().setFalVideoModel('hailuo-2-3-pro');
     expect(useAppStore.getState()).toMatchObject({
       falApiKey: 'id:secret',
       videoEngine: 'fal',
-      falVideoModel: 'sora-2-pro',
+      falVideoModel: 'hailuo-2-3-pro',
     });
   });
 
@@ -67,13 +67,13 @@ describe('fal provider state', () => {
   it('persists all fal provider preferences', () => {
     useAppStore.getState().setFalApiKey('persisted-id:secret');
     useAppStore.getState().setVideoEngine('fal');
-    useAppStore.getState().setFalVideoModel('sora-2-pro');
+    useAppStore.getState().setFalVideoModel('hailuo-2-3-pro');
 
     const persisted = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}');
     expect(persisted.state).toMatchObject({
       falApiKey: 'persisted-id:secret',
       videoEngine: 'fal',
-      falVideoModel: 'sora-2-pro',
+      falVideoModel: 'hailuo-2-3-pro',
     });
   });
 });
