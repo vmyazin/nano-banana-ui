@@ -6,7 +6,7 @@ import SegmentedToggleGroup from '@/components/SegmentedToggleGroup';
 export interface ModelControlField {
   key: string;
   label: string;
-  type: 'text' | 'number' | 'boolean' | 'select' | 'file';
+  type: 'text' | 'number' | 'boolean' | 'select';
   description?: string;
   defaultValue?: string | number | boolean;
   options?: Array<{ label: string; value: string | number }>;
@@ -31,17 +31,45 @@ const safeIdPart = (value: string, fallback: string) => {
   return safeValue || fallback;
 };
 
+type ModelControlValue = string | number | boolean;
+
+const isCompatibleValue = (field: ModelControlField, value: ModelControlValue | undefined) => {
+  if (field.type === 'text') return typeof value === 'string';
+  if (field.type === 'number') return typeof value === 'number' && Number.isFinite(value);
+  if (field.type === 'boolean') return typeof value === 'boolean';
+  if (typeof value !== 'string' && typeof value !== 'number') return false;
+
+  return !field.options || field.options.some((option) => Object.is(option.value, value));
+};
+
+const emptyValueFor = (field: ModelControlField): ModelControlValue => {
+  if (field.type === 'number') return 0;
+  if (field.type === 'boolean') return false;
+  return '';
+};
+
+const resolvedValueFor = (
+  field: ModelControlField,
+  values: Record<string, ModelControlValue>
+): ModelControlValue => {
+  const controlledValue = values[field.key];
+  if (isCompatibleValue(field, controlledValue)) return controlledValue;
+  if (isCompatibleValue(field, field.defaultValue)) return field.defaultValue as ModelControlValue;
+  return emptyValueFor(field);
+};
+
 export default function ModelControls({ namespace, fields, values, onChange }: ModelControlsProps) {
   const instanceId = safeIdPart(useId(), 'instance');
   const namespaceId = safeIdPart(namespace, 'controls');
 
-  return fields.map((field) => {
-    const fieldId = `model-${namespaceId}-${instanceId}-${safeIdPart(field.key, 'field')}`;
+  return fields.map((field, fieldIndex) => {
+    const fieldId = `model-${namespaceId}-${instanceId}-${fieldIndex}-${safeIdPart(field.key, 'field')}`;
     const descriptionId = field.description ? `${fieldId}-description` : undefined;
+    const resolvedValue = resolvedValueFor(field, values);
 
     if (field.type === 'boolean') {
       return (
-        <label key={field.key} htmlFor={fieldId} className="flex items-center justify-between gap-4 rounded-lg border border-[var(--border)] bg-[var(--background-elevated)]/60 p-3">
+        <label key={`${field.key}-${fieldIndex}`} htmlFor={fieldId} className="flex items-center justify-between gap-4 rounded-lg border border-[var(--border)] bg-[var(--background-elevated)]/60 p-3">
           <span>
             <span className="block text-sm font-medium text-[var(--foreground)]">{field.label}</span>
             {field.description && <span id={descriptionId} className="mt-0.5 block text-xs text-[var(--foreground-muted)]">{field.description}</span>}
@@ -51,7 +79,7 @@ export default function ModelControls({ namespace, fields, values, onChange }: M
             aria-label={field.label}
             aria-describedby={descriptionId}
             type="checkbox"
-            checked={Boolean(values[field.key])}
+            checked={resolvedValue as boolean}
             onChange={(event) => onChange(field.key, event.target.checked)}
             className="h-4 w-4 accent-[var(--neon-cyan)]"
           />
@@ -61,12 +89,12 @@ export default function ModelControls({ namespace, fields, values, onChange }: M
 
     if (field.type === 'select' && field.key === 'resolution') {
       return (
-        <div key={field.key} className="space-y-1.5">
+        <div key={`${field.key}-${fieldIndex}`} aria-describedby={descriptionId} className="space-y-1.5">
           <span className="block text-sm font-medium text-[var(--foreground)]">{field.label}</span>
           <SegmentedToggleGroup
             label={field.label}
             options={field.options ?? []}
-            value={(values[field.key] ?? field.defaultValue ?? '') as string | number}
+            value={resolvedValue as string | number}
             onChange={(value) => onChange(field.key, value)}
           />
           {field.description && (
@@ -77,22 +105,22 @@ export default function ModelControls({ namespace, fields, values, onChange }: M
     }
 
     return (
-      <label key={field.key} htmlFor={fieldId} className="block space-y-1.5">
+      <label key={`${field.key}-${fieldIndex}`} htmlFor={fieldId} className="block space-y-1.5">
         <span className="block text-sm font-medium text-[var(--foreground)]">{field.label}</span>
         {field.type === 'select' ? (
           <select
             id={fieldId}
             aria-label={field.label}
             aria-describedby={descriptionId}
-            value={String(values[field.key] ?? '')}
+            value={String(field.options?.findIndex((option) => Object.is(option.value, resolvedValue)) ?? -1)}
             onChange={(event) => {
-              const option = field.options?.find(({ value }) => String(value) === event.target.value);
-              onChange(field.key, option?.value ?? event.target.value);
+              const option = field.options?.[Number(event.target.value)];
+              if (option) onChange(field.key, option.value);
             }}
             className="w-full"
           >
-            {field.options?.map((option) => (
-              <option key={String(option.value)} value={String(option.value)}>{option.label}</option>
+            {field.options?.map((option, optionIndex) => (
+              <option key={optionIndex} value={String(optionIndex)}>{option.label}</option>
             ))}
           </select>
         ) : field.type === 'number' ? (
@@ -104,7 +132,7 @@ export default function ModelControls({ namespace, fields, values, onChange }: M
             min={field.min}
             max={field.max}
             step={field.step}
-            value={Number(values[field.key] ?? field.defaultValue ?? 0)}
+            value={resolvedValue as number}
             onChange={(event) => {
               if (event.target.value === '') return;
               const value = Number(event.target.value);
@@ -112,15 +140,13 @@ export default function ModelControls({ namespace, fields, values, onChange }: M
             }}
             className="w-full"
           />
-        ) : field.type === 'file' ? (
-          <input id={fieldId} aria-label={field.label} aria-describedby={descriptionId} type="file" className="w-full" />
         ) : (
           <input
             id={fieldId}
             aria-label={field.label}
             aria-describedby={descriptionId}
             type="text"
-            value={String(values[field.key] ?? '')}
+            value={resolvedValue as string}
             onChange={(event) => onChange(field.key, event.target.value)}
             className="w-full"
           />

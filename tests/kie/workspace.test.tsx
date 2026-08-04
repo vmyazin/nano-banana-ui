@@ -4,8 +4,21 @@ import KieGenerationWorkspace from '../../components/KieGenerationWorkspace';
 import { useAppStore } from '../../store/useAppStore';
 import { useKieJobsStore } from '../../store/useKieJobsStore';
 
+const { submitKieJobMock, uploadKieFilesMock } = vi.hoisted(() => ({
+  submitKieJobMock: vi.fn(),
+  uploadKieFilesMock: vi.fn(),
+}));
+
+vi.mock('../../lib/kie/browser', () => ({
+  submitKieJob: submitKieJobMock,
+  uploadKieFiles: uploadKieFilesMock,
+}));
+
 describe('Kie generation workspace', () => {
   beforeEach(() => {
+    vi.clearAllMocks();
+    uploadKieFilesMock.mockResolvedValue([]);
+    submitKieJobMock.mockResolvedValue({ taskId: 'task_test', protocol: 'market' });
     useAppStore.setState({
       apiKey: 'gemini_test_key',
       kieApiKey: 'kie_test_key',
@@ -29,7 +42,7 @@ describe('Kie generation workspace', () => {
 
     expect(screen.getByRole('heading', { name: 'Text to video' })).toBeTruthy();
     expect((screen.getByLabelText('Model') as HTMLSelectElement).value).toBe('veo-3-1');
-    expect((screen.getByLabelText('Generation mode') as HTMLSelectElement).value).toBe('TEXT_2_VIDEO');
+    expect((screen.getByLabelText('Generation mode') as HTMLSelectElement).selectedOptions[0].textContent).toBe('TEXT 2 VIDEO');
     expect(screen.getByText(/temporary Kie URLs/i)).toBeTruthy();
     const searchInput = screen.getByLabelText('Search compatible models');
     expect(searchInput.className).toContain('flex-1');
@@ -95,6 +108,46 @@ describe('Kie generation workspace', () => {
       featureId: 'text-to-image',
       apiKey: 'gemini_test_key',
     });
+  });
+
+  it('keeps reference file selection outside shared model controls', () => {
+    const { container } = render(
+      <KieGenerationWorkspace
+        mediaType="image"
+        inputMode="image"
+        onBack={() => undefined}
+        onOpenConnections={() => undefined}
+      />
+    );
+
+    const fileInputs = container.querySelectorAll('input[type="file"]');
+    expect(fileInputs).toHaveLength(1);
+    expect(fileInputs[0].className).toContain('hidden');
+    expect(screen.getByRole('button', { name: /upload image or paste from clipboard/i })).toBeTruthy();
+  });
+
+  it('submits shared control values with their declared types', async () => {
+    useAppStore.setState({ kieImageModel: 'flux-2-pro' });
+
+    render(
+      <KieGenerationWorkspace
+        mediaType="image"
+        inputMode="text"
+        onBack={() => undefined}
+        onOpenConnections={() => undefined}
+      />
+    );
+
+    fireEvent.change(screen.getByLabelText('Prompt'), { target: { value: 'A glass forest' } });
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Seed' }), { target: { value: '42' } });
+    fireEvent.click(screen.getByRole('radio', { name: '2K' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Generate image' }));
+
+    await waitFor(() => expect(submitKieJobMock).toHaveBeenCalledOnce());
+    expect(submitKieJobMock).toHaveBeenCalledWith(expect.objectContaining({
+      values: expect.objectContaining({ seed: 42, resolution: '2K' }),
+    }));
+    expect(uploadKieFilesMock).toHaveBeenCalledWith('kie_test_key', []);
   });
 
   it.each([

@@ -21,6 +21,16 @@ const renderControls = (
 };
 
 describe('ModelControls', () => {
+  it('exposes only value-based model control field types', () => {
+    const supportedTypes: ModelControlField['type'][] = ['text', 'number', 'boolean', 'select'];
+
+    expect(supportedTypes).not.toContain('file');
+
+    // @ts-expect-error File selection is handled by provider workspaces, not ModelControls.
+    const fileField: ModelControlField = { key: 'source', label: 'Source', type: 'file' };
+    expect(fileField).toBeTruthy();
+  });
+
   it('renders a labelled text field with its description and current value', () => {
     const onChange = renderControls(
       [{ key: 'negative_prompt', label: 'Negative prompt', type: 'text', description: 'What to avoid.' }],
@@ -95,11 +105,36 @@ describe('ModelControls', () => {
     const count = screen.getByRole('combobox', { name: 'Count' });
     expect(within(count).getAllByRole('option').map((option) => option.textContent)).toEqual(['Two', 'Four']);
 
-    fireEvent.change(count, { target: { value: '4' } });
-    fireEvent.change(screen.getByRole('combobox', { name: 'Quality' }), { target: { value: 'final' } });
+    const countOptions = within(count).getAllByRole('option') as HTMLOptionElement[];
+    const quality = screen.getByRole('combobox', { name: 'Quality' });
+    const qualityOptions = within(quality).getAllByRole('option') as HTMLOptionElement[];
+    fireEvent.change(count, { target: { value: countOptions[1].value } });
+    fireEvent.change(quality, { target: { value: qualityOptions[1].value } });
 
     expect(onChange).toHaveBeenNthCalledWith(1, 'count', 4);
     expect(onChange).toHaveBeenNthCalledWith(2, 'quality', 'final');
+  });
+
+  it('distinguishes select options whose values stringify identically', () => {
+    const onChange = renderControls(
+      [{
+        key: 'version',
+        label: 'Version',
+        type: 'select',
+        options: [{ label: 'Numeric one', value: 1 }, { label: 'String one', value: '1' }],
+      }],
+      { version: 1 }
+    );
+    const select = screen.getByRole('combobox', { name: 'Version' }) as HTMLSelectElement;
+    const options = within(select).getAllByRole('option') as HTMLOptionElement[];
+
+    expect(select.selectedOptions[0].textContent).toBe('Numeric one');
+
+    fireEvent.change(select, { target: { value: options[1].value } });
+    fireEvent.change(select, { target: { value: options[0].value } });
+
+    expect(onChange).toHaveBeenNthCalledWith(1, 'version', '1');
+    expect(onChange).toHaveBeenNthCalledWith(2, 'version', 1);
   });
 
   it('renders resolution through the horizontal segmented toggle and emits the declared option value', () => {
@@ -119,39 +154,98 @@ describe('ModelControls', () => {
     expect(within(group).getAllByRole('radio').map((radio) => radio.textContent)).toEqual(['1K', '2K']);
     expect(screen.getByRole('radio', { name: '1K' }).getAttribute('aria-checked')).toBe('true');
     expect(screen.getByText('Output size.')).toBeTruthy();
+    expect(group.parentElement).toHaveAccessibleDescription('Output size.');
 
     fireEvent.click(screen.getByRole('radio', { name: '2K' }));
 
     expect(onChange).toHaveBeenCalledWith('resolution', '2K');
   });
 
-  it('keeps IDs safe and unique across component instances while linking labels to controls', () => {
-    const field: ModelControlField = { key: 'prompt.style/value', label: 'Style', type: 'text' };
-    render(
+  it('keeps colliding sanitized keys and duplicate namespaces uniquely associated', () => {
+    const fields: ModelControlField[] = [
+      { key: 'prompt/style', label: 'Slash style', type: 'text', description: 'Slash description.' },
+      { key: 'prompt style', label: 'Space style', type: 'text', description: 'Space description.' },
+    ];
+    const { container } = render(
       <>
-        <ModelControls namespace="same:model namespace" fields={[field]} values={{ 'prompt.style/value': '' }} onChange={() => undefined} />
-        <ModelControls namespace="same:model namespace" fields={[field]} values={{ 'prompt.style/value': '' }} onChange={() => undefined} />
+        <ModelControls namespace="same:model namespace" fields={fields} values={{}} onChange={() => undefined} />
+        <ModelControls namespace="same:model namespace" fields={fields} values={{}} onChange={() => undefined} />
       </>
     );
 
-    const inputs = screen.getAllByRole('textbox', { name: 'Style' }) as HTMLInputElement[];
-    const labels = screen.getAllByText('Style').map((labelText) => labelText.closest('label'));
+    const inputs = screen.getAllByRole('textbox') as HTMLInputElement[];
+    const descriptions = Array.from(container.querySelectorAll<HTMLElement>('[id$="-description"]'));
+    const allIds = [...inputs.map((input) => input.id), ...descriptions.map((description) => description.id)];
+    const labels = Array.from(container.querySelectorAll<HTMLLabelElement>('label'));
 
-    expect(inputs[0].id).not.toBe(inputs[1].id);
+    expect(new Set(allIds).size).toBe(allIds.length);
     expect(inputs.every((input) => /^[A-Za-z][A-Za-z0-9_-]*$/.test(input.id))).toBe(true);
-    expect(labels.map((label) => label?.htmlFor)).toEqual(inputs.map((input) => input.id));
+    inputs.forEach((input) => {
+      expect(labels.some((label) => label.htmlFor === input.id)).toBe(true);
+      const descriptionId = input.getAttribute('aria-describedby');
+      expect(descriptionId).toBeTruthy();
+      expect(descriptions.some((description) => description.id === descriptionId)).toBe(true);
+    });
   });
 
-  it('retains the existing bare file control and text fallback for unknown field types', () => {
-    const fields = [
-      { key: 'source', label: 'Source file', type: 'file', description: 'Choose a source.' },
-      { key: 'legacy', label: 'Legacy option', type: 'legacy' },
-    ] as unknown as ModelControlField[];
-    renderControls(fields, { legacy: 'kept' });
+  it('resolves defaults consistently and restores them after controlled values are removed', () => {
+    const fields: ModelControlField[] = [
+      { key: 'caption', label: 'Caption', type: 'text', defaultValue: 'cinematic' },
+      { key: 'safe', label: 'Safety check', type: 'boolean', defaultValue: true },
+      { key: 'quality', label: 'Quality', type: 'select', defaultValue: 'draft', options: [{ label: 'Draft', value: 'draft' }, { label: 'Final', value: 'final' }] },
+      { key: 'count', label: 'Count', type: 'select', defaultValue: 1, options: [{ label: 'One', value: 1 }, { label: 'Two', value: 2 }] },
+      { key: 'seed', label: 'Seed', type: 'number', defaultValue: 0 },
+      { key: 'resolution', label: 'Resolution', type: 'select', defaultValue: '2K', options: [{ label: '1K', value: '1K' }, { label: '2K', value: '2K' }] },
+    ];
+    const onChange = vi.fn();
+    const { rerender } = render(
+      <ModelControls namespace="defaults" fields={fields} values={{}} onChange={onChange} />
+    );
+    const expectDefaults = () => {
+      expect((screen.getByRole('textbox', { name: 'Caption' }) as HTMLInputElement).value).toBe('cinematic');
+      expect((screen.getByRole('checkbox', { name: 'Safety check' }) as HTMLInputElement).checked).toBe(true);
+      expect((screen.getByRole('combobox', { name: 'Quality' }) as HTMLSelectElement).selectedOptions[0].textContent).toBe('Draft');
+      expect((screen.getByRole('combobox', { name: 'Count' }) as HTMLSelectElement).selectedOptions[0].textContent).toBe('One');
+      expect((screen.getByRole('spinbutton', { name: 'Seed' }) as HTMLInputElement).value).toBe('0');
+      expect(screen.getByRole('radio', { name: '2K' }).getAttribute('aria-checked')).toBe('true');
+    };
 
-    expect(screen.getByLabelText('Source file')).toHaveProperty('type', 'file');
-    expect(screen.getByText('Choose a source.')).toBeTruthy();
-    expect((screen.getByRole('textbox', { name: 'Legacy option' }) as HTMLInputElement).value).toBe('kept');
+    expectDefaults();
+
+    rerender(
+      <ModelControls
+        namespace="defaults"
+        fields={fields}
+        values={{ caption: 'sharp', safe: false, quality: 'final', count: 2, seed: 7, resolution: '1K' }}
+        onChange={onChange}
+      />
+    );
+    expect((screen.getByRole('textbox', { name: 'Caption' }) as HTMLInputElement).value).toBe('sharp');
+    expect((screen.getByRole('checkbox', { name: 'Safety check' }) as HTMLInputElement).checked).toBe(false);
+    expect((screen.getByRole('combobox', { name: 'Quality' }) as HTMLSelectElement).selectedOptions[0].textContent).toBe('Final');
+    expect((screen.getByRole('combobox', { name: 'Count' }) as HTMLSelectElement).selectedOptions[0].textContent).toBe('Two');
+    expect((screen.getByRole('spinbutton', { name: 'Seed' }) as HTMLInputElement).value).toBe('7');
+    expect(screen.getByRole('radio', { name: '1K' }).getAttribute('aria-checked')).toBe('true');
+
+    rerender(<ModelControls namespace="defaults" fields={fields} values={{}} onChange={onChange} />);
+    expectDefaults();
+  });
+
+  it('falls back to type-compatible defaults for invalid controlled value shapes', () => {
+    renderControls(
+      [
+        { key: 'caption', label: 'Caption', type: 'text', defaultValue: 'fallback' },
+        { key: 'seed', label: 'Seed', type: 'number', defaultValue: 0 },
+        { key: 'safe', label: 'Safe', type: 'boolean', defaultValue: false },
+        { key: 'quality', label: 'Quality', type: 'select', defaultValue: 'draft', options: [{ label: 'Draft', value: 'draft' }] },
+      ],
+      { caption: true, seed: '7', safe: 'true', quality: true }
+    );
+
+    expect((screen.getByRole('textbox', { name: 'Caption' }) as HTMLInputElement).value).toBe('fallback');
+    expect((screen.getByRole('spinbutton', { name: 'Seed' }) as HTMLInputElement).value).toBe('0');
+    expect((screen.getByRole('checkbox', { name: 'Safe' }) as HTMLInputElement).checked).toBe(false);
+    expect((screen.getByRole('combobox', { name: 'Quality' }) as HTMLSelectElement).selectedOptions[0].textContent).toBe('Draft');
   });
 
   it('renders no controls for an empty field list', () => {

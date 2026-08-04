@@ -7,10 +7,10 @@ import { SEED_TONES } from '@/lib/example-prompts';
 import { submitKieJob, uploadKieFiles } from '@/lib/kie/browser';
 import { defaultKieValues, modelsForKieMode, resolveKieVariant, validateKieInput } from '@/lib/kie/catalog';
 import { currentKieTime, isKieJobTerminal } from '@/lib/kie/queue';
-import type { KieInputMode, MediaType } from '@/lib/kie/types';
+import type { KieFieldDefinition, KieInputMode, MediaType } from '@/lib/kie/types';
 import { useAppStore } from '@/store/useAppStore';
 import { useKieJobsStore } from '@/store/useKieJobsStore';
-import ModelControls from '@/components/ModelControls';
+import ModelControls, { type ModelControlField } from '@/components/ModelControls';
 
 interface KieGenerationWorkspaceProps {
   mediaType: MediaType;
@@ -28,6 +28,13 @@ interface UploadedReference {
   file: File;
   previewUrl: string;
 }
+
+type KieModelControlField = Omit<KieFieldDefinition, 'type'> & {
+  type: ModelControlField['type'];
+};
+
+const isKieModelControlField = (field: KieFieldDefinition): field is KieModelControlField =>
+  field.type !== 'file';
 
 const titleFor = (mediaType: MediaType, inputMode: KieInputMode) =>
   `${inputMode === 'text' ? 'Text' : 'Image'} to ${mediaType}`;
@@ -383,7 +390,7 @@ export default function KieGenerationWorkspace({
             <div className="grid gap-4 sm:grid-cols-2">
               <ModelControls
                 namespace={`kie-${variantKey}`}
-                fields={variant.fields}
+                fields={variant.fields.filter(isKieModelControlField)}
                 values={values}
                 onChange={updateValues}
               />
