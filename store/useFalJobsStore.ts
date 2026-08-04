@@ -18,7 +18,7 @@ export const useFalJobsStore = create<FalJobsState>((set) => ({
       if (index === -1) return { jobs: [job, ...state.jobs] };
 
       const jobs = [...state.jobs];
-      jobs[index] = { ...jobs[index], ...job };
+      jobs[index] = job;
       return { jobs };
     }),
   removeJob: (id) => set((state) => ({ jobs: state.jobs.filter((job) => job.id !== id) })),

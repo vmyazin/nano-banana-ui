@@ -55,26 +55,47 @@ describe('tab-local fal jobs store', () => {
     useFalJobsStore.getState().clearJobs();
   });
 
-  it('inserts jobs, merges updates by stable ID, and never creates duplicates', () => {
-    useFalJobsStore.getState().upsertJob({ ...baseJob, error: 'Waiting for capacity.' });
+  it('replaces full snapshots so stale errors clear from running and successful jobs', () => {
     useFalJobsStore.getState().upsertJob({
+      ...baseJob,
+      state: 'fail',
+      error: 'Provider failed.',
+    });
+    const runningJob: FalJob = {
       ...baseJob,
       state: 'running',
       logs: ['Started'],
       updatedAt: 200,
       pollAttempt: 1,
-    });
+    };
+    useFalJobsStore.getState().upsertJob(runningJob);
 
-    expect(useFalJobsStore.getState().jobs).toEqual([
-      expect.objectContaining({
-        id: baseJob.id,
-        state: 'running',
-        error: 'Waiting for capacity.',
-        logs: ['Started'],
-        updatedAt: 200,
-        pollAttempt: 1,
-      }),
-    ]);
+    expect(useFalJobsStore.getState().jobs).toEqual([runningJob]);
+
+    useFalJobsStore.getState().upsertJob({ ...runningJob, state: 'fail', error: 'Again.' });
+    const successJob: FalJob = {
+      ...runningJob,
+      state: 'success',
+      resultUrl: 'https://fal.media/result.png',
+      mimeType: 'image/png',
+    };
+    useFalJobsStore.getState().upsertJob(successJob);
+
+    expect(useFalJobsStore.getState().jobs).toEqual([successJob]);
+  });
+
+  it('clears stale result and MIME fields when a job restarts in queued state', () => {
+    useFalJobsStore.getState().upsertJob({
+      ...baseJob,
+      state: 'success',
+      resultUrl: 'https://fal.media/result.png',
+      mimeType: 'image/png',
+    });
+    const restartedJob: FalJob = { ...baseJob, updatedAt: 300, pollAttempt: 0 };
+
+    useFalJobsStore.getState().upsertJob(restartedJob);
+
+    expect(useFalJobsStore.getState().jobs).toEqual([restartedJob]);
   });
 
   it('places new jobs first, removes by ID, and clears all jobs', () => {

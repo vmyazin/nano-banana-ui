@@ -31,6 +31,27 @@ const safeFalUrls = [
   ['CDN subdomain', 'https://v3.fal.media/image.png'],
 ] as const;
 
+const validImageSignatures = [
+  ['image/png', 'png', [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]],
+  ['image/jpeg', 'jpg', [0xff, 0xd8, 0xff, 0xe0]],
+  [
+    'image/webp',
+    'webp',
+    [0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x45, 0x42, 0x50],
+  ],
+  [
+    'image/avif',
+    'avif',
+    [0, 0, 0, 16, 0x66, 0x74, 0x79, 0x70, 0x61, 0x76, 0x69, 0x66, 0, 0, 0, 0],
+  ],
+] as const;
+
+function imageResponse(bytes: readonly number[], mimeType: string): Response {
+  return new Response(new Uint8Array(bytes), {
+    headers: { 'Content-Type': mimeType },
+  });
+}
+
 const submitArgs = {
   apiKey,
   modelId: 'nano-banana-2',
@@ -79,7 +100,44 @@ function expectOneSubmitAndNoCancel(fetchMock: ReturnType<typeof vi.fn>) {
   expect(bodies.filter((body) => body.operation === 'cancel')).toHaveLength(0);
 }
 
+function pendingUntilAborted(init?: RequestInit, guardSignal?: AbortSignal): Promise<Response> {
+  return new Promise((_resolve, reject) => {
+    const signal = init?.signal;
+    const guardTimer = setTimeout(
+      () => reject(new Error('test guard: request remained pending past deadline')),
+      FAL_JOB_TIMEOUT_MS + 1
+    );
+    if (signal?.aborted) {
+      clearTimeout(guardTimer);
+      reject(new DOMException('Aborted', 'AbortError'));
+      return;
+    }
+    signal?.addEventListener(
+      'abort',
+      () => {
+        clearTimeout(guardTimer);
+        reject(new DOMException('Aborted', 'AbortError'));
+      },
+      { once: true }
+    );
+    if (guardSignal?.aborted) {
+      clearTimeout(guardTimer);
+      queueMicrotask(() => reject(new Error('test guard: caller abort was not composed')));
+      return;
+    }
+    guardSignal?.addEventListener(
+      'abort',
+      () => {
+        clearTimeout(guardTimer);
+        queueMicrotask(() => reject(new Error('test guard: caller abort was not composed')));
+      },
+      { once: true }
+    );
+  });
+}
+
 afterEach(() => {
+  vi.useRealTimers();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
@@ -101,18 +159,21 @@ describe('fal browser route transport', () => {
     vi.stubGlobal('fetch', fetchMock);
 
     const result = uploadFalFiles(apiKey, files);
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-
-    for (const [index, [, init]] of fetchMock.mock.calls.entries()) {
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const expectUploadCall = (index: number) => {
+      const [, init] = fetchMock.mock.calls[index];
       expect(init).toMatchObject({ method: 'POST' });
       const form = (init as RequestInit).body;
       expect(form).toBeInstanceOf(FormData);
       expect((form as FormData).get('apiKey')).toBe(apiKey);
       expect((form as FormData).get('file')).toBe(files[index]);
-    }
+    };
+    expectUploadCall(0);
 
-    pending[1](jsonResponse({ success: true, url: 'https://fal.media/second.webp' }));
     pending[0](jsonResponse({ success: true, url: 'https://fal.media/first.png' }));
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    expectUploadCall(1);
+    pending[1](jsonResponse({ success: true, url: 'https://fal.media/second.webp' }));
 
     await expect(result).resolves.toEqual([
       'https://fal.media/first.png',
@@ -226,6 +287,42 @@ describe('fal browser route transport', () => {
     expect(fetchMock).toHaveBeenCalledOnce();
   });
 
+  it.each([
+    ['URL-encoded', encodeURIComponent(apiKey)],
+    [
+      'JSON-escaped',
+      JSON.stringify('id:"secret\\value').slice(1, -1),
+      'id:"secret\\value',
+    ],
+  ] as ReadonlyArray<readonly [string, string, string?]>)('redacts a %s credential echo from route errors', async (_case, echo, key = apiKey) => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({ success: false, error: `Provider exposed ${echo}` }, 400)
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const error = await submitFalJob({ ...submitArgs, apiKey: key }).catch(
+      (caught: unknown) => caught
+    );
+
+    expect(error).toBeInstanceOf(Error);
+    expect(String(error)).toContain('fal could not complete that request. Please try again.');
+    expect(String(error)).not.toContain(echo);
+  });
+
+  it('bounds an otherwise safe route error message', async () => {
+    const routeMessage = `Safe prefix ${'x'.repeat(2_000)}`;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(jsonResponse({ success: false, error: routeMessage }, 400))
+    );
+
+    const error = await submitFalJob(submitArgs).catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(Error);
+    expect(String(error)).toContain('fal could not complete that request. Please try again.');
+    expect(String(error)).not.toContain(routeMessage);
+  });
+
   it('posts status fields and validates the returned task shape and request ID', async () => {
     const task = successTask({ state: 'running', resultUrl: undefined, mimeType: undefined });
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ success: true, task }));
@@ -239,6 +336,46 @@ describe('fal browser route transport', () => {
       body: JSON.stringify({ operation: 'status', ...taskArgs }),
     });
   });
+
+  it.each(['short', 'request/id/is/not/allowed', 'r'.repeat(129)])(
+    'rejects invalid outgoing request ID %s before status or cancel fetch',
+    async (invalidRequestId) => {
+      const fetchMock = vi.fn().mockResolvedValue(
+        jsonResponse({
+          success: true,
+          task: successTask({ requestId: invalidRequestId }),
+        })
+      );
+      vi.stubGlobal('fetch', fetchMock);
+      const invalidArgs = { ...taskArgs, requestId: invalidRequestId };
+
+      const statusError = await getFalJobStatus(invalidArgs).catch((caught: unknown) => caught);
+      const cancelError = await cancelFalJob(invalidArgs).catch((caught: unknown) => caught);
+
+      expect(statusError).toEqual(expect.objectContaining({ message: 'fal request ID is invalid.' }));
+      expect(cancelError).toEqual(expect.objectContaining({ message: 'fal request ID is invalid.' }));
+      expect(fetchMock).not.toHaveBeenCalled();
+    }
+  );
+
+  it.each([undefined, null, 123, {}, []])(
+    'rejects non-string outgoing request ID %j before status or cancel fetch',
+    async (invalidRequestId) => {
+      const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ success: true }));
+      vi.stubGlobal('fetch', fetchMock);
+      const invalidArgs = {
+        ...taskArgs,
+        requestId: invalidRequestId as unknown as string,
+      };
+
+      const statusError = await getFalJobStatus(invalidArgs).catch((caught: unknown) => caught);
+      const cancelError = await cancelFalJob(invalidArgs).catch((caught: unknown) => caught);
+
+      expect(statusError).toEqual(expect.objectContaining({ message: 'fal request ID is invalid.' }));
+      expect(cancelError).toEqual(expect.objectContaining({ message: 'fal request ID is invalid.' }));
+      expect(fetchMock).not.toHaveBeenCalled();
+    }
+  );
 
   it.each([
     { requestId, state: 'unknown', logs: [] },
@@ -282,6 +419,90 @@ describe('fal browser route transport', () => {
 });
 
 describe('runFalImage', () => {
+  it('aborts a hung submit at the overall 15-minute deadline without resubmitting or cancelling', async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn((_url: string, init?: RequestInit) => pendingUntilAborted(init));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const run = runFalImage({
+      apiKey,
+      prompt: submitArgs.prompt,
+      dataUrls: [],
+      values: submitArgs.values,
+    });
+    const outcome = run.catch((caught: unknown) => caught);
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    await vi.advanceTimersByTimeAsync(FAL_JOB_TIMEOUT_MS + 1);
+    expect(await outcome).toEqual(
+      expect.objectContaining({ message: 'fal image generation timed out after 15 minutes.' })
+    );
+
+    const signal = (fetchMock.mock.calls[0][1] as RequestInit).signal;
+    expect(signal?.aborted).toBe(true);
+    expectOneSubmitAndNoCancel(fetchMock);
+  });
+
+  it('aborts a hung status request at the overall deadline without resubmitting or cancelling', async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn((_url: string, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      return body.operation === 'submit'
+        ? Promise.resolve(jsonResponse({ success: true, requestId }))
+        : pendingUntilAborted(init);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const run = runFalImage({
+      apiKey,
+      prompt: submitArgs.prompt,
+      dataUrls: [],
+      values: submitArgs.values,
+    });
+    const outcome = run.catch((caught: unknown) => caught);
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(FAL_JOB_TIMEOUT_MS + 1);
+    expect(await outcome).toEqual(
+      expect.objectContaining({ message: 'fal image generation timed out after 15 minutes.' })
+    );
+
+    const signal = (fetchMock.mock.calls[1][1] as RequestInit).signal;
+    expect(signal?.aborted).toBe(true);
+    expectOneSubmitAndNoCancel(fetchMock);
+  });
+
+  it('maps caller abort to a fixed safe error and only aborts local HTTP', async () => {
+    const controller = new AbortController();
+    const fetchMock = vi.fn((_url: string, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      return body.operation === 'submit'
+        ? Promise.resolve(jsonResponse({ success: true, requestId }))
+        : pendingUntilAborted(init, controller.signal);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const run = runFalImage({
+      apiKey,
+      prompt: submitArgs.prompt,
+      dataUrls: [],
+      values: submitArgs.values,
+      signal: controller.signal,
+    });
+    const outcome = run.catch((caught: unknown) => caught);
+    await Promise.resolve();
+    await Promise.resolve();
+    controller.abort(new Error(`navigation leaked ${apiKey}`));
+    expect(await outcome).toEqual(
+      expect.objectContaining({ message: 'fal image generation was aborted.' })
+    );
+
+    expect((fetchMock.mock.calls.at(-1)?.[1] as RequestInit).signal?.aborted).toBe(true);
+    expectOneSubmitAndNoCancel(fetchMock);
+  });
+
   it('runs text mode without uploading and does not mutate caller-owned inputs', async () => {
     const dataUrls: string[] = [];
     const values = { ...submitArgs.values };
@@ -314,9 +535,7 @@ describe('runFalImage', () => {
     const dataUrl = 'data:image/webp;charset=utf-8;base64,c291cmNl';
     const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
       if (url === dataUrl) {
-        return new Response('source', {
-          headers: { 'Content-Type': 'image/webp;charset=utf-8' },
-        });
+        return imageResponse(validImageSignatures[2][2], 'image/webp;charset=utf-8');
       }
       if (url === '/api/fal/upload') {
         const form = init?.body as FormData;
@@ -503,5 +722,167 @@ describe('runFalImage', () => {
       )
     ).rejects.toThrow('Reference image 1 must be a valid PNG, JPEG, WebP, or AVIF data URL.');
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects more than 14 references before conversion without mutating caller data', async () => {
+    const dataUrls = Array.from(
+      { length: 15 },
+      (_, index) => `data:image/png;base64,reference-${index}`
+    );
+    const original = [...dataUrls];
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(
+      runFalImage(
+        { apiKey, prompt: submitArgs.prompt, dataUrls, values: submitArgs.values },
+        { now: () => 0, sleep: vi.fn().mockResolvedValue(undefined) }
+      )
+    ).rejects.toThrow('fal accepts at most 14 reference images.');
+
+    expect(dataUrls).toEqual(original);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects random bytes labelled as PNG before upload or submit', async () => {
+    const dataUrl = 'data:image/png;base64,bm90LWEtcG5n';
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url === dataUrl) return imageResponse([1, 2, 3, 4, 5, 6, 7, 8], 'image/png');
+      throw new Error('unexpected downstream request');
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(
+      runFalImage(
+        { apiKey, prompt: submitArgs.prompt, dataUrls: [dataUrl], values: submitArgs.values },
+        { now: () => 0, sleep: vi.fn().mockResolvedValue(undefined) }
+      )
+    ).rejects.toThrow('Reference image 1 does not match its declared image type.');
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it('rejects MIME and magic-byte mismatches before upload or submit', async () => {
+    const dataUrl = 'data:image/png;base64,/9j/4A==';
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url === dataUrl) return imageResponse(validImageSignatures[1][2], 'image/jpeg');
+      throw new Error('unexpected downstream request');
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(
+      runFalImage(
+        { apiKey, prompt: submitArgs.prompt, dataUrls: [dataUrl], values: submitArgs.values },
+        { now: () => 0, sleep: vi.fn().mockResolvedValue(undefined) }
+      )
+    ).rejects.toThrow('Reference image 1 does not match its declared image type.');
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it('rejects a decoded reference larger than 20 MiB before upload or submit', async () => {
+    const dataUrl = 'data:image/png;base64,oversized-after-decode';
+    const oversized = new Blob([new Uint8Array(20 * 1024 * 1024 + 1)], {
+      type: 'image/png',
+    });
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url === dataUrl) return { blob: async () => oversized } as Response;
+      throw new Error('unexpected downstream request');
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(
+      runFalImage(
+        { apiKey, prompt: submitArgs.prompt, dataUrls: [dataUrl], values: submitArgs.values },
+        { now: () => 0, sleep: vi.fn().mockResolvedValue(undefined) }
+      )
+    ).rejects.toThrow('Reference image 1 is larger than 20 MiB.');
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it('rejects an obviously oversized base64 data URL before decoding', async () => {
+    const encodedLimit = Math.ceil((20 * 1024 * 1024) / 3) * 4;
+    const dataUrl = `data:image/png;base64,${'A'.repeat(encodedLimit + 1)}`;
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(
+      runFalImage(
+        { apiKey, prompt: submitArgs.prompt, dataUrls: [dataUrl], values: submitArgs.values },
+        { now: () => 0, sleep: vi.fn().mockResolvedValue(undefined) }
+      )
+    ).rejects.toThrow('Reference image 1 is larger than 20 MiB.');
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it.each(validImageSignatures)(
+    'accepts valid minimal %s bytes and uses the route-compatible .%s extension',
+    async (mimeType, extension, bytes) => {
+      const dataUrl = `data:${mimeType};base64,valid-signature`;
+      const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+        if (url === dataUrl) return imageResponse(bytes, mimeType);
+        if (url === '/api/fal/upload') {
+          const file = (init?.body as FormData).get('file') as File;
+          expect(file).toEqual(
+            expect.objectContaining({ name: `reference-1.${extension}`, type: mimeType })
+          );
+          return jsonResponse({ success: true, url: `https://fal.media/reference.${extension}` });
+        }
+        const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+        return body.operation === 'submit'
+          ? jsonResponse({ success: true, requestId })
+          : jsonResponse({ success: true, task: successTask() });
+      });
+      vi.stubGlobal('fetch', fetchMock);
+
+      await expect(
+        runFalImage(
+          { apiKey, prompt: submitArgs.prompt, dataUrls: [dataUrl], values: submitArgs.values },
+          { now: () => 0, sleep: vi.fn().mockResolvedValue(undefined) }
+        )
+      ).resolves.toEqual({ url: 'https://v3.fal.media/image.png', mimeType: 'image/png' });
+    }
+  );
+
+  it('converts and uploads multiple references sequentially', async () => {
+    const dataUrls = ['data:image/png;base64,first', 'data:image/png;base64,second'];
+    let conversionsInFlight = 0;
+    let uploadsInFlight = 0;
+    let maxConversions = 0;
+    let maxUploads = 0;
+    let uploadIndex = 0;
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      if (dataUrls.includes(url)) {
+        conversionsInFlight += 1;
+        maxConversions = Math.max(maxConversions, conversionsInFlight);
+        await Promise.resolve();
+        conversionsInFlight -= 1;
+        return imageResponse(validImageSignatures[0][2], 'image/png');
+      }
+      if (url === '/api/fal/upload') {
+        uploadsInFlight += 1;
+        maxUploads = Math.max(maxUploads, uploadsInFlight);
+        await Promise.resolve();
+        uploadsInFlight -= 1;
+        uploadIndex += 1;
+        return jsonResponse({ success: true, url: `https://fal.media/reference-${uploadIndex}.png` });
+      }
+      const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      return body.operation === 'submit'
+        ? jsonResponse({ success: true, requestId })
+        : jsonResponse({ success: true, task: successTask() });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await runFalImage(
+      { apiKey, prompt: submitArgs.prompt, dataUrls, values: submitArgs.values },
+      { now: () => 0, sleep: vi.fn().mockResolvedValue(undefined) }
+    );
+
+    expect(maxConversions).toBe(1);
+    expect(maxUploads).toBe(1);
+    expectOneSubmitAndNoCancel(fetchMock);
   });
 });
