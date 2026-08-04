@@ -89,10 +89,11 @@ export default function ModelControls({ namespace, fields, values, onChange }: M
 
     if (field.type === 'select' && field.key === 'resolution') {
       return (
-        <div key={`${field.key}-${fieldIndex}`} aria-describedby={descriptionId} className="space-y-1.5">
+        <div key={`${field.key}-${fieldIndex}`} className="space-y-1.5">
           <span className="block text-sm font-medium text-[var(--foreground)]">{field.label}</span>
           <SegmentedToggleGroup
             label={field.label}
+            ariaDescribedBy={descriptionId}
             options={field.options ?? []}
             value={resolvedValue as string | number}
             onChange={(value) => onChange(field.key, value)}

@@ -154,7 +154,7 @@ describe('ModelControls', () => {
     expect(within(group).getAllByRole('radio').map((radio) => radio.textContent)).toEqual(['1K', '2K']);
     expect(screen.getByRole('radio', { name: '1K' }).getAttribute('aria-checked')).toBe('true');
     expect(screen.getByText('Output size.')).toBeTruthy();
-    expect(group.parentElement).toHaveAccessibleDescription('Output size.');
+    expect(group).toHaveAccessibleDescription('Output size.');
 
     fireEvent.click(screen.getByRole('radio', { name: '2K' }));
 
