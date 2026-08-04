@@ -33,11 +33,12 @@ function Studio() {
   // API key lives in the persisted Zustand store (single source of truth).
   const apiKey = useAppStore((s) => s.apiKey);
   const kieApiKey = useAppStore((s) => s.kieApiKey);
+  const falApiKey = useAppStore((s) => s.falApiKey);
   const hasHydrated = useAppStore((s) => s.hasHydrated);
   useEffect(() => {
     useAppStore.persist.rehydrate();
   }, []);
-  const hasKey = hasHydrated && !!(apiKey || kieApiKey);
+  const hasKey = hasHydrated && !!(apiKey || kieApiKey || falApiKey);
 
   // View is driven by the URL (?feature=<id>) so it deep-links, supports
   // browser back/forward, and survives a refresh.

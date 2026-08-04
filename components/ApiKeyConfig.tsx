@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Key, Eye, EyeOff, AlertCircle, X, Loader2, Cloud, Check } from 'lucide-react';
 import { toast } from 'sonner';
@@ -9,6 +9,25 @@ import { useAppStore } from '@/store/useAppStore';
 interface ApiKeyConfigProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+}
+
+const GENERIC_FAL_VALIDATION_ERROR = 'Unable to validate your fal API key.';
+const MAX_FAL_VALIDATION_ERROR_LENGTH = 200;
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function safeFalValidationError(value: unknown, candidate: string): string {
+  if (!isRecord(value) || typeof value.error !== 'string') {
+    return GENERIC_FAL_VALIDATION_ERROR;
+  }
+
+  const error = value.error.trim();
+  if (!error || error.length > MAX_FAL_VALIDATION_ERROR_LENGTH || error.includes(candidate)) {
+    return GENERIC_FAL_VALIDATION_ERROR;
+  }
+
+  return error;
 }
 
 export default function ApiKeyConfig({ open, onOpenChange }: ApiKeyConfigProps) {
@@ -23,28 +42,45 @@ export default function ApiKeyConfig({ open, onOpenChange }: ApiKeyConfigProps) 
   const savedKieKey = useAppStore((s) => s.kieApiKey);
   const setKieApiKey = useAppStore((s) => s.setKieApiKey);
   const kieConnected = !!savedKieKey;
+  const savedFalKey = useAppStore((s) => s.falApiKey);
+  const setFalApiKey = useAppStore((s) => s.setFalApiKey);
+  const falConnected = !!savedFalKey;
 
   const [keyInput, setKeyInput] = useState('');
   const [showKey, setShowKey] = useState(false);
   const [showCfToken, setShowCfToken] = useState(false);
   const [kieKeyInput, setKieKeyInput] = useState('');
   const [showKieKey, setShowKieKey] = useState(false);
+  const [falKeyInput, setFalKeyInput] = useState('');
+  const [showFalKey, setShowFalKey] = useState(false);
   const [isValidating, setIsValidating] = useState(false);
   const [validationError, setValidationError] = useState('');
   const [kieValidationError, setKieValidationError] = useState('');
+  const [falValidationError, setFalValidationError] = useState('');
+  const falValidationPendingRef = useRef(false);
+  const mountedRef = useRef(true);
 
-  // Seed the Gemini input with the current key whenever the dialog opens.
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  // Seed provider inputs with the saved keys whenever the dialog opens.
   useEffect(() => {
     if (!open) return;
 
     const resetId = window.setTimeout(() => {
       setKeyInput(savedKey);
       setKieKeyInput(savedKieKey);
+      setFalKeyInput(savedFalKey);
       setValidationError('');
       setKieValidationError('');
+      setFalValidationError('');
     }, 0);
     return () => window.clearTimeout(resetId);
-  }, [open, savedKey, savedKieKey]);
+  }, [open, savedKey, savedKieKey, savedFalKey]);
 
   const validateApiKey = async (key: string): Promise<boolean> => {
     if (!key.startsWith('AIza') || key.length < 39) {
@@ -109,9 +145,44 @@ export default function ApiKeyConfig({ open, onOpenChange }: ApiKeyConfigProps) 
     }
   };
 
+  const validateFalApiKey = async (key: string): Promise<boolean> => {
+    if (falValidationPendingRef.current) return false;
+
+    falValidationPendingRef.current = true;
+    setIsValidating(true);
+    setFalValidationError('');
+
+    try {
+      const response = await fetch('/api/fal/validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiKey: key }),
+      });
+      const data: unknown = await response.json();
+
+      if (!mountedRef.current) return false;
+      if (response.ok && isRecord(data) && data.success === true) return true;
+
+      setFalValidationError(safeFalValidationError(data, key));
+      return false;
+    } catch {
+      if (mountedRef.current) {
+        setFalValidationError(GENERIC_FAL_VALIDATION_ERROR);
+      }
+      return false;
+    } finally {
+      falValidationPendingRef.current = false;
+      if (mountedRef.current) {
+        setIsValidating(false);
+      }
+    }
+  };
+
   // Validate + save the Gemini key (if entered), then close. Cloudflare creds
   // are already persisted as they're typed.
   const handleSave = async () => {
+    if (falValidationPendingRef.current) return;
+
     const trimmedKey = keyInput.trim();
     if (trimmedKey && trimmedKey !== savedKey) {
       const isValid = await validateApiKey(trimmedKey);
@@ -126,14 +197,27 @@ export default function ApiKeyConfig({ open, onOpenChange }: ApiKeyConfigProps) 
       setKieApiKey(trimmedKieKey);
       toast.success('Kie key validated and saved');
     }
+    const trimmedFalKey = falKeyInput.trim();
+    if (trimmedFalKey !== savedFalKey) {
+      if (!trimmedFalKey) {
+        setFalApiKey('');
+      } else {
+        const isValid = await validateFalApiKey(trimmedFalKey);
+        if (!isValid) return;
+        setFalApiKey(trimmedFalKey);
+        toast.success('fal key validated and saved');
+      }
+    }
     setValidationError('');
     setKieValidationError('');
+    setFalValidationError('');
     onOpenChange(false);
   };
 
   const handleClose = () => {
     setValidationError('');
     setKieValidationError('');
+    setFalValidationError('');
     onOpenChange(false);
   };
 
@@ -282,6 +366,66 @@ export default function ApiKeyConfig({ open, onOpenChange }: ApiKeyConfigProps) 
                 )}
                 <p className="text-xs text-[var(--foreground-subtle)]">
                   Validated with your Kie credit endpoint. The key stays in browser storage and is never logged or persisted by this app.
+                </p>
+              </section>
+
+              {/* fal.ai */}
+              <section className="space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="eyebrow flex items-center gap-1.5">
+                    fal.ai · image and video BYOK
+                    {falConnected && (
+                      <span className="inline-flex items-center gap-1 text-emerald-400 normal-case tracking-normal">
+                        <Check size={12} /> connected
+                      </span>
+                    )}
+                  </p>
+                  <a
+                    href="https://fal.ai/dashboard/keys"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-[var(--neon-cyan)] hover:underline"
+                  >
+                    Get a key →
+                  </a>
+                </div>
+                <div className="relative">
+                  <input
+                    aria-label="fal API key"
+                    type={showFalKey ? 'text' : 'password'}
+                    value={falKeyInput}
+                    onChange={(event) => {
+                      setFalKeyInput(event.target.value);
+                      setFalValidationError('');
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') void handleSave();
+                    }}
+                    placeholder="fal API key"
+                    className="w-full pr-11"
+                    disabled={isValidating}
+                  />
+                  <button
+                    onClick={() => setShowFalKey(!showFalKey)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--foreground-muted)] hover:text-[var(--neon-cyan)] transition-colors"
+                    type="button"
+                    aria-label={showFalKey ? 'Hide fal key' : 'Show fal key'}
+                  >
+                    {showFalKey ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+                {falValidationError && (
+                  <div
+                    aria-live="polite"
+                    role="alert"
+                    className="flex items-start gap-2 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-400"
+                  >
+                    <AlertCircle size={16} className="mt-0.5 shrink-0" />
+                    <span>{falValidationError}</span>
+                  </div>
+                )}
+                <p className="text-xs text-[var(--foreground-subtle)]">
+                  Validated through fal pricing without starting a billable generation.
                 </p>
               </section>
 
