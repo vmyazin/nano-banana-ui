@@ -6,6 +6,7 @@ const GENERIC_FAL_ERROR = 'Something went wrong while contacting fal.';
 const MAX_UPLOAD_BODY_BYTES = 21 * 1024 * 1024;
 const MAX_FILE_BYTES = 20 * 1024 * 1024;
 const MAX_API_KEY_LENGTH = 1024;
+const SIGNATURE_PREFIX_BYTES = 64;
 const ALLOWED_IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/avif']);
 
 function declaredBodyTooLarge(request: NextRequest): boolean {
@@ -34,6 +35,60 @@ function isFile(value: unknown): value is File {
     if (typeof slice !== 'function') return false;
     Reflect.apply(slice, value, [0, 0]);
     return true;
+  } catch {
+    return false;
+  }
+}
+
+function startsWith(bytes: Uint8Array, signature: readonly number[]): boolean {
+  return signature.every((byte, index) => bytes[index] === byte);
+}
+
+function hasAvifBrand(bytes: Uint8Array, fileSize: number): boolean {
+  if (bytes.length < 16) return false;
+  if (!startsWith(bytes.subarray(4), [0x66, 0x74, 0x79, 0x70])) return false;
+  const boxSize =
+    bytes[0] * 2 ** 24 +
+    bytes[1] * 2 ** 16 +
+    bytes[2] * 2 ** 8 +
+    bytes[3];
+  if (boxSize < 16 || boxSize > fileSize) return false;
+  const boxEnd = Math.min(boxSize, bytes.length);
+
+  const brandAt = (offset: number) =>
+    bytes[offset] === 0x61 &&
+    bytes[offset + 1] === 0x76 &&
+    bytes[offset + 2] === 0x69 &&
+    (bytes[offset + 3] === 0x66 || bytes[offset + 3] === 0x73);
+
+  if (brandAt(8)) return true;
+  for (let offset = 16; offset + 3 < boxEnd; offset += 4) {
+    if (brandAt(offset)) return true;
+  }
+  return false;
+}
+
+async function hasValidImageSignature(file: File): Promise<boolean> {
+  try {
+    const filePrototype = Object.getPrototypeOf(file);
+    const blobPrototype = Object.getPrototypeOf(filePrototype);
+    const slice = Reflect.get(blobPrototype, 'slice');
+    const arrayBuffer = Reflect.get(blobPrototype, 'arrayBuffer');
+    if (typeof slice !== 'function' || typeof arrayBuffer !== 'function') return false;
+
+    const prefix = Reflect.apply(slice, file, [0, SIGNATURE_PREFIX_BYTES]);
+    const bytes = new Uint8Array(await Reflect.apply(arrayBuffer, prefix, []));
+    if (file.type === 'image/png') {
+      return startsWith(bytes, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    }
+    if (file.type === 'image/jpeg') return startsWith(bytes, [0xff, 0xd8, 0xff]);
+    if (file.type === 'image/webp') {
+      return (
+        startsWith(bytes, [0x52, 0x49, 0x46, 0x46]) &&
+        startsWith(bytes.subarray(8), [0x57, 0x45, 0x42, 0x50])
+      );
+    }
+    return file.type === 'image/avif' && hasAvifBrand(bytes, file.size);
   } catch {
     return false;
   }
@@ -92,6 +147,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       { success: false, error: 'The source file is too large.' },
       { status: 413 }
+    );
+  }
+  if (!(await hasValidImageSignature(file))) {
+    return NextResponse.json(
+      { success: false, error: 'The source file must be a supported raster image.' },
+      { status: 415 }
     );
   }
 

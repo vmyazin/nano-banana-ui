@@ -55,6 +55,25 @@ function formRequest(entries: Array<[string, string | Blob]>): NextRequest {
   }) as NextRequest;
 }
 
+const validUploadSignatures = [
+  ['image/png', 'png', [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]],
+  ['image/jpeg', 'jpg', [0xff, 0xd8, 0xff]],
+  [
+    'image/webp',
+    'webp',
+    [0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x45, 0x42, 0x50],
+  ],
+  [
+    'image/avif',
+    'avif',
+    [0, 0, 0, 16, 0x66, 0x74, 0x79, 0x70, 0x61, 0x76, 0x69, 0x66, 0, 0, 0, 0],
+  ],
+] as const;
+
+function signedUploadFile(mimeType: string, extension: string, bytes: readonly number[]) {
+  return new File([new Uint8Array(bytes)], `source.${extension}`, { type: mimeType });
+}
+
 const submitBody = {
   operation: 'submit',
   apiKey: 'id:secret',
@@ -151,26 +170,162 @@ describe('fal API routes', () => {
       expect(uploadFalFile).not.toHaveBeenCalled();
     });
 
-    it('uploads a File and returns only its URL', async () => {
-      uploadFalFile.mockResolvedValue('https://fal.media/source.png');
+    it.each(validUploadSignatures)(
+      'uploads a genuine File with a valid minimal %s signature',
+      async (mimeType, extension, bytes) => {
+        uploadFalFile.mockResolvedValue(`https://fal.media/source.${extension}`);
+        const originalFile = signedUploadFile(mimeType, extension, bytes);
 
+        const response = await uploadPost(
+          formRequest([
+            ['apiKey', 'id:secret'],
+            ['file', originalFile],
+          ])
+        );
+
+        expect(response.status).toBe(200);
+        await expect(response.json()).resolves.toEqual({
+          success: true,
+          url: `https://fal.media/source.${extension}`,
+        });
+        expect(uploadFalFile).toHaveBeenCalledOnce();
+        const uploaded = uploadFalFile.mock.calls[0][0];
+        expect(uploaded.apiKey).toBe('id:secret');
+        expect(Object.prototype.toString.call(uploaded.file)).toBe('[object File]');
+        expect(uploaded.file).toEqual(expect.objectContaining({
+          name: `source.${extension}`,
+          size: bytes.length,
+          type: mimeType,
+        }));
+        await expect(uploaded.file.arrayBuffer()).resolves.toEqual(
+          new Uint8Array(bytes).buffer
+        );
+      }
+    );
+
+    it.each([
+      ['avis major brand', [0, 0, 0, 16, 0x66, 0x74, 0x79, 0x70, 0x61, 0x76, 0x69, 0x73, 0, 0, 0, 0]],
+      [
+        'avif compatible brand',
+        [
+          0, 0, 0, 20, 0x66, 0x74, 0x79, 0x70,
+          0x6d, 0x69, 0x66, 0x31, 0, 0, 0, 0,
+          0x61, 0x76, 0x69, 0x66,
+        ],
+      ],
+    ] as const)('accepts AVIF with an %s', async (_name, bytes) => {
+      uploadFalFile.mockResolvedValue('https://fal.media/source.avif');
       const response = await uploadPost(
         formRequest([
           ['apiKey', 'id:secret'],
-          ['file', new File(['source'], 'source.png', { type: 'image/png' })],
+          ['file', signedUploadFile('image/avif', 'avif', bytes)],
         ])
       );
 
       expect(response.status).toBe(200);
-      await expect(response.json()).resolves.toEqual({
-        success: true,
-        url: 'https://fal.media/source.png',
-      });
-      expect(uploadFalFile).toHaveBeenCalledWith({
-        apiKey: 'id:secret',
-        file: expect.objectContaining({ name: 'source.png', size: 6, type: 'image/png' }),
-      });
+      expect(uploadFalFile).toHaveBeenCalledOnce();
     });
+
+    it('rejects an AVIF marker outside the declared ftyp box', async () => {
+      const response = await uploadPost(
+        formRequest([
+          ['apiKey', 'id:secret'],
+          [
+            'file',
+            signedUploadFile('image/avif', 'avif', [
+              0, 0, 0, 16, 0x66, 0x74, 0x79, 0x70,
+              0x6d, 0x69, 0x66, 0x31, 0, 0, 0, 0,
+              0x61, 0x76, 0x69, 0x66,
+            ]),
+          ],
+        ])
+      );
+
+      expect(response.status).toBe(415);
+      expect(uploadFalFile).not.toHaveBeenCalled();
+    });
+
+    it('rejects an AVIF file truncated before its declared ftyp box end', async () => {
+      const response = await uploadPost(
+        formRequest([
+          ['apiKey', 'id:secret'],
+          [
+            'file',
+            signedUploadFile('image/avif', 'avif', [
+              0, 0, 0, 64, 0x66, 0x74, 0x79, 0x70,
+              0x6d, 0x69, 0x66, 0x31, 0, 0, 0, 0,
+              0x61, 0x76, 0x69, 0x66,
+            ]),
+          ],
+        ])
+      );
+
+      expect(response.status).toBe(415);
+      expect(uploadFalFile).not.toHaveBeenCalled();
+    });
+
+    it.each(validUploadSignatures)(
+      'rejects spoofed bytes declared as %s without leaking multipart data',
+      async (mimeType, extension) => {
+        const filename = `private-id-secret.${extension}`;
+        const secretBytes = new TextEncoder().encode('spoofed-bytes-id:secret');
+        const response = await uploadPost(
+          formRequest([
+            ['apiKey', 'id:secret'],
+            ['file', new File([secretBytes], filename, { type: mimeType })],
+          ])
+        );
+
+        expect(response.status).toBe(415);
+        const payload = await response.json();
+        expect(payload).toEqual({
+          success: false,
+          error: 'The source file must be a supported raster image.',
+        });
+        const serialized = JSON.stringify(payload);
+        expect(serialized).not.toContain(filename);
+        expect(serialized).not.toContain('spoofed-bytes');
+        expect(serialized).not.toContain('id:secret');
+        expect(uploadFalFile).not.toHaveBeenCalled();
+      }
+    );
+
+    it.each(validUploadSignatures.map((entry, index) => [
+      entry[0],
+      entry[1],
+      validUploadSignatures[(index + 1) % validUploadSignatures.length][2],
+    ] as const))(
+      'rejects a declared %s file containing another format signature',
+      async (mimeType, extension, wrongBytes) => {
+        const response = await uploadPost(
+          formRequest([
+            ['apiKey', 'id:secret'],
+            ['file', signedUploadFile(mimeType, extension, wrongBytes)],
+          ])
+        );
+
+        expect(response.status).toBe(415);
+        expect(uploadFalFile).not.toHaveBeenCalled();
+      }
+    );
+
+    it.each(validUploadSignatures.flatMap(([mimeType, extension, bytes]) => [
+      [mimeType, extension, []] as const,
+      [mimeType, extension, bytes.slice(0, Math.max(0, bytes.length - 1))] as const,
+    ]))(
+      'rejects empty or truncated %s content',
+      async (mimeType, extension, bytes) => {
+        const response = await uploadPost(
+          formRequest([
+            ['apiKey', 'id:secret'],
+            ['file', signedUploadFile(mimeType, extension, bytes)],
+          ])
+        );
+
+        expect(response.status).toBe(415);
+        expect(uploadFalFile).not.toHaveBeenCalled();
+      }
+    );
 
     it.each([
       { entries: [['file', 'not-a-file']] },
@@ -517,7 +672,7 @@ describe('fal API routes', () => {
       uploadFalFile,
       () => uploadPost(formRequest([
         ['apiKey', 'id:secret'],
-        ['file', new File(['source'], 'source.png', { type: 'image/png' })],
+        ['file', signedUploadFile(...validUploadSignatures[0])],
       ])),
     ],
     ['queue', submitFalTask, () => queuePost(jsonRequest('/api/fal/queue', submitBody))],
@@ -540,7 +695,7 @@ describe('fal API routes', () => {
       uploadFalFile,
       () => uploadPost(formRequest([
         ['apiKey', 'id:secret'],
-        ['file', new File(['source'], 'source.png', { type: 'image/png' })],
+        ['file', signedUploadFile(...validUploadSignatures[0])],
       ])),
     ],
     ['queue', submitFalTask, () => queuePost(jsonRequest('/api/fal/queue', submitBody))],
