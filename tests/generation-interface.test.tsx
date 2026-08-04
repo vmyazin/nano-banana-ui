@@ -1,13 +1,15 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import type { ReactNode } from 'react';
+import { toast } from 'sonner';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import GenerationInterface from '../components/GenerationInterface';
-import { runFalImage } from '../lib/fal/browser';
+import { cancelFalJob, runFalImage } from '../lib/fal/browser';
 import { useAppStore } from '../store/useAppStore';
 import { FEATURES, type Feature } from '../types';
 
 vi.mock('@/lib/fal/browser', () => ({
+  cancelFalJob: vi.fn(),
   runFalImage: vi.fn(),
 }));
 
@@ -24,6 +26,7 @@ const textToImage = FEATURES.find((feature) => feature.id === 'text-to-image')!;
 const searchGrounding = FEATURES.find((feature) => feature.id === 'search-grounding')!;
 const multiImageCompose = FEATURES.find((feature) => feature.id === 'multi-image-compose')!;
 const mockedRunFalImage = vi.mocked(runFalImage);
+const mockedCancelFalJob = vi.mocked(cancelFalJob);
 
 function renderInterface(
   feature: Feature = textToImage,
@@ -47,6 +50,16 @@ function renderInterface(
       />
     </QueryClientProvider>
   );
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
 }
 
 describe('GenerationInterface engine selection', () => {
@@ -201,6 +214,7 @@ describe('GenerationInterface fal image generation', () => {
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
     mockedRunFalImage.mockReset();
+    mockedCancelFalJob.mockReset();
     useAppStore.setState({
       engine: 'fal',
       apiKey: 'gemini_test_key',
@@ -373,44 +387,124 @@ describe('GenerationInterface fal image generation', () => {
     expect(JSON.stringify(consoleLog.mock.calls)).not.toContain('fal_id:fal_secret');
   });
 
-  it('aborts fal locally on back navigation and ignores a stale completion', async () => {
-    let resolveRun!: (result: { url: string; mimeType?: string }) => void;
-    mockedRunFalImage.mockImplementation(
-      () => new Promise((resolve) => { resolveRun = resolve; })
-    );
-    const onBack = vi.fn();
-    renderInterface(textToImage, { onBack });
+  it.each(['resolve', 'reject'] as const)(
+    'silently ignores a stale generation that %s after a newer run starts',
+    async (staleOutcome) => {
+      const firstRun = deferred<{ url: string; mimeType?: string }>();
+      const secondRun = deferred<{ url: string; mimeType?: string }>();
+      mockedRunFalImage
+        .mockImplementationOnce(() => firstRun.promise)
+        .mockImplementationOnce(() => secondRun.promise);
+      const fetchMock = vi.fn();
+      vi.stubGlobal('fetch', fetchMock);
+      const toastError = vi.spyOn(toast, 'error');
+      const toastSuccess = vi.spyOn(toast, 'success');
+      renderInterface();
 
-    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'A distant lighthouse' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Generate Image' }));
-    await waitFor(() => expect(mockedRunFalImage).toHaveBeenCalledTimes(1));
-    const signal = mockedRunFalImage.mock.calls[0][0].signal!;
-    fireEvent.click(screen.getByRole('button', { name: '← Back' }));
-
-    expect(onBack).toHaveBeenCalledTimes(1);
-    expect(signal.aborted).toBe(true);
-    await act(async () => {
-      resolveRun({
-        url: 'https://v3.fal.media/files/stale.png',
-        mimeType: 'image/png',
+      fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Two queued scenes' } });
+      const generateButton = screen.getByRole('button', { name: 'Generate Image' });
+      act(() => {
+        generateButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        generateButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
       });
-      await Promise.resolve();
-    });
-    expect(screen.queryByAltText('Generated')).toBeNull();
-  });
 
-  it('aborts an in-flight fal generation when the component unmounts', async () => {
-    mockedRunFalImage.mockImplementation(() => new Promise(() => undefined));
-    const view = renderInterface();
+      await waitFor(() => expect(mockedRunFalImage).toHaveBeenCalledTimes(2));
+      const firstSignal = mockedRunFalImage.mock.calls[0][0].signal!;
+      const secondSignal = mockedRunFalImage.mock.calls[1][0].signal!;
+      expect(firstSignal.aborted).toBe(true);
+      expect(secondSignal.aborted).toBe(false);
 
-    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'A glass pavilion' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Generate Image' }));
-    await waitFor(() => expect(mockedRunFalImage).toHaveBeenCalledTimes(1));
-    const signal = mockedRunFalImage.mock.calls[0][0].signal!;
-    view.unmount();
+      await act(async () => {
+        if (staleOutcome === 'resolve') {
+          firstRun.resolve({
+            url: 'https://v3.fal.media/files/stale.png',
+            mimeType: 'image/png',
+          });
+        } else {
+          firstRun.reject(new Error('stale fal_id:fal_secret failure'));
+        }
+        await Promise.resolve();
+      });
 
-    expect(signal.aborted).toBe(true);
-  });
+      expect(screen.queryByAltText('Generated')).toBeNull();
+      expect(screen.queryByText('Unable to generate this image with fal. Please try again.')).toBeNull();
+      expect(toastError).not.toHaveBeenCalled();
+      expect(toastSuccess).not.toHaveBeenCalled();
+      expect(screen.getByRole('button', { name: 'Generating Magic...' }).hasAttribute('disabled')).toBe(true);
+      expect(mockedCancelFalJob).not.toHaveBeenCalled();
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(mockedRunFalImage).toHaveBeenCalledTimes(2);
+
+      await act(async () => {
+        secondRun.resolve({
+          url: 'https://v3.fal.media/files/current.png',
+          mimeType: 'image/png',
+        });
+      });
+
+      await waitFor(() =>
+        expect(screen.getByAltText('Generated').getAttribute('src')).toBe(
+          'https://v3.fal.media/files/current.png'
+        )
+      );
+      expect(toastError).not.toHaveBeenCalled();
+      expect(toastSuccess).toHaveBeenCalledTimes(1);
+      expect(mockedCancelFalJob).not.toHaveBeenCalled();
+      expect(fetchMock).not.toHaveBeenCalled();
+    }
+  );
+
+  it.each([
+    ['back navigation', 'resolve'],
+    ['back navigation', 'reject'],
+    ['component unmount', 'resolve'],
+    ['component unmount', 'reject'],
+  ] as const)(
+    'silently ignores a fal run that completes after %s via %s',
+    async (exitMode, lateOutcome) => {
+      const run = deferred<{ url: string; mimeType?: string }>();
+      mockedRunFalImage.mockImplementation(() => run.promise);
+      const onBack = vi.fn();
+      const fetchMock = vi.fn();
+      vi.stubGlobal('fetch', fetchMock);
+      const toastError = vi.spyOn(toast, 'error');
+      const toastSuccess = vi.spyOn(toast, 'success');
+      const view = renderInterface(textToImage, { onBack });
+
+      fireEvent.change(screen.getByRole('textbox'), { target: { value: 'A distant lighthouse' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Generate Image' }));
+      await waitFor(() => expect(mockedRunFalImage).toHaveBeenCalledTimes(1));
+      const signal = mockedRunFalImage.mock.calls[0][0].signal!;
+
+      if (exitMode === 'back navigation') {
+        fireEvent.click(screen.getByRole('button', { name: '← Back' }));
+        expect(onBack).toHaveBeenCalledTimes(1);
+      } else {
+        view.unmount();
+      }
+      expect(signal.aborted).toBe(true);
+
+      await act(async () => {
+        if (lateOutcome === 'resolve') {
+          run.resolve({
+            url: 'https://v3.fal.media/files/stale.png',
+            mimeType: 'image/png',
+          });
+        } else {
+          run.reject(new Error('late fal_id:fal_secret failure'));
+        }
+        await Promise.resolve();
+      });
+
+      expect(screen.queryByAltText('Generated')).toBeNull();
+      expect(screen.queryByText('Unable to generate this image with fal. Please try again.')).toBeNull();
+      expect(toastError).not.toHaveBeenCalled();
+      expect(toastSuccess).not.toHaveBeenCalled();
+      expect(mockedCancelFalJob).not.toHaveBeenCalled();
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(mockedRunFalImage).toHaveBeenCalledTimes(1);
+    }
+  );
 
   it('shows the fal usage-rate provider line without a hard-coded price', () => {
     renderInterface();
@@ -418,6 +512,135 @@ describe('GenerationInterface fal image generation', () => {
     expect(screen.getByText('fal usage rates apply · Nano Banana 2')).toBeTruthy();
     expect(screen.queryByText(/\$\d/)).toBeNull();
   });
+
+  it.each(['resolve', 'reject'] as const)(
+    'silently discards an older remote download that %s after a newer download starts',
+    async (staleOutcome) => {
+      mockedRunFalImage.mockResolvedValue({
+        url: 'https://v3.fal.media/files/download-race.png',
+        mimeType: 'image/png',
+      });
+      const firstDownload = deferred<Response>();
+      const secondDownload = deferred<Response>();
+      const fetchMock = vi.fn()
+        .mockImplementationOnce(() => firstDownload.promise)
+        .mockImplementationOnce(() => secondDownload.promise);
+      vi.stubGlobal('fetch', fetchMock);
+      const createObjectURL = vi.fn(() => 'blob:current-download');
+      const revokeObjectURL = vi.fn();
+      Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: createObjectURL });
+      Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: revokeObjectURL });
+      const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+      const toastError = vi.spyOn(toast, 'error');
+      renderInterface();
+
+      fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Download race' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Generate Image' }));
+      await waitFor(() => expect(screen.getByAltText('Generated')).toBeTruthy());
+      const downloadButton = screen.getByRole('button', { name: 'Download Image' });
+      fireEvent.click(downloadButton);
+      fireEvent.click(downloadButton);
+
+      await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+      const firstSignal = fetchMock.mock.calls[0][1].signal as AbortSignal;
+      const secondSignal = fetchMock.mock.calls[1][1].signal as AbortSignal;
+      expect(firstSignal.aborted).toBe(true);
+      expect(secondSignal.aborted).toBe(false);
+
+      await act(async () => {
+        if (staleOutcome === 'resolve') {
+          firstDownload.resolve(new Response(new Blob(['stale'], { type: 'image/png' }), {
+            status: 200,
+            headers: { 'Content-Type': 'image/png' },
+          }));
+        } else {
+          firstDownload.reject(new Error('stale download fal_id:fal_secret failure'));
+        }
+        await Promise.resolve();
+      });
+
+      expect(createObjectURL).not.toHaveBeenCalled();
+      expect(revokeObjectURL).not.toHaveBeenCalled();
+      expect(clickSpy).not.toHaveBeenCalled();
+      expect(screen.queryByText('Unable to download this image. Please try again.')).toBeNull();
+      expect(toastError).not.toHaveBeenCalled();
+
+      await act(async () => {
+        secondDownload.resolve(new Response(new Blob(['current'], { type: 'image/png' }), {
+          status: 200,
+          headers: { 'Content-Type': 'image/png' },
+        }));
+      });
+
+      await waitFor(() => expect(clickSpy).toHaveBeenCalledTimes(1));
+      expect(createObjectURL).toHaveBeenCalledTimes(1);
+      expect(revokeObjectURL).toHaveBeenCalledTimes(1);
+      expect(revokeObjectURL).toHaveBeenCalledWith('blob:current-download');
+      expect(screen.queryByText('Unable to download this image. Please try again.')).toBeNull();
+      expect(toastError).not.toHaveBeenCalled();
+    }
+  );
+
+  it.each([
+    ['back navigation', 'resolve'],
+    ['back navigation', 'reject'],
+    ['component unmount', 'resolve'],
+    ['component unmount', 'reject'],
+  ] as const)(
+    'silently discards a remote download that finishes after %s via %s',
+    async (exitMode, lateOutcome) => {
+      mockedRunFalImage.mockResolvedValue({
+        url: 'https://v3.fal.media/files/late-download.png',
+        mimeType: 'image/png',
+      });
+      const download = deferred<Response>();
+      const fetchMock = vi.fn<
+        (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
+      >().mockImplementation(() => download.promise);
+      vi.stubGlobal('fetch', fetchMock);
+      const createObjectURL = vi.fn(() => 'blob:late-download');
+      const revokeObjectURL = vi.fn();
+      Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: createObjectURL });
+      Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: revokeObjectURL });
+      const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+      const toastError = vi.spyOn(toast, 'error');
+      const onBack = vi.fn();
+      const view = renderInterface(textToImage, { onBack });
+
+      fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Late download' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Generate Image' }));
+      await waitFor(() => expect(screen.getByAltText('Generated')).toBeTruthy());
+      fireEvent.click(screen.getByRole('button', { name: 'Download Image' }));
+      await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+      const signal = fetchMock.mock.calls[0]![1]!.signal as AbortSignal;
+
+      if (exitMode === 'back navigation') {
+        fireEvent.click(screen.getByRole('button', { name: '← Back' }));
+        expect(onBack).toHaveBeenCalledTimes(1);
+      } else {
+        view.unmount();
+      }
+      expect(signal.aborted).toBe(true);
+
+      await act(async () => {
+        if (lateOutcome === 'resolve') {
+          download.resolve(new Response(new Blob(['late'], { type: 'image/png' }), {
+            status: 200,
+            headers: { 'Content-Type': 'image/png' },
+          }));
+        } else {
+          download.reject(new Error('late download failure fal_id:fal_secret'));
+        }
+        await Promise.resolve();
+      });
+
+      expect(createObjectURL).not.toHaveBeenCalled();
+      expect(revokeObjectURL).not.toHaveBeenCalled();
+      expect(clickSpy).not.toHaveBeenCalled();
+      expect(screen.queryByText('Unable to download this image. Please try again.')).toBeNull();
+      expect(toastError).not.toHaveBeenCalled();
+    }
+  );
 
   it.each([
     ['HTTP failure', () => Promise.resolve(new Response('', { status: 503 }))],

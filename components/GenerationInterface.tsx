@@ -63,6 +63,17 @@ const SUPPORTED_RASTER_MIMES = new Set([
   'image/avif',
 ]);
 
+class LocalFalCancellation extends Error {
+  constructor() {
+    super('Local fal operation cancelled');
+    this.name = 'LocalFalCancellation';
+  }
+}
+
+function isAbortError(error: unknown) {
+  return error instanceof DOMException && error.name === 'AbortError';
+}
+
 function normalizedMimeType(mimeType?: string | null) {
   return mimeType?.split(';', 1)[0].trim().toLowerCase() ?? '';
 }
@@ -156,15 +167,21 @@ export default function GenerationInterface({ feature, apiKey, onBack, onOpenCon
   const [filenameSlug, setFilenameSlug] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const generationAbortRef = useRef<AbortController | null>(null);
+  const generationOperationRef = useRef(0);
   const downloadAbortRef = useRef<AbortController | null>(null);
+  const downloadOperationRef = useRef(0);
   const mountedRef = useRef(true);
 
   useEffect(() => {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
+      generationOperationRef.current += 1;
       generationAbortRef.current?.abort();
+      generationAbortRef.current = null;
+      downloadOperationRef.current += 1;
       downloadAbortRef.current?.abort();
+      downloadAbortRef.current = null;
     };
   }, []);
 
@@ -259,6 +276,8 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
 
       if (activeEngine.id === 'fal') {
         generationAbortRef.current?.abort();
+        const operationId = generationOperationRef.current + 1;
+        generationOperationRef.current = operationId;
         const controller = new AbortController();
         generationAbortRef.current = controller;
 
@@ -275,18 +294,36 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
             signal: controller.signal,
           }, {});
 
-          if (controller.signal.aborted || generationAbortRef.current !== controller) {
-            throw new Error(FAL_GENERATION_ERROR);
+          if (
+            controller.signal.aborted ||
+            !mountedRef.current ||
+            generationOperationRef.current !== operationId ||
+            generationAbortRef.current !== controller
+          ) {
+            throw new LocalFalCancellation();
           }
 
           return {
             dataUrl: result.url,
             ext: extensionForMimeType(result.mimeType),
           };
-        } catch {
+        } catch (caught) {
+          if (
+            caught instanceof LocalFalCancellation ||
+            isAbortError(caught) ||
+            controller.signal.aborted ||
+            !mountedRef.current ||
+            generationOperationRef.current !== operationId ||
+            generationAbortRef.current !== controller
+          ) {
+            throw new LocalFalCancellation();
+          }
           throw new Error(FAL_GENERATION_ERROR);
         } finally {
-          if (generationAbortRef.current === controller) {
+          if (
+            generationOperationRef.current === operationId &&
+            generationAbortRef.current === controller
+          ) {
             generationAbortRef.current = null;
           }
         }
@@ -320,7 +357,10 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
       throw new Error((data.error || 'Failed to generate image') + debugInfo + detailsInfo);
     },
     onSuccess: () => toast.success('Image generated'),
-    onError: (e) => toast.error(e instanceof Error ? e.message : 'Generation failed'),
+    onError: (e) => {
+      if (e instanceof LocalFalCancellation) return;
+      toast.error(e instanceof Error ? e.message : 'Generation failed');
+    },
   });
 
   // Generate a fresh, feature-tailored example prompt via gemini-2.5-flash-lite.
@@ -367,7 +407,10 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
   const downloadExt = generateMutation.data?.ext ?? 'png';
   const displayError =
     error ||
-    (generateMutation.error instanceof Error ? generateMutation.error.message : null);
+    (generateMutation.error instanceof Error &&
+    !(generateMutation.error instanceof LocalFalCancellation)
+      ? generateMutation.error.message
+      : null);
 
   // Cost line, per engine. Gemini runs on gemini-3-pro-image-preview, billed at
   // $120 / 1M output tokens: 1K & 2K ≈ 1120 tokens (~$0.13), 4K ≈ 2000 tokens
@@ -422,13 +465,23 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
   };
 
   const handleBack = () => {
+    generationOperationRef.current += 1;
     generationAbortRef.current?.abort();
+    generationAbortRef.current = null;
+    downloadOperationRef.current += 1;
     downloadAbortRef.current?.abort();
+    downloadAbortRef.current = null;
     onBack();
   };
 
   const downloadImage = async () => {
     if (!generatedImage) return;
+
+    downloadAbortRef.current?.abort();
+    const operationId = downloadOperationRef.current + 1;
+    downloadOperationRef.current = operationId;
+    downloadAbortRef.current = null;
+    setError(null);
 
     const base =
       filenameSlug || slugify(prompt) || `scene-assembly-${feature.id}`;
@@ -446,37 +499,45 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
       return;
     }
 
-    downloadAbortRef.current?.abort();
     const controller = new AbortController();
     downloadAbortRef.current = controller;
     let objectUrl: string | null = null;
+    const isCurrentOperation = () =>
+      mountedRef.current &&
+      !controller.signal.aborted &&
+      downloadOperationRef.current === operationId &&
+      downloadAbortRef.current === controller;
 
     try {
       const response = await fetch(generatedImage, { signal: controller.signal });
+      if (!isCurrentOperation()) return;
+
       const responseMime = normalizedMimeType(response.headers.get('Content-Type'));
       if (!response.ok || !SUPPORTED_RASTER_MIMES.has(responseMime)) {
         throw new Error(DOWNLOAD_ERROR);
       }
 
       const blob = await response.blob();
+      if (!isCurrentOperation()) return;
       if (!SUPPORTED_RASTER_MIMES.has(normalizedMimeType(blob.type))) {
         throw new Error(DOWNLOAD_ERROR);
       }
 
       objectUrl = URL.createObjectURL(blob);
-      if (controller.signal.aborted || !mountedRef.current) return;
 
       const link = document.createElement('a');
       link.href = objectUrl;
       link.download = `${base}.${downloadExt}`;
       link.click();
-    } catch {
-      if (!controller.signal.aborted && mountedRef.current) {
-        setError(DOWNLOAD_ERROR);
-      }
+    } catch (caught) {
+      if (!isCurrentOperation() || isAbortError(caught)) return;
+      setError(DOWNLOAD_ERROR);
     } finally {
       if (objectUrl) URL.revokeObjectURL(objectUrl);
-      if (downloadAbortRef.current === controller) {
+      if (
+        downloadOperationRef.current === operationId &&
+        downloadAbortRef.current === controller
+      ) {
         downloadAbortRef.current = null;
       }
     }
