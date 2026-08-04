@@ -1,0 +1,531 @@
+'use client';
+
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Download, ImagePlus, Loader2, Search, Sparkles, Trash2, Video } from 'lucide-react';
+
+import ModelControls from '@/components/ModelControls';
+import { cancelFalJob, submitFalJob, uploadFalFiles } from '@/lib/fal/browser';
+import {
+  buildFalInput,
+  defaultFalValues,
+  modelsForFalMode,
+  resolveFalVariant,
+  validateFalInput,
+} from '@/lib/fal/catalog';
+import { isFalJobTerminal } from '@/lib/fal/queue';
+import type { FalFieldDefinition, FalInputMode, FalJob, FalTaskState, FalValue } from '@/lib/fal/types';
+import { useAppStore } from '@/store/useAppStore';
+import { useFalJobsStore } from '@/store/useFalJobsStore';
+
+interface FalGenerationWorkspaceProps {
+  inputMode: FalInputMode;
+  onBack: () => void;
+  onOpenConnections: () => void;
+}
+
+interface LocalReference {
+  file: File;
+  previewUrl: string;
+}
+
+interface SubmissionOperation {
+  controller: AbortController;
+  token: symbol;
+}
+
+const statusCopy: Record<FalTaskState, string> = {
+  queued: 'Queued',
+  running: 'Running',
+  success: 'Completed',
+  fail: 'Failed',
+  timed_out: 'Timed out',
+  cancelled: 'Cancelled',
+};
+
+const submissionError = 'fal could not start this job. Please try again.';
+const cancellationError = 'fal could not cancel this job. Please try again.';
+const allowedImageMimeTypes = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/avif']);
+
+function isSafeFalVideoUrl(value: string | undefined, mimeType: string | undefined): value is string {
+  if (!value || !mimeType?.toLowerCase().startsWith('video/') || value !== value.trim() || /\s/.test(value)) {
+    return false;
+  }
+  try {
+    const url = new URL(value);
+    const isFalCdn = url.hostname === 'fal.media' || url.hostname.endsWith('.fal.media');
+    return url.protocol === 'https:' && !url.username && !url.password && isFalCdn;
+  } catch {
+    return false;
+  }
+}
+
+function safeProviderText(value: string | undefined, apiKey: string, fallback: string): string {
+  const text = value?.trim();
+  let encodedKey = '';
+  try {
+    encodedKey = encodeURIComponent(apiKey);
+  } catch {
+    encodedKey = '';
+  }
+  const jsonKey = JSON.stringify(apiKey);
+  const credentialVariants = [apiKey, encodedKey, jsonKey, jsonKey.slice(1, -1)].filter(Boolean);
+  const normalizedText = text?.toLowerCase() ?? '';
+  if (
+    !text ||
+    text.length > 512 ||
+    credentialVariants.some((credential) => normalizedText.includes(credential.toLowerCase()))
+  ) {
+    return fallback;
+  }
+  return text;
+}
+
+function JobCard({
+  job,
+  apiKey,
+  cancelling,
+  cancelError,
+  onCancel,
+}: {
+  job: FalJob;
+  apiKey: string;
+  cancelling: boolean;
+  cancelError?: string;
+  onCancel: (job: FalJob) => void;
+}) {
+  const resultUrl = isSafeFalVideoUrl(job.resultUrl, job.mimeType) ? job.resultUrl : undefined;
+  const error = safeProviderText(job.error, apiKey, 'fal could not complete this job.');
+  const logs = job.logs.slice(-20).map((log) => safeProviderText(log, apiKey, 'fal reported an update.'));
+
+  return (
+    <article className="space-y-3 rounded-xl border border-[var(--border)] bg-[var(--background-elevated)]/60 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className={`rounded-full border px-2.5 py-1 text-xs ${job.state === 'success' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' : job.state === 'fail' || job.state === 'timed_out' ? 'border-red-500/30 bg-red-500/10 text-red-300' : job.state === 'cancelled' ? 'border-[var(--border)] text-[var(--foreground-muted)]' : 'border-amber-500/30 bg-amber-500/10 text-amber-200'}`}>
+          {statusCopy[job.state]}
+        </span>
+        <code className="text-xs text-[var(--foreground-subtle)]">{job.requestId}</code>
+      </div>
+
+      <p className="line-clamp-3 text-sm text-[var(--foreground-muted)]">{job.prompt}</p>
+
+      {resultUrl && (
+        <div className="space-y-3">
+          <video src={resultUrl} controls className="max-h-[520px] w-full rounded-lg bg-black" />
+          <a href={resultUrl} download className="btn-secondary flex w-full items-center justify-center gap-2">
+            <Download size={17} /> Download video
+          </a>
+        </div>
+      )}
+
+      {(job.state === 'fail' || job.state === 'timed_out') && (
+        <p className="text-sm text-red-300">
+          {job.state === 'timed_out'
+            ? 'Polling stopped. The fal job may still complete upstream.'
+            : error}
+        </p>
+      )}
+      {job.state === 'cancelled' && (
+        <p className="text-sm text-[var(--foreground-muted)]">This job was cancelled.</p>
+      )}
+
+      {logs.length > 0 && (
+        <ul aria-label={`Logs for ${job.requestId}`} className="max-h-32 space-y-1 overflow-auto font-mono text-xs text-[var(--foreground-subtle)]">
+          {logs.map((log, index) => <li key={`${index}-${log}`}>{log}</li>)}
+        </ul>
+      )}
+
+      {!isFalJobTerminal(job.state) && (
+        <button
+          type="button"
+          aria-label={`Cancel request ${job.requestId}`}
+          disabled={cancelling}
+          onClick={() => onCancel(job)}
+          className="btn-secondary w-full disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {cancelling ? 'Cancelling…' : 'Cancel'}
+        </button>
+      )}
+      {cancelError && <p role="alert" className="text-sm text-red-300">{cancelError}</p>}
+    </article>
+  );
+}
+
+function FalGenerationWorkspaceSession({
+  inputMode,
+  onBack,
+  onOpenConnections,
+}: FalGenerationWorkspaceProps) {
+  const apiKey = useAppStore((state) => state.falApiKey);
+  const falVideoModel = useAppStore((state) => state.falVideoModel);
+  const setFalVideoModel = useAppStore((state) => state.setFalVideoModel);
+  const jobs = useFalJobsStore((state) => state.jobs);
+  const upsertJob = useFalJobsStore((state) => state.upsertJob);
+  const models = useMemo(() => modelsForFalMode('video', inputMode), [inputMode]);
+  const selectedModel = models.find((model) => model.id === falVideoModel) ?? models[0];
+  const variant = resolveFalVariant(selectedModel.id, 'video', inputMode);
+  const [controlState, setControlState] = useState(() => ({
+    variantId: variant.id,
+    values: defaultFalValues(variant),
+  }));
+  const values = controlState.variantId === variant.id
+    ? controlState.values
+    : defaultFalValues(variant);
+  const [prompt, setPrompt] = useState('');
+  const [references, setReferences] = useState<LocalReference[]>([]);
+  const [modelSearch, setModelSearch] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [submittingVariantId, setSubmittingVariantId] = useState<string | null>(null);
+  const [cancellingIds, setCancellingIds] = useState<Set<string>>(() => new Set());
+  const [cancelErrors, setCancelErrors] = useState<Record<string, string>>({});
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const referencesRef = useRef<LocalReference[]>([]);
+  const submissionRef = useRef<SubmissionOperation | null>(null);
+  const cancellingRef = useRef(new Set<string>());
+  const mountedRef = useRef(true);
+  const maxInputImages = variant.maxInputImages ?? 1;
+  const normalizedSearch = modelSearch.trim().toLowerCase();
+  const matchingModels = models.filter((model) =>
+    `${model.label} ${model.provider} ${model.description}`.toLowerCase().includes(normalizedSearch)
+  );
+  const videoJobs = jobs.filter((job) => job.mediaType === 'video');
+  const isSubmitting = submittingVariantId === variant.id;
+
+  useEffect(() => {
+    referencesRef.current = references;
+  }, [references]);
+
+  useEffect(() => {
+    return () => {
+      const operation = submissionRef.current;
+      if (operation) {
+        operation.controller.abort();
+        submissionRef.current = null;
+      }
+    };
+  }, [variant.id]);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      submissionRef.current?.controller.abort();
+      submissionRef.current = null;
+      referencesRef.current.forEach((reference) => URL.revokeObjectURL(reference.previewUrl));
+    };
+  }, []);
+
+  const abortSubmission = () => {
+    submissionRef.current?.controller.abort();
+    submissionRef.current = null;
+    setSubmittingVariantId(null);
+  };
+
+  const updateValue = (key: string, value: FalValue) => {
+    setControlState((current) => ({
+      variantId: variant.id,
+      values: { ...(current.variantId === variant.id ? current.values : defaultFalValues(variant)), [key]: value },
+    }));
+  };
+
+  const setModel = (modelId: string) => {
+    abortSubmission();
+    setError(null);
+    setFalVideoModel(modelId);
+  };
+
+  const addReferences = (files: File[]) => {
+    const imageFiles = files.filter((file) => allowedImageMimeTypes.has(file.type.toLowerCase()));
+    if (imageFiles.length !== files.length || imageFiles.length === 0) {
+      setError('Choose one PNG, JPEG, WebP, or AVIF image.');
+      return;
+    }
+    if (references.length + imageFiles.length > maxInputImages) {
+      setError(`This fal model accepts up to ${maxInputImages} reference image${maxInputImages === 1 ? '' : 's'}.`);
+      return;
+    }
+    setReferences((current) => [
+      ...current,
+      ...imageFiles.map((file) => ({ file, previewUrl: URL.createObjectURL(file) })),
+    ]);
+    setError(null);
+  };
+
+  const removeReference = (index: number) => {
+    setReferences((current) => {
+      const reference = current[index];
+      if (reference) URL.revokeObjectURL(reference.previewUrl);
+      return current.filter((_, currentIndex) => currentIndex !== index);
+    });
+  };
+
+  const submit = async () => {
+    if (submissionRef.current) return;
+    if (!apiKey.trim()) {
+      setError('Connect your fal API key before starting a generation.');
+      onOpenConnections();
+      return;
+    }
+
+    const activeReferences = inputMode === 'image' ? references : [];
+    const validationError = validateFalInput(variant, {
+      prompt,
+      uploadUrls: activeReferences.map((reference) => reference.previewUrl),
+    });
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
+    try {
+      buildFalInput(variant, {
+        prompt,
+        uploadUrls: activeReferences.map((reference) => reference.previewUrl),
+        values,
+      });
+    } catch {
+      setError('Review the selected fal model controls and try again.');
+      return;
+    }
+
+    const operation: SubmissionOperation = {
+      controller: new AbortController(),
+      token: Symbol('fal-submit'),
+    };
+    submissionRef.current = operation;
+    setError(null);
+    setSubmittingVariantId(variant.id);
+    const isCurrent = () => mountedRef.current && submissionRef.current?.token === operation.token;
+
+    try {
+      const uploadUrls = await uploadFalFiles(
+        apiKey.trim(),
+        activeReferences.map((reference) => reference.file),
+        { signal: operation.controller.signal }
+      );
+      if (!isCurrent()) return;
+      const { requestId } = await submitFalJob({
+        apiKey: apiKey.trim(),
+        modelId: selectedModel.id,
+        mediaType: 'video',
+        inputMode,
+        prompt: prompt.trim(),
+        uploadUrls,
+        values,
+      }, { signal: operation.controller.signal });
+      if (!isCurrent()) return;
+      const now = Date.now();
+      upsertJob({
+        id: requestId,
+        requestId,
+        state: 'queued',
+        logs: [],
+        modelId: selectedModel.id,
+        mediaType: 'video',
+        inputMode,
+        prompt: prompt.trim(),
+        createdAt: now,
+        updatedAt: now,
+        pollAttempt: 0,
+      });
+    } catch {
+      if (isCurrent() && !operation.controller.signal.aborted) setError(submissionError);
+    } finally {
+      if (isCurrent()) {
+        submissionRef.current = null;
+        setSubmittingVariantId(null);
+      }
+    }
+  };
+
+  const cancel = async (job: FalJob) => {
+    if (cancellingRef.current.has(job.id) || isFalJobTerminal(job.state)) return;
+    cancellingRef.current.add(job.id);
+    setCancellingIds(new Set(cancellingRef.current));
+    setCancelErrors((current) => ({ ...current, [job.id]: '' }));
+    const controller = new AbortController();
+    try {
+      await cancelFalJob({
+        apiKey: apiKey.trim(),
+        modelId: job.modelId,
+        mediaType: job.mediaType,
+        inputMode: job.inputMode,
+        requestId: job.requestId,
+      }, { signal: controller.signal });
+      const current = useFalJobsStore.getState().jobs.find((candidate) => candidate.id === job.id);
+      if (current && !isFalJobTerminal(current.state)) {
+        upsertJob({ ...current, state: 'cancelled', updatedAt: Date.now() });
+      }
+    } catch {
+      if (mountedRef.current) {
+        setCancelErrors((current) => ({ ...current, [job.id]: cancellationError }));
+      }
+    } finally {
+      cancellingRef.current.delete(job.id);
+      if (mountedRef.current) setCancellingIds(new Set(cancellingRef.current));
+    }
+  };
+
+  return (
+    <div className="mx-auto w-full max-w-[1400px] space-y-5 sm:space-y-6">
+      <section className="glass-card p-4 sm:p-5 md:p-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex min-w-0 items-start gap-3">
+            <button type="button" onClick={() => { abortSubmission(); onBack(); }} className="btn-secondary shrink-0 px-3 py-2 text-sm">
+              Back
+            </button>
+            <div>
+              <p className="eyebrow mb-1 text-[var(--neon-cyan)]">fal.ai BYOK</p>
+              <h2 className="display text-xl font-semibold sm:text-2xl">
+                {inputMode === 'text' ? 'Text' : 'Image'} to video with fal.ai
+              </h2>
+              <p className="mt-1 max-w-2xl text-sm text-[var(--foreground-muted)]">
+                Choose one of nine curated video models and configure only its verified controls.
+              </p>
+            </div>
+          </div>
+          <button type="button" onClick={onOpenConnections} className="btn-secondary shrink-0 px-3 py-2 text-xs">
+            {apiKey ? 'fal key connected' : 'Connect fal key'}
+          </button>
+        </div>
+      </section>
+
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 lg:gap-6">
+        <div className="space-y-5">
+          <section className="glass-card space-y-4 p-4 sm:p-5 md:p-6">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h3 className="display text-lg font-semibold">Curated video model</h3>
+                <p className="mt-0.5 text-xs text-[var(--foreground-muted)]">{models.length} verified choices</p>
+              </div>
+              <div className="flex w-44 max-w-[52%] items-center gap-2">
+                <Search aria-hidden="true" size={14} className="shrink-0 text-[var(--foreground-subtle)]" />
+                <input
+                  type="search"
+                  aria-label="Search fal video models"
+                  value={modelSearch}
+                  onChange={(event) => setModelSearch(event.target.value)}
+                  placeholder="Find a model"
+                  className="min-w-0 flex-1 py-1.5 text-xs"
+                />
+              </div>
+            </div>
+            <select
+              aria-label="Model"
+              value={matchingModels.some((model) => model.id === selectedModel.id) ? selectedModel.id : ''}
+              onChange={(event) => setModel(event.target.value)}
+              className="w-full"
+            >
+              {matchingModels.map((model) => (
+                <option key={model.id} value={model.id}>{model.label} · {model.provider}</option>
+              ))}
+            </select>
+            {matchingModels.length === 0 ? (
+              <p role="status" className="text-sm text-[var(--foreground-muted)]">No fal video models match your search.</p>
+            ) : (
+              <p className="text-sm text-[var(--foreground-muted)]">
+                <span className="font-medium text-[var(--foreground)]">{selectedModel.label}:</span> {selectedModel.description}
+              </p>
+            )}
+          </section>
+
+          {inputMode === 'image' && (
+            <section className="glass-card space-y-4 p-4 sm:p-5 md:p-6">
+              <div>
+                <h3 className="display text-lg font-semibold">Reference image</h3>
+                <p className="mt-0.5 text-xs text-[var(--foreground-muted)]">This video flow accepts exactly one image.</p>
+              </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/avif"
+                aria-label="Reference image file"
+                className="hidden"
+                onChange={(event) => {
+                  addReferences(Array.from(event.target.files ?? []));
+                  event.target.value = '';
+                }}
+              />
+              <button type="button" onClick={() => fileInputRef.current?.click()} className="flex w-full flex-col items-center gap-2 rounded-xl border-2 border-dashed border-[var(--neon-cyan)]/30 py-5 text-sm text-[var(--foreground-muted)]">
+                <ImagePlus size={28} /> Choose reference image
+              </button>
+              {references.map((reference, index) => (
+                <div key={reference.previewUrl} className="relative overflow-hidden rounded-lg border border-[var(--border)]">
+                  {/* Local blob previews cannot be optimized by next/image. */}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={reference.previewUrl} alt={`Reference ${index + 1}`} className="aspect-video w-full object-contain" />
+                  <button type="button" aria-label={`Remove reference ${index + 1}`} onClick={() => removeReference(index)} className="absolute right-2 top-2 rounded-md bg-black/70 p-2 text-white">
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              ))}
+            </section>
+          )}
+
+          <section className="glass-card space-y-3 p-4 sm:p-5 md:p-6">
+            <label htmlFor="fal-video-prompt" className="display block text-lg font-semibold">Prompt</label>
+            <textarea
+              id="fal-video-prompt"
+              aria-required="true"
+              required
+              value={prompt}
+              onChange={(event) => setPrompt(event.target.value)}
+              placeholder="Describe the motion, camera, mood, and scene…"
+              className="min-h-[150px] w-full resize-none"
+            />
+          </section>
+
+          <section className="glass-card space-y-4 p-4 sm:p-5 md:p-6">
+            <div>
+              <h3 className="display text-lg font-semibold">Model controls</h3>
+              <p className="mt-0.5 text-xs text-[var(--foreground-muted)]">Only controls supported by {selectedModel.label} are shown.</p>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <ModelControls
+                namespace={`fal-${variant.id}`}
+                fields={variant.fields as FalFieldDefinition[]}
+                values={values}
+                onChange={updateValue}
+              />
+            </div>
+          </section>
+
+          <button type="button" disabled={isSubmitting} onClick={() => void submit()} className="btn-primary flex w-full items-center justify-center gap-2 py-4 text-lg disabled:cursor-not-allowed disabled:opacity-50">
+            {isSubmitting ? <><Loader2 className="animate-spin" size={21} /> Uploading & starting…</> : <><Sparkles size={21} /> Generate video</>}
+          </button>
+          {error && <p role="alert" className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">{error}</p>}
+        </div>
+
+        <section className="glass-card min-h-[420px] space-y-4 p-4 sm:p-5 md:p-6">
+          <div>
+            <h3 className="display text-lg font-semibold">fal video jobs</h3>
+            <p className="mt-0.5 text-xs text-[var(--foreground-muted)]">Recent jobs remain visible while you change models and providers.</p>
+          </div>
+          {videoJobs.length === 0 ? (
+            <div className="rounded-xl border border-[var(--border)] p-8 text-center text-[var(--foreground-muted)]">
+              <Video className="mx-auto mb-3 opacity-35" size={46} />
+              <p>Your fal video jobs will appear here.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {videoJobs.map((job) => (
+                <JobCard
+                  key={job.id}
+                  job={job}
+                  apiKey={apiKey}
+                  cancelling={cancellingIds.has(job.id)}
+                  cancelError={cancelErrors[job.id]}
+                  onCancel={(activeJob) => void cancel(activeJob)}
+                />
+              ))}
+            </div>
+          )}
+          <p className="text-center text-xs text-[var(--foreground-subtle)]">fal inputs and outputs use public, temporary CDN URLs.</p>
+        </section>
+      </div>
+    </div>
+  );
+}
+
+export default function FalGenerationWorkspace(props: FalGenerationWorkspaceProps) {
+  return <FalGenerationWorkspaceSession key={props.inputMode} {...props} />;
+}

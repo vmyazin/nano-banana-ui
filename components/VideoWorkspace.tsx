@@ -1,8 +1,11 @@
 'use client';
 
 import { Clapperboard, ImagePlus, Type } from 'lucide-react';
+import FalGenerationWorkspace from '@/components/FalGenerationWorkspace';
 import KieGenerationWorkspace from '@/components/KieGenerationWorkspace';
+import ProviderSelector from '@/components/ProviderSelector';
 import type { KieInputMode } from '@/lib/kie/types';
+import { useAppStore } from '@/store/useAppStore';
 
 interface VideoWorkspaceProps {
   inputMode: KieInputMode;
@@ -17,13 +20,16 @@ export default function VideoWorkspace({
   onExit,
   onOpenConnections,
 }: VideoWorkspaceProps) {
+  const videoEngine = useAppStore((state) => state.videoEngine);
+  const setVideoEngine = useAppStore((state) => state.setVideoEngine);
+
   return (
     <div className="space-y-5 sm:space-y-6">
       <section className="glass-card p-4 sm:p-5 md:p-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="eyebrow mb-1 flex items-center gap-1.5 text-[var(--neon-purple)]">
-              <Clapperboard size={13} /> Kie.ai video workspace
+              <Clapperboard size={13} /> Video workspace
             </p>
             <h2 className="display text-2xl font-semibold sm:text-3xl">Create motion from an idea or image</h2>
             <p className="mt-1 max-w-2xl text-sm text-[var(--foreground-muted)]">
@@ -49,13 +55,26 @@ export default function VideoWorkspace({
         </div>
       </section>
 
-      <KieGenerationWorkspace
-        mediaType="video"
-        inputMode={inputMode}
-        exampleFeatureId={`${inputMode}-to-video`}
-        onBack={onExit}
-        onOpenConnections={onOpenConnections}
-      />
+      <section className="glass-card p-4 sm:p-5 md:p-6">
+        <ProviderSelector value={videoEngine} onChange={setVideoEngine} />
+      </section>
+
+      {videoEngine === 'fal' ? (
+        <FalGenerationWorkspace
+          key={`fal-${inputMode}`}
+          inputMode={inputMode}
+          onBack={onExit}
+          onOpenConnections={onOpenConnections}
+        />
+      ) : (
+        <KieGenerationWorkspace
+          mediaType="video"
+          inputMode={inputMode}
+          exampleFeatureId={`${inputMode}-to-video`}
+          onBack={onExit}
+          onOpenConnections={onOpenConnections}
+        />
+      )}
     </div>
   );
 }
