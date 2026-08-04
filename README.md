@@ -57,7 +57,7 @@ Both providers create tab-local, in-memory jobs. For fal, the app uses the [asyn
 - **Deep-linkable views** — URL-synced feature state (`?feature=text-to-image`)
 - **Command palette** — `⌘K` to jump between modes
 - **Configurable settings** — aspect ratio and quality (1K / 2K / 4K) where the active engine supports them
-- **Kie task status** — actionable errors for invalid keys, credits, rate limits, policy/validation failures, provider errors, and timeouts
+- **Kie and fal job status** — actionable errors for invalid keys, credits, rate limits, policy/validation failures, provider errors, and timeouts
 
 ## 🚀 Getting Started
 
@@ -102,7 +102,7 @@ Provider credentials, including the fal key, persist in this browser’s `localS
 2. **Choose an engine** — Gemini or fal for all six modes; Pollinations or Cloudflare for free text-to-image
 3. **Upload images** if the mode requires them
 4. **Enter a prompt** — or click **Gen Example** for an AI-suggested starting point
-5. **Adjust settings** — aspect ratio, quality, Google Search (Gemini only)
+5. **Adjust settings** — aspect ratio, quality, and web grounding (available for Gemini and fal)
 6. **Generate** — preview in the lightbox, then download
 
 ### Generating Video with Kie
@@ -122,7 +122,7 @@ Provider credentials, including the fal key, persist in this browser’s `localS
 4. Keep the tab open while the app polls the fal queue; you can cancel an active job from its job card
 5. Preview and download the result before its temporary fal CDN URL expires
 
-fal requests send `X-Fal-Store-IO: 0`, which opts the JSON request/response payload out of fal history; it does **not** prevent media storage. Uploaded references are configured to expire after one day, and generated outputs after seven days. Both are served from publicly accessible temporary [fal CDN](https://fal.ai/docs/documentation/model-apis/fal-cdn) URLs, so anyone with a URL can access it until expiration—download results promptly and avoid sensitive media.
+fal inference submissions send `X-Fal-Store-IO: 0`, which opts the JSON request/response payload out of fal history; it does **not** prevent media storage. Uploaded references are configured to expire after one day, and generated outputs after seven days. Both are served from publicly accessible temporary [fal CDN](https://fal.ai/docs/documentation/model-apis/fal-cdn) URLs, so anyone with a URL can access it until expiration—download results promptly and avoid sensitive media.
 
 ## 🛠️ Tech Stack
 
