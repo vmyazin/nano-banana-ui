@@ -3,7 +3,7 @@ import type { Feature } from '@/types';
 // Dependency-free engine metadata + capability gating. Safe to import from both
 // client components and server routes (no provider SDKs here).
 
-export type EngineId = 'gemini' | 'pollinations' | 'cloudflare' | 'kie';
+export type EngineId = 'gemini' | 'pollinations' | 'cloudflare' | 'kie' | 'fal';
 
 export interface EngineMeta {
   id: EngineId;
@@ -64,6 +64,17 @@ export const ENGINES: EngineMeta[] = [
     requiresApiKey: true,
     supportsInputImages: true,
     supportsGoogleSearch: false,
+    supportsAspectRatio: true,
+    supportsImageSize: true,
+    free: false,
+  },
+  {
+    id: 'fal',
+    label: 'fal.ai · Nano Banana 2',
+    blurb: 'BYOK · all six image modes · Nano Banana 2',
+    requiresApiKey: true,
+    supportsInputImages: true,
+    supportsGoogleSearch: true,
     supportsAspectRatio: true,
     supportsImageSize: true,
     free: false,

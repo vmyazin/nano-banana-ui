@@ -20,6 +20,9 @@ interface AppState {
   kieApiKey: string;
   kieImageModel: string;
   kieVideoModel: string;
+  falApiKey: string;
+  videoEngine: 'kie' | 'fal';
+  falVideoModel: string;
   /** True once the persisted state has rehydrated on the client. */
   hasHydrated: boolean;
   setApiKey: (key: string) => void;
@@ -30,6 +33,9 @@ interface AppState {
   setKieApiKey: (key: string) => void;
   setKieImageModel: (modelId: string) => void;
   setKieVideoModel: (modelId: string) => void;
+  setFalApiKey: (key: string) => void;
+  setVideoEngine: (engine: 'kie' | 'fal') => void;
+  setFalVideoModel: (modelId: string) => void;
   setHasHydrated: (v: boolean) => void;
 }
 
@@ -79,6 +85,9 @@ export const useAppStore = create<AppState>()(
       kieApiKey: '',
       kieImageModel: 'nano-banana-pro',
       kieVideoModel: 'veo-3-1',
+      falApiKey: '',
+      videoEngine: 'kie',
+      falVideoModel: 'veo-3-1-fast',
       hasHydrated: false,
       setApiKey: (key) => set({ apiKey: key }),
       clearApiKey: () => set({ apiKey: '' }),
@@ -88,6 +97,9 @@ export const useAppStore = create<AppState>()(
       setKieApiKey: (key) => set({ kieApiKey: key }),
       setKieImageModel: (modelId) => set({ kieImageModel: modelId }),
       setKieVideoModel: (modelId) => set({ kieVideoModel: modelId }),
+      setFalApiKey: (key) => set({ falApiKey: key }),
+      setVideoEngine: (engine) => set({ videoEngine: engine }),
+      setFalVideoModel: (modelId) => set({ falVideoModel: modelId }),
       setHasHydrated: (v) => set({ hasHydrated: v }),
     }),
     {
@@ -101,6 +113,9 @@ export const useAppStore = create<AppState>()(
         kieApiKey: s.kieApiKey,
         kieImageModel: s.kieImageModel,
         kieVideoModel: s.kieVideoModel,
+        falApiKey: s.falApiKey,
+        videoEngine: s.videoEngine,
+        falVideoModel: s.falVideoModel,
       }),
       skipHydration: true,
       onRehydrateStorage: () => (state) => {
