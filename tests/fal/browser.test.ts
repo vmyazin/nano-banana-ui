@@ -13,6 +13,24 @@ import type { FalTask } from '../../lib/fal/types';
 const apiKey = 'id:secret';
 const requestId = 'req_12345678';
 
+const unsafeFalUrls = [
+  ['insecure HTTP', 'http://v3.fal.media/image.png'],
+  ['javascript scheme', 'javascript:alert(1)'],
+  ['data scheme', 'data:image/png;base64,AAAA'],
+  ['credentials', 'https://user:pass@v3.fal.media/image.png'],
+  ['leading whitespace', ' https://v3.fal.media/image.png'],
+  ['trailing whitespace', 'https://v3.fal.media/image.png '],
+  ['relative URL', '/images/image.png'],
+  ['malformed URL', '::not a URL::'],
+  ['HTTPS off-domain host', 'https://example.com/image.png'],
+  ['lookalike fal host', 'https://fal.media.example.com/image.png'],
+] as const;
+
+const safeFalUrls = [
+  ['root host', 'https://fal.media/image.png'],
+  ['CDN subdomain', 'https://v3.fal.media/image.png'],
+] as const;
+
 const submitArgs = {
   apiKey,
   modelId: 'nano-banana-2',
@@ -121,6 +139,26 @@ describe('fal browser route transport', () => {
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
+  it.each(unsafeFalUrls)('rejects an upload URL with %s without echoing it', async (_case, url) => {
+    const file = new File(['source'], 'source.png', { type: 'image/png' });
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ success: true, url }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const error = await uploadFalFiles(apiKey, [file]).catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(Error);
+    expect(String(error)).toContain('fal did not return a temporary file URL.');
+    expect(String(error)).not.toContain(url);
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it.each(safeFalUrls)('accepts an exact-trim credential-free HTTPS upload URL on the %s', async (_case, url) => {
+    const file = new File(['source'], 'source.png', { type: 'image/png' });
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ success: true, url })));
+
+    await expect(uploadFalFiles(apiKey, [file])).resolves.toEqual([url]);
+  });
+
   it('submits exactly once with only the required catalog and request fields', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       jsonResponse({ success: true, requestId })
@@ -154,6 +192,26 @@ describe('fal browser route transport', () => {
       'fal did not return a valid request ID.'
     );
     expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it.each(unsafeFalUrls)('rejects a successful status URL with %s without echoing it', async (_case, url) => {
+    const task = successTask({ resultUrl: url });
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ success: true, task }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const error = await getFalJobStatus(taskArgs).catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(Error);
+    expect(String(error)).toContain('fal did not return a valid task status.');
+    expect(String(error)).not.toContain(url);
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it.each(safeFalUrls)('accepts an exact-trim credential-free HTTPS status URL on the %s', async (_case, url) => {
+    const task = successTask({ resultUrl: url });
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ success: true, task })));
+
+    await expect(getFalJobStatus(taskArgs)).resolves.toEqual(task);
   });
 
   it('uses a safe route submit error and does not retry the POST', async () => {
@@ -339,12 +397,12 @@ describe('runFalImage', () => {
     expectOneSubmitAndNoCancel(fetchMock);
   });
 
-  it('rejects a success task without a usable result URL', async () => {
+  it.each(unsafeFalUrls)('never returns a successful image URL with %s', async (_case, url) => {
     const fetchMock = vi.fn(async (_url: string, init?: RequestInit) => {
       const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
       return body.operation === 'submit'
         ? jsonResponse({ success: true, requestId })
-        : jsonResponse({ success: true, task: successTask({ resultUrl: 'javascript:alert(1)' }) });
+        : jsonResponse({ success: true, task: successTask({ resultUrl: url }) });
     });
     vi.stubGlobal('fetch', fetchMock);
 

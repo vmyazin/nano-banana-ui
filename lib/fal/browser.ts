@@ -60,11 +60,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
-function isHttpUrl(value: unknown): value is string {
-  if (typeof value !== 'string' || !value.trim()) return false;
+function isSafeFalUrl(value: unknown): value is string {
+  if (typeof value !== 'string' || value !== value.trim() || /\s/.test(value)) return false;
   try {
     const url = new URL(value);
-    return url.protocol === 'https:' || url.protocol === 'http:';
+    const isFalCdn = url.hostname === 'fal.media' || url.hostname.endsWith('.fal.media');
+    return url.protocol === 'https:' && !url.username && !url.password && isFalCdn;
   } catch {
     return false;
   }
@@ -131,8 +132,8 @@ function isFalTask(value: unknown, expectedRequestId: string): value is FalTask 
     return false;
   }
 
-  if (value.resultUrl !== undefined && !isHttpUrl(value.resultUrl)) return false;
-  if (value.state === 'success' && !isHttpUrl(value.resultUrl)) return false;
+  if (value.resultUrl !== undefined && !isSafeFalUrl(value.resultUrl)) return false;
+  if (value.state === 'success' && !isSafeFalUrl(value.resultUrl)) return false;
   return (
     (value.mimeType === undefined || typeof value.mimeType === 'string') &&
     (value.error === undefined || typeof value.error === 'string')
@@ -150,7 +151,7 @@ export async function uploadFalFiles(apiKey: string, files: File[]): Promise<str
         { method: 'POST', body: form },
         apiKey
       );
-      if (!isHttpUrl(data.url)) {
+      if (!isSafeFalUrl(data.url)) {
         throw new Error('fal did not return a temporary file URL.');
       }
       return data.url;
@@ -314,7 +315,7 @@ export async function runFalImage(
     }
 
     if (task.state === 'success') {
-      if (!isHttpUrl(task.resultUrl)) {
+      if (!isSafeFalUrl(task.resultUrl)) {
         throw new Error('fal completed without a usable image URL.');
       }
       return { url: task.resultUrl, mimeType: task.mimeType };
