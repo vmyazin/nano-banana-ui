@@ -57,6 +57,7 @@ const RESOLUTION_OPTIONS = ['1K', '2K', '4K'].map((value) => ({
 const FAL_GENERATION_ERROR = 'Unable to generate this image with fal. Please try again.';
 const DOWNLOAD_ERROR = 'Unable to download this image. Please try again.';
 const MAX_REMOTE_IMAGE_BYTES = 20 * 1024 * 1024;
+const MAX_FAL_REFERENCE_BYTES = 20 * 1024 * 1024;
 const SUPPORTED_RASTER_MIMES = new Set([
   'image/jpeg',
   'image/png',
@@ -285,6 +286,16 @@ export default function GenerationInterface({ feature, apiKey, onBack, onOpenCon
       return;
     }
 
+    if (activeEngine.id === 'fal') {
+      const oversizedIndex = imageFiles.findIndex(
+        (file) => file.size > MAX_FAL_REFERENCE_BYTES
+      );
+      if (oversizedIndex !== -1) {
+        setError(`Reference image ${oversizedIndex + 1} is larger than 20 MiB.`);
+        return;
+      }
+    }
+
     try {
       const dataUrls = await Promise.all(imageFiles.map(readImageAsDataUrl));
       setImages((prev) => [...prev, ...dataUrls]);
@@ -292,7 +303,7 @@ export default function GenerationInterface({ feature, apiKey, onBack, onOpenCon
     } catch {
       setError('Unable to read one or more images');
     }
-  }, [feature.maxImages, images.length]);
+  }, [activeEngine.id, feature.maxImages, images.length]);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     void addImageFiles(Array.from(e.target.files || []));

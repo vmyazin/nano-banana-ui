@@ -1,6 +1,7 @@
 // @vitest-environment node
 
 import type { NextRequest } from 'next/server';
+import { runInNewContext } from 'node:vm';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const {
@@ -53,6 +54,36 @@ function formRequest(entries: Array<[string, string | Blob]>): NextRequest {
     method: 'POST',
     body: form,
   }) as NextRequest;
+}
+
+function repeatingStreamRequest(
+  path: string,
+  chunkBytes: number,
+  contentType: string,
+  totalChunks = 24
+): { request: NextRequest; cancel: ReturnType<typeof vi.fn> } {
+  const cancel = vi.fn();
+  let emittedChunks = 0;
+  const body = new ReadableStream<Uint8Array>({
+    pull(controller) {
+      if (emittedChunks >= totalChunks) {
+        controller.close();
+        return;
+      }
+      emittedChunks += 1;
+      controller.enqueue(new Uint8Array(chunkBytes));
+    },
+    cancel,
+  });
+  const request = new Request(`http://localhost${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': contentType },
+    body,
+    duplex: 'half',
+  } as RequestInit & { duplex: 'half' });
+
+  expect(request.headers.get('content-length')).toBeNull();
+  return { request: request as NextRequest, cancel };
 }
 
 const validUploadSignatures = [
@@ -109,6 +140,25 @@ describe('fal API routes', () => {
       expect(validateFalApiKey).not.toHaveBeenCalled();
     });
 
+    it('stops an oversized streamed JSON body without Content-Length before validation', async () => {
+      const { request, cancel } = repeatingStreamRequest(
+        '/api/fal/validate',
+        1024,
+        'application/json',
+        6
+      );
+
+      const response = await validatePost(request);
+
+      expect(response.status).toBe(413);
+      await expect(response.json()).resolves.toEqual({
+        success: false,
+        error: 'The request body is too large.',
+      });
+      expect(cancel).toHaveBeenCalledOnce();
+      expect(validateFalApiKey).not.toHaveBeenCalled();
+    });
+
     it('validates an API key and returns no provider data', async () => {
       validateFalApiKey.mockResolvedValue(undefined);
 
@@ -116,6 +166,27 @@ describe('fal API routes', () => {
 
       expect(response.status).toBe(200);
       await expect(response.json()).resolves.toEqual({ success: true });
+      expect(validateFalApiKey).toHaveBeenCalledWith('id:secret');
+    });
+
+    it('accepts request stream chunks created in another JavaScript realm', async () => {
+      validateFalApiKey.mockResolvedValue(undefined);
+      const json = JSON.stringify({ apiKey: 'id:secret' });
+      const bytes = Array.from(new TextEncoder().encode(json));
+      const foreignChunk = runInNewContext(
+        `new Uint8Array([${bytes.join(',')}])`
+      ) as Uint8Array;
+      const read = vi.fn()
+        .mockResolvedValueOnce({ done: false, value: foreignChunk })
+        .mockResolvedValueOnce({ done: true, value: undefined });
+      const response = await validatePost({
+        headers: new Headers({ 'content-type': 'application/json' }),
+        body: {
+          getReader: () => ({ read, cancel: vi.fn(), releaseLock: vi.fn() }),
+        },
+      } as unknown as NextRequest);
+
+      expect(response.status).toBe(200);
       expect(validateFalApiKey).toHaveBeenCalledWith('id:secret');
     });
 
@@ -167,6 +238,24 @@ describe('fal API routes', () => {
 
       expect(response.status).toBe(413);
       expect(formData).not.toHaveBeenCalled();
+      expect(uploadFalFile).not.toHaveBeenCalled();
+    });
+
+    it('stops an oversized streamed multipart body without Content-Length before upload', async () => {
+      const { request, cancel } = repeatingStreamRequest(
+        '/api/fal/upload',
+        1024 * 1024,
+        'multipart/form-data; boundary=fal-test-boundary'
+      );
+
+      const response = await uploadPost(request);
+
+      expect(response.status).toBe(413);
+      await expect(response.json()).resolves.toEqual({
+        success: false,
+        error: 'The request body is too large.',
+      });
+      expect(cancel).toHaveBeenCalledOnce();
       expect(uploadFalFile).not.toHaveBeenCalled();
     });
 
@@ -420,6 +509,27 @@ describe('fal API routes', () => {
       expect(response.status).toBe(413);
       expect(json).not.toHaveBeenCalled();
       expect(submitFalTask).not.toHaveBeenCalled();
+    });
+
+    it('stops an oversized streamed JSON body without Content-Length before submission', async () => {
+      const { request, cancel } = repeatingStreamRequest(
+        '/api/fal/queue',
+        16 * 1024,
+        'application/json',
+        6
+      );
+
+      const response = await queuePost(request);
+
+      expect(response.status).toBe(413);
+      await expect(response.json()).resolves.toEqual({
+        success: false,
+        error: 'The request body is too large.',
+      });
+      expect(cancel).toHaveBeenCalledOnce();
+      expect(submitFalTask).not.toHaveBeenCalled();
+      expect(getFalTask).not.toHaveBeenCalled();
+      expect(cancelFalTask).not.toHaveBeenCalled();
     });
 
     it('submits only allow-listed, validated fields', async () => {

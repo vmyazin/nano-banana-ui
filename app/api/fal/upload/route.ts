@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import { FalApiError, uploadFalFile } from '@/lib/fal/server';
+import {
+  FalRequestBodyTooLarge,
+  parseBoundedFalFormData,
+} from '@/lib/fal/request-body';
 
 const GENERIC_FAL_ERROR = 'Something went wrong while contacting fal.';
 const MAX_UPLOAD_BODY_BYTES = 21 * 1024 * 1024;
@@ -8,11 +12,6 @@ const MAX_FILE_BYTES = 20 * 1024 * 1024;
 const MAX_API_KEY_LENGTH = 1024;
 const SIGNATURE_PREFIX_BYTES = 64;
 const ALLOWED_IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/avif']);
-
-function declaredBodyTooLarge(request: NextRequest): boolean {
-  const value = request.headers?.get('content-length');
-  return value !== null && /^\d+$/.test(value) && Number(value) > MAX_UPLOAD_BODY_BYTES;
-}
 
 function isFile(value: unknown): value is File {
   if (value === null || typeof value !== 'object') return false;
@@ -102,17 +101,16 @@ function errorResponse(error: unknown) {
 }
 
 export async function POST(request: NextRequest) {
-  if (declaredBodyTooLarge(request)) {
-    return NextResponse.json(
-      { success: false, error: 'The request body is too large.' },
-      { status: 413 }
-    );
-  }
-
   let form: FormData;
   try {
-    form = await request.formData();
-  } catch {
+    form = await parseBoundedFalFormData(request, MAX_UPLOAD_BODY_BYTES);
+  } catch (error) {
+    if (error instanceof FalRequestBodyTooLarge) {
+      return NextResponse.json(
+        { success: false, error: 'The request body is too large.' },
+        { status: 413 }
+      );
+    }
     return NextResponse.json(
       { success: false, error: 'The request body must be valid multipart form data.' },
       { status: 400 }

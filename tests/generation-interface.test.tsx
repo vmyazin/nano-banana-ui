@@ -392,6 +392,27 @@ describe('GenerationInterface fal image generation', () => {
     ]);
   });
 
+  it('rejects an oversized fal reference before FileReader converts it to a data URL', async () => {
+    const readAsDataUrl = vi.spyOn(FileReader.prototype, 'readAsDataURL');
+    renderInterface(multiImageCompose);
+    const oversized = new File(
+      [new Uint8Array(20 * 1024 * 1024 + 1)],
+      'oversized.png',
+      { type: 'image/png' }
+    );
+
+    fireEvent.change(document.querySelector('input[type="file"]')!, {
+      target: { files: [oversized] },
+    });
+
+    await waitFor(() =>
+      expect(screen.getByText('Reference image 1 is larger than 20 MiB.')).toBeTruthy()
+    );
+    expect(readAsDataUrl).not.toHaveBeenCalled();
+    expect(screen.queryByAltText('Upload 1')).toBeNull();
+    expect(mockedRunFalImage).not.toHaveBeenCalled();
+  });
+
   it.each([
     ['image/jpeg', 'jpg'],
     ['image/png', 'png'],

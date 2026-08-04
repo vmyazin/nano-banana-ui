@@ -7,6 +7,10 @@ import {
   submitFalTask,
 } from '@/lib/fal/server';
 import { resolveFalVariant, validateFalInput } from '@/lib/fal/catalog';
+import {
+  FalRequestBodyTooLarge,
+  parseBoundedFalJson,
+} from '@/lib/fal/request-body';
 import type { FalInputMode, FalMediaType, FalValue } from '@/lib/fal/types';
 
 const GENERIC_FAL_ERROR = 'Something went wrong while contacting fal.';
@@ -20,11 +24,6 @@ const MAX_UPLOAD_URL_LENGTH = 4096;
 const MAX_VALUE_ENTRIES = 64;
 const MAX_VALUE_KEY_LENGTH = 128;
 const MAX_VALUE_STRING_LENGTH = 4096;
-
-function declaredBodyTooLarge(request: NextRequest): boolean {
-  const value = request.headers?.get('content-length');
-  return value !== null && /^\d+$/.test(value) && Number(value) > MAX_QUEUE_BODY_BYTES;
-}
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return false;
@@ -107,17 +106,16 @@ function invalidRequest(message: string) {
 }
 
 export async function POST(request: NextRequest) {
-  if (declaredBodyTooLarge(request)) {
-    return NextResponse.json(
-      { success: false, error: 'The request body is too large.' },
-      { status: 413 }
-    );
-  }
-
   let body: unknown;
   try {
-    body = await request.json();
-  } catch {
+    body = await parseBoundedFalJson(request, MAX_QUEUE_BODY_BYTES);
+  } catch (error) {
+    if (error instanceof FalRequestBodyTooLarge) {
+      return NextResponse.json(
+        { success: false, error: 'The request body is too large.' },
+        { status: 413 }
+      );
+    }
     return invalidRequest('The request body must be valid JSON.');
   }
 
