@@ -12,22 +12,28 @@ interface ApiKeyConfigProps {
 }
 
 const GENERIC_FAL_VALIDATION_ERROR = 'Unable to validate your fal API key.';
-const MAX_FAL_VALIDATION_ERROR_LENGTH = 200;
+const PUBLIC_FAL_VALIDATION_ERRORS = new Set([
+  'Your fal API key is invalid, revoked, or lacks access to this model.',
+  'Your fal account needs additional credits.',
+  'fal rejected one or more model settings. Review the controls and try again.',
+  'fal is rate limiting requests. Please wait and try again.',
+  'fal is temporarily unavailable. Please try again.',
+  'fal could not complete that request.',
+  'Something went wrong while contacting fal.',
+]);
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
-function safeFalValidationError(value: unknown, candidate: string): string {
+function safeFalValidationError(value: unknown): string {
   if (!isRecord(value) || typeof value.error !== 'string') {
     return GENERIC_FAL_VALIDATION_ERROR;
   }
 
-  const error = value.error.trim();
-  if (!error || error.length > MAX_FAL_VALIDATION_ERROR_LENGTH || error.includes(candidate)) {
-    return GENERIC_FAL_VALIDATION_ERROR;
-  }
-
-  return error;
+  return PUBLIC_FAL_VALIDATION_ERRORS.has(value.error)
+    ? value.error
+    : GENERIC_FAL_VALIDATION_ERROR;
 }
 
 export default function ApiKeyConfig({ open, onOpenChange }: ApiKeyConfigProps) {
@@ -57,15 +63,43 @@ export default function ApiKeyConfig({ open, onOpenChange }: ApiKeyConfigProps) 
   const [validationError, setValidationError] = useState('');
   const [kieValidationError, setKieValidationError] = useState('');
   const [falValidationError, setFalValidationError] = useState('');
-  const falValidationPendingRef = useRef(false);
   const mountedRef = useRef(true);
+  const currentOpenRef = useRef(open);
+  const saveOperationRef = useRef(0);
+  const savePendingRef = useRef(false);
+  const falAbortControllerRef = useRef<{
+    operationId: number;
+    controller: AbortController;
+  } | null>(null);
 
   useEffect(() => {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
+      currentOpenRef.current = false;
+      saveOperationRef.current += 1;
+      savePendingRef.current = false;
+      falAbortControllerRef.current?.controller.abort();
+      falAbortControllerRef.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    currentOpenRef.current = open;
+    if (open) return;
+
+    saveOperationRef.current += 1;
+    savePendingRef.current = false;
+    falAbortControllerRef.current?.controller.abort();
+    falAbortControllerRef.current = null;
+
+    const resetId = window.setTimeout(() => {
+      if (mountedRef.current && !currentOpenRef.current) {
+        setIsValidating(false);
+      }
+    }, 0);
+    return () => window.clearTimeout(resetId);
+  }, [open]);
 
   // Seed provider inputs with the saved keys whenever the dialog opens.
   useEffect(() => {
@@ -78,17 +112,26 @@ export default function ApiKeyConfig({ open, onOpenChange }: ApiKeyConfigProps) 
       setValidationError('');
       setKieValidationError('');
       setFalValidationError('');
+      if (!savePendingRef.current) {
+        setIsValidating(false);
+      }
     }, 0);
     return () => window.clearTimeout(resetId);
   }, [open, savedKey, savedKieKey, savedFalKey]);
 
-  const validateApiKey = async (key: string): Promise<boolean> => {
+  const isOperationCurrent = (operationId: number) =>
+    mountedRef.current &&
+    currentOpenRef.current &&
+    saveOperationRef.current === operationId;
+
+  const validateApiKey = async (key: string, operationId: number): Promise<boolean> => {
     if (!key.startsWith('AIza') || key.length < 39) {
-      setValidationError('Invalid key format. Google API keys start with "AIza" and are at least 39 characters.');
+      if (isOperationCurrent(operationId)) {
+        setValidationError('Invalid key format. Google API keys start with "AIza" and are at least 39 characters.');
+      }
       return false;
     }
 
-    setIsValidating(true);
     setValidationError('');
 
     try {
@@ -97,7 +140,10 @@ export default function ApiKeyConfig({ open, onOpenChange }: ApiKeyConfigProps) 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt: 'test', images: [], config: {}, apiKey: key }),
       });
+      if (!isOperationCurrent(operationId)) return false;
+
       const data = await response.json();
+      if (!isOperationCurrent(operationId)) return false;
 
       if (response.ok || data.error?.includes('image data')) {
         return true;
@@ -112,20 +158,21 @@ export default function ApiKeyConfig({ open, onOpenChange }: ApiKeyConfigProps) 
         return true;
       }
     } catch {
-      setValidationError('Could not validate the Gemini key. Please try again.');
+      if (isOperationCurrent(operationId)) {
+        setValidationError('Could not validate the Gemini key. Please try again.');
+      }
       return false;
-    } finally {
-      setIsValidating(false);
     }
   };
 
-  const validateKieApiKey = async (key: string): Promise<boolean> => {
+  const validateKieApiKey = async (key: string, operationId: number): Promise<boolean> => {
     if (!key.trim()) {
-      setKieValidationError('Enter your Kie API key.');
+      if (isOperationCurrent(operationId)) {
+        setKieValidationError('Enter your Kie API key.');
+      }
       return false;
     }
 
-    setIsValidating(true);
     setKieValidationError('');
     try {
       const response = await fetch('/api/kie/validate', {
@@ -133,88 +180,116 @@ export default function ApiKeyConfig({ open, onOpenChange }: ApiKeyConfigProps) 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ apiKey: key }),
       });
+      if (!isOperationCurrent(operationId)) return false;
+
       const data = await response.json();
+      if (!isOperationCurrent(operationId)) return false;
+
       if (response.ok && data.success) return true;
       setKieValidationError(data.error || 'Kie could not validate this key.');
       return false;
     } catch {
-      setKieValidationError('Could not reach Kie to validate this key. Please try again.');
+      if (isOperationCurrent(operationId)) {
+        setKieValidationError('Could not reach Kie to validate this key. Please try again.');
+      }
       return false;
-    } finally {
-      setIsValidating(false);
     }
   };
 
-  const validateFalApiKey = async (key: string): Promise<boolean> => {
-    if (falValidationPendingRef.current) return false;
-
-    falValidationPendingRef.current = true;
-    setIsValidating(true);
+  const validateFalApiKey = async (key: string, operationId: number): Promise<boolean> => {
     setFalValidationError('');
+    const controller = new AbortController();
+    falAbortControllerRef.current = { operationId, controller };
 
     try {
       const response = await fetch('/api/fal/validate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ apiKey: key }),
+        signal: controller.signal,
       });
-      const data: unknown = await response.json();
+      if (!isOperationCurrent(operationId)) return false;
 
-      if (!mountedRef.current) return false;
+      const data: unknown = await response.json();
+      if (!isOperationCurrent(operationId)) return false;
+
       if (response.ok && isRecord(data) && data.success === true) return true;
 
-      setFalValidationError(safeFalValidationError(data, key));
+      setFalValidationError(safeFalValidationError(data));
       return false;
     } catch {
-      if (mountedRef.current) {
+      if (isOperationCurrent(operationId)) {
         setFalValidationError(GENERIC_FAL_VALIDATION_ERROR);
       }
       return false;
-    } finally {
-      falValidationPendingRef.current = false;
-      if (mountedRef.current) {
-        setIsValidating(false);
-      }
     }
   };
 
   // Validate + save the Gemini key (if entered), then close. Cloudflare creds
   // are already persisted as they're typed.
   const handleSave = async () => {
-    if (falValidationPendingRef.current) return;
+    if (savePendingRef.current || !currentOpenRef.current) return;
 
-    const trimmedKey = keyInput.trim();
-    if (trimmedKey && trimmedKey !== savedKey) {
-      const isValid = await validateApiKey(trimmedKey);
-      if (!isValid) return; // keep the dialog open to show the error
-      setApiKey(trimmedKey);
-      toast.success('Gemini key saved');
-    }
-    const trimmedKieKey = kieKeyInput.trim();
-    if (trimmedKieKey && trimmedKieKey !== savedKieKey) {
-      const isValid = await validateKieApiKey(trimmedKieKey);
-      if (!isValid) return;
-      setKieApiKey(trimmedKieKey);
-      toast.success('Kie key validated and saved');
-    }
-    const trimmedFalKey = falKeyInput.trim();
-    if (trimmedFalKey !== savedFalKey) {
-      if (!trimmedFalKey) {
-        setFalApiKey('');
-      } else {
-        const isValid = await validateFalApiKey(trimmedFalKey);
-        if (!isValid) return;
-        setFalApiKey(trimmedFalKey);
-        toast.success('fal key validated and saved');
+    const operationId = saveOperationRef.current + 1;
+    saveOperationRef.current = operationId;
+    savePendingRef.current = true;
+    setIsValidating(true);
+
+    try {
+      const trimmedKey = keyInput.trim();
+      if (trimmedKey && trimmedKey !== savedKey) {
+        const isValid = await validateApiKey(trimmedKey, operationId);
+        if (!isOperationCurrent(operationId) || !isValid) return;
+        setApiKey(trimmedKey);
+        toast.success('Gemini key saved');
+      }
+
+      const trimmedKieKey = kieKeyInput.trim();
+      if (trimmedKieKey && trimmedKieKey !== savedKieKey) {
+        const isValid = await validateKieApiKey(trimmedKieKey, operationId);
+        if (!isOperationCurrent(operationId) || !isValid) return;
+        setKieApiKey(trimmedKieKey);
+        toast.success('Kie key validated and saved');
+      }
+
+      const trimmedFalKey = falKeyInput.trim();
+      if (trimmedFalKey !== savedFalKey) {
+        if (!trimmedFalKey) {
+          if (!isOperationCurrent(operationId)) return;
+          setFalApiKey('');
+        } else {
+          const isValid = await validateFalApiKey(trimmedFalKey, operationId);
+          if (!isOperationCurrent(operationId) || !isValid) return;
+          setFalApiKey(trimmedFalKey);
+          toast.success('fal key validated and saved');
+        }
+      }
+
+      if (!isOperationCurrent(operationId)) return;
+      setValidationError('');
+      setKieValidationError('');
+      setFalValidationError('');
+      onOpenChange(false);
+    } finally {
+      if (saveOperationRef.current === operationId) {
+        savePendingRef.current = false;
+        if (falAbortControllerRef.current?.operationId === operationId) {
+          falAbortControllerRef.current = null;
+        }
+        if (mountedRef.current) {
+          setIsValidating(false);
+        }
       }
     }
-    setValidationError('');
-    setKieValidationError('');
-    setFalValidationError('');
-    onOpenChange(false);
   };
 
   const handleClose = () => {
+    currentOpenRef.current = false;
+    saveOperationRef.current += 1;
+    savePendingRef.current = false;
+    falAbortControllerRef.current?.controller.abort();
+    falAbortControllerRef.current = null;
+    setIsValidating(false);
     setValidationError('');
     setKieValidationError('');
     setFalValidationError('');

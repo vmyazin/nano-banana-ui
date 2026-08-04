@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { useState } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import Home from '../../app/page';
@@ -12,6 +13,44 @@ vi.mock('@/components/FeatureSelector', () => ({ default: () => null }));
 vi.mock('@/components/VideoWorkspace', () => ({ default: () => null }));
 
 const GENERIC_FAL_ERROR = 'Unable to validate your fal API key.';
+const INVALID_FAL_KEY_ERROR =
+  'Your fal API key is invalid, revoked, or lacks access to this model.';
+const PUBLIC_FAL_ERRORS = [
+  INVALID_FAL_KEY_ERROR,
+  'Your fal account needs additional credits.',
+  'fal rejected one or more model settings. Review the controls and try again.',
+  'fal is rate limiting requests. Please wait and try again.',
+  'fal is temporarily unavailable. Please try again.',
+  'fal could not complete that request.',
+  'Something went wrong while contacting fal.',
+] as const;
+
+function deferredResponse() {
+  let resolve!: (response: Response) => void;
+  const promise = new Promise<Response>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+}
+
+function ControlledApiKeyConfig({ onOpenChange }: { onOpenChange: (open: boolean) => void }) {
+  const [open, setOpen] = useState(true);
+
+  return (
+    <>
+      <button type="button" onClick={() => setOpen(true)}>
+        Reopen dialog
+      </button>
+      <ApiKeyConfig
+        open={open}
+        onOpenChange={(nextOpen) => {
+          onOpenChange(nextOpen);
+          setOpen(nextOpen);
+        }}
+      />
+    </>
+  );
+}
 
 function setStoredKeys(overrides: Partial<ReturnType<typeof useAppStore.getState>> = {}) {
   useAppStore.setState({
@@ -145,7 +184,7 @@ describe('fal API connection', () => {
     async (status) => {
       setStoredKeys({ falApiKey: 'old:secret' });
       const fetchMock = vi.fn().mockResolvedValue(
-        new Response(JSON.stringify({ success: false, error: 'This fal key is not authorized.' }), {
+        new Response(JSON.stringify({ success: false, error: INVALID_FAL_KEY_ERROR }), {
           status,
         })
       );
@@ -158,12 +197,31 @@ describe('fal API connection', () => {
       fireEvent.change(input, { target: { value: 'candidate:secret' } });
       fireEvent.click(screen.getByRole('button', { name: 'Save & close' }));
 
-      expect(await screen.findByRole('alert')).toHaveTextContent('This fal key is not authorized.');
+      expect(await screen.findByRole('alert')).toHaveTextContent(INVALID_FAL_KEY_ERROR);
       expect(screen.queryByText('candidate:secret')).not.toBeInTheDocument();
       expect(useAppStore.getState().falApiKey).toBe('old:secret');
       expect(onOpenChange).not.toHaveBeenCalledWith(false);
     }
   );
+
+  it.each(PUBLIC_FAL_ERRORS)('displays the known public fal error: %s', async (publicError) => {
+    setStoredKeys({ falApiKey: 'old:secret' });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ success: false, error: publicError }), { status: 400 })
+      )
+    );
+
+    render(<ApiKeyConfig open onOpenChange={vi.fn()} />);
+    const input = await screen.findByLabelText('fal API key');
+    await waitFor(() => expect(input).toHaveValue('old:secret'));
+    fireEvent.change(input, { target: { value: 'candidate:secret' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save & close' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(publicError);
+    expect(useAppStore.getState().falApiKey).toBe('old:secret');
+  });
 
   it.each([
     ['invalid JSON', () => Promise.resolve(new Response('{not-json', { status: 200 }))],
@@ -201,6 +259,9 @@ describe('fal API connection', () => {
   it.each([
     ['an overlong route error', `Rejected: ${'x'.repeat(201)}`],
     ['a route error containing the candidate', 'Rejected candidate:secret'],
+    ['a route error containing part of the candidate', 'Rejected secret'],
+    ['a route error containing the URL-encoded candidate', 'Rejected candidate%3Asecret'],
+    ['an arbitrary short provider detail', 'Provider request ref 123 failed.'],
   ])('does not render %s', async (_label, routeError) => {
     setStoredKeys({ falApiKey: 'old:secret' });
     vi.stubGlobal(
@@ -226,7 +287,7 @@ describe('fal API connection', () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue(
-        new Response(JSON.stringify({ success: false, error: 'This fal key is not authorized.' }), {
+        new Response(JSON.stringify({ success: false, error: INVALID_FAL_KEY_ERROR }), {
           status: 401,
         })
       )
@@ -302,6 +363,123 @@ describe('fal API connection', () => {
 
     expect(useAppStore.getState().falApiKey).toBe('old:secret');
     expect(onOpenChange).not.toHaveBeenCalledWith(false);
+  });
+
+  it('cancels validation when the controlled dialog closes', async () => {
+    setStoredKeys({ falApiKey: 'old:secret' });
+    const validation = deferredResponse();
+    const fetchMock = vi.fn().mockReturnValue(validation.promise);
+    vi.stubGlobal('fetch', fetchMock);
+    const onOpenChange = vi.fn();
+
+    render(<ControlledApiKeyConfig onOpenChange={onOpenChange} />);
+    const input = await screen.findByLabelText('fal API key');
+    await waitFor(() => expect(input).toHaveValue('old:secret'));
+    fireEvent.change(input, { target: { value: 'new:secret' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save & close' }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    const signal = (fetchMock.mock.calls[0][1] as RequestInit).signal as AbortSignal | undefined;
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    expect(onOpenChange).toHaveBeenCalledTimes(1);
+    expect(onOpenChange).toHaveBeenLastCalledWith(false);
+
+    await act(async () => {
+      validation.resolve(new Response(JSON.stringify({ success: true }), { status: 200 }));
+      await validation.promise;
+    });
+
+    expect(useAppStore.getState().falApiKey).toBe('old:secret');
+    expect(onOpenChange).toHaveBeenCalledTimes(1);
+    expect(signal).toBeInstanceOf(AbortSignal);
+    expect(signal?.aborted).toBe(true);
+  });
+
+  it.each([
+    ['success', new Response(JSON.stringify({ success: true }), { status: 200 })],
+    [
+      'error',
+      new Response(JSON.stringify({ success: false, error: INVALID_FAL_KEY_ERROR }), {
+        status: 401,
+      }),
+    ],
+  ])('ignores an old %s response after the dialog closes and reopens', async (_kind, response) => {
+    setStoredKeys({ falApiKey: 'old:secret' });
+    const validation = deferredResponse();
+    vi.stubGlobal('fetch', vi.fn().mockReturnValue(validation.promise));
+    const onOpenChange = vi.fn();
+
+    render(<ControlledApiKeyConfig onOpenChange={onOpenChange} />);
+    const input = await screen.findByLabelText('fal API key');
+    await waitFor(() => expect(input).toHaveValue('old:secret'));
+    fireEvent.change(input, { target: { value: 'stale:secret' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save & close' }));
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Reopen dialog' }));
+
+    const reopenedInput = await screen.findByLabelText('fal API key');
+    await waitFor(() => expect(reopenedInput).toHaveValue('old:secret'));
+    const reopenedSaveButton = screen.getByRole('button', {
+      name: /Save & close|Validating…/,
+    });
+    const reopenedWasUsable =
+      reopenedSaveButton.textContent === 'Save & close' && !reopenedSaveButton.hasAttribute('disabled');
+
+    await act(async () => {
+      validation.resolve(response);
+      await validation.promise;
+    });
+
+    expect(reopenedWasUsable).toBe(true);
+    expect(screen.getByLabelText('fal API key')).toHaveValue('old:secret');
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(useAppStore.getState().falApiKey).toBe('old:secret');
+    expect(onOpenChange).toHaveBeenCalledTimes(1);
+    expect(onOpenChange).toHaveBeenLastCalledWith(false);
+  });
+
+  it('lets only the new operation save after close and reopen', async () => {
+    setStoredKeys({ falApiKey: 'old:secret' });
+    const oldValidation = deferredResponse();
+    const newValidation = deferredResponse();
+    const fetchMock = vi
+      .fn()
+      .mockReturnValueOnce(oldValidation.promise)
+      .mockReturnValueOnce(newValidation.promise);
+    vi.stubGlobal('fetch', fetchMock);
+    const onOpenChange = vi.fn();
+
+    render(<ControlledApiKeyConfig onOpenChange={onOpenChange} />);
+    const input = await screen.findByLabelText('fal API key');
+    await waitFor(() => expect(input).toHaveValue('old:secret'));
+    fireEvent.change(input, { target: { value: 'stale:secret' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save & close' }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Reopen dialog' }));
+
+    const reopenedInput = await screen.findByLabelText('fal API key');
+    await waitFor(() => expect(reopenedInput).toHaveValue('old:secret'));
+    fireEvent.change(reopenedInput, { target: { value: 'fresh:secret' } });
+    fireEvent.click(screen.getByRole('button', { name: /Save & close|Validating…/ }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+
+    await act(async () => {
+      oldValidation.resolve(new Response(JSON.stringify({ success: true }), { status: 200 }));
+      await oldValidation.promise;
+    });
+    expect(useAppStore.getState().falApiKey).toBe('old:secret');
+    expect(onOpenChange).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('button', { name: 'Validating…' })).toBeDisabled();
+
+    await act(async () => {
+      newValidation.resolve(new Response(JSON.stringify({ success: true }), { status: 200 }));
+      await newValidation.promise;
+    });
+    await waitFor(() => expect(useAppStore.getState().falApiKey).toBe('fresh:secret'));
+    expect(onOpenChange).toHaveBeenCalledTimes(2);
+    expect(onOpenChange).toHaveBeenLastCalledWith(false);
   });
 
   it.each([
