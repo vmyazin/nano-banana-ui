@@ -483,6 +483,7 @@ function FalGenerationWorkspaceSession({
         mediaType: 'video',
         inputMode,
         prompt: submittedPrompt,
+        controlValues: values,
         createdAt: now,
         updatedAt: now,
         pollAttempt: 0,

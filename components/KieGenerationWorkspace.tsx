@@ -304,6 +304,7 @@ export default function KieGenerationWorkspace({
         mediaType,
         inputMode,
         prompt: submittedPrompt,
+        controlValues: values,
         createdAt: now,
         updatedAt: now,
         pollAttempt: 0,

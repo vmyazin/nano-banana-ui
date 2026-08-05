@@ -19,6 +19,8 @@ import {
 import { runFalImage } from '@/lib/fal/browser';
 import { useAppStore } from '@/store/useAppStore';
 import { useDraftStore } from '@/store/useDraftStore';
+import { useGalleryStore } from '@/store/useGalleryStore';
+import { resultBlob } from '@/lib/gallery/capture';
 import { isValueCompatible, type CarryOverField } from '@/lib/draft/carry-over';
 import {
   enginesForFeature,
@@ -413,12 +415,39 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
       const detailsInfo = data.details ? `\n\nDetails: ${data.details}` : '';
       throw new Error((data.error || 'Failed to generate image') + debugInfo + detailsInfo);
     },
-    onSuccess: () => toast.success('Image generated'),
+    onSuccess: (result) => {
+      toast.success('Image generated');
+      // Images are small enough to keep every time. The provider URL fal hands
+      // back expires in a week, so the bytes are what make this durable.
+      void captureImage(result.dataUrl);
+    },
     onError: (e) => {
       if (e instanceof LocalFalCancellation) return;
       toast.error(e instanceof Error ? e.message : 'Generation failed');
     },
   });
+
+  const captureImage = async (result: string) => {
+    try {
+      const blob = await resultBlob(result, 'image');
+      await useGalleryStore.getState().record({
+        kind: 'image',
+        prompt,
+        slug: filenameSlug ?? undefined,
+        provider: activeEngine.id,
+        controlValues: {
+          aspect_ratio: config.aspectRatio ?? '16:9',
+          resolution: config.imageSize ?? '1K',
+        },
+        mimeType: blob.type || 'image/png',
+        sourceUrl: result.startsWith('data:') ? undefined : result,
+        blob,
+      });
+    } catch {
+      // A result that cannot be filed is still on screen and downloadable;
+      // failing to archive it must not read as a failed generation.
+    }
+  };
 
   // Generate a fresh, feature-tailored example prompt via gemini-2.5-flash-lite.
   const exampleMutation = useMutation({

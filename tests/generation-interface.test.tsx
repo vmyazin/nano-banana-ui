@@ -21,6 +21,12 @@ vi.mock('@/lib/micro-ai/browser', () => ({
   requestExamplePrompt: vi.fn().mockResolvedValue('An unused example prompt'),
 }));
 
+// Archiving a result is covered in tests/gallery; here it must not add network
+// traffic to assertions about what generation itself fetches.
+vi.mock('@/lib/gallery/capture', () => ({
+  resultBlob: vi.fn().mockResolvedValue(new Blob(['png'], { type: 'image/png' })),
+}));
+
 vi.mock('@/components/KieGenerationWorkspace', () => ({
   default: ({ engineSelector }: { engineSelector?: ReactNode }) => (
     <div data-testid="kie-workspace">

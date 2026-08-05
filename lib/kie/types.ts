@@ -57,6 +57,8 @@ export interface KieJob extends KieTask {
   prompt: string;
   /** LLM-derived filename slug for downloads; absent until the model answers. */
   slug?: string;
+  /** Controls this ran with, snapshotted so a past run can be restored. */
+  controlValues?: Record<string, string | number | boolean>;
   createdAt: number;
   updatedAt: number;
   pollAttempt: number;

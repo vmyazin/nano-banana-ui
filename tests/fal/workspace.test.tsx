@@ -270,6 +270,8 @@ describe('FalGenerationWorkspace', () => {
       requestId: 'request_submit01',
       state: 'queued',
       logs: [],
+      // Snapshotted at submit so a past run can be restored from the gallery.
+      controlValues: expect.objectContaining({ aspect_ratio: 'auto', duration: '8s' }),
       modelId: 'veo-3-1-fast',
       mediaType: 'video',
       inputMode: 'image',
