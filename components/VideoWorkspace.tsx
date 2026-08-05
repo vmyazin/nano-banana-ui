@@ -65,6 +65,7 @@ export default function VideoWorkspace({
           inputMode={inputMode}
           onBack={onExit}
           onOpenConnections={onOpenConnections}
+          onContinueFromFrame={() => onInputModeChange('image')}
         />
       ) : (
         <KieGenerationWorkspace
@@ -73,6 +74,7 @@ export default function VideoWorkspace({
           exampleFeatureId={`${inputMode}-to-video`}
           onBack={onExit}
           onOpenConnections={onOpenConnections}
+          onContinueFromFrame={() => onInputModeChange('image')}
         />
       )}
     </div>

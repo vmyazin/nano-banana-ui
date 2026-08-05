@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import KieGenerationWorkspace from '../../components/KieGenerationWorkspace';
 import { useAppStore } from '../../store/useAppStore';
 import { useKieJobsStore } from '../../store/useKieJobsStore';
+import { useSeedFrameStore } from '../../store/useSeedFrameStore';
 
 const { submitKieJobMock, uploadKieFilesMock } = vi.hoisted(() => ({
   submitKieJobMock: vi.fn(),
@@ -26,6 +27,7 @@ describe('Kie generation workspace', () => {
       kieVideoModel: 'veo-3-1',
     });
     useKieJobsStore.getState().clearJobs();
+    useSeedFrameStore.getState().clearSeedFrame();
   });
 
   afterEach(() => vi.restoreAllMocks());
@@ -187,6 +189,26 @@ describe('Kie generation workspace', () => {
       featureId: 'text-to-image',
       apiKey: 'gemini_test_key',
     });
+  });
+
+  it('claims a handed-over last frame as the reference for the next clip', async () => {
+    const file = new File(['frame'], 'quiet-ocean-at-dusk-last-frame.png', { type: 'image/png' });
+    useSeedFrameStore.getState().setSeedFrame({ file, sourceLabel: 'quiet-ocean-at-dusk' });
+
+    render(
+      <KieGenerationWorkspace
+        mediaType="video"
+        inputMode="image"
+        onBack={() => undefined}
+        onOpenConnections={() => undefined}
+      />
+    );
+
+    expect(await screen.findByAltText('Reference 1')).toBeTruthy();
+    expect((screen.getByLabelText('Prompt') as HTMLTextAreaElement).value).toBe(
+      'Continue the scene from quiet ocean at dusk.'
+    );
+    expect(useSeedFrameStore.getState().seed).toBeNull();
   });
 
   it('keeps reference file selection outside shared model controls', () => {

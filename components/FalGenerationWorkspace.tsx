@@ -23,11 +23,14 @@ import {
 } from '@/lib/media-download';
 import { useAppStore } from '@/store/useAppStore';
 import { useFalJobsStore } from '@/store/useFalJobsStore';
+import { useSeedFrameStore } from '@/store/useSeedFrameStore';
 
 interface FalGenerationWorkspaceProps {
   inputMode: FalInputMode;
   onBack: () => void;
   onOpenConnections: () => void;
+  /** Switch this workspace to image-to-video, for continuing from a last frame. */
+  onContinueFromFrame?: () => void;
 }
 
 interface LocalReference {
@@ -98,12 +101,14 @@ function JobCard({
   cancelling,
   cancelError,
   onCancel,
+  onContinueFromFrame,
 }: {
   job: FalJob;
   apiKey: string;
   cancelling: boolean;
   cancelError?: string;
   onCancel: (job: FalJob) => void;
+  onContinueFromFrame?: () => void;
 }) {
   const resultUrl = isSafeFalVideoUrl(job.resultUrl, job.mimeType) ? job.resultUrl : undefined;
   const error = safeProviderText(job.error, apiKey, 'fal could not complete this job.');
@@ -161,7 +166,11 @@ function JobCard({
             {isDownloading ? <Loader2 className="animate-spin" size={17} /> : <Download size={17} />}
             {isDownloading ? 'Preparing download…' : 'Download video'}
           </a>
-          <LastFrameActions videoUrl={resultUrl} filenameBase={filenameBase} />
+          <LastFrameActions
+            videoUrl={resultUrl}
+            filenameBase={filenameBase}
+            onContinue={onContinueFromFrame}
+          />
         </div>
       )}
 
@@ -202,6 +211,7 @@ function FalGenerationWorkspaceSession({
   inputMode,
   onBack,
   onOpenConnections,
+  onContinueFromFrame,
 }: FalGenerationWorkspaceProps) {
   const apiKey = useAppStore((state) => state.falApiKey);
   const geminiApiKey = useAppStore((state) => state.apiKey);
@@ -243,6 +253,20 @@ function FalGenerationWorkspaceSession({
   useEffect(() => {
     referencesRef.current = references;
   }, [references]);
+
+  // Claim a frame handed over by "Continue from last frame". Runs on mount
+  // because switching into image mode remounts this session.
+  useEffect(() => {
+    if (inputMode !== 'image') return;
+    const seed = useSeedFrameStore.getState().takeSeedFrame();
+    if (!seed) return;
+    /* eslint-disable react-hooks/set-state-in-effect -- a one-shot external
+       handoff, reached only when a frame is actually pending. Consuming it
+       during render would drop the frame on a StrictMode remount. */
+    setReferences([{ file: seed.file, previewUrl: URL.createObjectURL(seed.file) }]);
+    setPrompt((current) => current || `Continue the scene from ${seed.sourceLabel.replace(/-/g, ' ')}.`);
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, [inputMode]);
 
   useEffect(() => {
     return () => {
@@ -641,6 +665,7 @@ function FalGenerationWorkspaceSession({
                   cancelling={cancellingIds.has(job.id)}
                   cancelError={cancelErrors[job.id]}
                   onCancel={(activeJob) => void cancel(activeJob)}
+                  onContinueFromFrame={onContinueFromFrame}
                 />
               ))}
             </div>

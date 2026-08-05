@@ -6,6 +6,7 @@ import FalGenerationWorkspace from '../../components/FalGenerationWorkspace';
 import type { FalJob, FalTaskState } from '../../lib/fal/types';
 import { useAppStore } from '../../store/useAppStore';
 import { useFalJobsStore } from '../../store/useFalJobsStore';
+import { useSeedFrameStore } from '../../store/useSeedFrameStore';
 
 const { cancelFalJobMock, submitFalJobMock, uploadFalFilesMock } = vi.hoisted(() => ({
   cancelFalJobMock: vi.fn(),
@@ -91,6 +92,7 @@ describe('FalGenerationWorkspace', () => {
       falVideoModel: 'veo-3-1-fast',
     });
     useFalJobsStore.getState().clearJobs();
+    useSeedFrameStore.getState().clearSeedFrame();
   });
 
   it('renders the persisted Veo Fast model with catalog text defaults through shared controls', () => {
@@ -608,6 +610,30 @@ describe('FalGenerationWorkspace', () => {
     expect(downloadLink.href).toBe('blob:fal-video');
     expect(downloadLink.download).toBe('neon-tiger-in-the-rain.mp4');
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:fal-video');
+  });
+
+  it('claims a handed-over last frame as the reference for the next clip', async () => {
+    const file = new File(['frame'], 'neon-tiger-in-the-rain-last-frame.png', { type: 'image/png' });
+    useSeedFrameStore.getState().setSeedFrame({ file, sourceLabel: 'neon-tiger-in-the-rain' });
+
+    renderWorkspace('image');
+
+    expect(await screen.findByAltText('Reference 1')).toHaveAttribute('src', 'blob:reference-preview');
+    expect(screen.getByLabelText('Prompt')).toHaveValue(
+      'Continue the scene from neon tiger in the rain.'
+    );
+    // Consumed, so remounting or switching modes cannot re-apply it.
+    expect(useSeedFrameStore.getState().seed).toBeNull();
+  });
+
+  it('ignores a pending frame while still in text-to-video', () => {
+    const file = new File(['frame'], 'last-frame.png', { type: 'image/png' });
+    useSeedFrameStore.getState().setSeedFrame({ file, sourceLabel: 'a-clip' });
+
+    renderWorkspace('text');
+
+    expect(screen.getByLabelText('Prompt')).toHaveValue('');
+    expect(useSeedFrameStore.getState().seed).not.toBeNull();
   });
 
   it('redacts encoded credential variants from provider errors and logs', () => {

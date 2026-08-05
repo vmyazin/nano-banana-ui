@@ -1,14 +1,20 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Check, Clipboard, ImageDown, Loader2 } from 'lucide-react';
+import { Check, Clipboard, Film, ImageDown, Loader2 } from 'lucide-react';
 
 import { extractLastFrame, FRAME_EXTRACTION_ERROR, lastFrameFilename } from '@/lib/video-frame';
+import { useSeedFrameStore } from '@/store/useSeedFrameStore';
 
 interface LastFrameActionsProps {
   videoUrl: string;
   /** Slug the clip was named with; the frame is saved alongside it. */
   filenameBase: string;
+  /**
+   * Switch the workspace into image-to-video. Provided only where a follow-on
+   * clip is possible; the frame itself is handed over via the seed store.
+   */
+  onContinue?: () => void;
 }
 
 const COPY_UNSUPPORTED = 'This browser cannot copy images to the clipboard.';
@@ -22,8 +28,13 @@ function canCopyImages() {
  * Save or copy the closing frame of a finished clip. Extraction is cached per
  * URL so using both buttons, or retrying, refetches nothing.
  */
-export default function LastFrameActions({ videoUrl, filenameBase }: LastFrameActionsProps) {
-  const [pending, setPending] = useState<'save' | 'copy' | null>(null);
+export default function LastFrameActions({
+  videoUrl,
+  filenameBase,
+  onContinue,
+}: LastFrameActionsProps) {
+  const [pending, setPending] = useState<'save' | 'copy' | 'continue' | null>(null);
+  const setSeedFrame = useSeedFrameStore((state) => state.setSeedFrame);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Safe to detect during render: this only mounts once a job has finished in
@@ -46,7 +57,7 @@ export default function LastFrameActions({ videoUrl, filenameBase }: LastFrameAc
     return blob;
   };
 
-  const run = async (action: 'save' | 'copy', task: () => Promise<void>) => {
+  const run = async (action: 'save' | 'copy' | 'continue', task: () => Promise<void>) => {
     if (pending) return;
     setPending(action);
     setError(null);
@@ -84,6 +95,17 @@ export default function LastFrameActions({ videoUrl, filenameBase }: LastFrameAc
       await navigator.clipboard.write([new ClipboardItem({ 'image/png': ensureFrame() })]);
     });
 
+  const continueFrom = () =>
+    run('continue', async () => {
+      const blob = await ensureFrame();
+      const name = lastFrameFilename(filenameBase);
+      setSeedFrame({
+        file: new File([blob], name, { type: 'image/png' }),
+        sourceLabel: filenameBase,
+      });
+      onContinue?.();
+    });
+
   return (
     <div className="space-y-2">
       <div className="flex gap-2">
@@ -114,6 +136,17 @@ export default function LastFrameActions({ videoUrl, filenameBase }: LastFrameAc
           </button>
         )}
       </div>
+      {onContinue && (
+        <button
+          type="button"
+          onClick={() => void continueFrom()}
+          disabled={pending !== null}
+          className="btn-secondary flex w-full items-center justify-center gap-2 text-xs disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {pending === 'continue' ? <Loader2 className="animate-spin" size={15} /> : <Film size={15} />}
+          {pending === 'continue' ? 'Reading frame…' : 'Continue from last frame'}
+        </button>
+      )}
       {error && (
         <p role="alert" className="text-xs text-red-300">
           {error}

@@ -16,6 +16,7 @@ import {
 } from '@/lib/media-download';
 import { useAppStore } from '@/store/useAppStore';
 import { useKieJobsStore } from '@/store/useKieJobsStore';
+import { useSeedFrameStore } from '@/store/useSeedFrameStore';
 import LastFrameActions from '@/components/LastFrameActions';
 import ModelControls, { type ModelControlField } from '@/components/ModelControls';
 
@@ -29,6 +30,8 @@ interface KieGenerationWorkspaceProps {
   initialPrompt?: string;
   exampleFeatureId?: string;
   engineSelector?: ReactNode;
+  /** Switch this workspace to image-to-video, for continuing from a last frame. */
+  onContinueFromFrame?: () => void;
 }
 
 interface UploadedReference {
@@ -60,6 +63,7 @@ export default function KieGenerationWorkspace({
   initialPrompt = '',
   exampleFeatureId,
   engineSelector,
+  onContinueFromFrame,
 }: KieGenerationWorkspaceProps) {
   const geminiApiKey = useAppStore((state) => state.apiKey);
   const kieApiKey = useAppStore((state) => state.kieApiKey);
@@ -103,6 +107,19 @@ export default function KieGenerationWorkspace({
   useEffect(() => {
     referencesRef.current = references;
   }, [references]);
+
+  // Claim a frame handed over by "Continue from last frame".
+  useEffect(() => {
+    if (inputMode !== 'image') return;
+    const seed = useSeedFrameStore.getState().takeSeedFrame();
+    if (!seed) return;
+    /* eslint-disable react-hooks/set-state-in-effect -- a one-shot external
+       handoff, reached only when a frame is actually pending. Consuming it
+       during render would drop the frame on a StrictMode remount. */
+    setReferences([{ file: seed.file, previewUrl: URL.createObjectURL(seed.file) }]);
+    setPrompt((current) => current || `Continue the scene from ${seed.sourceLabel.replace(/-/g, ' ')}.`);
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, [inputMode]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -493,6 +510,7 @@ export default function KieGenerationWorkspace({
             <LastFrameActions
               videoUrl={resultUrl}
               filenameBase={latestJob.slug || fallbackFilenameBase(latestJob.prompt, mediaType)}
+              onContinue={onContinueFromFrame}
             />
           )}
           <p className="text-center text-xs text-[var(--foreground-subtle)]">Temporary Kie URLs can expire. Download finished work immediately.</p>
