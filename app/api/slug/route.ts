@@ -1,20 +1,47 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenAI } from '@google/genai';
 import { buildSlugPrompt, cleanSlug, slugify } from '@/lib/example-prompts';
+import { runMicroTask } from '@/lib/micro-ai/server';
+import { slugTask, validateSlug } from '@/lib/micro-ai/tasks';
+import type { MicroAiEnvelope } from '@/lib/micro-ai/types';
 
+/**
+ * Filename slug for a generation prompt, cheapest source first:
+ * app-owned Llama 8B → the user's Gemini key → a zero-cost regex slugifier.
+ * There is no failure path: the deterministic tail always produces a name.
+ */
 export async function POST(request: NextRequest) {
+  const { prompt, apiKey } = await request.json();
+
+  if (!prompt || !String(prompt).trim()) {
+    return NextResponse.json({ error: 'Prompt is required' }, { status: 400 });
+  }
+  const text = String(prompt);
+
+  const micro = await runMicroTask(slugTask(text));
+  if (micro) {
+    return NextResponse.json({
+      slug: micro.value,
+      source: 'micro-ai',
+      usage: { ...micro.usage, model: micro.model },
+    } satisfies MicroAiEnvelope & { slug: string });
+  }
+
+  const geminiSlug = apiKey ? await geminiSlugFor(text, String(apiKey)) : null;
+  if (geminiSlug) {
+    return NextResponse.json({ slug: geminiSlug, source: 'gemini' } satisfies MicroAiEnvelope & { slug: string });
+  }
+
+  return NextResponse.json({
+    slug: slugify(text) || 'image',
+    source: 'deterministic',
+  } satisfies MicroAiEnvelope & { slug: string });
+}
+
+/** Returns null on any Gemini failure so the caller falls through. */
+async function geminiSlugFor(prompt: string, apiKey: string): Promise<string | null> {
   try {
-    const { prompt, apiKey } = await request.json();
-
-    if (!apiKey) {
-      return NextResponse.json({ error: 'API key is required' }, { status: 400 });
-    }
-    if (!prompt || !String(prompt).trim()) {
-      return NextResponse.json({ error: 'Prompt is required' }, { status: 400 });
-    }
-
     const ai = new GoogleGenAI({ apiKey });
-
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash-lite',
       contents: buildSlugPrompt(prompt),
@@ -27,12 +54,9 @@ export async function POST(request: NextRequest) {
       for (const part of parts) if (part.text) text += part.text;
     }
 
-    const slug = cleanSlug(text) || slugify(prompt) || 'image';
-    return NextResponse.json({ slug });
-  } catch (error: unknown) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to generate slug' },
-      { status: 500 }
-    );
+    // Same shape check the micro-AI path applies, then the looser legacy clean.
+    return validateSlug(text) || cleanSlug(text) || null;
+  } catch {
+    return null;
   }
 }
