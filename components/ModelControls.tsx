@@ -2,6 +2,7 @@
 
 import { useId } from 'react';
 import SegmentedToggleGroup from '@/components/SegmentedToggleGroup';
+import { isValueCompatible } from '@/lib/draft/carry-over';
 
 export interface ModelControlField {
   key: string;
@@ -33,15 +34,6 @@ const safeIdPart = (value: string, fallback: string) => {
 
 type ModelControlValue = string | number | boolean;
 
-const isCompatibleValue = (field: ModelControlField, value: ModelControlValue | undefined) => {
-  if (field.type === 'text') return typeof value === 'string';
-  if (field.type === 'number') return typeof value === 'number' && Number.isFinite(value);
-  if (field.type === 'boolean') return typeof value === 'boolean';
-  if (typeof value !== 'string' && typeof value !== 'number') return false;
-
-  return !field.options || field.options.some((option) => Object.is(option.value, value));
-};
-
 const emptyValueFor = (field: ModelControlField): ModelControlValue => {
   if (field.type === 'number') return 0;
   if (field.type === 'boolean') return false;
@@ -53,8 +45,8 @@ const resolvedValueFor = (
   values: Record<string, ModelControlValue>
 ): ModelControlValue => {
   const controlledValue = values[field.key];
-  if (isCompatibleValue(field, controlledValue)) return controlledValue;
-  if (isCompatibleValue(field, field.defaultValue)) return field.defaultValue as ModelControlValue;
+  if (isValueCompatible(field, controlledValue)) return controlledValue;
+  if (isValueCompatible(field, field.defaultValue)) return field.defaultValue as ModelControlValue;
   return emptyValueFor(field);
 };
 
