@@ -4,6 +4,7 @@ import KieGenerationWorkspace from '../../components/KieGenerationWorkspace';
 import { useAppStore } from '../../store/useAppStore';
 import { useKieJobsStore } from '../../store/useKieJobsStore';
 import { useSeedFrameStore } from '../../store/useSeedFrameStore';
+import { useDraftStore } from '../../store/useDraftStore';
 
 const { submitKieJobMock, uploadKieFilesMock } = vi.hoisted(() => ({
   submitKieJobMock: vi.fn(),
@@ -28,6 +29,7 @@ describe('Kie generation workspace', () => {
     });
     useKieJobsStore.getState().clearJobs();
     useSeedFrameStore.getState().clearSeedFrame();
+    useDraftStore.getState().reset();
   });
 
   afterEach(() => vi.restoreAllMocks());

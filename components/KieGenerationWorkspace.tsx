@@ -17,6 +17,8 @@ import {
 import { useAppStore } from '@/store/useAppStore';
 import { useKieJobsStore } from '@/store/useKieJobsStore';
 import { useSeedFrameStore } from '@/store/useSeedFrameStore';
+import { useDraftStore } from '@/store/useDraftStore';
+import { carryOverValues } from '@/lib/draft/carry-over';
 import { FRAME_EXTRACTION_ERROR, isVideoFile, lastFrameAsImageFile } from '@/lib/video-frame';
 import LastFrameActions from '@/components/LastFrameActions';
 import ModelControls, { type ModelControlField } from '@/components/ModelControls';
@@ -33,13 +35,6 @@ interface KieGenerationWorkspaceProps {
   engineSelector?: ReactNode;
   /** Switch this workspace to image-to-video, for continuing from a last frame. */
   onContinueFromFrame?: () => void;
-}
-
-interface UploadedReference {
-  file: File;
-  previewUrl: string;
-  /** Present when the still was taken from a video rather than uploaded as-is. */
-  sourceLabel?: string;
 }
 
 type KieModelControlField = Omit<KieFieldDefinition, 'type'> & {
@@ -82,12 +77,16 @@ export default function KieGenerationWorkspace({
   const selectedModel = models.find((model) => model.id === preference) ?? models[0];
   const variant = resolveKieVariant(selectedModel.id, inputMode);
   const variantKey = `${selectedModel.id}:${inputMode}`;
+  const prompt = useDraftStore((state) => state.prompt);
+  const setPrompt = useDraftStore((state) => state.setPrompt);
+  const references = useDraftStore((state) => state.references);
+  const controlValues = useDraftStore((state) => state.controlValues);
   const [valuesByVariant, setValuesByVariant] = useState<
     Record<string, Record<string, string | number | boolean>>
   >({});
-  const values = valuesByVariant[variantKey] ?? defaultKieValues(variant);
-  const [prompt, setPrompt] = useState(initialPrompt);
-  const [references, setReferences] = useState<UploadedReference[]>([]);
+  const values =
+    valuesByVariant[variantKey] ??
+    carryOverValues(variant.fields, defaultKieValues(variant), controlValues);
   const [modelSearch, setModelSearch] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isGeneratingExample, setIsGeneratingExample] = useState(false);
@@ -95,7 +94,6 @@ export default function KieGenerationWorkspace({
   const [isDownloading, setIsDownloading] = useState(false);
   const [isReadingFrame, setIsReadingFrame] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const referencesRef = useRef<UploadedReference[]>([]);
   // Latest addReferences, so the paste listener attaches once instead of per render.
   const addReferencesRef = useRef<(files: File[]) => Promise<void>>(async () => {});
   const mountedRef = useRef(true);
@@ -110,34 +108,39 @@ export default function KieGenerationWorkspace({
   const resolvedExampleFeatureId =
     exampleFeatureId ?? (mediaType === 'video' ? `${inputMode}-to-video` : 'text-to-image');
 
-  useEffect(() => {
-    referencesRef.current = references;
-  }, [references]);
-
   // Claim a frame handed over by "Continue from last frame".
   useEffect(() => {
     if (inputMode !== 'image') return;
     const seed = useSeedFrameStore.getState().takeSeedFrame();
     if (!seed) return;
-    /* eslint-disable react-hooks/set-state-in-effect -- a one-shot external
-       handoff, reached only when a frame is actually pending. Consuming it
-       during render would drop the frame on a StrictMode remount. */
-    setReferences([{
-      file: seed.file,
-      previewUrl: URL.createObjectURL(seed.file),
-      sourceLabel: `Last frame of ${seed.sourceLabel.replace(/-/g, ' ')}`,
-    }]);
-    setPrompt((current) => current || `Continue the scene from ${seed.sourceLabel.replace(/-/g, ' ')}.`);
-    /* eslint-enable react-hooks/set-state-in-effect */
+    const draft = useDraftStore.getState();
+    draft.clearReferences();
+    draft.addReferences(
+      [{ file: seed.file, sourceLabel: `Last frame of ${seed.sourceLabel.replace(/-/g, ' ')}` }],
+      1
+    );
+    if (!draft.prompt) {
+      draft.setPrompt(`Continue the scene from ${seed.sourceLabel.replace(/-/g, ' ')}.`);
+    }
   }, [inputMode]);
 
   useEffect(() => {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
-      referencesRef.current.forEach((reference) => URL.revokeObjectURL(reference.previewUrl));
     };
   }, []);
+
+  // A stricter model must not keep more references than it accepts.
+  useEffect(() => {
+    useDraftStore.getState().limitReferences(maxInputImages);
+  }, [maxInputImages]);
+
+  // Seed the feature's example prompt, but never over something already typed.
+  useEffect(() => {
+    const draft = useDraftStore.getState();
+    if (initialPrompt && !draft.prompt) draft.setPrompt(initialPrompt);
+  }, [initialPrompt]);
 
   useEffect(() => {
     if (inputMode !== 'image') return;
@@ -160,6 +163,8 @@ export default function KieGenerationWorkspace({
       ...current,
       [variantKey]: { ...values, [key]: value },
     }));
+    // Remembered globally so the next model inherits whatever it can express.
+    useDraftStore.getState().rememberControlValues({ [key]: value });
   };
 
   const setModel = (modelId: string) => {
@@ -193,14 +198,7 @@ export default function KieGenerationWorkspace({
         )
       );
       if (!mountedRef.current) return;
-      setReferences((current) => [
-        ...current,
-        ...prepared.map(({ file, sourceLabel }) => ({
-          file,
-          sourceLabel,
-          previewUrl: URL.createObjectURL(file),
-        })),
-      ]);
+      useDraftStore.getState().addReferences(prepared, maxInputImages);
     } catch {
       if (mountedRef.current) setError(FRAME_EXTRACTION_ERROR);
     } finally {
@@ -213,11 +211,8 @@ export default function KieGenerationWorkspace({
   });
 
   const removeReference = (index: number) => {
-    setReferences((current) => {
-      const reference = current[index];
-      if (reference) URL.revokeObjectURL(reference.previewUrl);
-      return current.filter((_, currentIndex) => currentIndex !== index);
-    });
+    const reference = references[index];
+    if (reference) useDraftStore.getState().removeReference(reference.id);
   };
 
   // Served by the shared micro-AI tier when the deployment has one, otherwise by
@@ -457,7 +452,7 @@ export default function KieGenerationWorkspace({
               {references.length > 0 && (
                 <div className="grid grid-cols-2 gap-3">
                   {references.map((reference, index) => (
-                    <div key={reference.previewUrl} className="space-y-1">
+                    <div key={reference.id} className="space-y-1">
                       <div className="group relative overflow-hidden rounded-lg border border-[var(--border)]">
                         <img src={reference.previewUrl} alt={`Reference ${index + 1}`} className="aspect-square w-full object-cover" />
                         <button

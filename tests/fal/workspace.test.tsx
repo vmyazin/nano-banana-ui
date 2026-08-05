@@ -7,6 +7,7 @@ import type { FalJob, FalTaskState } from '../../lib/fal/types';
 import { useAppStore } from '../../store/useAppStore';
 import { useFalJobsStore } from '../../store/useFalJobsStore';
 import { useSeedFrameStore } from '../../store/useSeedFrameStore';
+import { useDraftStore } from '../../store/useDraftStore';
 
 const { cancelFalJobMock, submitFalJobMock, uploadFalFilesMock } = vi.hoisted(() => ({
   cancelFalJobMock: vi.fn(),
@@ -101,6 +102,7 @@ describe('FalGenerationWorkspace', () => {
     });
     useFalJobsStore.getState().clearJobs();
     useSeedFrameStore.getState().clearSeedFrame();
+    useDraftStore.getState().reset();
     lastFrameAsImageFileMock.mockImplementation(async (video: File) =>
       new File(['frame'], `${video.name.replace(/\.[^.]+$/, '')}-last-frame.png`, { type: 'image/png' })
     );

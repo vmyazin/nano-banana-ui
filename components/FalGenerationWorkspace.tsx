@@ -24,6 +24,8 @@ import {
 import { useAppStore } from '@/store/useAppStore';
 import { useFalJobsStore } from '@/store/useFalJobsStore';
 import { useSeedFrameStore } from '@/store/useSeedFrameStore';
+import { useDraftStore } from '@/store/useDraftStore';
+import { carryOverValues } from '@/lib/draft/carry-over';
 import { FRAME_EXTRACTION_ERROR, isVideoFile, lastFrameAsImageFile } from '@/lib/video-frame';
 
 interface FalGenerationWorkspaceProps {
@@ -32,13 +34,6 @@ interface FalGenerationWorkspaceProps {
   onOpenConnections: () => void;
   /** Switch this workspace to image-to-video, for continuing from a last frame. */
   onContinueFromFrame?: () => void;
-}
-
-interface LocalReference {
-  file: File;
-  previewUrl: string;
-  /** Present when the still was taken from a video rather than uploaded as-is. */
-  sourceLabel?: string;
 }
 
 interface SubmissionOperation {
@@ -225,15 +220,18 @@ function FalGenerationWorkspaceSession({
   const models = useMemo(() => modelsForFalMode('video', inputMode), [inputMode]);
   const selectedModel = models.find((model) => model.id === falVideoModel) ?? models[0];
   const variant = resolveFalVariant(selectedModel.id, 'video', inputMode);
-  const [controlState, setControlState] = useState(() => ({
-    variantId: variant.id,
-    values: defaultFalValues(variant),
-  }));
-  const values = controlState.variantId === variant.id
-    ? controlState.values
-    : defaultFalValues(variant);
-  const [prompt, setPrompt] = useState('');
-  const [references, setReferences] = useState<LocalReference[]>([]);
+  const prompt = useDraftStore((state) => state.prompt);
+  const setPrompt = useDraftStore((state) => state.setPrompt);
+  const references = useDraftStore((state) => state.references);
+  const controlValues = useDraftStore((state) => state.controlValues);
+  const [controlState, setControlState] = useState<{
+    variantId: string;
+    values: Record<string, FalValue>;
+  } | null>(null);
+  const values =
+    controlState?.variantId === variant.id
+      ? controlState.values
+      : carryOverValues(variant.fields, defaultFalValues(variant), controlValues);
   const [modelSearch, setModelSearch] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isGeneratingExample, setIsGeneratingExample] = useState(false);
@@ -242,7 +240,6 @@ function FalGenerationWorkspaceSession({
   const [cancellingIds, setCancellingIds] = useState<Set<string>>(() => new Set());
   const [cancelErrors, setCancelErrors] = useState<Record<string, string>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const referencesRef = useRef<LocalReference[]>([]);
   const submissionRef = useRef<SubmissionOperation | null>(null);
   const cancellingRef = useRef(new Set<string>());
   const mountedRef = useRef(true);
@@ -254,26 +251,21 @@ function FalGenerationWorkspaceSession({
   const videoJobs = jobs.filter((job) => job.mediaType === 'video');
   const isSubmitting = submittingVariantId === variant.id;
 
-  useEffect(() => {
-    referencesRef.current = references;
-  }, [references]);
-
   // Claim a frame handed over by "Continue from last frame". Runs on mount
   // because switching into image mode remounts this session.
   useEffect(() => {
     if (inputMode !== 'image') return;
     const seed = useSeedFrameStore.getState().takeSeedFrame();
     if (!seed) return;
-    /* eslint-disable react-hooks/set-state-in-effect -- a one-shot external
-       handoff, reached only when a frame is actually pending. Consuming it
-       during render would drop the frame on a StrictMode remount. */
-    setReferences([{
-      file: seed.file,
-      previewUrl: URL.createObjectURL(seed.file),
-      sourceLabel: `Last frame of ${seed.sourceLabel.replace(/-/g, ' ')}`,
-    }]);
-    setPrompt((current) => current || `Continue the scene from ${seed.sourceLabel.replace(/-/g, ' ')}.`);
-    /* eslint-enable react-hooks/set-state-in-effect */
+    const draft = useDraftStore.getState();
+    draft.clearReferences();
+    draft.addReferences(
+      [{ file: seed.file, sourceLabel: `Last frame of ${seed.sourceLabel.replace(/-/g, ' ')}` }],
+      1
+    );
+    if (!draft.prompt) {
+      draft.setPrompt(`Continue the scene from ${seed.sourceLabel.replace(/-/g, ' ')}.`);
+    }
   }, [inputMode]);
 
   useEffect(() => {
@@ -297,9 +289,13 @@ function FalGenerationWorkspaceSession({
         if (operation.phase === 'uploading') operation.controller.abort();
       }
       submissionRef.current = null;
-      referencesRef.current.forEach((reference) => URL.revokeObjectURL(reference.previewUrl));
     };
   }, []);
+
+  // A stricter model must not keep more references than it accepts.
+  useEffect(() => {
+    useDraftStore.getState().limitReferences(maxInputImages);
+  }, [maxInputImages]);
 
   const abortSubmission = () => {
     const operation = submissionRef.current;
@@ -314,8 +310,15 @@ function FalGenerationWorkspaceSession({
   const updateValue = (key: string, value: FalValue) => {
     setControlState((current) => ({
       variantId: variant.id,
-      values: { ...(current.variantId === variant.id ? current.values : defaultFalValues(variant)), [key]: value },
+      values: {
+        ...(current?.variantId === variant.id
+          ? current.values
+          : carryOverValues(variant.fields, defaultFalValues(variant), controlValues)),
+        [key]: value,
+      },
     }));
+    // Remembered globally so the next model inherits whatever it can express.
+    useDraftStore.getState().rememberControlValues({ [key]: value });
   };
 
   const setModel = (modelId: string) => {
@@ -351,14 +354,7 @@ function FalGenerationWorkspaceSession({
         )
       );
       if (!mountedRef.current) return;
-      setReferences((current) => [
-        ...current,
-        ...prepared.map(({ file, sourceLabel }) => ({
-          file,
-          sourceLabel,
-          previewUrl: URL.createObjectURL(file),
-        })),
-      ]);
+      useDraftStore.getState().addReferences(prepared, maxInputImages);
     } catch {
       if (mountedRef.current) setError(FRAME_EXTRACTION_ERROR);
     } finally {
@@ -367,11 +363,8 @@ function FalGenerationWorkspaceSession({
   };
 
   const removeReference = (index: number) => {
-    setReferences((current) => {
-      const reference = current[index];
-      if (reference) URL.revokeObjectURL(reference.previewUrl);
-      return current.filter((_, currentIndex) => currentIndex !== index);
-    });
+    const reference = references[index];
+    if (reference) useDraftStore.getState().removeReference(reference.id);
   };
 
   const generateExample = async () => {
@@ -661,7 +654,7 @@ function FalGenerationWorkspaceSession({
                 {isReadingFrame ? 'Reading last frame…' : 'Choose an image, or a video to use its last frame'}
               </button>
               {references.map((reference, index) => (
-                <div key={reference.previewUrl} className="space-y-1">
+                <div key={reference.id} className="space-y-1">
                   <div className="relative overflow-hidden rounded-lg border border-[var(--border)]">
                     {/* Local blob previews cannot be optimized by next/image. */}
                     {/* eslint-disable-next-line @next/next/no-img-element */}
