@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { Library, X } from 'lucide-react';
 
 import GalleryGrid from '@/components/GalleryGrid';
+import PromptLibraryList from '@/components/PromptLibraryList';
 import { useGalleryStore } from '@/store/useGalleryStore';
 
 interface LibraryOverlayProps {
@@ -13,14 +14,22 @@ interface LibraryOverlayProps {
 }
 
 function formatBytes(bytes: number) {
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  const units = ['KB', 'MB', 'GB', 'TB'];
+  if (bytes < 1024) return `${bytes} B`;
+  let value = bytes / 1024;
+  let unit = 0;
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit += 1;
+  }
+  return `${value < 10 ? value.toFixed(1) : Math.round(value)} ${units[unit]}`;
 }
 
 export default function LibraryOverlay({ open, onOpenChange }: LibraryOverlayProps) {
   const records = useGalleryStore((state) => state.records);
   const storageError = useGalleryStore((state) => state.storageError);
   const [quota, setQuota] = useState<{ usage: number; quota: number } | null>(null);
+  const [tab, setTab] = useState<'results' | 'prompts'>('results');
   const panelRef = useRef<HTMLDivElement>(null);
 
   const close = useCallback(() => onOpenChange(false), [onOpenChange]);
@@ -93,13 +102,35 @@ export default function LibraryOverlay({ open, onOpenChange }: LibraryOverlayPro
               </div>
             </div>
 
+            <div role="tablist" aria-label="Library sections" className="mb-4 flex gap-1 rounded-xl border border-[var(--border)] bg-[var(--background-elevated)] p-1">
+              {(['results', 'prompts'] as const).map((name) => (
+                <button
+                  key={name}
+                  role="tab"
+                  aria-selected={tab === name}
+                  onClick={() => setTab(name)}
+                  className={`flex-1 rounded-lg px-3 py-2 text-sm capitalize transition-colors ${
+                    tab === name
+                      ? 'bg-[var(--neon-cyan)]/15 text-[var(--neon-cyan)]'
+                      : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)]'
+                  }`}
+                >
+                  {name}
+                </button>
+              ))}
+            </div>
+
             {storageError && (
               <p role="alert" className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">
                 {storageError}
               </p>
             )}
 
-            <GalleryGrid onUsedReference={close} />
+            {tab === 'results' ? (
+              <GalleryGrid onUsedReference={close} />
+            ) : (
+              <PromptLibraryList onInserted={close} />
+            )}
 
             <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-[var(--border)] pt-4">
               <p className="text-xs text-[var(--foreground-subtle)]">

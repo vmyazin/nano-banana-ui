@@ -55,6 +55,8 @@ Both providers create tab-local, in-memory jobs. For fal, the app uses the [asyn
 - **AI-generated example prompts** — one-click "Gen Example" with a meta-prompt tooltip
 - **AI download filenames** — filenames derived from your prompt
 - **Cheap helper tasks** — filenames and example prompts run on Llama 3.1 8B via Hugging Face when the deployment provides a token, falling back to your Gemini key, then to a plain slugifier
+- **Library** — generated images are kept automatically in your browser and survive a reload; videos are listed instantly and kept on request. Reuse any result as a reference image or restore the prompt and settings it ran with
+- **Saved prompts** — everything you submit is remembered, and starring keeps the good ones
 - **Deep-linkable views** — URL-synced feature state (`?feature=text-to-image`)
 - **Command palette** — `⌘K` to jump between modes
 - **Configurable settings** — aspect ratio and quality (1K / 2K / 4K) where the active engine supports them
@@ -212,7 +214,8 @@ scene-assembly/
 - fal keys are not logged or stored server-side; each active request supplies its own key
 - fal request payload history is disabled, while uploaded references and generated outputs remain on fal’s public CDN for their configured one-day and seven-day retention periods
 - Kie keys are never logged or stored server-side; only the active browser request uses them
-- This app has no database-backed storage of jobs or media; provider-hosted output URLs are temporary
+- This app has no **server-side** storage of jobs or media, and no accounts. Generated results are stored **locally in your own browser** via IndexedDB so they outlive the provider URLs, which expire; saved prompts live in `localStorage`. Both stay in your browser profile until you clear them — use **Library → Clear library** on a shared machine
+- Provider-hosted output URLs remain temporary; the local copy is what makes a result durable
 
 ## ✅ Verification
 

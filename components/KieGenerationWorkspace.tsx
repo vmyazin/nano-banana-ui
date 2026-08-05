@@ -18,6 +18,7 @@ import { useAppStore } from '@/store/useAppStore';
 import { useKieJobsStore } from '@/store/useKieJobsStore';
 import { useSeedFrameStore } from '@/store/useSeedFrameStore';
 import { useDraftStore } from '@/store/useDraftStore';
+import { usePromptLibraryStore } from '@/store/usePromptLibraryStore';
 import { carryOverValues } from '@/lib/draft/carry-over';
 import { FRAME_EXTRACTION_ERROR, isVideoFile, lastFrameAsImageFile } from '@/lib/video-frame';
 import LastFrameActions from '@/components/LastFrameActions';
@@ -294,6 +295,7 @@ export default function KieGenerationWorkspace({
       });
       const now = currentKieTime();
       const submittedPrompt = prompt.trim();
+      usePromptLibraryStore.getState().remember(submittedPrompt);
       upsertJob({
         id: taskId,
         taskId,

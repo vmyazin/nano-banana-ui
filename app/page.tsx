@@ -9,6 +9,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Key, Check, Command as CommandIcon, Layers, Library as LibraryIcon } from 'lucide-react';
 import ApiKeyConfig from '@/components/ApiKeyConfig';
 import LibraryOverlay from '@/components/LibraryOverlay';
+import { usePromptLibraryStore } from '@/store/usePromptLibraryStore';
 import FeatureSelector from '@/components/FeatureSelector';
 import { CommandPalette } from '@/components/CommandPalette';
 import VideoWorkspace from '@/components/VideoWorkspace';
@@ -38,6 +39,8 @@ function Studio() {
   const hasHydrated = useAppStore((s) => s.hasHydrated);
   useEffect(() => {
     useAppStore.persist.rehydrate();
+    // Its own call: each persisted store defers hydration to avoid an SSR mismatch.
+    void usePromptLibraryStore.persist.rehydrate();
   }, []);
   const hasKey = hasHydrated && !!(apiKey || kieApiKey || falApiKey);
 

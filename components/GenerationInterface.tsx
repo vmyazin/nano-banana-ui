@@ -19,6 +19,7 @@ import {
 import { runFalImage } from '@/lib/fal/browser';
 import { useAppStore } from '@/store/useAppStore';
 import { useDraftStore } from '@/store/useDraftStore';
+import { usePromptLibraryStore } from '@/store/usePromptLibraryStore';
 import { useGalleryStore } from '@/store/useGalleryStore';
 import { resultBlob } from '@/lib/gallery/capture';
 import { isValueCompatible, type CarryOverField } from '@/lib/draft/carry-over';
@@ -533,6 +534,7 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
     if (prompt.trim() && !filenameSlug) {
       void prerenderSlug(prompt);
     }
+    usePromptLibraryStore.getState().remember(prompt);
     generateMutation.mutate();
   };
 
