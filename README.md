@@ -66,7 +66,7 @@ Both providers create tab-local, in-memory jobs. For fal, the app uses the [asyn
 
 ### Prerequisites
 
-- Node.js 20.9+
+- Node.js 22.5+ (the optional account gate uses the built-in `node:sqlite`)
 - pnpm 10.32+ (enabled through Corepack)
 - **For Gemini modes**: a [Google AI Studio API key](https://aistudio.google.com/apikey)
 - **For Cloudflare FLUX** (optional): a [Cloudflare Workers AI token](https://dash.cloudflare.com/?to=/:account/ai/workers-ai) and Account ID
