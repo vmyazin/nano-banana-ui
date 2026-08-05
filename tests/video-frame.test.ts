@@ -53,13 +53,19 @@ class FakeVideo implements SeekableVideo {
 }
 
 describe('lastFrameSeekTarget', () => {
-  it('samples just before the end of a known duration', () => {
-    expect(lastFrameSeekTarget(8)).toBeCloseTo(7.95);
+  it('samples inside the final frame of a known duration', () => {
+    // Verified against a real 8s/24fps clip: 7.99 decodes frame 191 of 192,
+    // where a 50ms epsilon decoded frame 190.
+    expect(lastFrameSeekTarget(8)).toBeCloseTo(7.99);
     expect(lastFrameSeekTarget(8, 0.5)).toBeCloseTo(7.5);
   });
 
+  it('stays inside the final frame at 60fps, where one frame is 16.7ms', () => {
+    expect(8 - lastFrameSeekTarget(8)!).toBeLessThan(1 / 60);
+  });
+
   it('never returns a negative time for a clip shorter than the epsilon', () => {
-    expect(lastFrameSeekTarget(0.02)).toBe(0);
+    expect(lastFrameSeekTarget(0.005)).toBe(0);
   });
 
   it.each([
@@ -77,7 +83,7 @@ describe('seekToLastFrame', () => {
 
     await seekToLastFrame(video);
 
-    expect(video.seeks).toEqual([7.95]);
+    expect(video.seeks).toEqual([7.99]);
   });
 
   it('probes past the end first when the duration is still Infinity', async () => {
@@ -88,7 +94,7 @@ describe('seekToLastFrame', () => {
 
     await seekToLastFrame(video);
 
-    expect(video.seeks).toEqual([1e7, 5.95]);
+    expect(video.seeks).toEqual([1e7, 5.99]);
   });
 
   it('gives up when the duration never resolves', async () => {
@@ -100,7 +106,7 @@ describe('seekToLastFrame', () => {
   it('resolves without awaiting a seeked event that would never fire', async () => {
     // Already parked on the target: assigning the same currentTime emits nothing.
     const video = new FakeVideo(8);
-    video.currentTime = 7.95;
+    video.currentTime = 7.99;
     video.seeks.length = 0;
 
     await seekToLastFrame(video);

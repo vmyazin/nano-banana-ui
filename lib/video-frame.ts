@@ -17,8 +17,17 @@ import {
 
 export const FRAME_EXTRACTION_ERROR = 'Unable to read the last frame of this video.';
 
-/** Sampling a hair before the end; seeking to exactly `duration` yields a blank frame. */
-const DEFAULT_EPSILON_SECONDS = 0.05;
+/**
+ * How far before `duration` to sample. Must be shorter than one frame, or the
+ * seek lands on the second-to-last frame: at 24fps a frame is 41.7ms, and a
+ * 50ms epsilon measurably returned frame 190 of 192 on a real clip. 10ms stays
+ * inside the final frame for anything up to 100fps.
+ *
+ * It is not zero because end-clamping behaviour varies by browser — Chromium
+ * returns the last frame for a seek to exactly `duration`, which is not a
+ * guarantee worth depending on.
+ */
+const DEFAULT_EPSILON_SECONDS = 0.01;
 /** Fragmented MP4s report Infinity until a seek past the end forces the real duration. */
 const UNBOUNDED_SEEK_SECONDS = 1e7;
 const SEEK_TIMEOUT_MS = 15_000;
