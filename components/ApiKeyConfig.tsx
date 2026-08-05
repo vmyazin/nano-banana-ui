@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Key, Eye, EyeOff, AlertCircle, X, Loader2, Cloud, Check } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAppStore } from '@/store/useAppStore';
+import MicroAiUsagePanel from '@/components/MicroAiUsagePanel';
 
 interface ApiKeyConfigProps {
   open: boolean;
@@ -548,6 +549,8 @@ export default function ApiKeyConfig({ open, onOpenChange }: ApiKeyConfigProps) 
                   </button>
                 </div>
               </section>
+
+              <MicroAiUsagePanel />
 
               <p className="text-xs text-[var(--foreground-subtle)] leading-relaxed">
                 Credentials are stored only in your browser&apos;s local storage and sent

@@ -13,6 +13,13 @@ vi.mock('@/lib/fal/browser', () => ({
   runFalImage: vi.fn(),
 }));
 
+// Filename derivation is covered by tests/micro-ai; these tests assert that
+// generation and download touch no network beyond the media URL itself.
+vi.mock('@/lib/micro-ai/browser', () => ({
+  requestPromptSlug: vi.fn().mockResolvedValue(null),
+  requestExamplePrompt: vi.fn().mockResolvedValue('An unused example prompt'),
+}));
+
 vi.mock('@/components/KieGenerationWorkspace', () => ({
   default: ({ engineSelector }: { engineSelector?: ReactNode }) => (
     <div data-testid="kie-workspace">

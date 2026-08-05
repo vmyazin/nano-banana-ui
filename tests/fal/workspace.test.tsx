@@ -510,22 +510,21 @@ describe('FalGenerationWorkspace', () => {
     });
   });
 
-  it('hides the example button without a Gemini key and reports a failed example', async () => {
-    renderWorkspace();
-    expect(screen.queryByRole('button', { name: 'Gen Example' })).toBeNull();
-
-    useAppStore.setState({ apiKey: 'gemini_test_key' });
+  it('offers the example button with no Gemini key and surfaces the route\'s error', async () => {
+    // The shared tier can serve keyless visitors, so the button is always
+    // available; when nothing can serve it the route says what to connect.
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ error: 'Example model unavailable.' }), {
-        status: 502,
+      new Response(JSON.stringify({ error: 'Connect a Gemini API key to generate example prompts.' }), {
+        status: 400,
         headers: { 'Content-Type': 'application/json' },
       })
     ));
     renderWorkspace();
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'Gen Example' })[0]);
+    fireEvent.click(screen.getByRole('button', { name: 'Gen Example' }));
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Example model unavailable.');
+    expect(await screen.findByRole('alert'))
+      .toHaveTextContent('Connect a Gemini API key to generate example prompts.');
   });
 
   it('derives a semantic download slug for a submitted job from the connected Gemini key', async () => {
@@ -554,9 +553,11 @@ describe('FalGenerationWorkspace', () => {
     });
   });
 
-  it('leaves the job slug unset and falls back to the prompt when no Gemini key is connected', async () => {
+  it('falls back to the prompt when the slug route cannot name the job', async () => {
+    // No Gemini key and no shared tier: the route answers with its own
+    // deterministic slug, which this stub declines to provide.
     useAppStore.setState({ apiKey: '' });
-    const fetchMock = vi.fn();
+    const fetchMock = vi.fn().mockRejectedValue(new Error('offline'));
     vi.stubGlobal('fetch', fetchMock);
     renderWorkspace();
 
@@ -564,7 +565,7 @@ describe('FalGenerationWorkspace', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Generate video' }));
 
     await waitFor(() => expect(submitFalJobMock).toHaveBeenCalledOnce());
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledWith('/api/slug', expect.objectContaining({ method: 'POST' }));
     expect(useFalJobsStore.getState().jobs[0]?.slug).toBeUndefined();
 
     useFalJobsStore.getState().upsertJob(makeJob('success', {

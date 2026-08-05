@@ -7,13 +7,13 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useMutation } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Feature, GenerationConfig } from '@/types';
-import { metaForFeature, requestExamplePrompt, slugify } from '@/lib/example-prompts';
+import { metaForFeature, slugify } from '@/lib/example-prompts';
+import { requestExamplePrompt, requestPromptSlug } from '@/lib/micro-ai/browser';
 import {
   boundedMediaBlob,
   extensionForMimeType,
   MAX_REMOTE_IMAGE_BYTES,
   normalizedMimeType,
-  requestPromptSlug,
   SUPPORTED_RASTER_MIMES,
 } from '@/lib/media-download';
 import { runFalImage } from '@/lib/fal/browser';
@@ -371,12 +371,8 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
   });
 
   const handleUseExample = () => {
-    // No key yet → use the static example so the button always works.
-    if (!apiKey) {
-      if (feature.examplePrompt) setPrompt(feature.examplePrompt);
-      setFilenameSlug(null);
-      return;
-    }
+    // Served by the shared micro-AI tier or the user's own key; onError falls
+    // back to the static example, so the button always leaves a usable prompt.
     exampleMutation.mutate();
   };
 

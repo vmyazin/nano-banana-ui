@@ -42,25 +42,6 @@ export function buildExamplePrompt(featureId: string, seed?: string): string {
   return `${meta}${tone}\n\nOutput only the prompt text — no quotes, labels, or explanation.`;
 }
 
-/**
- * Browser-side call to /api/example for a fresh, feature-tailored example
- * prompt. Picks the variety seed so every caller gets the same behaviour.
- * Throws with the route's message when the model is unavailable.
- */
-export async function requestExamplePrompt(featureId: string, apiKey: string): Promise<string> {
-  const seed = SEED_TONES[Math.floor(Math.random() * SEED_TONES.length)];
-  const response = await fetch('/api/example', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ featureId, apiKey, seed }),
-  });
-  const data = (await response.json()) as { prompt?: string; error?: string };
-  if (!response.ok || !data.prompt) {
-    throw new Error(data.error || 'Could not generate an example prompt.');
-  }
-  return data.prompt;
-}
-
 /** Instruction handed to flash-lite to turn a prompt into a short filename slug. */
 export function buildSlugPrompt(prompt: string): string {
   return `Turn this image-generation prompt into a short, evocative filename slug: 3 to 6 words, all lowercase, hyphen-separated, only letters and hyphens, no file extension. Capture the most striking, specific elements (subject, mood, setting) rather than generic filler.\n\nPrompt: ${prompt}\n\nOutput only the slug.`;

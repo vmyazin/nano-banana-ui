@@ -119,34 +119,6 @@ export async function boundedMediaBlob(
   return new Blob(chunks, { type: mimeType });
 }
 
-/**
- * Ask gemini-2.5-flash-lite (via /api/slug) for a short evocative filename slug.
- * Returns null when no Gemini key is connected or the model is unavailable —
- * callers fall back to {@link fallbackFilenameBase}.
- */
-export async function requestPromptSlug(
-  prompt: string,
-  apiKey: string,
-  options: { signal?: AbortSignal } = {}
-): Promise<string | null> {
-  const trimmedPrompt = prompt.trim();
-  if (!trimmedPrompt || !apiKey) return null;
-
-  try {
-    const response = await fetch('/api/slug', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt: trimmedPrompt, apiKey }),
-      signal: options.signal,
-    });
-    const data = (await response.json()) as { slug?: string };
-    if (!response.ok || typeof data.slug !== 'string') return null;
-    return data.slug || null;
-  } catch {
-    return null;
-  }
-}
-
 /** Deterministic name used when the model slug is unavailable. */
 export function fallbackFilenameBase(prompt: string, mediaType: DownloadMediaType) {
   return slugify(prompt) || `generated-${mediaType}`;
