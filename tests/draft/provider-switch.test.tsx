@@ -1,7 +1,11 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+
 import FalGenerationWorkspace from '../../components/FalGenerationWorkspace';
+import GenerationInterface from '../../components/GenerationInterface';
+import { FEATURES } from '../../types';
 import KieGenerationWorkspace from '../../components/KieGenerationWorkspace';
 import { useAppStore } from '../../store/useAppStore';
 import { useDraftStore } from '../../store/useDraftStore';
@@ -16,6 +20,10 @@ vi.mock('../../lib/fal/browser', () => ({
 vi.mock('../../lib/kie/browser', () => ({
   submitKieJob: vi.fn(),
   uploadKieFiles: vi.fn(),
+}));
+vi.mock('../../lib/micro-ai/browser', () => ({
+  requestPromptSlug: vi.fn().mockResolvedValue(null),
+  requestExamplePrompt: vi.fn().mockResolvedValue('unused'),
 }));
 
 const noop = () => undefined;
@@ -42,6 +50,17 @@ function renderKie(inputMode: 'text' | 'image' = 'text') {
       onBack={noop}
       onOpenConnections={noop}
     />
+  );
+}
+
+function renderImageStudio(featureId = 'text-to-image') {
+  const feature = FEATURES.find((candidate) => candidate.id === featureId)!;
+  return render(
+    <QueryClientProvider
+      client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}
+    >
+      <GenerationInterface feature={feature} apiKey="gemini-key" onBack={noop} onOpenConnections={noop} />
+    </QueryClientProvider>
   );
 }
 
@@ -127,6 +146,41 @@ describe('carrying user input across providers and modes', () => {
     const preview = await screen.findByAltText('Reference 1');
     expect(preview).toHaveAttribute('src', 'blob:draft-1');
     expect(URL.revokeObjectURL).not.toHaveBeenCalledWith('blob:draft-1');
+  });
+
+  it('carries the prompt from the image studio into a video workspace', () => {
+    useAppStore.setState({ engine: 'gemini' });
+    const studio = renderImageStudio();
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'A brass diving bell' } });
+    studio.unmount();
+
+    renderFal();
+
+    expect(screen.getByLabelText('Prompt')).toHaveValue('A brass diving bell');
+  });
+
+  it('carries an aspect ratio from a video workspace into the image studio', () => {
+    useAppStore.setState({ engine: 'gemini' });
+    const fal = renderFal();
+    choose('Aspect ratio', '9:16');
+    fal.unmount();
+
+    renderImageStudio();
+
+    expect(screen.getByRole('combobox', { name: /Aspect Ratio/i })).toHaveValue('9:16');
+  });
+
+  it('leaves the image studio on its default when the video choice has no equivalent', () => {
+    // fal's Veo image mode offers "auto"; the image studio has no such option.
+    useAppStore.setState({ engine: 'gemini' });
+    const fal = renderFal('image');
+    choose('Aspect ratio', 'auto');
+    expect(useDraftStore.getState().controlValues.aspect_ratio).toBe('auto');
+    fal.unmount();
+
+    renderImageStudio();
+
+    expect(screen.getByRole('combobox', { name: /Aspect Ratio/i })).toHaveValue('16:9');
   });
 
   it('drops the extra reference when the next model accepts fewer', async () => {

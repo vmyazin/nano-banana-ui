@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import GenerationInterface from '../components/GenerationInterface';
 import { cancelFalJob, runFalImage } from '../lib/fal/browser';
 import { useAppStore } from '../store/useAppStore';
+import { useDraftStore } from '../store/useDraftStore';
 import { FEATURES, type Feature } from '../types';
 
 vi.mock('@/lib/fal/browser', () => ({
@@ -85,6 +86,7 @@ const STYLE_TRANSFER_PROMPT = 'Apply the artistic style and aesthetic from the f
 
 describe('GenerationInterface engine selection', () => {
   beforeEach(() => {
+    useDraftStore.getState().reset();
     useAppStore.setState({
       engine: 'kie',
       apiKey: 'gemini_test_key',
@@ -232,6 +234,7 @@ describe('GenerationInterface engine selection', () => {
 
 describe('GenerationInterface fal image generation', () => {
   beforeEach(() => {
+    useDraftStore.getState().reset();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
     mockedRunFalImage.mockReset();

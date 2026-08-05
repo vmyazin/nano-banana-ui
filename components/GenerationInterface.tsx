@@ -18,6 +18,8 @@ import {
 } from '@/lib/media-download';
 import { runFalImage } from '@/lib/fal/browser';
 import { useAppStore } from '@/store/useAppStore';
+import { useDraftStore } from '@/store/useDraftStore';
+import { isValueCompatible, type CarryOverField } from '@/lib/draft/carry-over';
 import {
   enginesForFeature,
   type EngineId,
@@ -61,6 +63,44 @@ const RESOLUTION_OPTIONS = ['1K', '2K', '4K'].map((value) => ({
   label: value,
   value,
 }));
+
+const ASPECT_RATIO_OPTIONS = [
+  { value: '1:1', label: '1:1 (Square - Instagram Post)' },
+  { value: '3:4', label: '3:4 (Portrait)' },
+  { value: '9:16', label: '9:16 (Story/Reels)' },
+  { value: '16:9', label: '16:9 (YouTube Thumbnail)' },
+  { value: '21:9', label: '21:9 (Ultra Wide)' },
+  { value: '3:2', label: '3:2 (Classic Photo)' },
+  { value: '4:3', label: '4:3 (Standard)' },
+];
+
+// Named with the catalogue's keys so a choice made here reaches the video
+// workspaces, and vice versa, through the same carry-over rule.
+const ASPECT_RATIO_FIELD: CarryOverField = {
+  key: 'aspect_ratio',
+  type: 'select',
+  options: ASPECT_RATIO_OPTIONS,
+};
+const RESOLUTION_FIELD: CarryOverField = {
+  key: 'resolution',
+  type: 'select',
+  options: RESOLUTION_OPTIONS,
+};
+
+function draftedConfig(): GenerationConfig {
+  const remembered = useDraftStore.getState().controlValues;
+  const aspectRatio = remembered.aspect_ratio;
+  const imageSize = remembered.resolution;
+  return {
+    aspectRatio: isValueCompatible(ASPECT_RATIO_FIELD, aspectRatio)
+      ? (aspectRatio as GenerationConfig['aspectRatio'])
+      : '16:9',
+    imageSize: isValueCompatible(RESOLUTION_FIELD, imageSize)
+      ? (imageSize as GenerationConfig['imageSize'])
+      : '1K',
+    useGoogleSearch: false,
+  };
+}
 
 const FAL_GENERATION_ERROR = 'Unable to generate this image with fal. Please try again.';
 const DOWNLOAD_ERROR = 'Unable to download this image. Please try again.';
@@ -132,13 +172,20 @@ function EngineSelector({ engines, activeEngineId, onSelect }: EngineSelectorPro
 }
 
 export default function GenerationInterface({ feature, apiKey, onBack, onOpenConnections }: GenerationInterfaceProps) {
-  const [prompt, setPrompt] = useState('');
+  const prompt = useDraftStore((state) => state.prompt);
+  const setPrompt = useDraftStore((state) => state.setPrompt);
+  const references = useDraftStore((state) => state.references);
   const [images, setImages] = useState<string[]>([]);
-  const [config, setConfig] = useState<GenerationConfig>({
-    aspectRatio: '16:9',
-    imageSize: '1K',
-    useGoogleSearch: false,
-  });
+  const [config, setConfig] = useState<GenerationConfig>(draftedConfig);
+
+  // Mirrored into the draft so the video workspaces inherit the same choice.
+  const applyConfig = (next: GenerationConfig) => {
+    setConfig(next);
+    useDraftStore.getState().rememberControlValues({
+      aspect_ratio: next.aspectRatio ?? '16:9',
+      resolution: next.imageSize ?? '1K',
+    });
+  };
 
   // Engines that can run this feature; fall back to the first (Gemini) if the
   // persisted choice can't (e.g. picked Pollinations then opened an editing mode).
@@ -191,7 +238,7 @@ export default function GenerationInterface({ feature, apiKey, onBack, onOpenCon
 
     const maxImages = feature.maxImages || 1;
 
-    if (images.length + imageFiles.length > maxImages) {
+    if (references.length + imageFiles.length > maxImages) {
       setError(`Maximum ${maxImages} images allowed`);
       return;
     }
@@ -206,14 +253,30 @@ export default function GenerationInterface({ feature, apiKey, onBack, onOpenCon
       }
     }
 
-    try {
-      const dataUrls = await Promise.all(imageFiles.map(readImageAsDataUrl));
-      setImages((prev) => [...prev, ...dataUrls]);
-      setError(null);
-    } catch {
-      setError('Unable to read one or more images');
-    }
-  }, [activeEngine.id, feature.maxImages, images.length]);
+    useDraftStore.getState().addReferences(imageFiles.map((file) => ({ file })), maxImages);
+    setError(null);
+  }, [activeEngine.id, feature.maxImages, references.length]);
+
+  // Gemini and fal both want data URLs; the draft holds the Files, so they are
+  // re-read whenever the reference list changes.
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all(references.map((reference) => readImageAsDataUrl(reference.file)))
+      .then((dataUrls) => {
+        if (!cancelled) setImages(dataUrls);
+      })
+      .catch(() => {
+        if (!cancelled) setError('Unable to read one or more images');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [references]);
+
+  // A feature accepting fewer images must not inherit more than it can send.
+  useEffect(() => {
+    useDraftStore.getState().limitReferences(feature.maxImages || 1);
+  }, [feature.maxImages]);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     void addImageFiles(Array.from(e.target.files || []));
@@ -240,7 +303,8 @@ export default function GenerationInterface({ feature, apiKey, onBack, onOpenCon
   }, [addImageFiles, feature.requiresImage]);
 
   const removeImage = (index: number) => {
-    setImages((prev) => prev.filter((_, i) => i !== index));
+    const reference = references[index];
+    if (reference) useDraftStore.getState().removeReference(reference.id);
   };
 
   const generateMutation = useMutation({
@@ -770,21 +834,18 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
 
                   {activeEngine.supportsAspectRatio && (
                   <div>
-                    <label className="block text-sm font-medium mb-2 text-[var(--foreground)]">
+                    <label htmlFor="image-aspect-ratio" className="block text-sm font-medium mb-2 text-[var(--foreground)]">
                       Aspect Ratio
                     </label>
                     <select
+                      id="image-aspect-ratio"
                       value={config.aspectRatio}
-                      onChange={(e) => setConfig({ ...config, aspectRatio: e.target.value as NonNullable<GenerationConfig['aspectRatio']> })}
+                      onChange={(e) => applyConfig({ ...config, aspectRatio: e.target.value as NonNullable<GenerationConfig['aspectRatio']> })}
                       className="w-full"
                     >
-                      <option value="1:1">1:1 (Square - Instagram Post)</option>
-                      <option value="3:4">3:4 (Portrait)</option>
-                      <option value="9:16">9:16 (Story/Reels)</option>
-                      <option value="16:9">16:9 (YouTube Thumbnail)</option>
-                      <option value="21:9">21:9 (Ultra Wide)</option>
-                      <option value="3:2">3:2 (Classic Photo)</option>
-                      <option value="4:3">4:3 (Standard)</option>
+                      {ASPECT_RATIO_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
                     </select>
                   </div>
                   )}
@@ -798,7 +859,7 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
                       label="Resolution"
                       options={RESOLUTION_OPTIONS}
                       value={config.imageSize ?? '1K'}
-                      onChange={(value) => setConfig({
+                      onChange={(value) => applyConfig({
                         ...config,
                         imageSize: value as NonNullable<GenerationConfig['imageSize']>,
                       })}
@@ -817,7 +878,7 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
                       <input
                         type="checkbox"
                         checked={config.useGoogleSearch}
-                        onChange={(e) => setConfig({ ...config, useGoogleSearch: e.target.checked })}
+                        onChange={(e) => applyConfig({ ...config, useGoogleSearch: e.target.checked })}
                         className="w-5 h-5"
                       />
                     </div>
