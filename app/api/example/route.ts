@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenAI } from '@google/genai';
 import { buildExamplePrompt } from '@/lib/example-prompts';
+import { GEMINI_MICRO_MODEL } from '@/lib/micro-ai/models';
 import { runMicroTask } from '@/lib/micro-ai/server';
 import { examplePromptTask, validateExamplePrompt } from '@/lib/micro-ai/tasks';
 import type { MicroAiEnvelope } from '@/lib/micro-ai/types';
@@ -18,7 +19,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       prompt: micro.value,
       source: 'micro-ai',
-      usage: { ...micro.usage, model: micro.model },
+      model: micro.model,
+      usage: micro.usage,
     } satisfies MicroAiEnvelope & { prompt: string });
   }
 
@@ -33,7 +35,7 @@ export async function POST(request: NextRequest) {
     const ai = new GoogleGenAI({ apiKey });
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash-lite',
+      model: GEMINI_MICRO_MODEL,
       contents: buildExamplePrompt(featureId, seed),
       config: { temperature: 1.2, maxOutputTokens: 120 },
     });
@@ -64,7 +66,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    return NextResponse.json({ prompt, source: 'gemini' } satisfies MicroAiEnvelope & { prompt: string });
+    return NextResponse.json({
+      prompt,
+      source: 'gemini',
+      model: GEMINI_MICRO_MODEL,
+    } satisfies MicroAiEnvelope & { prompt: string });
   } catch (error: unknown) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to generate example' },

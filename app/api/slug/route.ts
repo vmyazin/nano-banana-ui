@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenAI } from '@google/genai';
 import { buildSlugPrompt, cleanSlug, slugify } from '@/lib/example-prompts';
+import { GEMINI_MICRO_MODEL } from '@/lib/micro-ai/models';
 import { runMicroTask } from '@/lib/micro-ai/server';
 import { slugTask, validateSlug } from '@/lib/micro-ai/tasks';
 import type { MicroAiEnvelope } from '@/lib/micro-ai/types';
@@ -23,13 +24,18 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       slug: micro.value,
       source: 'micro-ai',
-      usage: { ...micro.usage, model: micro.model },
+      model: micro.model,
+      usage: micro.usage,
     } satisfies MicroAiEnvelope & { slug: string });
   }
 
   const geminiSlug = apiKey ? await geminiSlugFor(text, String(apiKey)) : null;
   if (geminiSlug) {
-    return NextResponse.json({ slug: geminiSlug, source: 'gemini' } satisfies MicroAiEnvelope & { slug: string });
+    return NextResponse.json({
+      slug: geminiSlug,
+      source: 'gemini',
+      model: GEMINI_MICRO_MODEL,
+    } satisfies MicroAiEnvelope & { slug: string });
   }
 
   return NextResponse.json({
@@ -43,7 +49,7 @@ async function geminiSlugFor(prompt: string, apiKey: string): Promise<string | n
   try {
     const ai = new GoogleGenAI({ apiKey });
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash-lite',
+      model: GEMINI_MICRO_MODEL,
       contents: buildSlugPrompt(prompt),
       config: { temperature: 0.3, maxOutputTokens: 30 },
     });

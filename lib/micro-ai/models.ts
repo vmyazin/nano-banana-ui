@@ -40,6 +40,12 @@ export const MICRO_AI_MODELS: Record<MicroAiTier, MicroAiModel> = {
   },
 };
 
+/**
+ * Fallback model for deployments with no shared tier, billed to the user's own
+ * Gemini key. Named here so responses can report it alongside the Llama tiers.
+ */
+export const GEMINI_MICRO_MODEL = 'gemini-2.5-flash-lite';
+
 export interface MicroAiUsage {
   promptTokens: number;
   completionTokens: number;

@@ -52,11 +52,11 @@ describe('POST /api/slug', () => {
     expect(await response.json()).toEqual({
       slug: 'cyberpunk-neon-alley',
       source: 'micro-ai',
+      model: 'meta-llama/Llama-3.1-8B-Instruct',
       usage: {
         promptTokens: 100,
         completionTokens: 10,
         costUsd: (100 / 1_000_000) * 0.02 + (10 / 1_000_000) * 0.02,
-        model: 'meta-llama/Llama-3.1-8B-Instruct',
       },
     });
     expect(generateContent).not.toHaveBeenCalled();
@@ -67,7 +67,11 @@ describe('POST /api/slug', () => {
 
     const response = await slugPost(request({ prompt: 'A quiet ocean at dusk', apiKey: 'gemini_key' }));
 
-    expect(await response.json()).toEqual({ slug: 'quiet-ocean-at-dusk', source: 'gemini' });
+    expect(await response.json()).toEqual({
+      slug: 'quiet-ocean-at-dusk',
+      source: 'gemini',
+      model: 'gemini-2.5-flash-lite',
+    });
   });
 
   it('falls back to the deterministic slugifier with no key at all', async () => {
@@ -117,7 +121,7 @@ describe('POST /api/example', () => {
     expect(body.prompt).toBe(
       'A lone lighthouse in a storm, long exposure, cold blue light, wide cinematic angle'
     );
-    expect(body.usage.model).toBe('meta-llama/Llama-3.1-8B-Instruct');
+    expect(body.model).toBe('meta-llama/Llama-3.1-8B-Instruct');
   });
 
   it('asks a keyless visitor to connect a key when nothing can serve them', async () => {
@@ -140,6 +144,7 @@ describe('POST /api/example', () => {
     expect(await response.json()).toEqual({
       prompt: 'A brass diving bell descending through kelp, godrays, slow dolly, muted teal',
       source: 'gemini',
+      model: 'gemini-2.5-flash-lite',
     });
   });
 });

@@ -1,14 +1,18 @@
 import { SEED_TONES } from '@/lib/example-prompts';
-import type { MicroAiUsageReport } from '@/lib/micro-ai/types';
+import type { MicroAiUsage } from '@/lib/micro-ai/models';
+import type { MicroAiEnvelope } from '@/lib/micro-ai/types';
 import { useMicroAiUsageStore } from '@/store/useMicroAiUsageStore';
 
 /**
- * Browser-side entry points for the micro-task routes. Both record any usage
- * the server reports so the Connections panel can show what the session cost.
+ * Browser-side entry points for the micro-task routes. Both record whatever
+ * usage the server reports so the Connections panel can show what the session
+ * cost, and both announce which model answered when running `next dev`.
  */
 
-function isUsageReport(value: unknown): value is MicroAiUsageReport {
-  const usage = value as MicroAiUsageReport | undefined;
+export type MicroTaskName = 'slug' | 'example';
+
+function isUsage(value: unknown): value is MicroAiUsage {
+  const usage = value as MicroAiUsage | undefined;
   return (
     !!usage &&
     typeof usage.promptTokens === 'number' &&
@@ -17,8 +21,49 @@ function isUsageReport(value: unknown): value is MicroAiUsageReport {
   );
 }
 
-function recordUsage(value: unknown) {
-  if (isUsageReport(value)) useMicroAiUsageStore.getState().record(value);
+/**
+ * One-line summary of who answered a micro-task, e.g.
+ * `[micro-ai] slug → Llama-3.1-8B-Instruct (shared tier) · 128 tokens · ~$0.0000`.
+ * Exported so its formatting can be tested without a live console.
+ */
+export function describeMicroTask(task: MicroTaskName, envelope: MicroAiEnvelope): string {
+  const origin =
+    envelope.source === 'micro-ai'
+      ? 'shared tier'
+      : envelope.source === 'gemini'
+        ? 'your Gemini key'
+        : 'no model — deterministic fallback';
+  const model = envelope.model?.split('/').pop();
+  const parts = [`[micro-ai] ${task} → ${model ? `${model} (${origin})` : origin}`];
+
+  if (envelope.usage) {
+    const { promptTokens, completionTokens, costUsd } = envelope.usage;
+    parts.push(`${promptTokens + completionTokens} tokens`, `~$${costUsd.toFixed(6)}`);
+  }
+
+  return parts.join(' · ');
+}
+
+/**
+ * Dev-only. `process.env.NODE_ENV` is inlined at build time, so this whole
+ * branch is eliminated from the production bundle.
+ */
+function reportMicroTask(task: MicroTaskName, envelope: MicroAiEnvelope) {
+  if (process.env.NODE_ENV === 'development') {
+    console.info(describeMicroTask(task, envelope));
+  }
+}
+
+function settle(task: MicroTaskName, data: Partial<MicroAiEnvelope>) {
+  const envelope: MicroAiEnvelope = {
+    source: data.source ?? 'deterministic',
+    model: data.model,
+    usage: isUsage(data.usage) ? data.usage : undefined,
+  };
+  if (envelope.usage) {
+    useMicroAiUsageStore.getState().record(envelope.usage, envelope.model ?? '');
+  }
+  reportMicroTask(task, envelope);
 }
 
 /**
@@ -41,9 +86,9 @@ export async function requestPromptSlug(
       body: JSON.stringify({ prompt: trimmedPrompt, apiKey }),
       signal: options.signal,
     });
-    const data = (await response.json()) as { slug?: string; usage?: unknown };
+    const data = (await response.json()) as Partial<MicroAiEnvelope> & { slug?: string };
     if (!response.ok || typeof data.slug !== 'string') return null;
-    recordUsage(data.usage);
+    settle('slug', data);
     return data.slug || null;
   } catch {
     return null;
@@ -62,10 +107,13 @@ export async function requestExamplePrompt(featureId: string, apiKey: string): P
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ featureId, apiKey, seed }),
   });
-  const data = (await response.json()) as { prompt?: string; error?: string; usage?: unknown };
+  const data = (await response.json()) as Partial<MicroAiEnvelope> & {
+    prompt?: string;
+    error?: string;
+  };
   if (!response.ok || !data.prompt) {
     throw new Error(data.error || 'Could not generate an example prompt.');
   }
-  recordUsage(data.usage);
+  settle('example', data);
   return data.prompt;
 }

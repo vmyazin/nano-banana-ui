@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-import type { MicroAiUsageReport } from '@/lib/micro-ai/types';
+import type { MicroAiUsage } from '@/lib/micro-ai/models';
 
 interface MicroAiUsageState {
   /** Intentionally session-local: usage is a readout, not an entitlement. */
@@ -10,7 +10,7 @@ interface MicroAiUsageState {
   costUsd: number;
   /** Most recent model that served a micro-task, for the readout label. */
   lastModel: string;
-  record: (usage: MicroAiUsageReport) => void;
+  record: (usage: MicroAiUsage, model: string) => void;
   reset: () => void;
 }
 
@@ -24,13 +24,13 @@ const EMPTY = {
 
 export const useMicroAiUsageStore = create<MicroAiUsageState>((set) => ({
   ...EMPTY,
-  record: (usage) =>
+  record: (usage, model) =>
     set((state) => ({
       requests: state.requests + 1,
       promptTokens: state.promptTokens + usage.promptTokens,
       completionTokens: state.completionTokens + usage.completionTokens,
       costUsd: state.costUsd + usage.costUsd,
-      lastModel: usage.model || state.lastModel,
+      lastModel: model || state.lastModel,
     })),
   reset: () => set({ ...EMPTY }),
 }));
