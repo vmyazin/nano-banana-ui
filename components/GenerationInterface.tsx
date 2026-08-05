@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useMutation } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Feature, GenerationConfig } from '@/types';
-import { metaForFeature, SEED_TONES, slugify } from '@/lib/example-prompts';
+import { metaForFeature, requestExamplePrompt, slugify } from '@/lib/example-prompts';
 import {
   boundedMediaBlob,
   extensionForMimeType,
@@ -358,19 +358,7 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
 
   // Generate a fresh, feature-tailored example prompt via gemini-2.5-flash-lite.
   const exampleMutation = useMutation({
-    mutationFn: async (): Promise<string> => {
-      const seed = SEED_TONES[Math.floor(Math.random() * SEED_TONES.length)];
-      const res = await fetch('/api/example', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ featureId: feature.id, apiKey, seed }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.prompt) {
-        throw new Error(data.error || 'Failed to generate example');
-      }
-      return data.prompt as string;
-    },
+    mutationFn: () => requestExamplePrompt(feature.id, apiKey),
     onSuccess: (p) => {
       setPrompt(p);
       setFilenameSlug(null);

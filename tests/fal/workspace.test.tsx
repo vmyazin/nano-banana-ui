@@ -85,6 +85,7 @@ describe('FalGenerationWorkspace', () => {
     submitFalJobMock.mockResolvedValue({ requestId: 'request_submit01' });
     cancelFalJobMock.mockResolvedValue(undefined);
     useAppStore.setState({
+      apiKey: '',
       falApiKey: 'fal-key-secret',
       videoEngine: 'fal',
       falVideoModel: 'veo-3-1-fast',
@@ -481,6 +482,50 @@ describe('FalGenerationWorkspace', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('fal could not cancel this job. Please try again.');
     expect(screen.getByRole('alert')).not.toHaveTextContent('fal-key-secret');
     expect(useFalJobsStore.getState().jobs[0]).toEqual(job);
+  });
+
+  it.each([
+    ['text', 'text-to-video'],
+    ['image', 'image-to-video'],
+  ] as const)('fills the %s prompt from the Gemini example model', async (inputMode, featureId) => {
+    useAppStore.setState({ apiKey: 'gemini_test_key' });
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ prompt: 'A slow dolly across a rain-slick street at night' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    renderWorkspace(inputMode);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Gen Example' }));
+
+    await waitFor(() =>
+      expect(screen.getByLabelText('Prompt')).toHaveValue('A slow dolly across a rain-slick street at night')
+    );
+    expect(fetchMock).toHaveBeenCalledWith('/api/example', expect.objectContaining({ method: 'POST' }));
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toMatchObject({
+      featureId,
+      apiKey: 'gemini_test_key',
+    });
+  });
+
+  it('hides the example button without a Gemini key and reports a failed example', async () => {
+    renderWorkspace();
+    expect(screen.queryByRole('button', { name: 'Gen Example' })).toBeNull();
+
+    useAppStore.setState({ apiKey: 'gemini_test_key' });
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ error: 'Example model unavailable.' }), {
+        status: 502,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    ));
+    renderWorkspace();
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Gen Example' })[0]);
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Example model unavailable.');
   });
 
   it('derives a semantic download slug for a submitted job from the connected Gemini key', async () => {

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Download, ImagePlus, Loader2, Search, Sparkles, Trash2, Video } from 'lucide-react';
 
 import ModelControls from '@/components/ModelControls';
+import { requestExamplePrompt } from '@/lib/example-prompts';
 import { cancelFalJob, submitFalJob, uploadFalFiles } from '@/lib/fal/browser';
 import {
   buildFalInput,
@@ -221,6 +222,7 @@ function FalGenerationWorkspaceSession({
   const [references, setReferences] = useState<LocalReference[]>([]);
   const [modelSearch, setModelSearch] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [isGeneratingExample, setIsGeneratingExample] = useState(false);
   const [submittingVariantId, setSubmittingVariantId] = useState<string | null>(null);
   const [cancellingIds, setCancellingIds] = useState<Set<string>>(() => new Set());
   const [cancelErrors, setCancelErrors] = useState<Record<string, string>>({});
@@ -312,6 +314,25 @@ function FalGenerationWorkspaceSession({
       if (reference) URL.revokeObjectURL(reference.previewUrl);
       return current.filter((_, currentIndex) => currentIndex !== index);
     });
+  };
+
+  const generateExample = async () => {
+    if (!geminiApiKey) return;
+
+    setIsGeneratingExample(true);
+    setError(null);
+    try {
+      setPrompt(await requestExamplePrompt(`${inputMode}-to-video`, geminiApiKey));
+    } catch (exampleError) {
+      if (!mountedRef.current) return;
+      setError(
+        exampleError instanceof Error
+          ? exampleError.message
+          : 'Could not generate an example prompt.'
+      );
+    } finally {
+      if (mountedRef.current) setIsGeneratingExample(false);
+    }
   };
 
   // Ask flash-lite for a short evocative filename slug and pin it to the job, so
@@ -556,7 +577,21 @@ function FalGenerationWorkspaceSession({
           )}
 
           <section className="glass-card space-y-3 p-4 sm:p-5 md:p-6">
-            <label htmlFor="fal-video-prompt" className="display block text-lg font-semibold">Prompt</label>
+            <div className="flex items-center justify-between gap-3">
+              <label htmlFor="fal-video-prompt" className="display block text-lg font-semibold">Prompt</label>
+              {geminiApiKey && (
+                <button
+                  type="button"
+                  onClick={() => void generateExample()}
+                  disabled={isGeneratingExample}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--brand-accent)]/30 bg-[var(--brand-accent)]/10 px-2.5 py-1.5 text-xs font-medium text-[var(--brand-accent)] transition-colors hover:text-[var(--neon-cyan)] disabled:cursor-not-allowed disabled:opacity-60"
+                  title="Generate an example prompt with your connected Gemini key"
+                >
+                  {isGeneratingExample ? <Loader2 className="animate-spin" size={14} /> : <Sparkles size={14} />}
+                  {isGeneratingExample ? 'Thinking…' : 'Gen Example'}
+                </button>
+              )}
+            </div>
             <textarea
               id="fal-video-prompt"
               aria-required="true"

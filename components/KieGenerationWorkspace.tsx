@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Download, ImagePlus, Loader2, Search, Sparkles, Trash2, Video } from 'lucide-react';
 import { toast } from 'sonner';
-import { SEED_TONES } from '@/lib/example-prompts';
+import { requestExamplePrompt } from '@/lib/example-prompts';
 import { submitKieJob, uploadKieFiles } from '@/lib/kie/browser';
 import { defaultKieValues, modelsForKieMode, resolveKieVariant, validateKieInput } from '@/lib/kie/catalog';
 import { currentKieTime, isKieJobTerminal } from '@/lib/kie/queue';
@@ -180,21 +180,7 @@ export default function KieGenerationWorkspace({
     setIsGeneratingExample(true);
     setError(null);
     try {
-      const seed = SEED_TONES[Math.floor(Math.random() * SEED_TONES.length)];
-      const response = await fetch('/api/example', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          featureId: resolvedExampleFeatureId,
-          apiKey: geminiApiKey,
-          seed,
-        }),
-      });
-      const data = (await response.json()) as { prompt?: string; error?: string };
-      if (!response.ok || !data.prompt) {
-        throw new Error(data.error || 'Could not generate an example prompt.');
-      }
-      setPrompt(data.prompt);
+      setPrompt(await requestExamplePrompt(resolvedExampleFeatureId, geminiApiKey));
     } catch (exampleError) {
       const message = exampleError instanceof Error
         ? exampleError.message
