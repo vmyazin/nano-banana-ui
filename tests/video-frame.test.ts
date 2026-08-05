@@ -2,7 +2,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   extractLastFrame,
+  extractLastFrameFromBlob,
   FRAME_EXTRACTION_ERROR,
+  isVideoFile,
+  lastFrameFileName,
   lastFrameFilename,
   lastFrameSeekTarget,
   seekToLastFrame,
@@ -165,6 +168,43 @@ describe('extractLastFrame guards', () => {
     await expect(extractLastFrame('https://v3.fal.media/files/tiger/clip.mp4')).rejects.toThrow(
       FRAME_EXTRACTION_ERROR
     );
+  });
+});
+
+describe('extractLastFrameFromBlob guards', () => {
+  it.each([
+    ['an empty file', 0],
+    ['a file past the size ceiling', 513 * 1024 * 1024],
+  ])('refuses %s without attempting a decode', async (_label, size) => {
+    const createObjectURL = vi.fn();
+    vi.stubGlobal('URL', Object.assign(URL, { createObjectURL, revokeObjectURL: vi.fn() }));
+    const blob = { size, type: 'video/mp4' } as Blob;
+
+    await expect(extractLastFrameFromBlob(blob)).rejects.toThrow(FRAME_EXTRACTION_ERROR);
+    expect(createObjectURL).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
+  });
+});
+
+describe('isVideoFile', () => {
+  it.each([
+    ['clip.mp4', 'video/mp4', true],
+    ['clip.mov', 'video/quicktime', true],
+    ['frame.png', 'image/png', false],
+    ['notes.txt', 'text/plain', false],
+  ])('%s (%s) → %s', (name, type, expected) => {
+    expect(isVideoFile(new File([], name, { type }))).toBe(expected);
+  });
+});
+
+describe('lastFrameFileName', () => {
+  it.each([
+    ['previous-take.mp4', 'previous-take-last-frame.png'],
+    ['clip.with.dots.mov', 'clip.with.dots-last-frame.png'],
+    ['no-extension', 'no-extension-last-frame.png'],
+    ['.mp4', 'video-last-frame.png'],
+  ])('%j becomes %j', (input, expected) => {
+    expect(lastFrameFileName(input)).toBe(expected);
   });
 });
 

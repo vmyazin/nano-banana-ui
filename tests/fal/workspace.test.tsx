@@ -14,6 +14,14 @@ const { cancelFalJobMock, submitFalJobMock, uploadFalFilesMock } = vi.hoisted(()
   uploadFalFilesMock: vi.fn(),
 }));
 
+const { lastFrameAsImageFileMock } = vi.hoisted(() => ({ lastFrameAsImageFileMock: vi.fn() }));
+
+// jsdom has no video decoder; the decode itself is covered in video-frame tests.
+vi.mock('../../lib/video-frame', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../lib/video-frame')>()),
+  lastFrameAsImageFile: lastFrameAsImageFileMock,
+}));
+
 vi.mock('../../lib/fal/browser', () => ({
   cancelFalJob: cancelFalJobMock,
   submitFalJob: submitFalJobMock,
@@ -93,6 +101,9 @@ describe('FalGenerationWorkspace', () => {
     });
     useFalJobsStore.getState().clearJobs();
     useSeedFrameStore.getState().clearSeedFrame();
+    lastFrameAsImageFileMock.mockImplementation(async (video: File) =>
+      new File(['frame'], `${video.name.replace(/\.[^.]+$/, '')}-last-frame.png`, { type: 'image/png' })
+    );
   });
 
   it('renders the persisted Veo Fast model with catalog text defaults through shared controls', () => {
@@ -163,8 +174,36 @@ describe('FalGenerationWorkspace', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('up to 1 reference image');
     expect(uploadFalFilesMock).not.toHaveBeenCalled();
     fireEvent.change(container.querySelector('input[type="file"]')!, { target: { files: [file] } });
-    expect(screen.getByAltText('Reference 1')).toHaveAttribute('src', 'blob:reference-preview');
+    expect(await screen.findByAltText('Reference 1')).toHaveAttribute('src', 'blob:reference-preview');
     expect(screen.getByRole('button', { name: 'Remove reference 1' })).toBeInTheDocument();
+  });
+
+  it('accepts a saved clip and uploads its last frame as the reference', async () => {
+    const { container } = renderWorkspace('image');
+    const clip = new File(['video'], 'previous-take.mp4', { type: 'video/mp4' });
+
+    fireEvent.change(container.querySelector('input[type="file"]')!, { target: { files: [clip] } });
+
+    expect(await screen.findByAltText('Reference 1')).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Prompt'), { target: { value: 'Keep the camera moving' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Generate video' }));
+
+    await waitFor(() => expect(uploadFalFilesMock).toHaveBeenCalledOnce());
+    const [, uploaded] = uploadFalFilesMock.mock.calls[0] as [string, File[]];
+    // The clip itself is never uploaded — only the still taken from its end.
+    expect(lastFrameAsImageFileMock).toHaveBeenCalledWith(clip);
+    expect(uploaded[0].type).toBe('image/png');
+  });
+
+  it('reports a clip whose last frame cannot be decoded', async () => {
+    lastFrameAsImageFileMock.mockRejectedValueOnce(new Error('decode failed'));
+    const { container } = renderWorkspace('image');
+    const clip = new File(['video'], 'broken.mp4', { type: 'video/mp4' });
+
+    fireEvent.change(container.querySelector('input[type="file"]')!, { target: { files: [clip] } });
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Unable to read the last frame');
+    expect(screen.queryByAltText('Reference 1')).toBeNull();
   });
 
   it('rejects unsupported image MIME types before upload', () => {
@@ -181,6 +220,7 @@ describe('FalGenerationWorkspace', () => {
     const { container } = renderWorkspace('image');
     const file = new File(['image'], 'portrait.png', { type: 'image/png' });
     fireEvent.change(container.querySelector('input[type="file"]')!, { target: { files: [file] } });
+    await screen.findByAltText('Reference 1');
     fireEvent.change(screen.getByLabelText('Prompt'), { target: { value: '  Animate this portrait  ' } });
     fireEvent.click(screen.getByRole('button', { name: 'Generate video' }));
 
@@ -216,6 +256,7 @@ describe('FalGenerationWorkspace', () => {
     const { container } = renderWorkspace('image');
     const file = new File(['image'], 'portrait.png', { type: 'image/png' });
     fireEvent.change(container.querySelector('input[type="file"]')!, { target: { files: [file] } });
+    await screen.findByAltText('Reference 1');
     fireEvent.change(screen.getByLabelText('Prompt'), { target: { value: 'Animate this portrait' } });
     fireEvent.click(screen.getByRole('button', { name: 'Generate video' }));
 

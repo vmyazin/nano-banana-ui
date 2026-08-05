@@ -24,6 +24,7 @@ import {
 import { useAppStore } from '@/store/useAppStore';
 import { useFalJobsStore } from '@/store/useFalJobsStore';
 import { useSeedFrameStore } from '@/store/useSeedFrameStore';
+import { FRAME_EXTRACTION_ERROR, isVideoFile, lastFrameAsImageFile } from '@/lib/video-frame';
 
 interface FalGenerationWorkspaceProps {
   inputMode: FalInputMode;
@@ -234,6 +235,7 @@ function FalGenerationWorkspaceSession({
   const [modelSearch, setModelSearch] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isGeneratingExample, setIsGeneratingExample] = useState(false);
+  const [isReadingFrame, setIsReadingFrame] = useState(false);
   const [submittingVariantId, setSubmittingVariantId] = useState<string | null>(null);
   const [cancellingIds, setCancellingIds] = useState<Set<string>>(() => new Set());
   const [cancelErrors, setCancelErrors] = useState<Record<string, string>>({});
@@ -316,21 +318,38 @@ function FalGenerationWorkspaceSession({
     setFalVideoModel(modelId);
   };
 
-  const addReferences = (files: File[]) => {
-    const imageFiles = files.filter((file) => allowedImageMimeTypes.has(file.type.toLowerCase()));
-    if (imageFiles.length !== files.length || imageFiles.length === 0) {
-      setError('Choose one PNG, JPEG, WebP, or AVIF image.');
+  const addReferences = async (files: File[]) => {
+    const usable = files.filter(
+      (file) => allowedImageMimeTypes.has(file.type.toLowerCase()) || isVideoFile(file)
+    );
+    if (usable.length !== files.length || usable.length === 0) {
+      setError('Choose a PNG, JPEG, WebP, or AVIF image, or a video to continue from its last frame.');
       return;
     }
-    if (references.length + imageFiles.length > maxInputImages) {
+    if (references.length + usable.length > maxInputImages) {
       setError(`This fal model accepts up to ${maxInputImages} reference image${maxInputImages === 1 ? '' : 's'}.`);
       return;
     }
-    setReferences((current) => [
-      ...current,
-      ...imageFiles.map((file) => ({ file, previewUrl: URL.createObjectURL(file) })),
-    ]);
+
     setError(null);
+    const hasVideo = usable.some(isVideoFile);
+    if (hasVideo) setIsReadingFrame(true);
+    try {
+      // A picked video stands in for its final frame, so a clip saved earlier
+      // can seed the next one without a round trip through a provider.
+      const prepared = await Promise.all(
+        usable.map((file) => (isVideoFile(file) ? lastFrameAsImageFile(file) : file))
+      );
+      if (!mountedRef.current) return;
+      setReferences((current) => [
+        ...current,
+        ...prepared.map((file) => ({ file, previewUrl: URL.createObjectURL(file) })),
+      ]);
+    } catch {
+      if (mountedRef.current) setError(FRAME_EXTRACTION_ERROR);
+    } finally {
+      if (mountedRef.current && hasVideo) setIsReadingFrame(false);
+    }
   };
 
   const removeReference = (index: number) => {
@@ -570,21 +589,22 @@ function FalGenerationWorkspaceSession({
             <section className="glass-card space-y-4 p-4 sm:p-5 md:p-6">
               <div>
                 <h3 className="display text-lg font-semibold">Reference image</h3>
-                <p className="mt-0.5 text-xs text-[var(--foreground-muted)]">This video flow accepts exactly one image.</p>
+                <p className="mt-0.5 text-xs text-[var(--foreground-muted)]">This video flow accepts exactly one image. Pick a saved clip instead and its last frame is used.</p>
               </div>
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/png,image/jpeg,image/webp,image/avif"
+                accept="image/png,image/jpeg,image/webp,image/avif,video/*"
                 aria-label="Reference image file"
                 className="hidden"
                 onChange={(event) => {
-                  addReferences(Array.from(event.target.files ?? []));
+                  void addReferences(Array.from(event.target.files ?? []));
                   event.target.value = '';
                 }}
               />
               <button type="button" onClick={() => fileInputRef.current?.click()} className="flex w-full flex-col items-center gap-2 rounded-xl border-2 border-dashed border-[var(--neon-cyan)]/30 py-5 text-sm text-[var(--foreground-muted)]">
-                <ImagePlus size={28} /> Choose reference image
+                {isReadingFrame ? <Loader2 className="animate-spin" size={28} /> : <ImagePlus size={28} />}
+                {isReadingFrame ? 'Reading last frame…' : 'Choose an image, or a video to use its last frame'}
               </button>
               {references.map((reference, index) => (
                 <div key={reference.previewUrl} className="relative overflow-hidden rounded-lg border border-[var(--border)]">

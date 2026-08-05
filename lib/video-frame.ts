@@ -145,6 +145,33 @@ function drawToPng(video: HTMLVideoElement): Promise<Blob> {
   });
 }
 
+/**
+ * Decode the final frame of video bytes already in hand — a downloaded result
+ * or a file the user picked off their drive. Playing from an object URL keeps
+ * the canvas same-origin either way.
+ */
+export async function extractLastFrameFromBlob(
+  blob: Blob,
+  options: { epsilonSeconds?: number } = {}
+): Promise<Blob> {
+  if (blob.size === 0 || blob.size > MAX_REMOTE_VIDEO_BYTES) {
+    throw new Error(FRAME_EXTRACTION_ERROR);
+  }
+
+  const objectUrl = URL.createObjectURL(blob);
+  try {
+    const video = await loadVideo(objectUrl);
+    try {
+      await seekToLastFrame(video, options.epsilonSeconds);
+      return await drawToPng(video);
+    } finally {
+      releaseVideo(video);
+    }
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
 export async function extractLastFrame(
   url: string,
   options: { signal?: AbortSignal; epsilonSeconds?: number } = {}
@@ -159,22 +186,28 @@ export async function extractLastFrame(
   if (!mimeType.startsWith('video/')) throw new Error(FRAME_EXTRACTION_ERROR);
 
   const blob = await boundedMediaBlob(response, mimeType, signal, MAX_REMOTE_VIDEO_BYTES);
-  const objectUrl = URL.createObjectURL(blob);
-
-  try {
-    const video = await loadVideo(objectUrl);
-    try {
-      await seekToLastFrame(video, options.epsilonSeconds);
-      return await drawToPng(video);
-    } finally {
-      releaseVideo(video);
-    }
-  } finally {
-    URL.revokeObjectURL(objectUrl);
-  }
+  return extractLastFrameFromBlob(blob, options);
 }
 
 /** `neon-tiger-in-the-rain` → `neon-tiger-in-the-rain-last-frame.png` */
 export function lastFrameFilename(base: string) {
   return `${base}-last-frame.png`;
+}
+
+export function isVideoFile(file: File) {
+  return file.type.toLowerCase().startsWith('video/');
+}
+
+/** `previous-take.mp4` → `previous-take-last-frame.png` */
+export function lastFrameFileName(videoName: string) {
+  return lastFrameFilename(videoName.replace(/\.[^.]+$/, '') || 'video');
+}
+
+/**
+ * Turn a saved clip into a reference image: its last frame, named after the
+ * source so it stays recognizable once uploaded.
+ */
+export async function lastFrameAsImageFile(video: File): Promise<File> {
+  const frame = await extractLastFrameFromBlob(video);
+  return new File([frame], lastFrameFileName(video.name), { type: 'image/png' });
 }

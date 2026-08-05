@@ -224,7 +224,7 @@ describe('Kie generation workspace', () => {
     const fileInputs = container.querySelectorAll('input[type="file"]');
     expect(fileInputs).toHaveLength(1);
     expect(fileInputs[0].className).toContain('hidden');
-    expect(screen.getByRole('button', { name: /upload image or paste from clipboard/i })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /upload an image or video/i })).toBeTruthy();
   });
 
   it('submits shared control values with their declared types', async () => {
