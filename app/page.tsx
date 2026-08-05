@@ -6,8 +6,9 @@ import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useQueryState } from 'nuqs';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Key, Check, Command as CommandIcon, Layers } from 'lucide-react';
+import { Key, Check, Command as CommandIcon, Layers, Library as LibraryIcon } from 'lucide-react';
 import ApiKeyConfig from '@/components/ApiKeyConfig';
+import LibraryOverlay from '@/components/LibraryOverlay';
 import FeatureSelector from '@/components/FeatureSelector';
 import { CommandPalette } from '@/components/CommandPalette';
 import VideoWorkspace from '@/components/VideoWorkspace';
@@ -61,6 +62,7 @@ function Studio() {
   };
   const [keyDialogOpen, setKeyDialogOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [libraryOpen, setLibraryOpen] = useState(false);
 
   return (
     <div className="min-h-screen relative w-full overflow-x-hidden">
@@ -115,6 +117,15 @@ function Studio() {
               className="flex items-center gap-2 flex-shrink-0"
             >
               <button
+                onClick={() => setLibraryOpen(true)}
+                className="inline-flex items-center gap-1.5 rounded-[9px] border border-[var(--border)] px-2.5 py-2 text-xs text-[var(--foreground-muted)] transition-colors hover:border-[var(--border-hover)] hover:text-[var(--foreground)]"
+                title="Kept results and saved prompts"
+              >
+                <LibraryIcon size={13} />
+                <span className="hidden sm:inline">Library</span>
+              </button>
+
+              <button
                 onClick={() => setPaletteOpen(true)}
                 className="hidden sm:inline-flex items-center gap-1.5 text-xs text-[var(--foreground-muted)] hover:text-[var(--foreground)] border border-[var(--border)] hover:border-[var(--border-hover)] rounded-[9px] px-2.5 py-2 transition-colors"
                 title="Open command menu (⌘K)"
@@ -158,7 +169,11 @@ function Studio() {
         open={paletteOpen}
         onOpenChange={setPaletteOpen}
         onOpenApiKey={() => setKeyDialogOpen(true)}
+        onOpenLibrary={() => setLibraryOpen(true)}
       />
+
+      {/* Kept results and saved prompts */}
+      <LibraryOverlay open={libraryOpen} onOpenChange={setLibraryOpen} />
 
       {/* Main Content */}
       <main className="relative z-10 w-full max-w-7xl mx-auto px-6 sm:px-8 md:px-12 lg:px-16 py-6 sm:py-8 md:py-10">

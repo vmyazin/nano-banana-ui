@@ -10,9 +10,15 @@ interface CommandPaletteProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onOpenApiKey: () => void;
+  onOpenLibrary: () => void;
 }
 
-export function CommandPalette({ open, onOpenChange, onOpenApiKey }: CommandPaletteProps) {
+export function CommandPalette({
+  open,
+  onOpenChange,
+  onOpenApiKey,
+  onOpenLibrary,
+}: CommandPaletteProps) {
   const [, setFeatureId] = useQueryState('feature', { history: 'push' });
 
   // ⌘K / Ctrl-K toggles the palette.
@@ -60,6 +66,9 @@ export function CommandPalette({ open, onOpenChange, onOpenApiKey }: CommandPale
           <Command.Item value="home start over" onSelect={() => go(() => setFeatureId(null))}>
             <Home size={15} />
             Go to home
+          </Command.Item>
+          <Command.Item value="library gallery results prompts" onSelect={() => go(onOpenLibrary)}>
+            Open library
           </Command.Item>
           <Command.Item value="api key gemini" onSelect={() => go(onOpenApiKey)}>
             <Key size={15} />
