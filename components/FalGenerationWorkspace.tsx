@@ -37,6 +37,8 @@ interface FalGenerationWorkspaceProps {
 interface LocalReference {
   file: File;
   previewUrl: string;
+  /** Present when the still was taken from a video rather than uploaded as-is. */
+  sourceLabel?: string;
 }
 
 interface SubmissionOperation {
@@ -265,7 +267,11 @@ function FalGenerationWorkspaceSession({
     /* eslint-disable react-hooks/set-state-in-effect -- a one-shot external
        handoff, reached only when a frame is actually pending. Consuming it
        during render would drop the frame on a StrictMode remount. */
-    setReferences([{ file: seed.file, previewUrl: URL.createObjectURL(seed.file) }]);
+    setReferences([{
+      file: seed.file,
+      previewUrl: URL.createObjectURL(seed.file),
+      sourceLabel: `Last frame of ${seed.sourceLabel.replace(/-/g, ' ')}`,
+    }]);
     setPrompt((current) => current || `Continue the scene from ${seed.sourceLabel.replace(/-/g, ' ')}.`);
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [inputMode]);
@@ -338,12 +344,20 @@ function FalGenerationWorkspaceSession({
       // A picked video stands in for its final frame, so a clip saved earlier
       // can seed the next one without a round trip through a provider.
       const prepared = await Promise.all(
-        usable.map((file) => (isVideoFile(file) ? lastFrameAsImageFile(file) : file))
+        usable.map(async (file) =>
+          isVideoFile(file)
+            ? { file: await lastFrameAsImageFile(file), sourceLabel: `Last frame of ${file.name}` }
+            : { file, sourceLabel: undefined }
+        )
       );
       if (!mountedRef.current) return;
       setReferences((current) => [
         ...current,
-        ...prepared.map((file) => ({ file, previewUrl: URL.createObjectURL(file) })),
+        ...prepared.map(({ file, sourceLabel }) => ({
+          file,
+          sourceLabel,
+          previewUrl: URL.createObjectURL(file),
+        })),
       ]);
     } catch {
       if (mountedRef.current) setError(FRAME_EXTRACTION_ERROR);
@@ -585,40 +599,6 @@ function FalGenerationWorkspaceSession({
             )}
           </section>
 
-          {inputMode === 'image' && (
-            <section className="glass-card space-y-4 p-4 sm:p-5 md:p-6">
-              <div>
-                <h3 className="display text-lg font-semibold">Reference image</h3>
-                <p className="mt-0.5 text-xs text-[var(--foreground-muted)]">This video flow accepts exactly one image. Pick a saved clip instead and its last frame is used.</p>
-              </div>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/png,image/jpeg,image/webp,image/avif,video/*"
-                aria-label="Reference image file"
-                className="hidden"
-                onChange={(event) => {
-                  void addReferences(Array.from(event.target.files ?? []));
-                  event.target.value = '';
-                }}
-              />
-              <button type="button" onClick={() => fileInputRef.current?.click()} className="flex w-full flex-col items-center gap-2 rounded-xl border-2 border-dashed border-[var(--neon-cyan)]/30 py-5 text-sm text-[var(--foreground-muted)]">
-                {isReadingFrame ? <Loader2 className="animate-spin" size={28} /> : <ImagePlus size={28} />}
-                {isReadingFrame ? 'Reading last frame…' : 'Choose an image, or a video to use its last frame'}
-              </button>
-              {references.map((reference, index) => (
-                <div key={reference.previewUrl} className="relative overflow-hidden rounded-lg border border-[var(--border)]">
-                  {/* Local blob previews cannot be optimized by next/image. */}
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={reference.previewUrl} alt={`Reference ${index + 1}`} className="aspect-video w-full object-contain" />
-                  <button type="button" aria-label={`Remove reference ${index + 1}`} onClick={() => removeReference(index)} className="absolute right-2 top-2 rounded-md bg-black/70 p-2 text-white">
-                    <Trash2 size={14} />
-                  </button>
-                </div>
-              ))}
-            </section>
-          )}
-
           <section className="glass-card space-y-3 p-4 sm:p-5 md:p-6">
             <div className="flex items-center justify-between gap-3">
               <label htmlFor="fal-video-prompt" className="display block text-lg font-semibold">Prompt</label>
@@ -658,6 +638,47 @@ function FalGenerationWorkspaceSession({
               />
             </div>
           </section>
+
+          {inputMode === 'image' && (
+            <section className="glass-card space-y-4 p-4 sm:p-5 md:p-6">
+              <div>
+                <h3 className="display text-lg font-semibold">Reference image</h3>
+                <p className="mt-0.5 text-xs text-[var(--foreground-muted)]">This video flow accepts exactly one image. Pick a saved clip instead and its last frame is used.</p>
+              </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/avif,video/*"
+                aria-label="Reference image file"
+                className="hidden"
+                onChange={(event) => {
+                  void addReferences(Array.from(event.target.files ?? []));
+                  event.target.value = '';
+                }}
+              />
+              <button type="button" onClick={() => fileInputRef.current?.click()} className="flex w-full flex-col items-center gap-2 rounded-xl border-2 border-dashed border-[var(--neon-cyan)]/30 py-5 text-sm text-[var(--foreground-muted)]">
+                {isReadingFrame ? <Loader2 className="animate-spin" size={28} /> : <ImagePlus size={28} />}
+                {isReadingFrame ? 'Reading last frame…' : 'Choose an image, or a video to use its last frame'}
+              </button>
+              {references.map((reference, index) => (
+                <div key={reference.previewUrl} className="space-y-1">
+                  <div className="relative overflow-hidden rounded-lg border border-[var(--border)]">
+                    {/* Local blob previews cannot be optimized by next/image. */}
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={reference.previewUrl} alt={`Reference ${index + 1}`} className="aspect-video w-full object-contain" />
+                    <button type="button" aria-label={`Remove reference ${index + 1}`} onClick={() => removeReference(index)} className="absolute right-2 top-2 rounded-md bg-black/70 p-2 text-white">
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                  {reference.sourceLabel && (
+                    <p title={reference.sourceLabel} className="truncate text-[0.65rem] text-[var(--foreground-subtle)]">
+                      {reference.sourceLabel}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </section>
+          )}
 
           <button type="button" disabled={isSubmitting} onClick={() => void submit()} className="btn-primary flex w-full items-center justify-center gap-2 py-4 text-lg disabled:cursor-not-allowed disabled:opacity-50">
             {isSubmitting ? <><Loader2 className="animate-spin" size={21} /> Uploading & starting…</> : <><Sparkles size={21} /> Generate video</>}

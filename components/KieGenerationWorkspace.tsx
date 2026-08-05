@@ -38,6 +38,8 @@ interface KieGenerationWorkspaceProps {
 interface UploadedReference {
   file: File;
   previewUrl: string;
+  /** Present when the still was taken from a video rather than uploaded as-is. */
+  sourceLabel?: string;
 }
 
 type KieModelControlField = Omit<KieFieldDefinition, 'type'> & {
@@ -120,7 +122,11 @@ export default function KieGenerationWorkspace({
     /* eslint-disable react-hooks/set-state-in-effect -- a one-shot external
        handoff, reached only when a frame is actually pending. Consuming it
        during render would drop the frame on a StrictMode remount. */
-    setReferences([{ file: seed.file, previewUrl: URL.createObjectURL(seed.file) }]);
+    setReferences([{
+      file: seed.file,
+      previewUrl: URL.createObjectURL(seed.file),
+      sourceLabel: `Last frame of ${seed.sourceLabel.replace(/-/g, ' ')}`,
+    }]);
     setPrompt((current) => current || `Continue the scene from ${seed.sourceLabel.replace(/-/g, ' ')}.`);
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [inputMode]);
@@ -180,12 +186,20 @@ export default function KieGenerationWorkspace({
       // A picked video stands in for its final frame, so a clip saved earlier
       // can seed the next one without a round trip through a provider.
       const prepared = await Promise.all(
-        usable.map((file) => (isVideoFile(file) ? lastFrameAsImageFile(file) : file))
+        usable.map(async (file) =>
+          isVideoFile(file)
+            ? { file: await lastFrameAsImageFile(file), sourceLabel: `Last frame of ${file.name}` }
+            : { file, sourceLabel: undefined }
+        )
       );
       if (!mountedRef.current) return;
       setReferences((current) => [
         ...current,
-        ...prepared.map((file) => ({ file, previewUrl: URL.createObjectURL(file) })),
+        ...prepared.map(({ file, sourceLabel }) => ({
+          file,
+          sourceLabel,
+          previewUrl: URL.createObjectURL(file),
+        })),
       ]);
     } catch {
       if (mountedRef.current) setError(FRAME_EXTRACTION_ERROR);
@@ -377,51 +391,6 @@ export default function KieGenerationWorkspace({
             </div>
           </section>
 
-          {inputMode === 'image' && (
-            <section className="glass-card space-y-4 p-4 sm:p-5 md:p-6">
-              <div>
-                <h3 className="display text-lg font-semibold">Reference image{maxInputImages === 1 ? '' : 's'}</h3>
-                <p className="mt-0.5 text-xs text-[var(--foreground-muted)]">Upload up to {maxInputImages}; files are forwarded to Kie only for this task. Pick a saved clip and its last frame is used.</p>
-              </div>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*,video/*"
-                multiple={maxInputImages > 1}
-                className="hidden"
-                onChange={(event) => {
-                  void addReferences(Array.from(event.target.files ?? []));
-                  event.target.value = '';
-                }}
-              />
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="flex w-full flex-col items-center gap-2 rounded-xl border-2 border-dashed border-[var(--neon-cyan)]/30 py-5 text-sm text-[var(--foreground-muted)] transition-colors hover:border-[var(--neon-cyan)] hover:bg-[var(--neon-cyan)]/5 hover:text-[var(--neon-cyan)]"
-              >
-                {isReadingFrame ? <Loader2 className="animate-spin" size={28} /> : <ImagePlus size={28} />}
-                {isReadingFrame ? 'Reading last frame…' : 'Upload an image or video, or paste from clipboard'}
-              </button>
-              {references.length > 0 && (
-                <div className="grid grid-cols-2 gap-3">
-                  {references.map((reference, index) => (
-                    <div key={reference.previewUrl} className="group relative overflow-hidden rounded-lg border border-[var(--border)]">
-                      <img src={reference.previewUrl} alt={`Reference ${index + 1}`} className="aspect-square w-full object-cover" />
-                      <button
-                        type="button"
-                        onClick={() => removeReference(index)}
-                        aria-label={`Remove reference ${index + 1}`}
-                        className="absolute right-2 top-2 rounded-md border border-white/10 bg-black/70 p-1.5 text-white opacity-0 transition-opacity group-hover:opacity-100"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </section>
-          )}
-
           <section className="glass-card space-y-3 p-4 sm:p-5 md:p-6">
             <div className="flex items-center justify-between gap-3">
               <label htmlFor="kie-prompt" className="display block text-lg font-semibold">Prompt</label>
@@ -459,6 +428,58 @@ export default function KieGenerationWorkspace({
               />
             </div>
           </section>
+
+          {inputMode === 'image' && (
+            <section className="glass-card space-y-4 p-4 sm:p-5 md:p-6">
+              <div>
+                <h3 className="display text-lg font-semibold">Reference image{maxInputImages === 1 ? '' : 's'}</h3>
+                <p className="mt-0.5 text-xs text-[var(--foreground-muted)]">Upload up to {maxInputImages}; files are forwarded to Kie only for this task. Pick a saved clip and its last frame is used.</p>
+              </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*,video/*"
+                multiple={maxInputImages > 1}
+                className="hidden"
+                onChange={(event) => {
+                  void addReferences(Array.from(event.target.files ?? []));
+                  event.target.value = '';
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="flex w-full flex-col items-center gap-2 rounded-xl border-2 border-dashed border-[var(--neon-cyan)]/30 py-5 text-sm text-[var(--foreground-muted)] transition-colors hover:border-[var(--neon-cyan)] hover:bg-[var(--neon-cyan)]/5 hover:text-[var(--neon-cyan)]"
+              >
+                {isReadingFrame ? <Loader2 className="animate-spin" size={28} /> : <ImagePlus size={28} />}
+                {isReadingFrame ? 'Reading last frame…' : 'Upload an image or video, or paste from clipboard'}
+              </button>
+              {references.length > 0 && (
+                <div className="grid grid-cols-2 gap-3">
+                  {references.map((reference, index) => (
+                    <div key={reference.previewUrl} className="space-y-1">
+                      <div className="group relative overflow-hidden rounded-lg border border-[var(--border)]">
+                        <img src={reference.previewUrl} alt={`Reference ${index + 1}`} className="aspect-square w-full object-cover" />
+                        <button
+                          type="button"
+                          onClick={() => removeReference(index)}
+                          aria-label={`Remove reference ${index + 1}`}
+                          className="absolute right-2 top-2 rounded-md border border-white/10 bg-black/70 p-1.5 text-white opacity-0 transition-opacity group-hover:opacity-100"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                      {reference.sourceLabel && (
+                        <p title={reference.sourceLabel} className="truncate text-[0.65rem] text-[var(--foreground-subtle)]">
+                          {reference.sourceLabel}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
 
           <button
             type="button"

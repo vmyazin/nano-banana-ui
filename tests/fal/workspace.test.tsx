@@ -195,6 +195,34 @@ describe('FalGenerationWorkspace', () => {
     expect(uploaded[0].type).toBe('image/png');
   });
 
+  it('says which clip a derived still came from', async () => {
+    const { container } = renderWorkspace('image');
+    const clip = new File(['video'], 'previous-take.mp4', { type: 'video/mp4' });
+
+    fireEvent.change(container.querySelector('input[type="file"]')!, { target: { files: [clip] } });
+
+    expect(await screen.findByText('Last frame of previous-take.mp4')).toBeInTheDocument();
+  });
+
+  it('leaves a directly uploaded image unlabelled', async () => {
+    const { container } = renderWorkspace('image');
+    const image = new File(['image'], 'portrait.png', { type: 'image/png' });
+
+    fireEvent.change(container.querySelector('input[type="file"]')!, { target: { files: [image] } });
+
+    await screen.findByAltText('Reference 1');
+    expect(screen.queryByText(/Last frame of/)).toBeNull();
+  });
+
+  it('labels a frame handed over by the continue action', async () => {
+    const file = new File(['frame'], 'neon-tiger-last-frame.png', { type: 'image/png' });
+    useSeedFrameStore.getState().setSeedFrame({ file, sourceLabel: 'neon-tiger-in-the-rain' });
+
+    renderWorkspace('image');
+
+    expect(await screen.findByText('Last frame of neon tiger in the rain')).toBeInTheDocument();
+  });
+
   it('reports a clip whose last frame cannot be decoded', async () => {
     lastFrameAsImageFileMock.mockRejectedValueOnce(new Error('decode failed'));
     const { container } = renderWorkspace('image');
