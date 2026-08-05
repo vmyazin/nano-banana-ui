@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Download, ImagePlus, Loader2, Search, Sparkles, Trash2, Video } from 'lucide-react';
 
+import LastFrameActions from '@/components/LastFrameActions';
 import ModelControls from '@/components/ModelControls';
 import { requestExamplePrompt, requestPromptSlug } from '@/lib/micro-ai/browser';
 import { cancelFalJob, submitFalJob, uploadFalFiles } from '@/lib/fal/browser';
@@ -160,6 +161,7 @@ function JobCard({
             {isDownloading ? <Loader2 className="animate-spin" size={17} /> : <Download size={17} />}
             {isDownloading ? 'Preparing download…' : 'Download video'}
           </a>
+          <LastFrameActions videoUrl={resultUrl} filenameBase={filenameBase} />
         </div>
       )}
 

@@ -16,6 +16,7 @@ import {
 } from '@/lib/media-download';
 import { useAppStore } from '@/store/useAppStore';
 import { useKieJobsStore } from '@/store/useKieJobsStore';
+import LastFrameActions from '@/components/LastFrameActions';
 import ModelControls, { type ModelControlField } from '@/components/ModelControls';
 
 interface KieGenerationWorkspaceProps {
@@ -487,6 +488,12 @@ export default function KieGenerationWorkspace({
               {isDownloading ? <Loader2 className="animate-spin" size={18} /> : <Download size={18} />}
               {isDownloading ? 'Preparing download…' : `Download ${mediaType}`}
             </a>
+          )}
+          {resultUrl && latestJob && mediaType === 'video' && (
+            <LastFrameActions
+              videoUrl={resultUrl}
+              filenameBase={latestJob.slug || fallbackFilenameBase(latestJob.prompt, mediaType)}
+            />
           )}
           <p className="text-center text-xs text-[var(--foreground-subtle)]">Temporary Kie URLs can expire. Download finished work immediately.</p>
         </section>
