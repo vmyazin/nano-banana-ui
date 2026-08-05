@@ -78,6 +78,85 @@ describe('Kie generation workspace', () => {
     expect((container.querySelector('a[download]') as HTMLAnchorElement).href).toBe('https://temp.kie.ai/video.mp4');
   });
 
+  it('derives a semantic download slug for a submitted task from the connected Gemini key', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ slug: 'quiet-ocean-at-dusk' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    );
+
+    render(
+      <KieGenerationWorkspace
+        mediaType="image"
+        inputMode="text"
+        onBack={() => undefined}
+        onOpenConnections={() => undefined}
+      />
+    );
+
+    fireEvent.change(screen.getByLabelText('Prompt'), { target: { value: '  A quiet ocean at dusk  ' } });
+    fireEvent.click(screen.getByRole('button', { name: /Generate image/i }));
+
+    await waitFor(() =>
+      expect(useKieJobsStore.getState().jobs[0]?.slug).toBe('quiet-ocean-at-dusk')
+    );
+    expect(fetchMock).toHaveBeenCalledWith('/api/slug', expect.objectContaining({ method: 'POST' }));
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toEqual({
+      prompt: 'A quiet ocean at dusk',
+      apiKey: 'gemini_test_key',
+    });
+  });
+
+  it('downloads a completed Kie result as a blob named after its slug', async () => {
+    useKieJobsStore.getState().upsertJob({
+      id: 'image_task_1',
+      taskId: 'image_task_1',
+      protocol: 'market',
+      state: 'success',
+      resultUrls: ['https://temp.kie.ai/result.png'],
+      modelId: 'nano-banana-pro',
+      mediaType: 'image',
+      inputMode: 'text',
+      prompt: 'A quiet ocean at dusk',
+      slug: 'quiet-ocean-at-dusk',
+      createdAt: 1,
+      updatedAt: 2,
+      pollAttempt: 1,
+    });
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(new Blob(['image'], { type: 'image/png' }), {
+        status: 200,
+        headers: { 'Content-Type': 'image/png' },
+      })
+    );
+    const createObjectURL = vi.fn(() => 'blob:kie-image');
+    const revokeObjectURL = vi.fn();
+    Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: createObjectURL });
+    Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: revokeObjectURL });
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+
+    render(
+      <KieGenerationWorkspace
+        mediaType="image"
+        inputMode="text"
+        onBack={() => undefined}
+        onOpenConnections={() => undefined}
+      />
+    );
+
+    const link = screen.getByRole('link', { name: /Download image/i });
+    expect(link).toHaveAttribute('download', 'quiet-ocean-at-dusk.png');
+    fireEvent.click(link);
+
+    await waitFor(() => expect(clickSpy).toHaveBeenCalledOnce());
+    expect(fetchMock).toHaveBeenCalledWith('https://temp.kie.ai/result.png', { signal: undefined });
+    const downloadLink = clickSpy.mock.instances[0] as HTMLAnchorElement;
+    expect(downloadLink.href).toBe('blob:kie-image');
+    expect(downloadLink.download).toBe('quiet-ocean-at-dusk.png');
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:kie-image');
+  });
+
   it('uses the saved Gemini key to generate an example prompt', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(JSON.stringify({ prompt: 'A luminous glass city above the clouds' }), {

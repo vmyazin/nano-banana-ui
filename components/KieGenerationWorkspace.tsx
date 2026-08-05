@@ -8,6 +8,13 @@ import { submitKieJob, uploadKieFiles } from '@/lib/kie/browser';
 import { defaultKieValues, modelsForKieMode, resolveKieVariant, validateKieInput } from '@/lib/kie/catalog';
 import { currentKieTime, isKieJobTerminal } from '@/lib/kie/queue';
 import type { KieFieldDefinition, KieInputMode, MediaType } from '@/lib/kie/types';
+import {
+  downloadRemoteMedia,
+  extensionForMedia,
+  fallbackFilenameBase,
+  isDownloadableMediaUrl,
+  requestPromptSlug,
+} from '@/lib/media-download';
 import { useAppStore } from '@/store/useAppStore';
 import { useKieJobsStore } from '@/store/useKieJobsStore';
 import ModelControls, { type ModelControlField } from '@/components/ModelControls';
@@ -78,8 +85,10 @@ export default function KieGenerationWorkspace({
   const [error, setError] = useState<string | null>(null);
   const [isGeneratingExample, setIsGeneratingExample] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const referencesRef = useRef<UploadedReference[]>([]);
+  const mountedRef = useRef(true);
   const maxInputImages = variant.maxInputImages ?? 1;
   const matchingModels = models.filter((model) =>
     `${model.label} ${model.provider}`.toLowerCase().includes(modelSearch.toLowerCase())
@@ -95,8 +104,12 @@ export default function KieGenerationWorkspace({
     referencesRef.current = references;
   }, [references]);
 
-  useEffect(() => () => {
-    referencesRef.current.forEach((reference) => URL.revokeObjectURL(reference.previewUrl));
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      referencesRef.current.forEach((reference) => URL.revokeObjectURL(reference.previewUrl));
+    };
   }, []);
 
   useEffect(() => {
@@ -193,6 +206,37 @@ export default function KieGenerationWorkspace({
     }
   };
 
+  // Ask flash-lite for a short evocative filename slug and pin it to the job, so
+  // the download is named after the prompt rather than the provider's task ID.
+  // Fire-and-forget — downloadResult() falls back to a client-side slug.
+  const attachSlug = async (jobId: string, jobPrompt: string) => {
+    const slug = await requestPromptSlug(jobPrompt, geminiApiKey);
+    if (!slug) return;
+    const latest = useKieJobsStore.getState().jobs.find((job) => job.id === jobId);
+    if (!latest || latest.slug) return;
+    upsertJob({ ...latest, slug });
+  };
+
+  const downloadResult = async () => {
+    if (!latestJob || !resultUrl) return;
+    if (!isDownloadableMediaUrl(resultUrl)) {
+      setError('This Kie result URL has expired and can no longer be downloaded.');
+      return;
+    }
+
+    setError(null);
+    setIsDownloading(true);
+    try {
+      await downloadRemoteMedia({
+        url: resultUrl,
+        mediaType,
+        filenameBase: latestJob.slug || fallbackFilenameBase(latestJob.prompt, mediaType),
+      });
+    } finally {
+      if (mountedRef.current) setIsDownloading(false);
+    }
+  };
+
   const submit = async () => {
     if (!kieApiKey) {
       setError('Connect your Kie API key before starting a generation.');
@@ -222,6 +266,7 @@ export default function KieGenerationWorkspace({
         values,
       });
       const now = currentKieTime();
+      const submittedPrompt = prompt.trim();
       upsertJob({
         id: taskId,
         taskId,
@@ -231,11 +276,13 @@ export default function KieGenerationWorkspace({
         modelId: selectedModel.id,
         mediaType,
         inputMode,
-        prompt: prompt.trim(),
+        prompt: submittedPrompt,
         createdAt: now,
         updatedAt: now,
         pollAttempt: 0,
       });
+      // Runs alongside the generation so the name is ready before the result is.
+      void attachSlug(taskId, submittedPrompt);
       toast.success('Kie task queued. You can keep using the studio while it runs.');
     } catch (submissionError) {
       const message = submissionError instanceof Error ? submissionError.message : 'Kie could not start this task.';
@@ -442,9 +489,20 @@ export default function KieGenerationWorkspace({
               </div>
             )}
           </div>
-          {resultUrl && (
-            <a href={resultUrl} download className="btn-secondary flex w-full items-center justify-center gap-2">
-              <Download size={18} /> Download {mediaType}
+          {resultUrl && latestJob && (
+            <a
+              href={resultUrl}
+              download={`${latestJob.slug || fallbackFilenameBase(latestJob.prompt, mediaType)}.${extensionForMedia(mediaType)}`}
+              onClick={(event) => {
+                // Kie serves results cross-origin, where the download attribute is
+                // ignored — fetch the bytes so the semantic name survives.
+                event.preventDefault();
+                void downloadResult();
+              }}
+              className="btn-secondary flex w-full items-center justify-center gap-2"
+            >
+              {isDownloading ? <Loader2 className="animate-spin" size={18} /> : <Download size={18} />}
+              {isDownloading ? 'Preparing download…' : `Download ${mediaType}`}
             </a>
           )}
           <p className="text-center text-xs text-[var(--foreground-subtle)]">Temporary Kie URLs can expire. Download finished work immediately.</p>

@@ -14,6 +14,12 @@ import {
 } from '@/lib/fal/catalog';
 import { isFalJobTerminal } from '@/lib/fal/queue';
 import type { FalFieldDefinition, FalInputMode, FalJob, FalTaskState, FalValue } from '@/lib/fal/types';
+import {
+  downloadRemoteMedia,
+  extensionForMedia,
+  fallbackFilenameBase,
+  requestPromptSlug,
+} from '@/lib/media-download';
 import { useAppStore } from '@/store/useAppStore';
 import { useFalJobsStore } from '@/store/useFalJobsStore';
 
@@ -101,6 +107,30 @@ function JobCard({
   const resultUrl = isSafeFalVideoUrl(job.resultUrl, job.mimeType) ? job.resultUrl : undefined;
   const error = safeProviderText(job.error, apiKey, 'fal could not complete this job.');
   const logs = job.logs.slice(-20).map((log) => safeProviderText(log, apiKey, 'fal reported an update.'));
+  const filenameBase = job.slug || fallbackFilenameBase(job.prompt, 'video');
+  const [isDownloading, setIsDownloading] = useState(false);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  const download = async (url: string) => {
+    setIsDownloading(true);
+    try {
+      await downloadRemoteMedia({
+        url,
+        mediaType: 'video',
+        filenameBase,
+        mimeType: job.mimeType,
+      });
+    } finally {
+      if (mountedRef.current) setIsDownloading(false);
+    }
+  };
 
   return (
     <article className="space-y-3 rounded-xl border border-[var(--border)] bg-[var(--background-elevated)]/60 p-4">
@@ -116,8 +146,19 @@ function JobCard({
       {resultUrl && (
         <div className="space-y-3">
           <video src={resultUrl} controls className="max-h-[520px] w-full rounded-lg bg-black" />
-          <a href={resultUrl} download className="btn-secondary flex w-full items-center justify-center gap-2">
-            <Download size={17} /> Download video
+          <a
+            href={resultUrl}
+            download={`${filenameBase}.${extensionForMedia('video', job.mimeType)}`}
+            onClick={(event) => {
+              // fal serves results from its CDN, where the download attribute is
+              // ignored — fetch the bytes so the semantic name survives.
+              event.preventDefault();
+              void download(resultUrl);
+            }}
+            className="btn-secondary flex w-full items-center justify-center gap-2"
+          >
+            {isDownloading ? <Loader2 className="animate-spin" size={17} /> : <Download size={17} />}
+            {isDownloading ? 'Preparing download…' : 'Download video'}
           </a>
         </div>
       )}
@@ -161,6 +202,7 @@ function FalGenerationWorkspaceSession({
   onOpenConnections,
 }: FalGenerationWorkspaceProps) {
   const apiKey = useAppStore((state) => state.falApiKey);
+  const geminiApiKey = useAppStore((state) => state.apiKey);
   const falVideoModel = useAppStore((state) => state.falVideoModel);
   const setFalVideoModel = useAppStore((state) => state.setFalVideoModel);
   const jobs = useFalJobsStore((state) => state.jobs);
@@ -272,6 +314,17 @@ function FalGenerationWorkspaceSession({
     });
   };
 
+  // Ask flash-lite for a short evocative filename slug and pin it to the job, so
+  // the download is named after the prompt rather than the fal request ID.
+  // Fire-and-forget — the download falls back to a client-side slug.
+  const attachSlug = async (jobId: string, jobPrompt: string) => {
+    const slug = await requestPromptSlug(jobPrompt, geminiApiKey);
+    if (!slug) return;
+    const latest = useFalJobsStore.getState().jobs.find((job) => job.id === jobId);
+    if (!latest || latest.slug) return;
+    upsertJob({ ...latest, slug });
+  };
+
   const submit = async () => {
     if (submissionRef.current) return;
     if (!apiKey.trim()) {
@@ -350,6 +403,7 @@ function FalGenerationWorkspaceSession({
         return;
       }
       const now = Date.now();
+      const submittedPrompt = prompt.trim();
       upsertJob({
         id: requestId,
         requestId,
@@ -358,11 +412,13 @@ function FalGenerationWorkspaceSession({
         modelId: selectedModel.id,
         mediaType: 'video',
         inputMode,
-        prompt: prompt.trim(),
+        prompt: submittedPrompt,
         createdAt: now,
         updatedAt: now,
         pollAttempt: 0,
       });
+      // Runs alongside the generation so the name is ready before the video is.
+      void attachSlug(requestId, submittedPrompt);
     } catch {
       // A failed submit with no request ID cannot be reconciled without provider idempotency.
       // Never retry automatically: doing so could bill a second accepted request.

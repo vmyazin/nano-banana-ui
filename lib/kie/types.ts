@@ -55,6 +55,8 @@ export interface KieJob extends KieTask {
   inputMode: KieInputMode;
   protocol: KieProtocol;
   prompt: string;
+  /** LLM-derived filename slug for downloads; absent until the model answers. */
+  slug?: string;
   createdAt: number;
   updatedAt: number;
   pollAttempt: number;

@@ -56,6 +56,8 @@ export interface FalJob extends FalTask {
   mediaType: FalMediaType;
   inputMode: FalInputMode;
   prompt: string;
+  /** LLM-derived filename slug for downloads; absent until the model answers. */
+  slug?: string;
   createdAt: number;
   updatedAt: number;
   pollAttempt: number;

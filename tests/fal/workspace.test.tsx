@@ -483,6 +483,87 @@ describe('FalGenerationWorkspace', () => {
     expect(useFalJobsStore.getState().jobs[0]).toEqual(job);
   });
 
+  it('derives a semantic download slug for a submitted job from the connected Gemini key', async () => {
+    useAppStore.setState({ apiKey: 'gemini_test_key' });
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ slug: 'neon-tiger-in-the-rain' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    renderWorkspace();
+
+    fireEvent.change(screen.getByLabelText('Prompt'), {
+      target: { value: '  A neon tiger prowling through the rain  ' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Generate video' }));
+
+    await waitFor(() =>
+      expect(useFalJobsStore.getState().jobs[0]?.slug).toBe('neon-tiger-in-the-rain')
+    );
+    expect(fetchMock).toHaveBeenCalledWith('/api/slug', expect.objectContaining({ method: 'POST' }));
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toEqual({
+      prompt: 'A neon tiger prowling through the rain',
+      apiKey: 'gemini_test_key',
+    });
+  });
+
+  it('leaves the job slug unset and falls back to the prompt when no Gemini key is connected', async () => {
+    useAppStore.setState({ apiKey: '' });
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    renderWorkspace();
+
+    fireEvent.change(screen.getByLabelText('Prompt'), { target: { value: 'A neon tiger in the rain' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Generate video' }));
+
+    await waitFor(() => expect(submitFalJobMock).toHaveBeenCalledOnce());
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(useFalJobsStore.getState().jobs[0]?.slug).toBeUndefined();
+
+    useFalJobsStore.getState().upsertJob(makeJob('success', {
+      id: 'request_submit01',
+      requestId: 'request_submit01',
+      prompt: 'A neon tiger in the rain',
+      resultUrl: SAFE_VIDEO_URL,
+      mimeType: 'video/mp4',
+    }));
+    expect(await screen.findByRole('link', { name: /Download video/ }))
+      .toHaveAttribute('download', 'a-neon-tiger-in-the-rain.mp4');
+  });
+
+  it('downloads a completed fal video as a blob named after its slug', async () => {
+    useFalJobsStore.getState().upsertJob(makeJob('success', {
+      resultUrl: SAFE_VIDEO_URL,
+      mimeType: 'video/mp4',
+      slug: 'neon-tiger-in-the-rain',
+    }));
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(new Blob(['video'], { type: 'video/mp4' }), {
+        status: 200,
+        headers: { 'Content-Type': 'video/mp4' },
+      })
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const createObjectURL = vi.fn(() => 'blob:fal-video');
+    const revokeObjectURL = vi.fn();
+    vi.stubGlobal('URL', Object.assign(URL, { createObjectURL, revokeObjectURL }));
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+
+    renderWorkspace();
+    const link = screen.getByRole('link', { name: /Download video/ });
+    expect(link).toHaveAttribute('download', 'neon-tiger-in-the-rain.mp4');
+    fireEvent.click(link);
+
+    await waitFor(() => expect(clickSpy).toHaveBeenCalledOnce());
+    expect(fetchMock).toHaveBeenCalledWith(SAFE_VIDEO_URL, { signal: undefined });
+    const downloadLink = clickSpy.mock.instances[0] as HTMLAnchorElement;
+    expect(downloadLink.href).toBe('blob:fal-video');
+    expect(downloadLink.download).toBe('neon-tiger-in-the-rain.mp4');
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:fal-video');
+  });
+
   it('redacts encoded credential variants from provider errors and logs', () => {
     useAppStore.setState({ falApiKey: 'id:secret' });
     useFalJobsStore.getState().upsertJob(makeJob('fail', {

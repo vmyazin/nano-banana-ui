@@ -8,6 +8,14 @@ import { useMutation } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Feature, GenerationConfig } from '@/types';
 import { metaForFeature, SEED_TONES, slugify } from '@/lib/example-prompts';
+import {
+  boundedMediaBlob,
+  extensionForMimeType,
+  MAX_REMOTE_IMAGE_BYTES,
+  normalizedMimeType,
+  requestPromptSlug,
+  SUPPORTED_RASTER_MIMES,
+} from '@/lib/media-download';
 import { runFalImage } from '@/lib/fal/browser';
 import { useAppStore } from '@/store/useAppStore';
 import {
@@ -56,14 +64,7 @@ const RESOLUTION_OPTIONS = ['1K', '2K', '4K'].map((value) => ({
 
 const FAL_GENERATION_ERROR = 'Unable to generate this image with fal. Please try again.';
 const DOWNLOAD_ERROR = 'Unable to download this image. Please try again.';
-const MAX_REMOTE_IMAGE_BYTES = 20 * 1024 * 1024;
 const MAX_FAL_REFERENCE_BYTES = 20 * 1024 * 1024;
-const SUPPORTED_RASTER_MIMES = new Set([
-  'image/jpeg',
-  'image/png',
-  'image/webp',
-  'image/avif',
-]);
 
 class LocalFalCancellation extends Error {
   constructor() {
@@ -74,89 +75,6 @@ class LocalFalCancellation extends Error {
 
 function isAbortError(error: unknown) {
   return error instanceof DOMException && error.name === 'AbortError';
-}
-
-class RemoteImageTooLarge extends Error {
-  constructor() {
-    super(DOWNLOAD_ERROR);
-    this.name = 'RemoteImageTooLarge';
-  }
-}
-
-async function boundedImageBlob(
-  response: Response,
-  mimeType: string,
-  signal: AbortSignal
-) {
-  const declaredLength = response.headers.get('Content-Length')?.trim();
-  if (declaredLength && /^\d+$/.test(declaredLength)) {
-    const size = Number(declaredLength);
-    if (!Number.isSafeInteger(size) || size > MAX_REMOTE_IMAGE_BYTES) {
-      throw new RemoteImageTooLarge();
-    }
-  }
-
-  if (!response.body) {
-    const blob = await response.blob();
-    if (blob.size > MAX_REMOTE_IMAGE_BYTES) throw new RemoteImageTooLarge();
-    return new Blob([blob], { type: mimeType });
-  }
-
-  const reader = response.body.getReader();
-  const chunks: ArrayBuffer[] = [];
-  let totalBytes = 0;
-  let readerCancelled = false;
-  const cancelReader = async () => {
-    if (readerCancelled) return;
-    readerCancelled = true;
-    try {
-      await reader.cancel();
-    } catch {
-      // The stream may already be errored or closed.
-    }
-  };
-
-  try {
-    while (true) {
-      if (signal.aborted) {
-        await cancelReader();
-        throw new DOMException('Download aborted', 'AbortError');
-      }
-      const { done, value } = await reader.read();
-      if (signal.aborted) {
-        await cancelReader();
-        throw new DOMException('Download aborted', 'AbortError');
-      }
-      if (done) break;
-      totalBytes += value.byteLength;
-      if (totalBytes > MAX_REMOTE_IMAGE_BYTES) {
-        await cancelReader();
-        throw new RemoteImageTooLarge();
-      }
-      const ownedChunk = new Uint8Array(value.byteLength);
-      ownedChunk.set(value);
-      chunks.push(ownedChunk.buffer);
-    }
-  } catch (caught) {
-    await cancelReader();
-    throw caught;
-  } finally {
-    reader.releaseLock();
-  }
-
-  return new Blob(chunks, { type: mimeType });
-}
-
-function normalizedMimeType(mimeType?: string | null) {
-  return mimeType?.split(';', 1)[0].trim().toLowerCase() ?? '';
-}
-
-function extensionForMimeType(mimeType?: string) {
-  const normalized = normalizedMimeType(mimeType);
-  if (normalized === 'image/jpeg') return 'jpg';
-  if (normalized === 'image/webp') return 'webp';
-  if (normalized === 'image/avif') return 'avif';
-  return 'png';
 }
 
 function isSafeFalMediaUrl(value: string) {
@@ -261,18 +179,10 @@ export default function GenerationInterface({ feature, apiKey, onBack, onOpenCon
   // Ask flash-lite for a short evocative filename slug for `p` and stash it.
   // Fire-and-forget — download falls back to a client-side slug if it's not ready.
   const prerenderSlug = async (p: string) => {
-    if (!p.trim() || !apiKey) return;
-    try {
-      const res = await fetch('/api/slug', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: p, apiKey }),
-      });
-      const data = await res.json();
-      if (res.ok && data.slug) setFilenameSlug(data.slug as string);
-    } catch {
-      /* ignore — downloadImage() falls back to slugify(prompt) */
-    }
+    // Returns null when the key is missing or the model is unavailable —
+    // downloadImage() then falls back to slugify(prompt).
+    const slug = await requestPromptSlug(p, apiKey);
+    if (slug) setFilenameSlug(slug);
   };
 
   const addImageFiles = useCallback(async (files: File[]) => {
@@ -616,7 +526,12 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
         throw new Error(DOWNLOAD_ERROR);
       }
 
-      const blob = await boundedImageBlob(response, responseMime, controller.signal);
+      const blob = await boundedMediaBlob(
+        response,
+        responseMime,
+        controller.signal,
+        MAX_REMOTE_IMAGE_BYTES
+      );
       if (!isCurrentOperation()) return;
 
       objectUrl = URL.createObjectURL(blob);
