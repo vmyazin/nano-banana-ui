@@ -54,6 +54,7 @@ Both providers create tab-local, in-memory jobs. For fal, the app uses the [asyn
 - **Full-screen lightbox** — preview generated images before download
 - **AI-generated example prompts** — one-click "Gen Example" with a meta-prompt tooltip
 - **AI download filenames** — filenames derived from your prompt
+- **Cheap helper tasks** — filenames and example prompts run on Llama 3.1 8B via Hugging Face when the deployment provides a token, falling back to your Gemini key, then to a plain slugifier
 - **Deep-linkable views** — URL-synced feature state (`?feature=text-to-image`)
 - **Command palette** — `⌘K` to jump between modes
 - **Configurable settings** — aspect ratio and quality (1K / 2K / 4K) where the active engine supports them
@@ -71,6 +72,27 @@ Both providers create tab-local, in-memory jobs. For fal, the app uses the [asyn
 - **For Kie image/video** (optional): a [Kie API key](https://kie.ai/)
 
 Pollinations requires no credentials.
+
+#### Optional: the shared micro-AI tier
+
+Small helper tasks — deriving a download filename from your prompt, writing an
+example prompt — do not need a frontier model. Set `HF_TOKEN` to a
+[Hugging Face token](https://huggingface.co/settings/tokens) with Inference
+permissions and they run on `Llama-3.1-8B-Instruct` (~$0.02 / 1M input tokens)
+instead of consuming your Gemini quota:
+
+```bash
+cp .env.example .env.local   # then fill in HF_TOKEN
+```
+
+This is the one credential the app holds server-side; every other key stays in
+your browser. It is never exposed to the client, and there is **no rate limit or
+usage cap** — if you deploy publicly, the token is spent on behalf of every
+anonymous visitor. Per-request token counts and an estimated session cost are
+shown in the Connections panel.
+
+Leave `HF_TOKEN` unset and each helper task falls back to your Gemini key, then
+to a deterministic regex slugifier. Nothing breaks either way.
 
 ### Installation
 
@@ -184,7 +206,8 @@ scene-assembly/
 
 ## 🔒 Security
 
-- API keys and provider credentials are stored in browser `localStorage` only
+- API keys and provider credentials are stored in browser `localStorage` only — except `HF_TOKEN`, which is app-owned, server-side, and never sent to the client
+- Micro-AI prompts keep a static system message and pass user text as a separate `user` message, instructed to treat it as content rather than instructions; every completion is pattern-validated before use, and anything that fails falls back rather than reaching the UI
 - Credentials are sent to the respective provider APIs through Next.js API routes
 - fal keys are not logged or stored server-side; each active request supplies its own key
 - fal request payload history is disabled, while uploaded references and generated outputs remain on fal’s public CDN for their configured one-day and seven-day retention periods
