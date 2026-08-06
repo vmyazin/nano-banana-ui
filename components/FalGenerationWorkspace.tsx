@@ -5,6 +5,7 @@ import { Download, ImagePlus, Loader2, Search, Sparkles, Trash2, Video } from 'l
 
 import LastFrameActions from '@/components/LastFrameActions';
 import ModelControls from '@/components/ModelControls';
+import ProviderLogo from '@/components/ProviderLogo';
 import { requestExamplePrompt, requestPromptSlug } from '@/lib/micro-ai/browser';
 import { cancelFalJob, submitFalJob, uploadFalFiles } from '@/lib/fal/browser';
 import {
@@ -541,7 +542,9 @@ function FalGenerationWorkspaceSession({
               Back
             </button>
             <div>
-              <p className="eyebrow mb-1 text-[var(--neon-cyan)]">fal.ai BYOK</p>
+              <p className="eyebrow mb-1 flex items-center gap-1.5 text-[var(--neon-cyan)]">
+                <ProviderLogo provider="fal" size={13} /> fal.ai BYOK
+              </p>
               <h2 className="display text-xl font-semibold sm:text-2xl">
                 {inputMode === 'text' ? 'Text' : 'Image'} to video with fal.ai
               </h2>

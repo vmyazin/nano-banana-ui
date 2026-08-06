@@ -11,6 +11,7 @@ import ApiKeyConfig from '@/components/ApiKeyConfig';
 import LibraryOverlay from '@/components/LibraryOverlay';
 import { usePromptLibraryStore } from '@/store/usePromptLibraryStore';
 import FeatureSelector from '@/components/FeatureSelector';
+import ProviderLogo from '@/components/ProviderLogo';
 import { CommandPalette } from '@/components/CommandPalette';
 import VideoWorkspace from '@/components/VideoWorkspace';
 import { Feature, FEATURES } from '@/types';
@@ -249,15 +250,15 @@ function Studio() {
                   className="flex flex-wrap gap-2.5 justify-center pt-1"
                 >
                   <span className="pill">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                    <ProviderLogo provider="gemini" size={13} className="text-emerald-400" />
                     Gemini
                   </span>
                   <span className="pill">
-                    <span className="w-1.5 h-1.5 rounded-full bg-[var(--neon-purple)]" />
+                    <ProviderLogo provider="pollinations" size={13} className="text-[var(--neon-purple)]" />
                     Pollinations
                   </span>
                   <span className="pill">
-                    <span className="w-1.5 h-1.5 rounded-full bg-[var(--brand-accent)]" />
+                    <ProviderLogo provider="cloudflare" size={13} className="text-[var(--brand-accent)]" />
                     Cloudflare
                   </span>
                 </motion.div>
@@ -348,14 +349,23 @@ function Studio() {
 
           {/* Engines available — capability context, not product identity */}
           <div className="mt-8 pt-6 border-t border-white/5 text-center">
-            <p className="text-xs text-[var(--foreground-muted)]">
-              Engines:{' '}
-              <span className="font-semibold text-[var(--neon-cyan)]">Gemini</span>
-              {', '}
-              <span className="font-semibold text-[var(--neon-purple)]">Pollinations</span>
-              {', '}
-              <span className="font-semibold text-[var(--brand-accent)]">Cloudflare</span>
-              {' '}&amp; more
+            <p className="flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1.5 text-xs text-[var(--foreground-muted)]">
+              <span>Engines:</span>
+              <span className="inline-flex items-center gap-1.5 font-semibold text-[var(--neon-cyan)]">
+                <ProviderLogo provider="gemini" size={13} /> Gemini
+              </span>
+              <span className="inline-flex items-center gap-1.5 font-semibold text-[var(--neon-purple)]">
+                <ProviderLogo provider="pollinations" size={13} /> Pollinations
+              </span>
+              <span className="inline-flex items-center gap-1.5 font-semibold text-[var(--brand-accent)]">
+                <ProviderLogo provider="cloudflare" size={13} /> Cloudflare
+              </span>
+              <span className="inline-flex items-center gap-1.5 font-semibold text-[var(--neon-pink)]">
+                <ProviderLogo provider="fal" size={13} /> fal.ai
+              </span>
+              <span className="inline-flex items-center gap-1.5 font-semibold text-[var(--foreground)]">
+                <ProviderLogo provider="kie" size={13} /> Kie.ai
+              </span>
             </p>
           </div>
         </div>

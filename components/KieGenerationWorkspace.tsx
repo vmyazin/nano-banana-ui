@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Download, ImagePlus, Loader2, Search, Sparkles, Trash2, Video } from 'lucide-react';
 import { toast } from 'sonner';
+import ProviderLogo from '@/components/ProviderLogo';
 import { requestExamplePrompt, requestPromptSlug } from '@/lib/micro-ai/browser';
 import { submitKieJob, uploadKieFiles } from '@/lib/kie/browser';
 import { defaultKieValues, modelsForKieMode, resolveKieVariant, validateKieInput } from '@/lib/kie/catalog';
@@ -333,7 +334,7 @@ export default function KieGenerationWorkspace({
             </button>
             <div className="min-w-0">
               <div className="eyebrow mb-1 flex items-center gap-1.5 text-[var(--neon-cyan)]">
-                {mediaType === 'video' ? <Video size={13} /> : <Sparkles size={13} />} Kie.ai BYOK
+                <ProviderLogo provider="kie" size={13} /> Kie.ai BYOK
               </div>
               <h2 className="display text-xl font-semibold text-[var(--foreground)] sm:text-2xl">
                 {title ?? titleFor(mediaType, inputMode)}

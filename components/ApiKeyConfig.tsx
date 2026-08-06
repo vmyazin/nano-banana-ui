@@ -2,10 +2,11 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Key, Eye, EyeOff, AlertCircle, X, Loader2, Cloud, Check } from 'lucide-react';
+import { Key, Eye, EyeOff, AlertCircle, X, Loader2, Check } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAppStore } from '@/store/useAppStore';
 import MicroAiUsagePanel from '@/components/MicroAiUsagePanel';
+import ProviderLogo from '@/components/ProviderLogo';
 
 interface ApiKeyConfigProps {
   open: boolean;
@@ -343,7 +344,9 @@ export default function ApiKeyConfig({ open, onOpenChange }: ApiKeyConfigProps) 
               {/* Google Gemini */}
               <section className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <p className="eyebrow">Google Gemini · all modes</p>
+                  <p className="eyebrow flex items-center gap-1.5">
+                    <ProviderLogo provider="gemini" size={13} /> Google Gemini · all modes
+                  </p>
                   <a
                     href="https://aistudio.google.com/apikey"
                     target="_blank"
@@ -393,7 +396,7 @@ export default function ApiKeyConfig({ open, onOpenChange }: ApiKeyConfigProps) 
               <section className="space-y-3">
                 <div className="flex items-center justify-between gap-3">
                   <p className="eyebrow flex items-center gap-1.5">
-                    Kie.ai · image and video BYOK
+                    <ProviderLogo provider="kie" size={13} /> Kie.ai · image and video BYOK
                     {kieConnected && (
                       <span className="inline-flex items-center gap-1 text-emerald-400 normal-case tracking-normal">
                         <Check size={12} /> connected
@@ -449,7 +452,7 @@ export default function ApiKeyConfig({ open, onOpenChange }: ApiKeyConfigProps) 
               <section className="space-y-3">
                 <div className="flex items-center justify-between gap-3">
                   <p className="eyebrow flex items-center gap-1.5">
-                    fal.ai · image and video BYOK
+                    <ProviderLogo provider="fal" size={13} /> fal.ai · image and video BYOK
                     {falConnected && (
                       <span className="inline-flex items-center gap-1 text-emerald-400 normal-case tracking-normal">
                         <Check size={12} /> connected
@@ -509,7 +512,7 @@ export default function ApiKeyConfig({ open, onOpenChange }: ApiKeyConfigProps) 
               <section className="space-y-3">
                 <div className="flex items-center justify-between">
                   <p className="eyebrow flex items-center gap-1.5">
-                    <Cloud size={13} /> Cloudflare · free, text-to-image
+                    <ProviderLogo provider="cloudflare" size={13} /> Cloudflare · free, text-to-image
                     {cfConnected && (
                       <span className="inline-flex items-center gap-1 text-emerald-400 normal-case tracking-normal">
                         <Check size={12} /> connected

@@ -17,6 +17,7 @@ import {
   SUPPORTED_RASTER_MIMES,
 } from '@/lib/media-download';
 import { runFalImage } from '@/lib/fal/browser';
+import ProviderLogo from '@/components/ProviderLogo';
 import { useAppStore } from '@/store/useAppStore';
 import { useDraftStore } from '@/store/useDraftStore';
 import { usePromptLibraryStore } from '@/store/usePromptLibraryStore';
@@ -160,6 +161,7 @@ function EngineSelector({ engines, activeEngineId, onSelect }: EngineSelectorPro
                   : 'border-[var(--border)] text-[var(--foreground-muted)] hover:border-[var(--border-hover)] hover:text-[var(--foreground)]'
               }`}
             >
+              <ProviderLogo provider={engine.id} size={13} />
               {engine.label}
               {engine.free && (
                 <span className="text-[0.62rem] uppercase tracking-wide text-emerald-400">
