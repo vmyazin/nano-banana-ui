@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Scene Assembly">
+  <title>Scene Assembly</title>
+
+  <!--
+    Two frames handing off to each other: the outlined one behind is the scene
+    you came from, the solid one in front is the one you are making. Offset
+    corner to corner, so the mark reads as moving forward.
+
+    Colours are the brand's own cyan and purple, the same pair as the primary
+    gradient token, kept flat because a gradient turns to mud at 16px. The dark
+    tile is the app surface, which also keeps the mark legible on light chrome.
+
+    Sizes are set so the two frames look equal, which is not the same as being
+    equal: the purple is a centred stroke that grows the box by half its width,
+    while the cyan loses 1.5 on every side to the seam. Both land on a visible
+    box of about 15, inset 4 from the tile.
+  -->
+  <rect width="32" height="32" rx="7" fill="#08080b"/>
+
+  <rect x="5" y="5" width="14" height="14" rx="3"
+        fill="none" stroke="#bd00ff" stroke-width="2"/>
+
+  <!-- The background-coloured stroke carves the seam out of the frame behind. -->
+  <rect x="12.5" y="12.5" width="17" height="17" rx="3.5"
+        fill="#00fff9" stroke="#08080b" stroke-width="3"/>
+</svg>
