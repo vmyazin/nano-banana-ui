@@ -12,11 +12,56 @@ import LibraryOverlay from '@/components/LibraryOverlay';
 import { usePromptLibraryStore } from '@/store/usePromptLibraryStore';
 import FeatureSelector from '@/components/FeatureSelector';
 import ProviderLogo from '@/components/ProviderLogo';
+import type { EngineId } from '@/lib/engines/registry';
 import { CommandPalette } from '@/components/CommandPalette';
 import VideoWorkspace from '@/components/VideoWorkspace';
 import { Feature, FEATURES } from '@/types';
 import { brand } from '@/lib/brand';
 import { useAppStore } from '@/store/useAppStore';
+
+/**
+ * Where to read up on each engine we can call. These are the vendors' own API
+ * docs — the page a developer needs to understand what a connected key buys
+ * them, and what the engine can do beyond what this UI exposes.
+ */
+const ENGINE_DOCS: ReadonlyArray<{
+  id: EngineId;
+  label: string;
+  href: string;
+  /** Hover accent, matched to the color each engine carries elsewhere. */
+  accentClass: string;
+}> = [
+  {
+    id: 'gemini',
+    label: 'Gemini',
+    href: 'https://ai.google.dev/gemini-api/docs/image-generation',
+    accentClass: 'hover:text-[var(--neon-cyan)]',
+  },
+  {
+    id: 'pollinations',
+    label: 'Pollinations',
+    href: 'https://gen.pollinations.ai/docs',
+    accentClass: 'hover:text-[var(--neon-purple)]',
+  },
+  {
+    id: 'cloudflare',
+    label: 'Cloudflare Workers AI',
+    href: 'https://developers.cloudflare.com/workers-ai/models/flux-1-schnell/',
+    accentClass: 'hover:text-[var(--brand-accent)]',
+  },
+  {
+    id: 'fal',
+    label: 'fal.ai',
+    href: 'https://fal.ai/docs',
+    accentClass: 'hover:text-[var(--neon-pink)]',
+  },
+  {
+    id: 'kie',
+    label: 'Kie.ai',
+    href: 'https://docs.kie.ai/',
+    accentClass: 'hover:text-[var(--foreground)]',
+  },
+];
 
 // Lazy-load the heavy generation workspace so the landing bundle stays light.
 const GenerationInterface = dynamic(() => import('@/components/GenerationInterface'), {
@@ -329,14 +374,6 @@ function Studio() {
                 🔑 API Keys &amp; Billing
               </a>
               <a
-                href="https://ai.google.dev/gemini-api/docs/image-generation"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs sm:text-sm font-medium px-4 py-2 rounded-lg bg-[var(--background-glass)] border border-white/10 hover:border-[var(--neon-cyan)] text-[var(--foreground-muted)] hover:text-[var(--neon-cyan)] transition-all hover:shadow-[var(--glow-cyan)]"
-              >
-                📚 API Docs
-              </a>
-              <a
                 href={brand.githubUrl}
                 target="_blank"
                 rel="noopener noreferrer"
@@ -347,26 +384,25 @@ function Studio() {
             </div>
           </div>
 
-          {/* Engines available — capability context, not product identity */}
+          {/* Engines available — capability context, not product identity.
+              Each one links to the docs you'd need to work with it directly. */}
           <div className="mt-8 pt-6 border-t border-white/5 text-center">
-            <p className="flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1.5 text-xs text-[var(--foreground-muted)]">
-              <span>Engines:</span>
-              <span className="inline-flex items-center gap-1.5 font-semibold text-[var(--neon-cyan)]">
-                <ProviderLogo provider="gemini" size={13} /> Gemini
-              </span>
-              <span className="inline-flex items-center gap-1.5 font-semibold text-[var(--neon-purple)]">
-                <ProviderLogo provider="pollinations" size={13} /> Pollinations
-              </span>
-              <span className="inline-flex items-center gap-1.5 font-semibold text-[var(--brand-accent)]">
-                <ProviderLogo provider="cloudflare" size={13} /> Cloudflare
-              </span>
-              <span className="inline-flex items-center gap-1.5 font-semibold text-[var(--neon-pink)]">
-                <ProviderLogo provider="fal" size={13} /> fal.ai
-              </span>
-              <span className="inline-flex items-center gap-1.5 font-semibold text-[var(--foreground)]">
-                <ProviderLogo provider="kie" size={13} /> Kie.ai
-              </span>
-            </p>
+            <p className="eyebrow mb-3">Engine docs</p>
+            <ul className="flex flex-wrap items-center justify-center gap-x-2 gap-y-2 text-xs">
+              {ENGINE_DOCS.map(({ id, label, href, accentClass }) => (
+                <li key={id}>
+                  <a
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-[var(--background-glass)] px-3 py-1.5 font-semibold text-[var(--foreground-muted)] transition-colors hover:border-current ${accentClass}`}
+                  >
+                    <ProviderLogo provider={id} size={13} />
+                    {label}
+                  </a>
+                </li>
+              ))}
+            </ul>
           </div>
         </div>
       </footer>
