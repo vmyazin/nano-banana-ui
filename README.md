@@ -29,14 +29,14 @@ An open-source, multi-engine studio for generating, editing, and composing image
 | **Google Gemini** | `gemini-3-pro-image-preview` | Paid (API usage) | Google AI Studio API key | All six modes — editing, multi-image, search grounding, 4K |
 | **Pollinations · FLUX** | FLUX via `image.pollinations.ai` | Free | None | Text-to-image only, no key required |
 | **Cloudflare · FLUX** | `@cf/black-forest-labs/flux-1-schnell` | Free daily tier | Cloudflare Account ID + API token | Text-to-image only |
-| **fal.ai** | Nano Banana 2 + 9 curated video models | fal credits | fal API key | All six image modes plus text-to-video and image-to-video |
+| **fal.ai** | Nano Banana 2 + 9 curated video models | fal credits | fal API key | All six image modes plus text-to-video, image-to-video, and first-and-last-frame |
 | **Kie.ai** | 15 verified image/video model families | Kie credits | Kie API key | Image generation/editing plus text-to-video and image-to-video |
 
 Image engines are selected via clickable pills in the feature header. fal.ai runs [Nano Banana 2](https://fal.ai/docs/model-api-reference/image-generation-api/nano-banana-2) for all six image modes, including optional web grounding, editing, and composition with up to 14 references. Kie and fal video models use compatible, searchable pickers with only their supported controls exposed.
 
 ### 🎬 Kie & fal.ai Image and Video
 
-The header includes URL-synced **Image** and **Video** workspaces. The Video workspace supports both text-to-video and image-to-video; use `?workspace=video` for a shareable deep link and `?workspace=video&videoMode=image` to open image-to-video directly.
+The header includes URL-synced **Image** and **Video** workspaces. The Video workspace supports text-to-video, image-to-video, and — on fal.ai — first-and-last-frame; use `?workspace=video` for a shareable deep link, `?workspace=video&videoMode=image` to open image-to-video directly, and `?workspace=video&videoMode=frames` for first-and-last-frame.
 
 Kie’s in-app catalog intentionally covers these flagship families:
 
@@ -44,6 +44,8 @@ Kie’s in-app catalog intentionally covers these flagship families:
 - **Video (7):** Veo 3.1, Kling 3.0, Seedance 2, Wan 2.7, Hailuo 2.3 Pro, Grok Imagine, PixVerse V6
 
 fal.ai has a separate, static catalog of exactly nine curated and verified video choices: **Veo 3.1 Standard**, **Veo 3.1 Fast**, **Seedance 2.0 Standard**, **Seedance 2.0 Fast**, **Kling 3 Standard**, **Kling 3 Pro**, **MiniMax Hailuo 2.3 Standard**, **MiniMax Hailuo 2.3 Pro**, and **Wan 2.7**. Each supports text-to-video and image-to-video.
+
+Seven of them also take **two source images** — a first and a last frame — and generate the motion between them. Veo 3.1 Standard and Fast run this on fal's dedicated `first-last-frame-to-video` endpoints; Seedance 2.0 (both tiers), Kling 3 (both tiers), and Wan 2.7 accept a closing frame alongside the opening one on their image-to-video endpoints. Only the two MiniMax Hailuo 2.3 models are opening-frame only, so they drop out of the picker in this mode.
 
 Both providers create tab-local, in-memory jobs. For fal, the app uses the [asynchronous queue](https://fal.ai/docs/documentation/model-apis/inference/queue) to submit, check status, retrieve results, and cancel. Polling stops at success/failure or after 15 minutes; the app never auto-resubmits, and job history is not restored after a reload. Download completed media promptly because provider URLs are temporary.
 
@@ -140,9 +142,10 @@ Provider credentials, including the fal key, persist in this browser’s `localS
 
 ### Generating Video with fal.ai
 
-1. Select **Video** in the header, switch the provider to **fal.ai**, and choose text-to-video or image-to-video
-2. Connect a fal key and select one of the nine curated models
+1. Select **Video** in the header, switch the provider to **fal.ai**, and choose text-to-video, image-to-video, or first & last frame
+2. Connect a fal key and select one of the nine curated models (seven in first-and-last-frame mode)
 3. Add reference images when required, adjust the model-specific controls, and submit
+   - In first-and-last-frame mode, pick two stills in order — opening then closing — and use **Swap first and last** if they land the wrong way round
 4. Keep the tab open while the app polls the fal queue; you can cancel an active job from its job card
 5. Preview and download the result before its temporary fal CDN URL expires
 

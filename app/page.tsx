@@ -96,7 +96,8 @@ function Studio() {
   const [workspace, setWorkspace] = useQueryState('workspace', { history: 'push' });
   const [videoMode, setVideoMode] = useQueryState('videoMode', { history: 'push' });
   const activeWorkspace = workspace === 'video' ? 'video' : 'image';
-  const activeVideoMode = videoMode === 'image' ? 'image' : 'text';
+  const activeVideoMode =
+    videoMode === 'image' || videoMode === 'frames' ? videoMode : 'text';
   const selectedFeature: Feature | null =
     FEATURES.find((f) => f.id === featureId) ?? null;
   const selectFeature = (feature: Feature) => setFeatureId(feature.id);
@@ -237,7 +238,7 @@ function Studio() {
             >
               <VideoWorkspace
                 inputMode={activeVideoMode}
-                onInputModeChange={(mode) => void setVideoMode(mode === 'text' ? null : 'image')}
+                onInputModeChange={(mode) => void setVideoMode(mode === 'text' ? null : mode)}
                 onExit={() => selectWorkspace('image')}
                 onOpenConnections={() => setKeyDialogOpen(true)}
               />

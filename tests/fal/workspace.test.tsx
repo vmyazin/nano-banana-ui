@@ -53,7 +53,7 @@ function deferred<T>() {
   return { promise, reject, resolve };
 }
 
-function renderWorkspace(inputMode: 'text' | 'image' = 'text', props: {
+function renderWorkspace(inputMode: 'text' | 'image' | 'frames' = 'text', props: {
   onBack?: () => void;
   onOpenConnections?: () => void;
 } = {}) {
@@ -178,6 +178,68 @@ describe('FalGenerationWorkspace', () => {
     fireEvent.change(container.querySelector('input[type="file"]')!, { target: { files: [file] } });
     expect(await screen.findByAltText('Reference 1')).toHaveAttribute('src', 'blob:reference-preview');
     expect(screen.getByRole('button', { name: 'Remove reference 1' })).toBeInTheDocument();
+  });
+
+  it('offers only end-frame capable models and needs both frames before upload', async () => {
+    const { container } = renderWorkspace('frames');
+    const model = screen.getByRole('combobox', { name: 'Model' });
+    expect(within(model).getAllByRole('option').map((option) => option.textContent?.split(' · ')[0])).toEqual(
+      labels.filter((label) => !label.startsWith('MiniMax'))
+    );
+
+    fireEvent.change(screen.getByLabelText('Prompt'), { target: { value: 'Push in on the tiger' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Generate video' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Add both a first frame and a last frame');
+    expect(uploadFalFilesMock).not.toHaveBeenCalled();
+
+    const opening = new File(['image'], 'opening.png', { type: 'image/png' });
+    fireEvent.change(container.querySelector('input[type="file"]')!, { target: { files: [opening] } });
+    await screen.findByAltText('First frame');
+    fireEvent.click(screen.getByRole('button', { name: 'Generate video' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Add both a first frame and a last frame');
+    expect(uploadFalFilesMock).not.toHaveBeenCalled();
+  });
+
+  it('uploads the two frames in slot order and can swap them', async () => {
+    uploadFalFilesMock.mockResolvedValue([
+      'https://v3.fal.media/files/input/opening.png',
+      'https://v3.fal.media/files/input/closing.png',
+    ]);
+    const { container } = renderWorkspace('frames');
+    const opening = new File(['image'], 'opening.png', { type: 'image/png' });
+    const closing = new File(['image'], 'closing.png', { type: 'image/png' });
+
+    fireEvent.change(container.querySelector('input[type="file"]')!, { target: { files: [opening, closing] } });
+    await screen.findByAltText('Last frame');
+    fireEvent.click(screen.getByRole('button', { name: 'Swap first and last' }));
+    await waitFor(() =>
+      expect(useDraftStore.getState().references.map((reference) => reference.file.name)).toEqual([
+        'closing.png',
+        'opening.png',
+      ])
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Swap first and last' }));
+
+    fireEvent.change(screen.getByLabelText('Prompt'), { target: { value: 'Push in on the tiger' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Generate video' }));
+
+    await waitFor(() => expect(submitFalJobMock).toHaveBeenCalledOnce());
+    expect(uploadFalFilesMock).toHaveBeenCalledWith(
+      'fal-key-secret',
+      [opening, closing],
+      { signal: expect.any(AbortSignal) }
+    );
+    expect(submitFalJobMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        modelId: 'veo-3-1-fast',
+        inputMode: 'frames',
+        uploadUrls: [
+          'https://v3.fal.media/files/input/opening.png',
+          'https://v3.fal.media/files/input/closing.png',
+        ],
+      }),
+      { signal: expect.any(AbortSignal) }
+    );
   });
 
   it('accepts a saved clip and uploads its last frame as the reference', async () => {

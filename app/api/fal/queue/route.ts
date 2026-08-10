@@ -40,7 +40,7 @@ function isMediaType(value: unknown): value is FalMediaType {
 }
 
 function isInputMode(value: unknown): value is FalInputMode {
-  return value === 'text' || value === 'image';
+  return value === 'text' || value === 'image' || value === 'frames';
 }
 
 function isFalValue(value: unknown): value is FalValue {

@@ -1,5 +1,6 @@
 export type FalMediaType = 'image' | 'video';
-export type FalInputMode = 'text' | 'image';
+/** `frames` is first-and-last-frame to video: two ordered source images. */
+export type FalInputMode = 'text' | 'image' | 'frames';
 export type FalValue = string | number | boolean;
 export type FalFieldType = 'text' | 'number' | 'boolean' | 'select';
 
@@ -27,6 +28,12 @@ export interface FalModelVariant {
   imageInputKey?: 'image_url' | 'image_urls' | 'start_image_url';
   imageInputMultiple?: boolean;
   maxInputImages?: number;
+  /**
+   * Where the opening and closing stills go on a `frames` variant. The two keys
+   * differ per model — Veo takes `first_frame_url`/`last_frame_url` on its own
+   * endpoint, while the rest hang `end_image_url` off image-to-video.
+   */
+  frameInputKeys?: { first: string; last: string };
   fields: FalFieldDefinition[];
 }
 

@@ -211,4 +211,34 @@ describe('VideoWorkspace provider selection', () => {
     expect(useFalJobsStore.getState().jobs).toHaveLength(1);
     expect(useFalJobsStore.getState().jobs[0].requestId).toBe('request_keep01');
   });
+
+  it('offers first-and-last-frame only on fal, and leaves the mode on Kie', () => {
+    const onInputModeChange = vi.fn();
+    const view = render(
+      <VideoWorkspace
+        inputMode="text"
+        onInputModeChange={onInputModeChange}
+        onExit={() => undefined}
+        onOpenConnections={() => undefined}
+      />
+    );
+    expect(screen.queryByRole('button', { name: 'First & last frame' })).toBeNull();
+
+    fireEvent.click(screen.getByRole('radio', { name: /fal\.ai/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'First & last frame' }));
+    expect(onInputModeChange).toHaveBeenCalledWith('frames');
+
+    // Kie has no frames models, so it falls back to image-to-video on the way out.
+    view.rerender(
+      <VideoWorkspace
+        inputMode="frames"
+        onInputModeChange={onInputModeChange}
+        onExit={() => undefined}
+        onOpenConnections={() => undefined}
+      />
+    );
+    fireEvent.click(screen.getByRole('radio', { name: /Kie\.ai/i }));
+    expect(onInputModeChange).toHaveBeenLastCalledWith('image');
+    expect(screen.getByTestId('kie-workspace')).toHaveTextContent('Kie workspace: image');
+  });
 });

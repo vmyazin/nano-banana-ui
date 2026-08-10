@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Download, ImagePlus, Loader2, Search, Sparkles, Trash2, Video } from 'lucide-react';
+import { ArrowUpDown, Download, ImagePlus, Loader2, Search, Sparkles, Trash2, Video } from 'lucide-react';
 
 import LastFrameActions from '@/components/LastFrameActions';
 import ModelControls from '@/components/ModelControls';
@@ -54,6 +54,15 @@ const statusCopy: Record<FalTaskState, string> = {
   timed_out: 'Timed out',
   cancelled: 'Cancelled',
 };
+
+const modeTitles: Record<FalInputMode, string> = {
+  text: 'Text to video',
+  image: 'Image to video',
+  frames: 'First & last frame to video',
+};
+
+/** Frames runs are ordered: slot one opens the clip, slot two closes it. */
+const frameSlotLabel = (index: number) => (index === 0 ? 'First frame' : 'Last frame');
 
 const submissionError = 'fal could not start this job. Please try again.';
 const cancellationError = 'fal could not cancel this job. Please try again.';
@@ -246,6 +255,14 @@ function FalGenerationWorkspaceSession({
   const cancellingRef = useRef(new Set<string>());
   const mountedRef = useRef(true);
   const maxInputImages = variant.maxInputImages ?? 1;
+  const isFramesMode = inputMode === 'frames';
+  const pickerLabel = !isFramesMode
+    ? 'Choose an image, or a video to use its last frame'
+    : references.length === 0
+      ? 'Choose the first frame — an image, or a video to use its last frame'
+      : references.length === 1
+        ? 'Choose the last frame — an image, or a video to use its last frame'
+        : 'Both frames chosen';
   const normalizedSearch = modelSearch.trim().toLowerCase();
   const matchingModels = models.filter((model) =>
     `${model.label} ${model.provider} ${model.description}`.toLowerCase().includes(normalizedSearch)
@@ -338,7 +355,11 @@ function FalGenerationWorkspaceSession({
       return;
     }
     if (references.length + usable.length > maxInputImages) {
-      setError(`This fal model accepts up to ${maxInputImages} reference image${maxInputImages === 1 ? '' : 's'}.`);
+      setError(
+        isFramesMode
+          ? 'This flow takes exactly two frames. Remove one before choosing another.'
+          : `This fal model accepts up to ${maxInputImages} reference image${maxInputImages === 1 ? '' : 's'}.`
+      );
       return;
     }
 
@@ -405,7 +426,7 @@ function FalGenerationWorkspaceSession({
       return;
     }
 
-    const activeReferences = inputMode === 'image' ? references : [];
+    const activeReferences = inputMode === 'text' ? [] : references;
     const validationError = validateFalInput(variant, {
       prompt,
       uploadUrls: activeReferences.map((reference) => reference.previewUrl),
@@ -546,10 +567,10 @@ function FalGenerationWorkspaceSession({
                 <ProviderLogo provider="fal" size={13} /> fal.ai BYOK
               </p>
               <h2 className="display text-xl font-semibold sm:text-2xl">
-                {inputMode === 'text' ? 'Text' : 'Image'} to video with fal.ai
+                {modeTitles[inputMode]} with fal.ai
               </h2>
               <p className="mt-1 max-w-2xl text-sm text-[var(--foreground-muted)]">
-                Choose one of nine curated video models and configure only its verified controls.
+                Choose one of {models.length} curated video models and configure only its verified controls.
               </p>
             </div>
           </div>
@@ -638,34 +659,62 @@ function FalGenerationWorkspaceSession({
             </div>
           </section>
 
-          {inputMode === 'image' && (
+          {inputMode !== 'text' && (
             <section className="glass-card space-y-4 p-4 sm:p-5 md:p-6">
               <div>
-                <h3 className="display text-lg font-semibold">Reference image</h3>
-                <p className="mt-0.5 text-xs text-[var(--foreground-muted)]">This video flow accepts exactly one image. Pick a saved clip instead and its last frame is used.</p>
+                <h3 className="display text-lg font-semibold">
+                  {isFramesMode ? 'First and last frame' : 'Reference image'}
+                </h3>
+                <p className="mt-0.5 text-xs text-[var(--foreground-muted)]">
+                  {isFramesMode
+                    ? `Two stills, in order: the frame the clip opens on and the one it lands on. ${selectedModel.label} generates the motion between them.`
+                    : 'This video flow accepts exactly one image. Pick a saved clip instead and its last frame is used.'}
+                </p>
               </div>
               <input
                 ref={fileInputRef}
                 type="file"
+                multiple={isFramesMode}
                 accept="image/png,image/jpeg,image/webp,image/avif,video/*"
-                aria-label="Reference image file"
+                aria-label={isFramesMode ? 'Frame image file' : 'Reference image file'}
                 className="hidden"
                 onChange={(event) => {
                   void addReferences(Array.from(event.target.files ?? []));
                   event.target.value = '';
                 }}
               />
-              <button type="button" onClick={() => fileInputRef.current?.click()} className="flex w-full flex-col items-center gap-2 rounded-xl border-2 border-dashed border-[var(--neon-cyan)]/30 py-5 text-sm text-[var(--foreground-muted)]">
+              <button
+                type="button"
+                disabled={isFramesMode && references.length >= maxInputImages}
+                onClick={() => fileInputRef.current?.click()}
+                className="flex w-full flex-col items-center gap-2 rounded-xl border-2 border-dashed border-[var(--neon-cyan)]/30 py-5 text-sm text-[var(--foreground-muted)] disabled:cursor-not-allowed disabled:opacity-50"
+              >
                 {isReadingFrame ? <Loader2 className="animate-spin" size={28} /> : <ImagePlus size={28} />}
-                {isReadingFrame ? 'Reading last frame…' : 'Choose an image, or a video to use its last frame'}
+                {isReadingFrame ? 'Reading last frame…' : pickerLabel}
               </button>
               {references.map((reference, index) => (
                 <div key={reference.id} className="space-y-1">
+                  {isFramesMode && (
+                    <p className="text-xs font-medium text-[var(--foreground)]">{frameSlotLabel(index)}</p>
+                  )}
                   <div className="relative overflow-hidden rounded-lg border border-[var(--border)]">
                     {/* Local blob previews cannot be optimized by next/image. */}
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={reference.previewUrl} alt={`Reference ${index + 1}`} className="aspect-video w-full object-contain" />
-                    <button type="button" aria-label={`Remove reference ${index + 1}`} onClick={() => removeReference(index)} className="absolute right-2 top-2 rounded-md bg-black/70 p-2 text-white">
+                    <img
+                      src={reference.previewUrl}
+                      alt={isFramesMode ? frameSlotLabel(index) : `Reference ${index + 1}`}
+                      className="aspect-video w-full object-contain"
+                    />
+                    <button
+                      type="button"
+                      aria-label={
+                        isFramesMode
+                          ? `Remove ${frameSlotLabel(index).toLowerCase()}`
+                          : `Remove reference ${index + 1}`
+                      }
+                      onClick={() => removeReference(index)}
+                      className="absolute right-2 top-2 rounded-md bg-black/70 p-2 text-white"
+                    >
                       <Trash2 size={14} />
                     </button>
                   </div>
@@ -676,6 +725,15 @@ function FalGenerationWorkspaceSession({
                   )}
                 </div>
               ))}
+              {isFramesMode && references.length === 2 && (
+                <button
+                  type="button"
+                  onClick={() => useDraftStore.getState().reorderReference(0, 1)}
+                  className="btn-secondary flex w-full items-center justify-center gap-2 text-sm"
+                >
+                  <ArrowUpDown size={15} /> Swap first and last
+                </button>
+              )}
             </section>
           )}
 

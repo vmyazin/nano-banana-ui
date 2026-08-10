@@ -592,6 +592,20 @@ describe('fal API routes', () => {
       expect(submitFalTask).not.toHaveBeenCalled();
     });
 
+    it('forwards a first-and-last-frame run with both frames in order', async () => {
+      submitFalTask.mockResolvedValue({ requestId: 'req_frames_1234' });
+      const uploadUrls = ['https://fal.media/opening.png', 'https://fal.media/closing.png'];
+
+      const response = await queuePost(
+        jsonRequest('/api/fal/queue', { ...submitBody, inputMode: 'frames', uploadUrls })
+      );
+
+      expect(response.status).toBe(200);
+      expect(submitFalTask).toHaveBeenCalledWith(
+        expect.objectContaining({ modelId: 'wan-2-7', inputMode: 'frames', uploadUrls })
+      );
+    });
+
     it('accepts string, finite number, and boolean values', async () => {
       submitFalTask.mockResolvedValue({ requestId: 'request_12345678' });
       const body = {
@@ -636,6 +650,23 @@ describe('fal API routes', () => {
       {
         name: 'references supplied to text mode',
         body: { ...submitBody, uploadUrls: ['https://fal.media/reference.png'] },
+      },
+      {
+        name: 'a frames run with only one frame',
+        body: {
+          ...submitBody,
+          inputMode: 'frames',
+          uploadUrls: ['https://fal.media/opening.png'],
+        },
+      },
+      {
+        name: 'a frames run on a model with no end-frame support',
+        body: {
+          ...submitBody,
+          modelId: 'hailuo-2-3-pro',
+          inputMode: 'frames',
+          uploadUrls: ['https://fal.media/opening.png', 'https://fal.media/closing.png'],
+        },
       },
     ])('rejects $name before calling the billable adapter', async ({ body }) => {
       submitFalTask.mockResolvedValue({ requestId: 'request_12345678' });

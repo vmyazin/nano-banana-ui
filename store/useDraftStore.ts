@@ -31,6 +31,8 @@ interface DraftState {
   addReferences: (entries: DraftReferenceInput[], limit: number) => void;
   /** Trims to a new model's ceiling, e.g. moving from a 3-image to a 1-image model. */
   limitReferences: (limit: number) => void;
+  /** Moves one reference to another slot; order is meaningful for first/last frames. */
+  reorderReference: (from: number, to: number) => void;
   removeReference: (id: string) => void;
   clearReferences: () => void;
   rememberControlValues: (values: Record<string, DraftValue>) => void;
@@ -80,6 +82,16 @@ export const useDraftStore = create<DraftState>((set, get) => ({
     const kept = references.slice(references.length - limit);
     release(references.filter((reference) => !kept.includes(reference)));
     set({ references: kept });
+  },
+
+  reorderReference: (from, to) => {
+    const { references } = get();
+    const isInRange = (index: number) => Number.isInteger(index) && index >= 0 && index < references.length;
+    if (from === to || !isInRange(from) || !isInRange(to)) return;
+    const next = [...references];
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved);
+    set({ references: next });
   },
 
   removeReference: (id) => {

@@ -82,12 +82,69 @@ describe('fal model catalog', () => {
   });
 
   it('defines text and image variants for all 18 curated video endpoints', () => {
-    expect(FAL_VIDEO_MODELS.flatMap((model) => model.variants)).toHaveLength(18);
+    // 18 text/image variants, plus a frames variant on the seven models fal
+    // documents as accepting a closing frame.
+    expect(FAL_VIDEO_MODELS.flatMap((model) => model.variants)).toHaveLength(25);
 
     for (const [modelId, textEndpoint, imageEndpoint] of VIDEO_ENDPOINTS) {
       expect(resolveFalVariant(modelId, 'video', 'text').endpointId).toBe(textEndpoint);
       expect(resolveFalVariant(modelId, 'video', 'image').endpointId).toBe(imageEndpoint);
     }
+  });
+
+  it('offers first-and-last-frame runs only where fal documents an end frame', () => {
+    expect(modelsForFalMode('video', 'frames').map((model) => model.id)).toEqual([
+      'veo-3-1',
+      'veo-3-1-fast',
+      'seedance-2',
+      'seedance-2-fast',
+      'kling-3-standard',
+      'kling-3-pro',
+      'wan-2-7',
+    ]);
+    // Hailuo 2.3 takes an opening frame only.
+    expect(() => resolveFalVariant('hailuo-2-3-pro', 'video', 'frames')).toThrow();
+  });
+
+  it('sends both frames on the documented per-model keys', () => {
+    const frames = ['https://v3.fal.media/open.png', 'https://v3.fal.media/close.png'];
+
+    // Veo exposes first/last frames on a dedicated endpoint...
+    const veo = resolveFalVariant('veo-3-1-fast', 'video', 'frames');
+    expect(veo.endpointId).toBe('fal-ai/veo3.1/fast/first-last-frame-to-video');
+    expect(buildFalInput(veo, { prompt: 'Pan across', uploadUrls: frames, values: {} })).toMatchObject({
+      first_frame_url: frames[0],
+      last_frame_url: frames[1],
+    });
+
+    // ...the rest hang an end frame off image-to-video, keeping its start key.
+    const seedance = resolveFalVariant('seedance-2', 'video', 'frames');
+    expect(seedance.endpointId).toBe('bytedance/seedance-2.0/image-to-video');
+    expect(buildFalInput(seedance, { prompt: 'Pan across', uploadUrls: frames, values: {} })).toMatchObject({
+      image_url: frames[0],
+      end_image_url: frames[1],
+    });
+
+    const kling = resolveFalVariant('kling-3-pro', 'video', 'frames');
+    expect(kling.endpointId).toBe('fal-ai/kling-video/v3/pro/image-to-video');
+    expect(buildFalInput(kling, { prompt: 'Pan across', uploadUrls: frames, values: {} })).toMatchObject({
+      start_image_url: frames[0],
+      end_image_url: frames[1],
+    });
+  });
+
+  it('requires exactly two frames for a first-and-last-frame run', () => {
+    const variant = resolveFalVariant('wan-2-7', 'video', 'frames');
+    const validate = (uploadUrls: string[]) => validateFalInput(variant, { prompt: 'Pan across', uploadUrls });
+    const framesError = 'Add both a first frame and a last frame for the selected fal model.';
+
+    expect(validate([])).toBe(framesError);
+    expect(validate(['https://v3.fal.media/open.png'])).toBe(framesError);
+    expect(
+      validate(['https://v3.fal.media/open.png', 'https://v3.fal.media/close.png', 'https://v3.fal.media/extra.png'])
+    ).toBe(framesError);
+    expect(validate(['https://v3.fal.media/open.png', 'https://v3.fal.media/close.png'])).toBeNull();
+    expect(variant.maxInputImages).toBe(2);
   });
 
   it('exposes all nine video choices for image-to-video', () => {

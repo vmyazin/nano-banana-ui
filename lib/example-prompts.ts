@@ -19,6 +19,8 @@ export const EXAMPLE_META_PROMPTS: Record<string, string> = {
     'Produce ONE vivid text-to-video prompt describing a scene, its motion, camera movement, lighting, and mood in about one sentence. Vary the subject and cinematic approach each time.',
   'image-to-video':
     'Produce ONE concise image-to-video instruction describing how the supplied image should move, including subject motion and camera movement, in about one sentence.',
+  'frames-to-video':
+    'Produce ONE concise instruction describing how a video should travel from a supplied first frame to a supplied last frame — the transition, subject motion, and camera movement between them — in about one sentence. Do not describe either frame itself.',
 };
 
 export const DEFAULT_EXAMPLE_META =

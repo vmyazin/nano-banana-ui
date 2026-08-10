@@ -80,6 +80,24 @@ const textVariant = (
   fields,
 });
 
+/**
+ * A first-and-last-frame run: exactly two ordered stills, the opening and the
+ * closing frame, with the model interpolating the motion between them.
+ */
+const framesVariant = (
+  modelId: string,
+  endpointId: string,
+  frameInputKeys: { first: string; last: string },
+  fields: FalFieldDefinition[]
+): FalModelVariant => ({
+  id: `${modelId}:frames`,
+  endpointId,
+  inputMode: 'frames',
+  frameInputKeys,
+  maxInputImages: 2,
+  fields,
+});
+
 const videoModel = (
   id: string,
   label: string,
@@ -101,6 +119,43 @@ const videoModel = (
     imageVariant(id, imageEndpoint, imageInputKey, imageFields),
   ],
 });
+
+/**
+ * Give a video model a first-and-last-frame variant. Most fal video models take
+ * a closing still as an extra `end_image_url` on their existing image-to-video
+ * endpoint, so the endpoint, opening-frame key, and controls all default to that
+ * variant's; Veo 3.1 is the exception and passes all three explicitly.
+ */
+const withFrames = (
+  model: FalModelDefinition,
+  frames: {
+    lastFrameKey: string;
+    firstFrameKey?: string;
+    endpointId?: string;
+    fields?: FalFieldDefinition[];
+  }
+): FalModelDefinition => {
+  const imageVariantOf = model.variants.find((variant) => variant.inputMode === 'image');
+  if (!imageVariantOf?.imageInputKey) {
+    throw new Error(`Cannot add frames support to ${model.id} without an image variant.`);
+  }
+
+  return {
+    ...model,
+    variants: [
+      ...model.variants,
+      framesVariant(
+        model.id,
+        frames.endpointId ?? imageVariantOf.endpointId,
+        {
+          first: frames.firstFrameKey ?? imageVariantOf.imageInputKey,
+          last: frames.lastFrameKey,
+        },
+        frames.fields ?? imageVariantOf.fields
+      ),
+    ],
+  };
+};
 
 const NANO_FIELDS = [
   selectField('aspect_ratio', 'Aspect ratio', 'auto', [
@@ -212,65 +267,91 @@ const wanFields = (includeAspectRatio: boolean): FalFieldDefinition[] => [
 ];
 
 export const FAL_VIDEO_MODELS: FalModelDefinition[] = [
-  videoModel(
-    'veo-3-1',
-    'Veo 3.1 Standard',
-    'Google',
-    'High-quality video generation with native audio.',
-    'fal-ai/veo3.1',
-    'fal-ai/veo3.1/image-to-video',
-    VEO_TEXT_FIELDS,
-    VEO_IMAGE_FIELDS
+  withFrames(
+    videoModel(
+      'veo-3-1',
+      'Veo 3.1 Standard',
+      'Google',
+      'High-quality video generation with native audio.',
+      'fal-ai/veo3.1',
+      'fal-ai/veo3.1/image-to-video',
+      VEO_TEXT_FIELDS,
+      VEO_IMAGE_FIELDS
+    ),
+    {
+      endpointId: 'fal-ai/veo3.1/first-last-frame-to-video',
+      firstFrameKey: 'first_frame_url',
+      lastFrameKey: 'last_frame_url',
+    }
   ),
-  videoModel(
-    'veo-3-1-fast',
-    'Veo 3.1 Fast',
-    'Google',
-    'Faster Veo 3.1 video generation with native audio.',
-    'fal-ai/veo3.1/fast',
-    'fal-ai/veo3.1/fast/image-to-video',
-    VEO_TEXT_FIELDS,
-    VEO_IMAGE_FIELDS
+  withFrames(
+    videoModel(
+      'veo-3-1-fast',
+      'Veo 3.1 Fast',
+      'Google',
+      'Faster Veo 3.1 video generation with native audio.',
+      'fal-ai/veo3.1/fast',
+      'fal-ai/veo3.1/fast/image-to-video',
+      VEO_TEXT_FIELDS,
+      VEO_IMAGE_FIELDS
+    ),
+    {
+      endpointId: 'fal-ai/veo3.1/fast/first-last-frame-to-video',
+      firstFrameKey: 'first_frame_url',
+      lastFrameKey: 'last_frame_url',
+    }
   ),
-  videoModel(
-    'seedance-2',
-    'Seedance 2.0 Standard',
-    'ByteDance',
-    'Cinematic video generation with synchronized audio.',
-    'bytedance/seedance-2.0/text-to-video',
-    'bytedance/seedance-2.0/image-to-video',
-    seedanceFields(['480p', '720p', '1080p', '4k'])
+  withFrames(
+    videoModel(
+      'seedance-2',
+      'Seedance 2.0 Standard',
+      'ByteDance',
+      'Cinematic video generation with synchronized audio.',
+      'bytedance/seedance-2.0/text-to-video',
+      'bytedance/seedance-2.0/image-to-video',
+      seedanceFields(['480p', '720p', '1080p', '4k'])
+    ),
+    { lastFrameKey: 'end_image_url' }
   ),
-  videoModel(
-    'seedance-2-fast',
-    'Seedance 2.0 Fast',
-    'ByteDance',
-    'Fast cinematic video generation with synchronized audio.',
-    'bytedance/seedance-2.0/fast/text-to-video',
-    'bytedance/seedance-2.0/fast/image-to-video',
-    seedanceFields(['480p', '720p'])
+  withFrames(
+    videoModel(
+      'seedance-2-fast',
+      'Seedance 2.0 Fast',
+      'ByteDance',
+      'Fast cinematic video generation with synchronized audio.',
+      'bytedance/seedance-2.0/fast/text-to-video',
+      'bytedance/seedance-2.0/fast/image-to-video',
+      seedanceFields(['480p', '720p'])
+    ),
+    { lastFrameKey: 'end_image_url' }
   ),
-  videoModel(
-    'kling-3-standard',
-    'Kling 3 Standard',
-    'Kuaishou',
-    'Kling 3 video generation with native audio.',
-    'fal-ai/kling-video/v3/standard/text-to-video',
-    'fal-ai/kling-video/v3/standard/image-to-video',
-    klingFields(true),
-    klingFields(false),
-    'start_image_url'
+  withFrames(
+    videoModel(
+      'kling-3-standard',
+      'Kling 3 Standard',
+      'Kuaishou',
+      'Kling 3 video generation with native audio.',
+      'fal-ai/kling-video/v3/standard/text-to-video',
+      'fal-ai/kling-video/v3/standard/image-to-video',
+      klingFields(true),
+      klingFields(false),
+      'start_image_url'
+    ),
+    { lastFrameKey: 'end_image_url' }
   ),
-  videoModel(
-    'kling-3-pro',
-    'Kling 3 Pro',
-    'Kuaishou',
-    'Higher-tier Kling 3 video generation with native audio.',
-    'fal-ai/kling-video/v3/pro/text-to-video',
-    'fal-ai/kling-video/v3/pro/image-to-video',
-    klingFields(true),
-    klingFields(false),
-    'start_image_url'
+  withFrames(
+    videoModel(
+      'kling-3-pro',
+      'Kling 3 Pro',
+      'Kuaishou',
+      'Higher-tier Kling 3 video generation with native audio.',
+      'fal-ai/kling-video/v3/pro/text-to-video',
+      'fal-ai/kling-video/v3/pro/image-to-video',
+      klingFields(true),
+      klingFields(false),
+      'start_image_url'
+    ),
+    { lastFrameKey: 'end_image_url' }
   ),
   videoModel(
     'hailuo-2-3-standard',
@@ -290,15 +371,18 @@ export const FAL_VIDEO_MODELS: FalModelDefinition[] = [
     'fal-ai/minimax/hailuo-2.3/pro/image-to-video',
     HAILUO_PRO_FIELDS
   ),
-  videoModel(
-    'wan-2-7',
-    'Wan 2.7',
-    'Alibaba',
-    'Wan video generation with optional prompt expansion.',
-    'fal-ai/wan/v2.7/text-to-video',
-    'fal-ai/wan/v2.7/image-to-video',
-    wanFields(true),
-    wanFields(false)
+  withFrames(
+    videoModel(
+      'wan-2-7',
+      'Wan 2.7',
+      'Alibaba',
+      'Wan video generation with optional prompt expansion.',
+      'fal-ai/wan/v2.7/text-to-video',
+      'fal-ai/wan/v2.7/image-to-video',
+      wanFields(true),
+      wanFields(false)
+    ),
+    { lastFrameKey: 'end_image_url' }
   ),
 ];
 
@@ -355,7 +439,12 @@ export function validateFalInput(
   args: { prompt: string; uploadUrls: string[] }
 ): string | null {
   if (!args.prompt.trim()) return 'Enter a prompt for the selected fal model.';
-  if (variant.inputMode !== 'image') return null;
+  if (variant.inputMode === 'text') return null;
+  if (variant.inputMode === 'frames') {
+    return args.uploadUrls.length === 2
+      ? null
+      : 'Add both a first frame and a last frame for the selected fal model.';
+  }
   if (args.uploadUrls.length === 0) {
     return 'Add at least one reference image for the selected fal model.';
   }
@@ -411,7 +500,10 @@ export function buildFalInput(
   args: { prompt: string; uploadUrls: string[]; values: Record<string, FalValue> }
 ): Record<string, unknown> {
   const input: Record<string, unknown> = { prompt: args.prompt.trim() };
-  if (variant.inputMode === 'image' && variant.imageInputKey) {
+  if (variant.inputMode === 'frames' && variant.frameInputKeys) {
+    input[variant.frameInputKeys.first] = args.uploadUrls[0];
+    input[variant.frameInputKeys.last] = args.uploadUrls[1];
+  } else if (variant.inputMode === 'image' && variant.imageInputKey) {
     input[variant.imageInputKey] = variant.imageInputMultiple ? args.uploadUrls : args.uploadUrls[0];
   }
   for (const field of variant.fields) {
