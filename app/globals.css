@@ -7,9 +7,11 @@
   --background-elevated: #0e0e13;
   --surface: rgba(255, 255, 255, 0.02);
   --surface-hover: rgba(255, 255, 255, 0.045);
-  --foreground: #ededf2;
-  --foreground-muted: #8b8b99;
-  --foreground-subtle: #56565f;
+  --foreground: #f2f2f6;
+  /* Secondary text carries most of the reading load in this UI, so it is held
+     near 6.5:1 on the elevated surface rather than the usual dim grey. */
+  --foreground-muted: #9797a6;
+  --foreground-subtle: #7b7b87;
 
   /* Neon accents — unchanged palette, spent sparingly */
   --neon-cyan: #00fff9;
@@ -18,9 +20,11 @@
   --brand-accent: #ffed4e;
   --electric-blue: #0066ff;
 
-  /* Hairline borders */
-  --border: rgba(255, 255, 255, 0.08);
-  --border-hover: rgba(255, 255, 255, 0.16);
+  /* Hairline borders. Grouping outlines stay quiet; inputs override this with
+     a stronger edge below, since a field has to look like a field. */
+  --border: rgba(255, 255, 255, 0.075);
+  --border-hover: rgba(255, 255, 255, 0.17);
+  --border-input: rgba(255, 255, 255, 0.14);
 
   /* Gradients (kept for accents) */
   --gradient-primary: linear-gradient(135deg, var(--neon-cyan) 0%, var(--neon-purple) 50%, var(--neon-pink) 100%);
@@ -112,6 +116,37 @@ body::after {
 .glass-card:hover {
   border-color: var(--border-hover);
   background: var(--surface-hover);
+}
+
+/* Dialog surface — a solid, quiet panel. Modals are read, not admired: no
+   hover lift, no translucency, and enough contrast to sit above the canvas. */
+.dialog-panel {
+  background: var(--background-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 30px 70px -25px rgba(0, 0, 0, 0.85);
+}
+
+/* Labels inside dialogs and forms. The mono eyebrow is too tracked-out to
+   read at form density, so labels here stay sentence case in the UI face. */
+.field-label {
+  font-size: 1.0625rem;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--foreground);
+}
+
+.field-sublabel {
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--foreground);
+}
+
+.field-hint {
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  color: var(--foreground-muted);
 }
 
 /* Refined display headings: clean Geist, tight tracking, optional gradient ink */
@@ -209,11 +244,12 @@ input,
 textarea,
 select {
   background: var(--background-elevated);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-input);
   color: var(--foreground);
-  padding: 0.6rem 0.85rem;
+  padding: 0.65rem 0.9rem;
   border-radius: var(--radius-sm);
   font-family: var(--font-geist-sans), sans-serif;
+  font-size: 1rem;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 

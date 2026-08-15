@@ -29,16 +29,16 @@ export default function MicroAiUsagePanel() {
   const modelLabel = (lastModel || MICRO_AI_MODELS.micro.id).split('/').pop();
 
   return (
-    <section className="space-y-3">
-      <p className="eyebrow flex items-center gap-1.5">
-        <Cpu size={13} /> Shared fast tier · filenames and examples
+    <section className="space-y-2.5">
+      <h3 className="field-label flex flex-wrap items-center gap-2">
+        <Cpu size={22} className="text-[var(--foreground-muted)]" /> Shared fast tier
         {active && (
-          <span className="inline-flex items-center gap-1 text-emerald-400 normal-case tracking-normal">
-            <Check size={12} /> active
+          <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-1.5 py-px text-xs font-medium text-emerald-300">
+            <Check size={13} /> Active
           </span>
         )}
-      </p>
-      <p className="text-xs leading-relaxed text-[var(--foreground-muted)]">
+      </h3>
+      <p className="field-hint">
         {active
           ? `Small helper tasks are running on ${modelLabel} at no cost to you.`
           : 'Small helper tasks — download filenames and example prompts — run on a shared fast model when this deployment provides one, then fall back to your Gemini key, then to a plain text slug.'}
@@ -48,19 +48,19 @@ export default function MicroAiUsagePanel() {
         <div className="rounded-lg border border-[var(--border)] bg-[var(--background-elevated)]/60 p-3">
           <dl className="grid grid-cols-3 gap-2 text-center">
             <div>
-              <dt className="text-[0.62rem] uppercase tracking-wide text-[var(--foreground-subtle)]">Requests</dt>
-              <dd className="font-mono text-sm text-[var(--foreground)]">{requests}</dd>
+              <dt className="text-[0.8125rem] text-[var(--foreground-muted)]">Requests</dt>
+              <dd className="font-mono text-base text-[var(--foreground)]">{requests}</dd>
             </div>
             <div>
-              <dt className="text-[0.62rem] uppercase tracking-wide text-[var(--foreground-subtle)]">Tokens</dt>
-              <dd className="font-mono text-sm text-[var(--foreground)]">{promptTokens + completionTokens}</dd>
+              <dt className="text-[0.8125rem] text-[var(--foreground-muted)]">Tokens</dt>
+              <dd className="font-mono text-base text-[var(--foreground)]">{promptTokens + completionTokens}</dd>
             </div>
             <div>
-              <dt className="text-[0.62rem] uppercase tracking-wide text-[var(--foreground-subtle)]">Est. cost</dt>
-              <dd className="font-mono text-sm text-[var(--foreground)]">{formatUsd(costUsd)}</dd>
+              <dt className="text-[0.8125rem] text-[var(--foreground-muted)]">Est. cost</dt>
+              <dd className="font-mono text-base text-[var(--foreground)]">{formatUsd(costUsd)}</dd>
             </div>
           </dl>
-          <p className="mt-2 text-center text-[0.62rem] text-[var(--foreground-subtle)]">
+          <p className="mt-2.5 text-center text-[0.8125rem] text-[var(--foreground-muted)]">
             This session only. {PRICING_NOTE}
           </p>
         </div>

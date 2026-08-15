@@ -28,6 +28,121 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
+/** One cell of the credentials grid: who the provider is, where its keys come
+    from, then the fields. The URL rides inside the description as an inline
+    link, so nothing competes for room on the title row. */
+function ProviderCard({
+  provider,
+  name,
+  connected,
+  description,
+  linkPrefix,
+  href,
+  urlLabel,
+  className,
+  children,
+}: {
+  provider: 'gemini' | 'kie' | 'fal' | 'cloudflare';
+  name: string;
+  connected: boolean;
+  description: string;
+  linkPrefix: string;
+  href: string;
+  urlLabel: string;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section
+      className={`flex flex-col gap-2.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 ${className ?? ''}`}
+    >
+      <h3 className="field-label flex flex-wrap items-center gap-x-2 gap-y-1.5">
+        <ProviderLogo provider={provider} size={22} />
+        {name}
+        {connected && (
+          <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-1.5 py-px text-xs font-medium text-emerald-300">
+            <Check size={13} /> Connected
+          </span>
+        )}
+      </h3>
+      <p className="field-hint">
+        {description} {linkPrefix}{' '}
+        <a
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="break-words text-[var(--neon-cyan)] hover:underline"
+        >
+          {/* Non-breaking space so the arrow never wraps off the URL. */}
+          {`${urlLabel} →`}
+        </a>
+      </p>
+      <div className="space-y-2.5 pt-0.5">{children}</div>
+    </section>
+  );
+}
+
+/** A masked credential input with its reveal toggle. */
+function SecretInput({
+  ariaLabel,
+  toggleLabels,
+  value,
+  onChange,
+  onEnter,
+  placeholder,
+  visible,
+  onToggleVisible,
+  disabled,
+}: {
+  ariaLabel?: string;
+  toggleLabels: [show: string, hide: string];
+  value: string;
+  onChange: (value: string) => void;
+  onEnter?: () => void;
+  placeholder: string;
+  visible: boolean;
+  onToggleVisible: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div className="relative">
+      <input
+        aria-label={ariaLabel}
+        type={visible ? 'text' : 'password'}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') onEnter?.();
+        }}
+        placeholder={placeholder}
+        className="w-full pr-11"
+        disabled={disabled}
+      />
+      <button
+        onClick={onToggleVisible}
+        className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--foreground-muted)] transition-colors hover:text-[var(--foreground)]"
+        type="button"
+        aria-label={visible ? toggleLabels[1] : toggleLabels[0]}
+      >
+        {visible ? <EyeOff size={18} /> : <Eye size={18} />}
+      </button>
+    </div>
+  );
+}
+
+/** Inline validation failure for a single provider. */
+function FieldError({ message, alert = false }: { message: string; alert?: boolean }) {
+  return (
+    <div
+      {...(alert ? { role: 'alert' as const, 'aria-live': 'polite' as const } : {})}
+      className="flex items-start gap-2 rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-[0.9375rem] leading-snug text-red-200"
+    >
+      <AlertCircle size={17} className="mt-0.5 shrink-0" />
+      <span>{message}</span>
+    </div>
+  );
+}
+
 function safeFalValidationError(value: unknown): string {
   if (!isRecord(value) || typeof value.error !== 'string') {
     return GENERIC_FAL_VALIDATION_ERROR;
@@ -314,256 +429,180 @@ export default function ApiKeyConfig({ open, onOpenChange }: ApiKeyConfigProps) 
             exit={{ y: 24, opacity: 0, scale: 0.98 }}
             transition={{ duration: 0.2 }}
             onClick={(e) => e.stopPropagation()}
-            className="glass-card p-6 sm:p-7 max-w-lg w-full relative overflow-hidden max-h-[90vh] overflow-y-auto"
+            role="dialog"
+            aria-modal="true"
+            aria-label="API connections"
+            className="dialog-panel relative flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden"
           >
-            <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-[var(--neon-cyan)] to-transparent" />
-
-            <button
-              onClick={handleClose}
-              className="absolute top-4 right-4 p-1.5 rounded-lg border border-[var(--border)] text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:border-[var(--border-hover)] transition-colors z-10"
-              aria-label="Close"
-            >
-              <X size={18} />
-            </button>
-
-            <div className="flex items-center gap-3 mb-5 pr-10">
-              <div className="p-2.5 rounded-xl border border-[var(--border)] bg-[var(--neon-cyan)]/10 flex-shrink-0">
-                <Key className="text-[var(--neon-cyan)]" size={18} />
-              </div>
-              <div className="min-w-0">
-                <h2 className="display text-xl font-semibold text-[var(--foreground)]">
+            <header className="flex items-start gap-3 border-b border-[var(--border)] px-5 py-4 sm:px-6">
+              <Key className="mt-0.5 shrink-0 text-[var(--neon-cyan)]" size={18} />
+              <div className="min-w-0 flex-1">
+                <h2 className="text-lg font-semibold text-[var(--foreground)]">
                   API connections
                 </h2>
-                <p className="text-sm text-[var(--foreground-muted)]">
-                  Add a key for any engine — stored only in your browser
+                <p className="text-[0.9375rem] text-[var(--foreground-muted)]">
+                  Add a key for any engine. Keys stay in this browser.
                 </p>
+              </div>
+              <button
+                onClick={handleClose}
+                className="-mr-1 shrink-0 rounded-lg p-1.5 text-[var(--foreground-muted)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)]"
+                aria-label="Close"
+              >
+                <X size={18} />
+              </button>
+            </header>
+
+            <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-6">
+              <div className="grid gap-4 sm:grid-cols-2">
+                {/* Google Gemini */}
+                <ProviderCard
+                  provider="gemini"
+                  name="Google Gemini"
+                  connected={!!savedKey}
+                  description="Every image and video mode Gemini offers."
+                  linkPrefix="Get a key at"
+                  href="https://aistudio.google.com/apikey"
+                  urlLabel="aistudio.google.com/apikey"
+                >
+                  <SecretInput
+                    ariaLabel="Gemini API key"
+                    toggleLabels={['Show key', 'Hide key']}
+                    value={keyInput}
+                    onChange={(value) => {
+                      setKeyInput(value);
+                      setValidationError('');
+                    }}
+                    onEnter={() => void handleSave()}
+                    placeholder="AIzaSy…"
+                    visible={showKey}
+                    onToggleVisible={() => setShowKey(!showKey)}
+                    disabled={isValidating}
+                  />
+                  {validationError && <FieldError message={validationError} />}
+                </ProviderCard>
+
+                {/* Kie.ai */}
+                <ProviderCard
+                  provider="kie"
+                  name="Kie.ai"
+                  connected={kieConnected}
+                  description="Image and video, billed to your own account. Checked against your Kie credit balance."
+                  linkPrefix="Get a key at"
+                  href="https://kie.ai/"
+                  urlLabel="kie.ai"
+                >
+                  <SecretInput
+                    ariaLabel="Kie API key"
+                    toggleLabels={['Show Kie key', 'Hide Kie key']}
+                    value={kieKeyInput}
+                    onChange={(value) => {
+                      setKieKeyInput(value);
+                      setKieValidationError('');
+                    }}
+                    onEnter={() => void handleSave()}
+                    placeholder="Kie API key"
+                    visible={showKieKey}
+                    onToggleVisible={() => setShowKieKey(!showKieKey)}
+                    disabled={isValidating}
+                  />
+                  {kieValidationError && <FieldError message={kieValidationError} />}
+                </ProviderCard>
+
+                {/* fal.ai */}
+                <ProviderCard
+                  provider="fal"
+                  name="fal.ai"
+                  connected={falConnected}
+                  description="Image and video, billed to your own account. Checked through fal pricing, so nothing billable runs."
+                  linkPrefix="Get a key at"
+                  href="https://fal.ai/dashboard/keys"
+                  urlLabel="fal.ai/dashboard/keys"
+                >
+                  <SecretInput
+                    ariaLabel="fal API key"
+                    toggleLabels={['Show fal key', 'Hide fal key']}
+                    value={falKeyInput}
+                    onChange={(value) => {
+                      setFalKeyInput(value);
+                      setFalValidationError('');
+                    }}
+                    onEnter={() => void handleSave()}
+                    placeholder="fal API key"
+                    visible={showFalKey}
+                    onToggleVisible={() => setShowFalKey(!showFalKey)}
+                    disabled={isValidating}
+                  />
+                  {falValidationError && <FieldError message={falValidationError} alert />}
+                </ProviderCard>
+
+                {/* Cloudflare Workers AI — two fields, so it takes the full width
+                    on its own row and pairs them side by side. */}
+                <ProviderCard
+                  provider="cloudflare"
+                  name="Cloudflare"
+                  connected={cfConnected}
+                  description="Free text-to-image on Workers AI. Both fields save as you type."
+                  linkPrefix="Create a token at"
+                  href="https://dash.cloudflare.com/profile/api-tokens"
+                  urlLabel="dash.cloudflare.com/profile/api-tokens"
+                  className="sm:order-2 sm:col-span-2"
+                >
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-1.5">
+                      <label className="field-sublabel block" htmlFor="cf-account-id">
+                        Account ID
+                      </label>
+                      <input
+                        id="cf-account-id"
+                        value={cfAccountId}
+                        onChange={(e) => setCfAccountId(e.target.value.trim())}
+                        placeholder="32-character account ID"
+                        className="w-full font-mono text-[0.9375rem]"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="field-sublabel block" htmlFor="cf-token">
+                        Workers AI API token
+                      </label>
+                      <div className="relative">
+                        <input
+                          id="cf-token"
+                          type={showCfToken ? 'text' : 'password'}
+                          value={cfToken}
+                          onChange={(e) => setCfToken(e.target.value.trim())}
+                          placeholder="Workers AI API token"
+                          className="w-full pr-11 font-mono text-[0.9375rem]"
+                        />
+                        <button
+                          onClick={() => setShowCfToken(!showCfToken)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--foreground-muted)] transition-colors hover:text-[var(--foreground)]"
+                          type="button"
+                          aria-label={showCfToken ? 'Hide token' : 'Show token'}
+                        >
+                          {showCfToken ? <EyeOff size={18} /> : <Eye size={18} />}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </ProviderCard>
+
+                {/* Fills the cell beside fal on two columns; stays last on one. */}
+                <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:order-1">
+                  <MicroAiUsagePanel />
+                </div>
               </div>
             </div>
 
-            <div className="space-y-6">
-              {/* Google Gemini */}
-              <section className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <p className="eyebrow flex items-center gap-1.5">
-                    <ProviderLogo provider="gemini" size={13} /> Google Gemini · all modes
-                  </p>
-                  <a
-                    href="https://aistudio.google.com/apikey"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs text-[var(--neon-cyan)] hover:underline"
-                  >
-                    Get a key →
-                  </a>
-                </div>
-                <div className="relative">
-                  <input
-                    type={showKey ? 'text' : 'password'}
-                    value={keyInput}
-                    onChange={(e) => {
-                      setKeyInput(e.target.value);
-                      setValidationError('');
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') handleSave();
-                    }}
-                    placeholder="AIzaSy…"
-                    className="w-full pr-11"
-                    disabled={isValidating}
-                  />
-                  <button
-                    onClick={() => setShowKey(!showKey)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--foreground-muted)] hover:text-[var(--neon-cyan)] transition-colors"
-                    type="button"
-                    aria-label={showKey ? 'Hide key' : 'Show key'}
-                  >
-                    {showKey ? <EyeOff size={18} /> : <Eye size={18} />}
-                  </button>
-                </div>
-                {validationError && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="text-sm text-red-400 p-3 rounded-lg bg-red-500/10 border border-red-500/30 flex items-start gap-2"
-                  >
-                    <AlertCircle size={16} className="flex-shrink-0 mt-0.5" />
-                    <span>{validationError}</span>
-                  </motion.div>
-                )}
-              </section>
-
-              {/* Kie.ai */}
-              <section className="space-y-3">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="eyebrow flex items-center gap-1.5">
-                    <ProviderLogo provider="kie" size={13} /> Kie.ai · image and video BYOK
-                    {kieConnected && (
-                      <span className="inline-flex items-center gap-1 text-emerald-400 normal-case tracking-normal">
-                        <Check size={12} /> connected
-                      </span>
-                    )}
-                  </p>
-                  <a
-                    href="https://kie.ai/"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs text-[var(--neon-cyan)] hover:underline"
-                  >
-                    Get a key →
-                  </a>
-                </div>
-                <div className="relative">
-                  <input
-                    aria-label="Kie API key"
-                    type={showKieKey ? 'text' : 'password'}
-                    value={kieKeyInput}
-                    onChange={(event) => {
-                      setKieKeyInput(event.target.value);
-                      setKieValidationError('');
-                    }}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter') void handleSave();
-                    }}
-                    placeholder="Kie API key"
-                    className="w-full pr-11"
-                    disabled={isValidating}
-                  />
-                  <button
-                    onClick={() => setShowKieKey(!showKieKey)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--foreground-muted)] hover:text-[var(--neon-cyan)] transition-colors"
-                    type="button"
-                    aria-label={showKieKey ? 'Hide Kie key' : 'Show Kie key'}
-                  >
-                    {showKieKey ? <EyeOff size={18} /> : <Eye size={18} />}
-                  </button>
-                </div>
-                {kieValidationError && (
-                  <div className="flex items-start gap-2 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-400">
-                    <AlertCircle size={16} className="mt-0.5 shrink-0" />
-                    <span>{kieValidationError}</span>
-                  </div>
-                )}
-                <p className="text-xs text-[var(--foreground-subtle)]">
-                  Validated with your Kie credit endpoint. The key stays in browser storage and is never logged or persisted by this app.
-                </p>
-              </section>
-
-              {/* fal.ai */}
-              <section className="space-y-3">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="eyebrow flex items-center gap-1.5">
-                    <ProviderLogo provider="fal" size={13} /> fal.ai · image and video BYOK
-                    {falConnected && (
-                      <span className="inline-flex items-center gap-1 text-emerald-400 normal-case tracking-normal">
-                        <Check size={12} /> connected
-                      </span>
-                    )}
-                  </p>
-                  <a
-                    href="https://fal.ai/dashboard/keys"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs text-[var(--neon-cyan)] hover:underline"
-                  >
-                    Get a key →
-                  </a>
-                </div>
-                <div className="relative">
-                  <input
-                    aria-label="fal API key"
-                    type={showFalKey ? 'text' : 'password'}
-                    value={falKeyInput}
-                    onChange={(event) => {
-                      setFalKeyInput(event.target.value);
-                      setFalValidationError('');
-                    }}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter') void handleSave();
-                    }}
-                    placeholder="fal API key"
-                    className="w-full pr-11"
-                    disabled={isValidating}
-                  />
-                  <button
-                    onClick={() => setShowFalKey(!showFalKey)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--foreground-muted)] hover:text-[var(--neon-cyan)] transition-colors"
-                    type="button"
-                    aria-label={showFalKey ? 'Hide fal key' : 'Show fal key'}
-                  >
-                    {showFalKey ? <EyeOff size={18} /> : <Eye size={18} />}
-                  </button>
-                </div>
-                {falValidationError && (
-                  <div
-                    aria-live="polite"
-                    role="alert"
-                    className="flex items-start gap-2 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-400"
-                  >
-                    <AlertCircle size={16} className="mt-0.5 shrink-0" />
-                    <span>{falValidationError}</span>
-                  </div>
-                )}
-                <p className="text-xs text-[var(--foreground-subtle)]">
-                  Validated through fal pricing without starting a billable generation.
-                </p>
-              </section>
-
-              {/* Cloudflare Workers AI */}
-              <section className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <p className="eyebrow flex items-center gap-1.5">
-                    <ProviderLogo provider="cloudflare" size={13} /> Cloudflare · free, text-to-image
-                    {cfConnected && (
-                      <span className="inline-flex items-center gap-1 text-emerald-400 normal-case tracking-normal">
-                        <Check size={12} /> connected
-                      </span>
-                    )}
-                  </p>
-                  <a
-                    href="https://dash.cloudflare.com/profile/api-tokens"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs text-[var(--neon-cyan)] hover:underline"
-                  >
-                    Create a token →
-                  </a>
-                </div>
-                <input
-                  value={cfAccountId}
-                  onChange={(e) => setCfAccountId(e.target.value.trim())}
-                  placeholder="Cloudflare Account ID"
-                  className="w-full"
-                />
-                <div className="relative">
-                  <input
-                    type={showCfToken ? 'text' : 'password'}
-                    value={cfToken}
-                    onChange={(e) => setCfToken(e.target.value.trim())}
-                    placeholder="Workers AI API token"
-                    className="w-full pr-11"
-                  />
-                  <button
-                    onClick={() => setShowCfToken(!showCfToken)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--foreground-muted)] hover:text-[var(--neon-cyan)] transition-colors"
-                    type="button"
-                    aria-label={showCfToken ? 'Hide token' : 'Show token'}
-                  >
-                    {showCfToken ? <EyeOff size={18} /> : <Eye size={18} />}
-                  </button>
-                </div>
-              </section>
-
-              <MicroAiUsagePanel />
-
-              <p className="text-xs text-[var(--foreground-subtle)] leading-relaxed">
-                Credentials are stored only in your browser&apos;s local storage and sent
-                directly to each provider — never to our servers beyond proxying the request.
+            <footer className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-t border-[var(--border)] px-5 py-4 sm:px-6">
+              <p className="field-hint max-w-md">
+                Credentials live in this browser&apos;s local storage and go straight to each
+                provider — never to our servers beyond proxying the request.
               </p>
-
               <button
                 onClick={handleSave}
                 disabled={isValidating}
-                className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed"
+                className="btn-primary w-full sm:w-auto disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {isValidating ? (
                   <>
@@ -574,7 +613,7 @@ export default function ApiKeyConfig({ open, onOpenChange }: ApiKeyConfigProps) 
                   'Save & close'
                 )}
               </button>
-            </div>
+            </footer>
           </motion.div>
         </motion.div>
       )}

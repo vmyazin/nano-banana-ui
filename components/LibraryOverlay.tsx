@@ -78,38 +78,34 @@ export default function LibraryOverlay({ open, onOpenChange }: LibraryOverlayPro
             exit={{ y: 24, opacity: 0, scale: 0.98 }}
             transition={{ duration: 0.2 }}
             onClick={(event) => event.stopPropagation()}
-            className="glass-card relative max-h-[90vh] w-full max-w-4xl overflow-y-auto p-6 outline-none sm:p-7"
+            className="dialog-panel relative flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden outline-none"
           >
-            <div className="absolute left-0 top-0 h-px w-full bg-gradient-to-r from-transparent via-[var(--neon-cyan)] to-transparent" />
-
-            <button
-              onClick={close}
-              aria-label="Close"
-              className="absolute right-4 top-4 z-10 rounded-lg border border-[var(--border)] p-1.5 text-[var(--foreground-muted)] transition-colors hover:border-[var(--border-hover)] hover:text-[var(--foreground)]"
-            >
-              <X size={18} />
-            </button>
-
-            <div className="mb-5 flex items-center gap-3 pr-10">
-              <div className="shrink-0 rounded-xl border border-[var(--border)] bg-[var(--neon-cyan)]/10 p-2.5">
-                <Library className="text-[var(--neon-cyan)]" size={18} />
-              </div>
-              <div className="min-w-0">
-                <h2 className="display text-xl font-semibold text-[var(--foreground)]">Library</h2>
-                <p className="text-sm text-[var(--foreground-muted)]">
+            <header className="flex items-start gap-3 border-b border-[var(--border)] px-5 py-4 sm:px-6">
+              <Library className="mt-0.5 shrink-0 text-[var(--neon-cyan)]" size={18} />
+              <div className="min-w-0 flex-1">
+                <h2 className="text-lg font-semibold text-[var(--foreground)]">Library</h2>
+                <p className="text-[0.9375rem] text-[var(--foreground-muted)]">
                   Results kept in this browser, outliving the provider links they came from
                 </p>
               </div>
-            </div>
+              <button
+                onClick={close}
+                aria-label="Close"
+                className="-mr-1 shrink-0 rounded-lg p-1.5 text-[var(--foreground-muted)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)]"
+              >
+                <X size={18} />
+              </button>
+            </header>
 
-            <div role="tablist" aria-label="Library sections" className="mb-4 flex gap-1 rounded-xl border border-[var(--border)] bg-[var(--background-elevated)] p-1">
+            <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-6">
+            <div role="tablist" aria-label="Library sections" className="mb-4 flex gap-1 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-1">
               {(['results', 'prompts'] as const).map((name) => (
                 <button
                   key={name}
                   role="tab"
                   aria-selected={tab === name}
                   onClick={() => setTab(name)}
-                  className={`flex-1 rounded-lg px-3 py-2 text-sm capitalize transition-colors ${
+                  className={`flex-1 rounded-lg px-3 py-2 text-[0.9375rem] capitalize transition-colors ${
                     tab === name
                       ? 'bg-[var(--neon-cyan)]/15 text-[var(--neon-cyan)]'
                       : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)]'
@@ -121,7 +117,7 @@ export default function LibraryOverlay({ open, onOpenChange }: LibraryOverlayPro
             </div>
 
             {storageError && (
-              <p role="alert" className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">
+              <p role="alert" className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-[0.9375rem] text-red-200">
                 {storageError}
               </p>
             )}
@@ -131,9 +127,10 @@ export default function LibraryOverlay({ open, onOpenChange }: LibraryOverlayPro
             ) : (
               <PromptLibraryList onInserted={close} />
             )}
+            </div>
 
-            <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-[var(--border)] pt-4">
-              <p className="text-xs text-[var(--foreground-subtle)]">
+            <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--border)] px-5 py-3.5 sm:px-6">
+              <p className="text-[0.9375rem] text-[var(--foreground-muted)]">
                 {records.length} result{records.length === 1 ? '' : 's'} · {formatBytes(stored)} stored
                 {quota ? ` · ${formatBytes(quota.quota - quota.usage)} free in this browser` : ''}
               </p>
@@ -141,12 +138,12 @@ export default function LibraryOverlay({ open, onOpenChange }: LibraryOverlayPro
                 <button
                   type="button"
                   onClick={() => void useGalleryStore.getState().clear()}
-                  className="btn-secondary px-3 py-1.5 text-xs"
+                  className="btn-secondary px-3 py-1.5 text-sm"
                 >
                   Clear library
                 </button>
               )}
-            </div>
+            </footer>
           </motion.div>
         </motion.div>
       )}
