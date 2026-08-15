@@ -104,6 +104,16 @@ function safeProviderText(value: string | undefined, apiKey: string, fallback: s
   return text;
 }
 
+/**
+ * Surface why a request failed rather than a generic retry prompt: the upload and
+ * queue routes already return actionable copy ("The source file must be a supported
+ * raster image."), and safeProviderText keeps a credential or a runaway string from
+ * reaching the alert.
+ */
+function safeFailureText(error: unknown, apiKey: string, fallback: string): string {
+  return safeProviderText(error instanceof Error ? error.message : undefined, apiKey, fallback);
+}
+
 function JobCard({
   job,
   apiKey,
@@ -514,10 +524,12 @@ function FalGenerationWorkspaceSession({
       });
       // Runs alongside the generation so the name is ready before the video is.
       void attachSlug(requestId, submittedPrompt);
-    } catch {
+    } catch (submitFailure) {
       // A failed submit with no request ID cannot be reconciled without provider idempotency.
       // Never retry automatically: doing so could bill a second accepted request.
-      if (isCurrent() && !operation.controller.signal.aborted) setError(submissionError);
+      if (isCurrent() && !operation.controller.signal.aborted) {
+        setError(safeFailureText(submitFailure, apiKey.trim(), submissionError));
+      }
     } finally {
       if (isCurrent()) {
         submissionRef.current = null;
@@ -544,9 +556,10 @@ function FalGenerationWorkspaceSession({
       if (current && !isFalJobTerminal(current.state)) {
         upsertJob({ ...current, state: 'cancelled', updatedAt: Date.now() });
       }
-    } catch {
+    } catch (cancelFailure) {
       if (mountedRef.current) {
-        setCancelErrors((current) => ({ ...current, [job.id]: cancellationError }));
+        const message = safeFailureText(cancelFailure, apiKey.trim(), cancellationError);
+        setCancelErrors((current) => ({ ...current, [job.id]: message }));
       }
     } finally {
       cancellingRef.current.delete(job.id);

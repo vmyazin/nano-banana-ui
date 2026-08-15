@@ -346,7 +346,7 @@ describe('FalGenerationWorkspace', () => {
   });
 
   it('keeps the selected reference removable after an upload failure', async () => {
-    uploadFalFilesMock.mockRejectedValue(new Error('provider details'));
+    uploadFalFilesMock.mockRejectedValue(new Error('The source file must be a supported raster image.'));
     const { container } = renderWorkspace('image');
     const file = new File(['image'], 'portrait.png', { type: 'image/png' });
     fireEvent.change(container.querySelector('input[type="file"]')!, { target: { files: [file] } });
@@ -354,11 +354,24 @@ describe('FalGenerationWorkspace', () => {
     fireEvent.change(screen.getByLabelText('Prompt'), { target: { value: 'Animate this portrait' } });
     fireEvent.click(screen.getByRole('button', { name: 'Generate video' }));
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('fal could not start this job');
+    // The reason is what makes the failure actionable — a generic retry prompt is not.
+    expect(await screen.findByRole('alert'))
+      .toHaveTextContent('The source file must be a supported raster image.');
     expect(screen.getByAltText('Reference 1')).toBeInTheDocument();
     expect(submitFalJobMock).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: 'Remove reference 1' }));
     expect(screen.queryByAltText('Reference 1')).toBeNull();
+  });
+
+  it('falls back to the generic submission error when the failure leaks the API key', async () => {
+    submitFalJobMock.mockRejectedValue(new Error('Rejected credential fal-key-secret.'));
+    renderWorkspace();
+    fireEvent.change(screen.getByLabelText('Prompt'), { target: { value: 'A moonlit ocean' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Generate video' }));
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('fal could not start this job');
+    expect(alert).not.toHaveTextContent('fal-key-secret');
   });
 
   it('disables duplicate submission and reconciles a stale completion after unmount', async () => {
