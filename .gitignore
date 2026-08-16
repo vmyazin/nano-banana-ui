@@ -42,6 +42,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# playwright — driving the running app drops screenshots and snapshots here
+.playwright*/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
