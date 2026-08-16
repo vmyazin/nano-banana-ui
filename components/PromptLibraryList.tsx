@@ -51,14 +51,14 @@ export default function PromptLibraryList({ onInserted }: { onInserted?: () => v
 
   if (history.length === 0 && favourites.length === 0) {
     return (
-      <p className="py-10 text-center text-sm text-[var(--foreground-muted)]">
+      <p className="py-6 text-center text-sm text-[var(--foreground-muted)]">
         Prompts you submit are remembered here. Nothing yet.
       </p>
     );
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3.5">
       {favourites.length > 0 && (
         <section className="space-y-2">
           <p className="eyebrow">Starred</p>

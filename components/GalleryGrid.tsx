@@ -49,7 +49,7 @@ export default function GalleryGrid({ onUsedReference }: { onUsedReference?: () 
 
   if (records.length === 0) {
     return (
-      <p className="py-10 text-center text-sm text-[var(--foreground-muted)]">
+      <p className="py-6 text-center text-sm text-[var(--foreground-muted)]">
         Generated results are kept here automatically. Nothing yet.
       </p>
     );

@@ -144,7 +144,7 @@ function EngineSelector({ engines, activeEngineId, onSelect }: EngineSelectorPro
   return (
     <section
       aria-label="Generation engine"
-      className="glass-card px-4 py-3 sm:px-5"
+      className="glass-card px-3.5 py-2.5 sm:px-4"
     >
       <div className="flex flex-wrap items-center gap-2 pt-1">
         <span className="eyebrow mr-0.5">Engine</span>
@@ -671,12 +671,12 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
 
   // Special prompt templates for social media
   return (
-    <div className="w-full max-w-[1400px] mx-auto space-y-4 sm:space-y-6">
+    <div className="w-full max-w-[1400px] mx-auto space-y-3 sm:space-y-4">
       {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="glass-card p-4 sm:p-5 md:p-6 space-y-4"
+        className="glass-card p-3.5 md:p-4 space-y-3"
       >
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
           <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
@@ -690,7 +690,7 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
                 page, and repeating it over the controls of a mode already chosen
                 is noise. The emoji goes with it — decoration at 36px. */}
             <div className="min-w-0">
-              <h2 className="display truncate text-lg font-semibold sm:text-xl md:text-2xl">
+              <h2 className="display truncate text-base font-semibold sm:text-lg md:text-xl">
                 {feature.name}
               </h2>
             </div>
@@ -704,17 +704,17 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
         onSelect={handleEngineSelect}
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5 md:gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3.5 md:gap-4">
         {/* Input Section */}
         <motion.div
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
-          className="space-y-4 sm:space-y-5 md:space-y-6"
+          className="space-y-3 sm:space-y-3.5 md:space-y-4"
         >
           {/* Image Upload */}
           {feature.requiresImage && (
-            <div className="glass-card p-4 sm:p-5 md:p-6 space-y-3 sm:space-y-4">
-              <h3 className="display text-lg sm:text-xl font-semibold">
+            <div className="glass-card p-3.5 md:p-4 space-y-3">
+              <h3 className="display text-base sm:text-lg font-semibold">
                 Upload Image{feature.requiresMultipleImages ? 's' : ''}
               </h3>
 
@@ -731,7 +731,7 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 {...dropProps}
-                className={`w-full py-4 border-2 border-dashed rounded-xl transition-all flex flex-col items-center gap-2 ${isDragging ? 'border-[var(--neon-cyan)] bg-[var(--neon-cyan)]/10 text-[var(--neon-cyan)]' : 'border-[var(--neon-cyan)]/30 text-[var(--foreground-muted)] hover:border-[var(--neon-cyan)] hover:bg-[var(--neon-cyan)]/5 hover:text-[var(--neon-cyan)]'}`}
+                className={`w-full py-3 border-2 border-dashed rounded-xl transition-all flex flex-col items-center gap-2 ${isDragging ? 'border-[var(--neon-cyan)] bg-[var(--neon-cyan)]/10 text-[var(--neon-cyan)]' : 'border-[var(--neon-cyan)]/30 text-[var(--foreground-muted)] hover:border-[var(--neon-cyan)] hover:bg-[var(--neon-cyan)]/5 hover:text-[var(--neon-cyan)]'}`}
               >
                 {isFetching ? <Loader2 size={32} className="animate-spin" /> : <ImagePlus size={32} />}
                 <span className="font-medium">
@@ -771,9 +771,9 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
           )}
 
           {/* Prompt Input */}
-          <div className="glass-card p-4 sm:p-5 md:p-6 space-y-3 sm:space-y-4">
+          <div className="glass-card p-3.5 md:p-4 space-y-3">
             <div className="flex items-center justify-between gap-2 flex-wrap">
-              <h3 className="display text-lg sm:text-xl font-semibold">
+              <h3 className="display text-base sm:text-lg font-semibold">
                 Prompt
               </h3>
               <div className="flex items-center gap-1.5">
@@ -845,13 +845,13 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
           <motion.div
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
-            className="glass-card p-6 space-y-4"
+            className="glass-card p-4 space-y-3"
           >
-                <h3 className="display text-xl font-semibold">
+                <h3 className="display text-lg font-semibold">
                   Generation Settings
                 </h3>
 
-                <div className="space-y-3 sm:space-y-4">
+                <div className="space-y-3">
                   {activeEngine.id === 'cloudflare' && !hasCfCreds && (
                     <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3 flex items-center justify-between gap-3">
                       <p className="text-xs text-[var(--foreground-muted)]">
@@ -940,7 +940,7 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
           <button
             onClick={handleGenerate}
             disabled={isGenerating}
-            className="btn-primary w-full py-4 text-lg flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="btn-primary w-full py-3 text-base flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isGenerating ? (
               <>
@@ -978,9 +978,9 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
         <motion.div
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
-          className="glass-card p-6 space-y-4"
+          className="glass-card p-4 space-y-3"
         >
-          <h3 className="display text-xl font-semibold">
+          <h3 className="display text-lg font-semibold">
             Generated Image
           </h3>
 
@@ -995,7 +995,7 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
             )}
 
             {!isGenerating && !generatedImage && (
-              <div className="text-center p-8 text-[var(--foreground-muted)]">
+              <div className="text-center p-5 text-[var(--foreground-muted)]">
                 <Wand2 size={48} className="mx-auto mb-4 opacity-30" />
                 <p>Your generated image will appear here</p>
               </div>
@@ -1049,7 +1049,7 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 onClick={() => setLightboxOpen(false)}
-                className="fixed inset-0 z-[80] flex items-center justify-center bg-black/90 backdrop-blur-md p-4 sm:p-8"
+                className="fixed inset-0 z-[80] flex items-center justify-center bg-black/90 backdrop-blur-md p-4 sm:p-5"
               >
             <button
               onClick={() => setLightboxOpen(false)}

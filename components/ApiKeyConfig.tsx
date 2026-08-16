@@ -420,7 +420,7 @@ export default function ApiKeyConfig({ open, onOpenChange }: ApiKeyConfigProps) 
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-md p-3 sm:p-4 md:p-6"
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-md p-3 sm:p-4"
           onClick={handleClose}
         >
           <motion.div
@@ -434,10 +434,10 @@ export default function ApiKeyConfig({ open, onOpenChange }: ApiKeyConfigProps) 
             aria-label="API connections"
             className="dialog-panel relative flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden"
           >
-            <header className="flex items-start gap-3 border-b border-[var(--border)] px-5 py-4 sm:px-6">
+            <header className="flex items-start gap-3 border-b border-[var(--border)] px-3.5 py-3 sm:px-4">
               <Key className="mt-0.5 shrink-0 text-[var(--neon-cyan)]" size={18} />
               <div className="min-w-0 flex-1">
-                <h2 className="text-lg font-semibold text-[var(--foreground)]">
+                <h2 className="text-base font-semibold text-[var(--foreground)]">
                   API connections
                 </h2>
                 <p className="text-[0.9375rem] text-[var(--foreground-muted)]">
@@ -453,7 +453,7 @@ export default function ApiKeyConfig({ open, onOpenChange }: ApiKeyConfigProps) 
               </button>
             </header>
 
-            <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-6">
+            <div className="min-h-0 flex-1 overflow-y-auto px-3.5 py-3.5 sm:px-4">
               <div className="grid gap-4 sm:grid-cols-2">
                 {/* Google Gemini */}
                 <ProviderCard
@@ -594,7 +594,7 @@ export default function ApiKeyConfig({ open, onOpenChange }: ApiKeyConfigProps) 
               </div>
             </div>
 
-            <footer className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-t border-[var(--border)] px-5 py-4 sm:px-6">
+            <footer className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-t border-[var(--border)] px-3.5 py-3 sm:px-4">
               <p className="field-hint max-w-md">
                 Credentials live in this browser&apos;s local storage and go straight to each
                 provider — never to our servers beyond proxying the request.

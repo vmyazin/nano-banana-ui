@@ -49,11 +49,11 @@ export default function MicroAiUsagePanel() {
           <dl className="grid grid-cols-2 gap-2 text-center">
             <div>
               <dt className="text-[0.8125rem] text-[var(--foreground-muted)]">Requests</dt>
-              <dd className="font-mono text-base text-[var(--foreground)]">{requests}</dd>
+              <dd className="font-mono text-sm text-[var(--foreground)]">{requests}</dd>
             </div>
             <div>
               <dt className="text-[0.8125rem] text-[var(--foreground-muted)]">Est. cost</dt>
-              <dd className="font-mono text-base text-[var(--foreground)]">{formatUsd(costUsd)}</dd>
+              <dd className="font-mono text-sm text-[var(--foreground)]">{formatUsd(costUsd)}</dd>
             </div>
           </dl>
           <p className="mt-2.5 text-center text-[0.8125rem] text-[var(--foreground-muted)]">

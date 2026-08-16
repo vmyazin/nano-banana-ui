@@ -85,12 +85,12 @@ export default function VideoWorkspace({
   };
 
   return (
-    <div className="space-y-5 sm:space-y-6">
-      {/* Hero — same shape as the landing hero: one headline line, then a
-          single row carrying the blurb and the engines behind this workspace.
-          No eyebrow; the nav's Image/Video toggle already says where you are. */}
-      <div className="space-y-3 py-2 text-center sm:space-y-4 sm:py-3">
-        <h2 className="display px-4 text-4xl font-semibold leading-[1.1] text-balance sm:text-5xl md:text-6xl">
+    <div className="space-y-4 sm:space-y-5">
+      {/* Hero — same shape as the landing hero: one headline line, then the
+          blurb. No eyebrow; the nav's Image/Video toggle already says where
+          you are. */}
+      <div className="space-y-2 py-0 text-center sm:space-y-2.5 sm:py-1">
+        <h2 className="display px-4 text-2xl font-semibold leading-[1.1] text-balance sm:text-3xl md:text-4xl">
           <span className="gradient-text">Create motion</span>{' '}
           <span className="text-[var(--foreground)]">from an idea or image</span>
         </h2>
@@ -99,7 +99,7 @@ export default function VideoWorkspace({
             that used to sit beside it are gone: the selector below names the same
             two providers, and is the control rather than a label. */}
         <div className="flex justify-center px-4">
-          <p className="max-w-xl text-sm leading-relaxed text-[var(--foreground-muted)] sm:text-base">
+          <p className="max-w-xl text-[0.8125rem] leading-relaxed text-[var(--foreground-muted)] sm:text-sm">
             Turn a prompt or a still image into a short video clip.
           </p>
         </div>
@@ -109,8 +109,13 @@ export default function VideoWorkspace({
           same widths a 1/2 and 1/3 grid track would give it, so a card is the
           same size wherever you meet it. Laid out as centered flex rather than
           a grid so that hiding the fal-only mode leaves the two remaining cards
-          centered instead of parked against the left edge. */}
-      <div className="flex w-full flex-wrap justify-center gap-5 *:w-full sm:gap-6 md:*:w-[calc(50%-12px)] xl:*:w-[calc(33.333%-16px)]">
+          centered instead of parked against the left edge.
+
+          The widths track FeatureSelector's grid: 2-up at sm, all three across
+          from md (tablet) up. The subtracted pixels are the row's share of the
+          gap — with three items and a 16px gap, 32px of gap spread over three
+          tracks is ~11px each; two items with a 16px gap is 8px each. */}
+      <div className="flex w-full flex-wrap justify-center gap-3 *:w-full sm:gap-4 sm:*:w-[calc(50%-8px)] md:*:w-[calc(33.333%-11px)]">
         {modes.map((mode) => {
           const Icon = mode.icon;
           return (
@@ -124,13 +129,13 @@ export default function VideoWorkspace({
               thumbnail={mode.thumbnail}
               badges={
                 <>
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--neon-purple)]/40 bg-[var(--neon-purple)]/10 px-2.5 py-1 text-[0.7rem] font-medium text-[var(--neon-purple)]">
+                  <span className="whitespace-nowrap inline-flex items-center gap-1.5 rounded-full border border-[var(--neon-purple)]/40 bg-[var(--neon-purple)]/10 px-2.5 py-1 text-[0.7rem] font-medium text-[var(--neon-purple)]">
                     <Icon size={12} />
                     {mode.requires}
                   </span>
 
                   {mode.falOnly && (
-                    <span className="inline-flex items-center rounded-full border border-[var(--border)] px-2.5 py-1 text-[0.7rem] font-medium text-[var(--foreground-muted)]">
+                    <span className="whitespace-nowrap inline-flex items-center rounded-full border border-[var(--border)] px-2.5 py-1 text-[0.7rem] font-medium text-[var(--foreground-muted)]">
                       fal.ai only
                     </span>
                   )}

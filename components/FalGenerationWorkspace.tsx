@@ -579,8 +579,8 @@ function FalGenerationWorkspaceSession({
   };
 
   return (
-    <div className="mx-auto w-full max-w-[1400px] space-y-5 sm:space-y-6">
-      <section className="glass-card p-4 sm:p-5 md:p-6">
+    <div className="mx-auto w-full max-w-[1400px] space-y-3.5 sm:space-y-4">
+      <section className="glass-card p-3.5 md:p-4">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex min-w-0 items-start gap-3">
             <button type="button" onClick={() => { abortSubmission(); onBack(); }} className="btn-secondary shrink-0 px-3 py-2 text-sm">
@@ -590,7 +590,7 @@ function FalGenerationWorkspaceSession({
               <p className="eyebrow mb-1 flex items-center gap-1.5 text-[var(--neon-cyan)]">
                 <ProviderLogo provider="fal" size={13} /> fal.ai
               </p>
-              <h2 className="display text-xl font-semibold sm:text-2xl">
+              <h2 className="display text-lg font-semibold sm:text-xl">
                 {modeTitles[inputMode]}
               </h2>
             </div>
@@ -601,12 +601,12 @@ function FalGenerationWorkspaceSession({
         </div>
       </section>
 
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 lg:gap-6">
-        <div className="space-y-5">
-          <section className="glass-card space-y-4 p-4 sm:p-5 md:p-6">
+      <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-2 lg:gap-4">
+        <div className="space-y-3.5">
+          <section className="glass-card space-y-3 p-3.5 md:p-4">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <h3 className="display text-lg font-semibold">Model</h3>
+                <h3 className="display text-base font-semibold">Model</h3>
               </div>
               <div className="flex w-44 max-w-[52%] items-center gap-2">
                 <Search aria-hidden="true" size={14} className="shrink-0 text-[var(--foreground-subtle)]" />
@@ -639,9 +639,9 @@ function FalGenerationWorkspaceSession({
             )}
           </section>
 
-          <section className="glass-card space-y-3 p-4 sm:p-5 md:p-6">
+          <section className="glass-card space-y-3 p-3.5 md:p-4">
             <div className="flex items-center justify-between gap-3">
-              <label htmlFor="fal-video-prompt" className="display block text-lg font-semibold">Prompt</label>
+              <label htmlFor="fal-video-prompt" className="display block text-base font-semibold">Prompt</label>
               <button
                 type="button"
                 onClick={() => void generateExample()}
@@ -665,9 +665,9 @@ function FalGenerationWorkspaceSession({
           </section>
 
           {inputMode !== 'text' && (
-            <section className="glass-card space-y-4 p-4 sm:p-5 md:p-6">
+            <section className="glass-card space-y-3 p-3.5 md:p-4">
               <div>
-                <h3 className="display text-lg font-semibold">
+                <h3 className="display text-base font-semibold">
                   {isFramesMode ? 'First and last frame' : 'Reference image'}
                 </h3>
                 <p className="mt-0.5 text-xs text-[var(--foreground-muted)]">
@@ -693,7 +693,7 @@ function FalGenerationWorkspaceSession({
                 disabled={isPickerFull}
                 onClick={() => fileInputRef.current?.click()}
                 {...dropProps}
-                className={`flex w-full flex-col items-center gap-2 rounded-xl border-2 border-dashed py-5 text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${isDragging ? 'border-[var(--neon-cyan)] bg-[var(--neon-cyan)]/10 text-[var(--neon-cyan)]' : 'border-[var(--neon-cyan)]/30 text-[var(--foreground-muted)]'}`}
+                className={`flex w-full flex-col items-center gap-2 rounded-xl border-2 border-dashed py-3.5 text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${isDragging ? 'border-[var(--neon-cyan)] bg-[var(--neon-cyan)]/10 text-[var(--neon-cyan)]' : 'border-[var(--neon-cyan)]/30 text-[var(--foreground-muted)]'}`}
               >
                 {isReadingFrame || isFetching ? <Loader2 className="animate-spin" size={28} /> : <ImagePlus size={28} />}
                 {isReadingFrame
@@ -749,9 +749,9 @@ function FalGenerationWorkspaceSession({
             </section>
           )}
 
-          <section className="glass-card space-y-4 p-4 sm:p-5 md:p-6">
+          <section className="glass-card space-y-3 p-3.5 md:p-4">
             <div>
-              <h3 className="display text-lg font-semibold">Model controls</h3>
+              <h3 className="display text-base font-semibold">Model controls</h3>
               <p className="mt-0.5 text-xs text-[var(--foreground-muted)]">Only controls supported by {selectedModel.label} are shown.</p>
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
@@ -764,19 +764,19 @@ function FalGenerationWorkspaceSession({
             </div>
           </section>
 
-          <button type="button" disabled={isSubmitting} onClick={() => void submit()} className="btn-primary flex w-full items-center justify-center gap-2 py-4 text-lg disabled:cursor-not-allowed disabled:opacity-50">
+          <button type="button" disabled={isSubmitting} onClick={() => void submit()} className="btn-primary flex w-full items-center justify-center gap-2 py-3 text-base disabled:cursor-not-allowed disabled:opacity-50">
             {isSubmitting ? <><Loader2 className="animate-spin" size={21} /> Uploading & starting…</> : <><Sparkles size={21} /> Generate video</>}
           </button>
           {error && <p role="alert" className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">{error}</p>}
         </div>
 
-        <section className="glass-card min-h-[420px] space-y-4 p-4 sm:p-5 md:p-6">
+        <section className="glass-card min-h-[420px] space-y-3 p-3.5 md:p-4">
           <div>
-            <h3 className="display text-lg font-semibold">Jobs</h3>
+            <h3 className="display text-base font-semibold">Jobs</h3>
             <p className="mt-0.5 text-xs text-[var(--foreground-muted)]">Recent jobs remain visible while you change models and providers.</p>
           </div>
           {videoJobs.length === 0 ? (
-            <div className="rounded-xl border border-[var(--border)] p-8 text-center text-[var(--foreground-muted)]">
+            <div className="rounded-xl border border-[var(--border)] p-5 text-center text-[var(--foreground-muted)]">
               <Video className="mx-auto mb-3 opacity-35" size={46} />
               <p>Your jobs will appear here.</p>
             </div>

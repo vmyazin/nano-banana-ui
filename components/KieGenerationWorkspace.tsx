@@ -331,8 +331,8 @@ export default function KieGenerationWorkspace({
   };
 
   return (
-    <div className="mx-auto w-full max-w-[1400px] space-y-5 sm:space-y-6">
-      <section className="glass-card p-4 sm:p-5 md:p-6">
+    <div className="mx-auto w-full max-w-[1400px] space-y-3.5 sm:space-y-4">
+      <section className="glass-card p-3.5 md:p-4">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex min-w-0 items-start gap-3">
             <button type="button" onClick={onBack} className="btn-secondary shrink-0 px-3 py-2 text-sm">
@@ -342,7 +342,7 @@ export default function KieGenerationWorkspace({
               <div className="eyebrow mb-1 flex items-center gap-1.5 text-[var(--neon-cyan)]">
                 <ProviderLogo provider="kie" size={13} /> Kie.ai
               </div>
-              <h2 className="display text-xl font-semibold text-[var(--foreground)] sm:text-2xl">
+              <h2 className="display text-lg font-semibold text-[var(--foreground)] sm:text-xl">
                 {title ?? titleFor(mediaType, inputMode)}
               </h2>
               {description && (
@@ -358,12 +358,12 @@ export default function KieGenerationWorkspace({
 
       {engineSelector}
 
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 lg:gap-6">
-        <div className="space-y-5">
-          <section className="glass-card space-y-4 p-4 sm:p-5 md:p-6">
+      <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-2 lg:gap-4">
+        <div className="space-y-3.5">
+          <section className="glass-card space-y-3 p-3.5 md:p-4">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <h3 className="display text-lg font-semibold">Model</h3>
+                <h3 className="display text-base font-semibold">Model</h3>
               </div>
               <div className="flex w-40 max-w-[48%] items-center gap-2">
                 <Search className="pointer-events-none shrink-0 text-[var(--foreground-subtle)]" size={14} />
@@ -395,9 +395,9 @@ export default function KieGenerationWorkspace({
             </div>
           </section>
 
-          <section className="glass-card space-y-3 p-4 sm:p-5 md:p-6">
+          <section className="glass-card space-y-3 p-3.5 md:p-4">
             <div className="flex items-center justify-between gap-3">
-              <label htmlFor="kie-prompt" className="display block text-lg font-semibold">Prompt</label>
+              <label htmlFor="kie-prompt" className="display block text-base font-semibold">Prompt</label>
               <button
                 type="button"
                 onClick={() => void generateExample()}
@@ -419,9 +419,9 @@ export default function KieGenerationWorkspace({
           </section>
 
           {inputMode === 'image' && (
-            <section className="glass-card space-y-4 p-4 sm:p-5 md:p-6">
+            <section className="glass-card space-y-3 p-3.5 md:p-4">
               <div>
-                <h3 className="display text-lg font-semibold">Reference image{maxInputImages === 1 ? '' : 's'}</h3>
+                <h3 className="display text-base font-semibold">Reference image{maxInputImages === 1 ? '' : 's'}</h3>
                 <p className="mt-0.5 text-xs text-[var(--foreground-muted)]">Upload up to {maxInputImages}; files are forwarded to Kie only for this task. Pick a saved clip and its last frame is used.</p>
               </div>
               <input
@@ -439,7 +439,7 @@ export default function KieGenerationWorkspace({
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 {...dropProps}
-                className={`flex w-full flex-col items-center gap-2 rounded-xl border-2 border-dashed py-5 text-sm transition-colors ${isDragging ? 'border-[var(--neon-cyan)] bg-[var(--neon-cyan)]/10 text-[var(--neon-cyan)]' : 'border-[var(--neon-cyan)]/30 text-[var(--foreground-muted)] hover:border-[var(--neon-cyan)] hover:bg-[var(--neon-cyan)]/5 hover:text-[var(--neon-cyan)]'}`}
+                className={`flex w-full flex-col items-center gap-2 rounded-xl border-2 border-dashed py-3.5 text-sm transition-colors ${isDragging ? 'border-[var(--neon-cyan)] bg-[var(--neon-cyan)]/10 text-[var(--neon-cyan)]' : 'border-[var(--neon-cyan)]/30 text-[var(--foreground-muted)] hover:border-[var(--neon-cyan)] hover:bg-[var(--neon-cyan)]/5 hover:text-[var(--neon-cyan)]'}`}
               >
                 {isReadingFrame || isFetching ? <Loader2 className="animate-spin" size={28} /> : <ImagePlus size={28} />}
                 {isReadingFrame
@@ -477,9 +477,9 @@ export default function KieGenerationWorkspace({
             </section>
           )}
 
-          <section className="glass-card space-y-4 p-4 sm:p-5 md:p-6">
+          <section className="glass-card space-y-3 p-3.5 md:p-4">
             <div>
-              <h3 className="display text-lg font-semibold">Model controls</h3>
+              <h3 className="display text-base font-semibold">Model controls</h3>
               <p className="mt-0.5 text-xs text-[var(--foreground-muted)]">Only controls supported by {selectedModel.label} are shown.</p>
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
@@ -496,17 +496,17 @@ export default function KieGenerationWorkspace({
             type="button"
             onClick={() => void submit()}
             disabled={isSubmitting}
-            className="btn-primary flex w-full items-center justify-center gap-2 py-4 text-lg disabled:cursor-not-allowed disabled:opacity-50"
+            className="btn-primary flex w-full items-center justify-center gap-2 py-3 text-base disabled:cursor-not-allowed disabled:opacity-50"
           >
             {isSubmitting ? <><Loader2 className="animate-spin" size={21} /> Uploading & starting…</> : <><Sparkles size={21} /> Generate {mediaType}</>}
           </button>
           {error && <p role="alert" className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">{error}</p>}
         </div>
 
-        <section className="glass-card flex min-h-[420px] flex-col gap-4 p-4 sm:p-5 md:p-6">
+        <section className="glass-card flex min-h-[420px] flex-col gap-4 p-3.5 md:p-4">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <h3 className="display text-lg font-semibold">Result</h3>
+              <h3 className="display text-base font-semibold">Result</h3>
               <p className="mt-0.5 text-xs text-[var(--foreground-muted)]">Results are temporary — download anything you want to keep.</p>
             </div>
             {latestJob && (
@@ -523,15 +523,15 @@ export default function KieGenerationWorkspace({
                 <img src={resultUrl} alt="Generated by Kie" className="h-full w-full object-contain" />
               )
             ) : latestJob && !isKieJobTerminal(latestJob.state) ? (
-              <div className="space-y-3 p-8 text-center">
+              <div className="space-y-3 p-5 text-center">
                 <Loader2 className="mx-auto animate-spin text-[var(--neon-cyan)]" size={34} />
                 <p className="text-sm text-[var(--foreground-muted)]">Kie is working on your {mediaType}.</p>
                 {typeof latestJob.progress === 'number' && <p className="font-mono text-xs text-[var(--neon-cyan)]">{Math.round(latestJob.progress * 100)}%</p>}
               </div>
             ) : latestJob?.state === 'fail' ? (
-              <p className="max-w-sm p-8 text-center text-sm text-red-300">{latestJob.error || 'Kie could not complete this task. It was not resubmitted.'}</p>
+              <p className="max-w-sm p-5 text-center text-sm text-red-300">{latestJob.error || 'Kie could not complete this task. It was not resubmitted.'}</p>
             ) : (
-              <div className="p-8 text-center text-[var(--foreground-muted)]">
+              <div className="p-5 text-center text-[var(--foreground-muted)]">
                 {mediaType === 'video' ? <Video className="mx-auto mb-3 opacity-35" size={46} /> : <Sparkles className="mx-auto mb-3 opacity-35" size={46} />}
                 <p>Your generated {mediaType} will appear here.</p>
               </div>

@@ -57,7 +57,7 @@ export default function ProviderSelector({ value, onChange }: ProviderSelectorPr
             onKeyDown={(event) => selectFromKeyboard(event, index)}
             className={`rounded-xl border px-4 py-3.5 text-left transition-colors ${selected ? 'border-[var(--neon-purple)] bg-[var(--neon-purple)]/10' : 'border-[var(--border)] bg-[var(--background-elevated)]/60 hover:border-[var(--foreground-subtle)]'}`}
           >
-            <span className="flex items-center gap-2.5 text-base font-semibold text-[var(--foreground)] sm:text-lg">
+            <span className="flex items-center gap-2.5 text-sm font-semibold text-[var(--foreground)] sm:text-base">
               <ProviderLogo provider={provider.id} size={22} />
               {provider.label}
             </span>

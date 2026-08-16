@@ -60,7 +60,8 @@ export default function MediaCard({
   accent = 'cyan',
   onClick,
   variants,
-  sizes = '(min-width: 1280px) 33vw, (min-width: 768px) 50vw, 100vw',
+  // Matches the grid below: 3 across from the tablet breakpoint up, 2 at sm.
+  sizes = '(min-width: 768px) 33vw, (min-width: 640px) 50vw, 100vw',
 }: MediaCardProps) {
   const tone = ACCENTS[accent];
 
@@ -70,14 +71,14 @@ export default function MediaCard({
       variants={variants}
       onClick={onClick}
       aria-pressed={selected}
-      className={`glass-card group relative cursor-pointer overflow-hidden p-5 text-left sm:p-6 ${selected ? tone.selectedCard : ''}`}
-      whileHover={{ y: -4 }}
+      className={`glass-card group relative cursor-pointer overflow-hidden p-3 text-left sm:p-3.5 ${selected ? tone.selectedCard : ''}`}
+      whileHover={{ y: -2 }}
       whileTap={{ scale: 0.99 }}
     >
-      {badges && <div className="flex items-center justify-between gap-2">{badges}</div>}
+      {badges && <div className="flex items-center justify-between gap-1.5">{badges}</div>}
 
       <div
-        className={`relative mb-5 aspect-video overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--background-elevated)] ${badges ? 'mt-4' : ''}`}
+        className={`relative mb-2.5 aspect-video overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--background-elevated)] ${badges ? 'mt-2.5' : ''}`}
       >
         {typeof thumbnail === 'string' ? (
           // eslint-disable-next-line @next/next/no-img-element -- remote vendor art, see thumbnail prop
@@ -99,25 +100,27 @@ export default function MediaCard({
         ) : null}
       </div>
 
-      <div className="space-y-2.5">
-        <h3 className="display text-lg font-semibold text-[var(--foreground)] sm:text-xl">{title}</h3>
+      <div className="space-y-1">
+        <h3 className="display text-[0.9375rem] font-semibold leading-snug text-[var(--foreground)]">{title}</h3>
 
+        {/* Two lines, not three: at three cards per row the third line was the
+            single largest contributor to card height on a tablet. */}
         {description && (
-          <p className="line-clamp-3 text-sm leading-relaxed text-[var(--foreground-muted)] sm:text-[0.95rem]">
+          <p className="line-clamp-2 text-[0.8125rem] leading-snug text-[var(--foreground-muted)]">
             {description}
           </p>
         )}
 
-        {meta && <div className="flex flex-wrap gap-2 pt-1">{meta}</div>}
+        {meta && <div className="flex flex-wrap gap-1.5 pt-1">{meta}</div>}
       </div>
 
       {selected && (
         <motion.div
           initial={{ scale: 0 }}
           animate={{ scale: 1 }}
-          className={`absolute bottom-4 right-4 flex h-7 w-7 items-center justify-center rounded-full ${tone.check}`}
+          className={`absolute bottom-2.5 right-2.5 flex h-5 w-5 items-center justify-center rounded-full ${tone.check}`}
         >
-          <svg className="h-4 w-4 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg className="h-3 w-3 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
           </svg>
         </motion.div>

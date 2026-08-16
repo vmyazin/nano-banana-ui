@@ -35,8 +35,23 @@
   --shadow-md: 0 8px 30px -12px rgba(0, 0, 0, 0.7);
   --glow-cyan: 0 0 0 1px rgba(0, 255, 249, 0.35), 0 0 28px -6px rgba(0, 255, 249, 0.45);
 
-  --radius: 14px;
-  --radius-sm: 9px;
+  --radius: 11px;
+  --radius-sm: 8px;
+
+  /* Control density. Measured against manus.im, whose whole app runs on a
+     14px UI face with 32/36px controls — our 16px text and ~44px controls
+     read a full size-step larger than any tool in this category.
+
+     --control-h is the height every button, input, select and trigger lands
+     on, so a row of mixed controls sits on one baseline without per-component
+     padding tweaks. Derived, not hardcoded: height = text * line-height +
+     2 * padding + 2 * border, which keeps the three in sync when one moves. */
+  --text-ui: 0.875rem;
+  --text-ui-sm: 0.8125rem;
+  --control-py: 0.4rem;
+  --control-px: 0.75rem;
+  --control-h: 2.25rem;
+  --control-h-sm: 2rem;
 
   /* Back-compat aliases so older components map onto the refined system */
   --background-glass: rgba(255, 255, 255, 0.03);
@@ -128,24 +143,27 @@ body::after {
 }
 
 /* Labels inside dialogs and forms. The mono eyebrow is too tracked-out to
-   read at form density, so labels here stay sentence case in the UI face. */
+   read at form density, so labels here stay sentence case in the UI face.
+   All three sit on the --text-ui ramp: at this density a 17px label read as a
+   heading and pushed every field apart, so the label now leads on weight
+   rather than size. */
 .field-label {
-  font-size: 1.0625rem;
+  font-size: var(--text-ui);
   font-weight: 600;
   line-height: 1.35;
   color: var(--foreground);
 }
 
 .field-sublabel {
-  font-size: 0.875rem;
+  font-size: var(--text-ui-sm);
   font-weight: 500;
   line-height: 1.4;
   color: var(--foreground);
 }
 
 .field-hint {
-  font-size: 0.9375rem;
-  line-height: 1.6;
+  font-size: var(--text-ui-sm);
+  line-height: 1.5;
   color: var(--foreground-muted);
 }
 
@@ -182,27 +200,32 @@ body::after {
 .pill {
   display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
-  font-size: 0.75rem;
+  gap: 0.35rem;
+  font-size: var(--text-ui-sm);
   font-weight: 500;
-  padding: 0.3rem 0.7rem;
+  padding: 0.2rem 0.6rem;
   border-radius: 999px;
   border: 1px solid var(--border);
   background: var(--surface);
   color: var(--foreground-muted);
 }
 
-/* Buttons — crisp, defined, no shimmer/uppercase/Orbitron */
+/* Buttons — crisp, defined, no shimmer/uppercase/Orbitron.
+   Both variants declare their own font-size: a bare <button> otherwise falls
+   back to the UA's 13.33px, which made identical buttons render at different
+   heights depending on whether the caller happened to add a text-* class. */
 .btn-primary {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.5rem;
+  gap: 0.4rem;
+  min-height: var(--control-h);
   background: var(--neon-cyan);
   color: #04141a;
+  font-size: var(--text-ui);
   font-weight: 600;
   font-family: var(--font-geist-sans), sans-serif;
-  padding: 0.65rem 1.25rem;
+  padding: var(--control-py) 0.95rem;
   border-radius: var(--radius-sm);
   border: 1px solid transparent;
   cursor: pointer;
@@ -222,13 +245,15 @@ body::after {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.5rem;
+  gap: 0.4rem;
+  min-height: var(--control-h);
   background: var(--surface);
   color: var(--foreground);
   border: 1px solid var(--border);
+  font-size: var(--text-ui);
   font-weight: 500;
   font-family: var(--font-geist-sans), sans-serif;
-  padding: 0.6rem 1.1rem;
+  padding: var(--control-py) 0.85rem;
   border-radius: var(--radius-sm);
   cursor: pointer;
   transition: border-color 0.2s ease, background 0.2s ease;
@@ -246,11 +271,19 @@ select {
   background: var(--background-elevated);
   border: 1px solid var(--border-input);
   color: var(--foreground);
-  padding: 0.65rem 0.9rem;
+  padding: var(--control-py) var(--control-px);
   border-radius: var(--radius-sm);
   font-family: var(--font-geist-sans), sans-serif;
-  font-size: 1rem;
+  font-size: var(--text-ui);
+  line-height: 1.45;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* Single-line fields share the button height so a field sitting next to a
+   button lines up. Textareas are excluded — they size to their rows. */
+input:not([type='checkbox']):not([type='radio']):not([type='range']),
+select {
+  min-height: var(--control-h);
 }
 
 input:focus,
@@ -313,9 +346,9 @@ textarea::placeholder {
 .animate-glow-pulse { animation: glowPulse 2.4s ease-in-out infinite; }
 
 .loading-spinner {
-  width: 38px;
-  height: 38px;
-  border: 3px solid rgba(0, 255, 249, 0.2);
+  width: 28px;
+  height: 28px;
+  border: 2px solid rgba(0, 255, 249, 0.2);
   border-top-color: var(--neon-cyan);
   border-radius: 50%;
   animation: spin 1s linear infinite;
@@ -323,9 +356,9 @@ textarea::placeholder {
 
 .image-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 20px;
-  padding: 20px;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+  padding: 12px;
 }
 
 /* Command palette (cmdk) — Linear-style ⌘K menu */
@@ -356,13 +389,14 @@ textarea::placeholder {
 
 [cmdk-input] {
   width: 100%;
-  padding: 14px 16px;
+  min-height: 0;
+  padding: 10px 14px;
   background: transparent;
   border: none;
   border-bottom: 1px solid var(--border);
   border-radius: 0;
   color: var(--foreground);
-  font-size: 0.95rem;
+  font-size: var(--text-ui);
 }
 
 [cmdk-input]:focus {
@@ -390,9 +424,9 @@ textarea::placeholder {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 9px 10px;
-  border-radius: 9px;
-  font-size: 0.9rem;
+  padding: 6px 10px;
+  border-radius: 7px;
+  font-size: var(--text-ui);
   color: var(--foreground-muted);
   cursor: pointer;
 }
@@ -407,8 +441,8 @@ textarea::placeholder {
 }
 
 [cmdk-empty] {
-  padding: 18px;
+  padding: 14px;
   text-align: center;
-  font-size: 0.9rem;
+  font-size: var(--text-ui-sm);
   color: var(--foreground-subtle);
 }

@@ -64,7 +64,7 @@ export default function LibraryOverlay({ open, onOpenChange }: LibraryOverlayPro
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-3 backdrop-blur-md sm:p-4 md:p-6"
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-3 backdrop-blur-md sm:p-4"
           onClick={close}
         >
           <motion.div
@@ -80,10 +80,10 @@ export default function LibraryOverlay({ open, onOpenChange }: LibraryOverlayPro
             onClick={(event) => event.stopPropagation()}
             className="dialog-panel relative flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden outline-none"
           >
-            <header className="flex items-start gap-3 border-b border-[var(--border)] px-5 py-4 sm:px-6">
+            <header className="flex items-start gap-3 border-b border-[var(--border)] px-3.5 py-3 sm:px-4">
               <Library className="mt-0.5 shrink-0 text-[var(--neon-cyan)]" size={18} />
               <div className="min-w-0 flex-1">
-                <h2 className="text-lg font-semibold text-[var(--foreground)]">Library</h2>
+                <h2 className="text-base font-semibold text-[var(--foreground)]">Library</h2>
                 <p className="text-[0.9375rem] text-[var(--foreground-muted)]">
                   Results kept in this browser after the provider links expire
                 </p>
@@ -97,7 +97,7 @@ export default function LibraryOverlay({ open, onOpenChange }: LibraryOverlayPro
               </button>
             </header>
 
-            <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-6">
+            <div className="min-h-0 flex-1 overflow-y-auto px-3.5 py-3.5 sm:px-4">
             <div role="tablist" aria-label="Library sections" className="mb-4 flex gap-1 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-1">
               {(['results', 'prompts'] as const).map((name) => (
                 <button
@@ -129,7 +129,7 @@ export default function LibraryOverlay({ open, onOpenChange }: LibraryOverlayPro
             )}
             </div>
 
-            <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--border)] px-5 py-3.5 sm:px-6">
+            <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--border)] px-3.5 py-3.5 sm:px-4">
               <p className="text-[0.9375rem] text-[var(--foreground-muted)]">
                 {records.length} result{records.length === 1 ? '' : 's'} · {formatBytes(stored)} stored
                 {quota ? ` · ${formatBytes(quota.quota - quota.usage)} free in this browser` : ''}

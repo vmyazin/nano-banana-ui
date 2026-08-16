@@ -67,7 +67,7 @@ const ENGINE_DOCS: ReadonlyArray<{
 const GenerationInterface = dynamic(() => import('@/components/GenerationInterface'), {
   ssr: false,
   loading: () => (
-    <div className="flex items-center justify-center py-24">
+    <div className="flex items-center justify-center py-16">
       <div className="loading-spinner" />
     </div>
   ),
@@ -118,8 +118,8 @@ function Studio() {
     <div className="min-h-screen relative w-full overflow-x-hidden">
       {/* Header — sticky, hairline border, backdrop blur (Linear/Vercel nav) */}
       <header className="sticky top-0 z-50 border-b border-[var(--border)] bg-[rgba(8,8,11,0.72)] backdrop-blur-xl">
-        <div className="w-full max-w-7xl mx-auto px-6 sm:px-8 md:px-12 lg:px-16 py-3.5 md:py-4">
-          <div className="flex items-center justify-between gap-4">
+        <div className="w-full max-w-7xl mx-auto px-6 sm:px-8 md:px-12 lg:px-16 py-2 md:py-2.5">
+          <div className="flex items-center justify-between gap-3">
             <Link
               href="/"
               aria-label="Go to Scene Assembly home"
@@ -130,11 +130,11 @@ function Studio() {
                 animate={{ opacity: 1, y: 0 }}
                 className="brand-mark flex items-center gap-2.5 min-w-0"
               >
-                <div className="brand-mark-icon w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-gradient-to-br from-[var(--neon-cyan)] to-[var(--neon-purple)] flex items-center justify-center flex-shrink-0 shadow-[0_2px_12px_-2px_rgba(0,245,255,0.35)]">
-                  <Layers className="w-4 h-4 sm:w-[18px] sm:h-[18px] text-black" aria-hidden />
+                <div className="brand-mark-icon w-7 h-7 rounded-lg bg-gradient-to-br from-[var(--neon-cyan)] to-[var(--neon-purple)] flex items-center justify-center flex-shrink-0 shadow-[0_2px_12px_-2px_rgba(0,245,255,0.35)]">
+                  <Layers className="w-4 h-4 text-black" aria-hidden />
                 </div>
-                <div className="min-w-0 flex items-center gap-2.5">
-                  <h1 className="display text-base sm:text-lg font-semibold text-[var(--foreground)] truncate">
+                <div className="min-w-0 flex items-center gap-2">
+                  <h1 className="display text-sm sm:text-[0.9375rem] font-semibold text-[var(--foreground)] truncate">
                     {brand.name}
                   </h1>
                   <span className="hidden md:inline-block h-3.5 w-px bg-[var(--border-hover)]" />
@@ -143,18 +143,18 @@ function Studio() {
               </motion.div>
             </Link>
 
-            <nav aria-label="Workspace" className="flex items-center rounded-xl border border-[var(--border)] bg-[var(--background-elevated)]/70 p-1">
+            <nav aria-label="Workspace" className="flex items-center rounded-[9px] border border-[var(--border)] bg-[var(--background-elevated)]/70 p-0.5">
               <button
                 type="button"
                 onClick={() => selectWorkspace('image')}
-                className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors sm:text-sm ${activeWorkspace === 'image' ? 'bg-[var(--brand-accent)]/15 text-[var(--brand-accent)]' : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)]'}`}
+                className={`rounded-md px-2.5 py-1 text-[0.8125rem] font-medium transition-colors ${activeWorkspace === 'image' ? 'bg-[var(--brand-accent)]/15 text-[var(--brand-accent)]' : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)]'}`}
               >
                 Image
               </button>
               <button
                 type="button"
                 onClick={() => selectWorkspace('video')}
-                className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors sm:text-sm ${activeWorkspace === 'video' ? 'bg-[var(--neon-purple)]/15 text-[var(--neon-purple)]' : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)]'}`}
+                className={`rounded-md px-2.5 py-1 text-[0.8125rem] font-medium transition-colors ${activeWorkspace === 'video' ? 'bg-[var(--neon-purple)]/15 text-[var(--neon-purple)]' : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)]'}`}
               >
                 Video
               </button>
@@ -164,11 +164,13 @@ function Studio() {
               initial={{ opacity: 0, y: -8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.05 }}
-              className="flex items-center gap-2 flex-shrink-0"
+              className="flex items-center gap-1.5 flex-shrink-0"
             >
+              {/* h-8 on the two icon buttons, --control-h (36px) on the key CTA:
+                  the secondary pair reads as chrome, the CTA as the action. */}
               <button
                 onClick={() => setLibraryOpen(true)}
-                className="inline-flex items-center gap-1.5 rounded-[9px] border border-[var(--border)] px-2.5 py-2 text-xs text-[var(--foreground-muted)] transition-colors hover:border-[var(--border-hover)] hover:text-[var(--foreground)]"
+                className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-[var(--border)] px-2.5 text-[0.8125rem] text-[var(--foreground-muted)] transition-colors hover:border-[var(--border-hover)] hover:text-[var(--foreground)]"
                 title="Kept results and saved prompts"
               >
                 <LibraryIcon size={13} />
@@ -177,7 +179,7 @@ function Studio() {
 
               <button
                 onClick={() => setPaletteOpen(true)}
-                className="hidden sm:inline-flex items-center gap-1.5 text-xs text-[var(--foreground-muted)] hover:text-[var(--foreground)] border border-[var(--border)] hover:border-[var(--border-hover)] rounded-[9px] px-2.5 py-2 transition-colors"
+                className="hidden h-8 sm:inline-flex items-center gap-1.5 text-[0.8125rem] text-[var(--foreground-muted)] hover:text-[var(--foreground)] border border-[var(--border)] hover:border-[var(--border-hover)] rounded-lg px-2.5 transition-colors"
                 title="Open command menu (⌘K)"
               >
                 <CommandIcon size={13} />
@@ -186,7 +188,7 @@ function Studio() {
 
               <button
                 onClick={() => setKeyDialogOpen(true)}
-                className={`${hasKey ? 'btn-secondary' : 'btn-primary'} text-sm`}
+                className={hasKey ? 'btn-secondary' : 'btn-primary'}
                 title={hasKey ? 'Update your API key' : 'Add your Gemini API key'}
               >
                 {hasKey ? (
@@ -226,7 +228,7 @@ function Studio() {
       <LibraryOverlay open={libraryOpen} onOpenChange={setLibraryOpen} />
 
       {/* Main Content */}
-      <main className="relative z-10 w-full max-w-7xl mx-auto px-6 sm:px-8 md:px-12 lg:px-16 py-6 sm:py-8 md:py-10">
+      <main className="relative z-10 w-full max-w-7xl mx-auto px-6 sm:px-8 md:px-12 lg:px-16 py-4 sm:py-5 md:py-6">
         <AnimatePresence mode="wait">
           {activeWorkspace === 'video' ? (
             <motion.div
@@ -255,17 +257,17 @@ function Studio() {
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="w-full space-y-10 sm:space-y-12 md:space-y-14"
+              className="w-full space-y-5 sm:space-y-6"
             >
               {/* Hero — compact: one headline line, then a single meta row.
                   The eyebrow pill is gone on purpose; it repeated the tagline
                   already sitting next to the product name in the nav. */}
-              <div className="text-center space-y-3 sm:space-y-4 py-2 sm:py-3">
+              <div className="text-center space-y-2 sm:space-y-2.5 py-0 sm:py-1">
                 <motion.h2
                   initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.05 }}
-                  className="display text-4xl sm:text-5xl md:text-6xl font-semibold leading-[1.1] px-4 text-balance"
+                  className="display text-2xl sm:text-3xl md:text-4xl font-semibold leading-[1.1] px-4 text-balance"
                 >
                   <span className="gradient-text">Create stunning images</span>{' '}
                   <span className="text-[var(--foreground)]">with AI power</span>
@@ -276,13 +278,13 @@ function Studio() {
                   initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.12 }}
-                  className="flex flex-col sm:flex-row flex-wrap items-center justify-center gap-x-4 gap-y-3 px-4"
+                  className="flex flex-col sm:flex-row flex-wrap items-center justify-center gap-x-3 gap-y-2 px-4"
                 >
-                  <p className="text-sm sm:text-base text-[var(--foreground-muted)] max-w-xl leading-relaxed">
+                  <p className="text-[0.8125rem] sm:text-sm text-[var(--foreground-muted)] max-w-xl leading-relaxed">
                     {brand.heroBlurb}
                   </p>
 
-                  <div className="flex flex-wrap items-center justify-center gap-2">
+                  <div className="flex flex-wrap items-center justify-center gap-1.5">
                     <span className="pill">
                       <ProviderLogo provider="gemini" size={13} className="text-emerald-400" />
                       Gemini
@@ -326,11 +328,11 @@ function Studio() {
       </main>
 
       {/* Footer */}
-      <footer className="site-footer relative z-10 border-t border-white/10 mt-10 sm:mt-12 md:mt-16">
-        <div className="w-full max-w-7xl mx-auto px-6 sm:px-8 md:px-12 lg:px-16 py-8 sm:py-10 md:py-12">
-          <div className="flex flex-col items-center justify-center gap-6 sm:gap-8 text-center">
-            <div className="text-center space-y-2">
-              <p className="text-sm sm:text-base text-[var(--foreground-muted)]">
+      <footer className="site-footer relative z-10 border-t border-white/10 mt-8 sm:mt-10">
+        <div className="w-full max-w-7xl mx-auto px-6 sm:px-8 md:px-12 lg:px-16 py-6 sm:py-7">
+          <div className="flex flex-col items-center justify-center gap-4 sm:gap-5 text-center">
+            <div className="text-center space-y-1.5">
+              <p className="text-[0.8125rem] text-[var(--foreground-muted)]">
                 <a
                   href={brand.githubUrl}
                   target="_blank"
@@ -349,17 +351,17 @@ function Studio() {
                   {brand.maintainer.name}
                 </a>
               </p>
-              <p className="text-xs sm:text-sm text-[var(--foreground-muted)]">
+              <p className="text-xs text-[var(--foreground-muted)]">
                 {brand.description}
               </p>
             </div>
 
-            <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4 md:gap-5">
+            <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3">
               <a
                 href="https://aistudio.google.com/apikey"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-xs sm:text-sm font-medium px-4 py-2 rounded-lg bg-[var(--background-glass)] border border-white/10 hover:border-[var(--neon-pink)] text-[var(--foreground-muted)] hover:text-[var(--neon-pink)] transition-all hover:shadow-[0_0_20px_rgba(255,0,110,0.3)]"
+                className="text-xs font-medium px-3 py-1.5 rounded-lg bg-[var(--background-glass)] border border-white/10 hover:border-[var(--neon-pink)] text-[var(--foreground-muted)] hover:text-[var(--neon-pink)] transition-all hover:shadow-[0_0_20px_rgba(255,0,110,0.3)]"
               >
                 🔑 API Keys &amp; Billing
               </a>
@@ -367,7 +369,7 @@ function Studio() {
                 href={brand.githubUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-xs sm:text-sm font-medium px-4 py-2 rounded-lg bg-[var(--background-glass)] border border-white/10 hover:border-[var(--neon-purple)] text-[var(--foreground-muted)] hover:text-[var(--neon-purple)] transition-all hover:shadow-[var(--glow-purple)]"
+                className="text-xs font-medium px-3 py-1.5 rounded-lg bg-[var(--background-glass)] border border-white/10 hover:border-[var(--neon-purple)] text-[var(--foreground-muted)] hover:text-[var(--neon-purple)] transition-all hover:shadow-[var(--glow-purple)]"
               >
                 💻 GitHub
               </a>
@@ -376,16 +378,16 @@ function Studio() {
 
           {/* Engines available — capability context, not product identity.
               Each one links to the docs you'd need to work with it directly. */}
-          <div className="mt-8 pt-6 border-t border-white/5 text-center">
-            <p className="eyebrow mb-3">Engine docs</p>
-            <ul className="flex flex-wrap items-center justify-center gap-x-2 gap-y-2 text-xs">
+          <div className="mt-6 pt-5 border-t border-white/5 text-center">
+            <p className="eyebrow mb-2">Engine docs</p>
+            <ul className="flex flex-wrap items-center justify-center gap-1.5 text-xs">
               {ENGINE_DOCS.map(({ id, label, href, accentClass }) => (
                 <li key={id}>
                   <a
                     href={href}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className={`inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-[var(--background-glass)] px-3 py-1.5 font-semibold text-[var(--foreground-muted)] transition-colors hover:border-current ${accentClass}`}
+                    className={`inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-[var(--background-glass)] px-2.5 py-1 font-medium text-[var(--foreground-muted)] transition-colors hover:border-current ${accentClass}`}
                   >
                     <ProviderLogo provider={id} size={13} />
                     {label}

@@ -30,11 +30,14 @@ export default function FeatureSelector({ selectedFeature, onFeatureSelect }: Fe
 
   return (
     <div className="feature-selector w-full">
+      {/* Three across from the tablet breakpoint (md, 768px) rather than xl:
+          at the compact card size three tracks clear ~215px each at 768px,
+          which is wider than the thumbnail needs to stay readable. */}
       <motion.div
         variants={containerVariants}
         initial="hidden"
         animate="show"
-        className="w-full grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 sm:gap-6"
+        className="w-full grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4"
       >
         {FEATURES.map((feature) => {
           const isSelected = selectedFeature?.id === feature.id;
@@ -55,7 +58,7 @@ export default function FeatureSelector({ selectedFeature, onFeatureSelect }: Fe
                 <>
                   <div className="flex flex-wrap items-center gap-2">
                     <span
-                      className={`inline-flex items-center gap-1.5 text-[0.7rem] font-medium px-2.5 py-1 rounded-full border ${
+                      className={`whitespace-nowrap inline-flex items-center gap-1.5 text-[0.7rem] font-medium px-2.5 py-1 rounded-full border ${
                         feature.modelType === 'pro'
                           ? 'border-[var(--neon-purple)]/40 text-[var(--neon-purple)] bg-[var(--neon-purple)]/10'
                           : 'border-[var(--neon-cyan)]/40 text-[var(--neon-cyan)] bg-[var(--neon-cyan)]/10'
@@ -66,14 +69,14 @@ export default function FeatureSelector({ selectedFeature, onFeatureSelect }: Fe
                     </span>
 
                     {hasFreeEngine && (
-                      <span className="inline-flex items-center text-[0.7rem] font-medium px-2.5 py-1 rounded-full border border-emerald-400/40 text-emerald-400 bg-emerald-400/10">
+                      <span className="whitespace-nowrap inline-flex items-center text-[0.7rem] font-medium px-2.5 py-1 rounded-full border border-emerald-400/40 text-emerald-400 bg-emerald-400/10">
                         Free option
                       </span>
                     )}
                   </div>
 
                   {isSpecial && (
-                    <span className="inline-flex items-center gap-1.5 text-[0.7rem] font-semibold px-2.5 py-1 rounded-full bg-[var(--brand-accent)] text-black">
+                    <span className="whitespace-nowrap inline-flex items-center gap-1.5 text-[0.7rem] font-semibold px-2.5 py-1 rounded-full bg-[var(--brand-accent)] text-black">
                       <Sparkles size={12} />
                       Special
                     </span>
