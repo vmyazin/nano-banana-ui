@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import { Feature, FEATURES } from '@/types';
 import { enginesForFeature } from '@/lib/engines/registry';
 import { Sparkles, Zap } from 'lucide-react';
+import MediaCard from '@/components/MediaCard';
 
 interface FeatureSelectorProps {
   selectedFeature: Feature | null;
@@ -41,65 +42,47 @@ export default function FeatureSelector({ selectedFeature, onFeatureSelect }: Fe
           const hasFreeEngine = enginesForFeature(feature).some((e) => e.free);
 
           return (
-            <motion.button
+            <MediaCard
               key={feature.id}
               variants={itemVariants}
               onClick={() => onFeatureSelect(feature)}
-              className={`glass-card p-5 sm:p-6 text-left relative overflow-hidden group cursor-pointer ${
-                isSelected ? 'border-[var(--neon-cyan)]/60 shadow-[var(--glow-cyan)]' : ''
-              }`}
-              whileHover={{ y: -4 }}
-              whileTap={{ scale: 0.99 }}
-            >
-              {/* Badges row */}
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span
-                    className={`inline-flex items-center gap-1.5 text-[0.7rem] font-medium px-2.5 py-1 rounded-full border ${
-                      feature.modelType === 'pro'
-                        ? 'border-[var(--neon-purple)]/40 text-[var(--neon-purple)] bg-[var(--neon-purple)]/10'
-                        : 'border-[var(--neon-cyan)]/40 text-[var(--neon-cyan)] bg-[var(--neon-cyan)]/10'
-                    }`}
-                  >
-                    <Zap size={12} />
-                    {feature.modelType === 'pro' ? 'Gemini 3 Pro' : 'Flash 2.5'}
-                  </span>
+              selected={isSelected}
+              title={feature.name}
+              description={feature.description}
+              thumbnail={feature.thumbnail}
+              thumbnailAlt={feature.name}
+              badges={
+                <>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span
+                      className={`inline-flex items-center gap-1.5 text-[0.7rem] font-medium px-2.5 py-1 rounded-full border ${
+                        feature.modelType === 'pro'
+                          ? 'border-[var(--neon-purple)]/40 text-[var(--neon-purple)] bg-[var(--neon-purple)]/10'
+                          : 'border-[var(--neon-cyan)]/40 text-[var(--neon-cyan)] bg-[var(--neon-cyan)]/10'
+                      }`}
+                    >
+                      <Zap size={12} />
+                      {feature.modelType === 'pro' ? 'Gemini 3 Pro' : 'Flash 2.5'}
+                    </span>
 
-                  {hasFreeEngine && (
-                    <span className="inline-flex items-center text-[0.7rem] font-medium px-2.5 py-1 rounded-full border border-emerald-400/40 text-emerald-400 bg-emerald-400/10">
-                      Free option
+                    {hasFreeEngine && (
+                      <span className="inline-flex items-center text-[0.7rem] font-medium px-2.5 py-1 rounded-full border border-emerald-400/40 text-emerald-400 bg-emerald-400/10">
+                        Free option
+                      </span>
+                    )}
+                  </div>
+
+                  {isSpecial && (
+                    <span className="inline-flex items-center gap-1.5 text-[0.7rem] font-semibold px-2.5 py-1 rounded-full bg-[var(--brand-accent)] text-black">
+                      <Sparkles size={12} />
+                      Special
                     </span>
                   )}
-                </div>
-
-                {isSpecial && (
-                  <span className="inline-flex items-center gap-1.5 text-[0.7rem] font-semibold px-2.5 py-1 rounded-full bg-[var(--brand-accent)] text-black">
-                    <Sparkles size={12} />
-                    Special
-                  </span>
-                )}
-              </div>
-
-              {/* Thumbnail */}
-              <div className="mt-4 mb-5 aspect-video rounded-xl bg-[var(--background-elevated)] border border-[var(--border)] relative overflow-hidden">
-                <img
-                  src={feature.thumbnail}
-                  alt={feature.name}
-                  className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
-                  loading="lazy"
-                />
-              </div>
-
-              <div className="space-y-2.5">
-                <h3 className="display text-lg sm:text-xl font-semibold text-[var(--foreground)]">
-                  {feature.name}
-                </h3>
-                <p className="text-sm sm:text-[0.95rem] text-[var(--foreground-muted)] line-clamp-3 leading-relaxed">
-                  {feature.description}
-                </p>
-
-                {(feature.requiresImage || feature.maxImages) && (
-                  <div className="flex flex-wrap gap-2 pt-1">
+                </>
+              }
+              meta={
+                (feature.requiresImage || feature.maxImages) && (
+                  <>
                     {feature.requiresImage && (
                       <span className="text-[0.7rem] px-2.5 py-1 rounded-full border border-[var(--border)] text-[var(--foreground-muted)]">
                         Requires Image{feature.requiresMultipleImages ? 's' : ''}
@@ -110,23 +93,10 @@ export default function FeatureSelector({ selectedFeature, onFeatureSelect }: Fe
                         Up to {feature.maxImages} images
                       </span>
                     )}
-                  </div>
-                )}
-              </div>
-
-              {/* Selection indicator */}
-              {isSelected && (
-                <motion.div
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  className="absolute bottom-4 right-4 w-7 h-7 rounded-full bg-[var(--neon-cyan)] flex items-center justify-center"
-                >
-                  <svg className="w-4 h-4 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                  </svg>
-                </motion.div>
-              )}
-            </motion.button>
+                  </>
+                )
+              }
+            />
           );
         })}
       </motion.div>

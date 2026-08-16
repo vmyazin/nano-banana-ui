@@ -10,9 +10,11 @@ export const brand = {
   description: 'A multi-engine image studio.',
   /** Short eyebrow / subtitle next to the product name in the nav. */
   tagline: 'Multi-engine image studio',
-  /** Longer marketing blurb for the landing hero. */
-  heroBlurb:
-    'Generate, edit, and transform images across multiple engines — from text-to-image to viral social thumbnails.',
+  /**
+   * Landing hero blurb. Kept to a single line: it shares a row with the engine
+   * pills, and a wrapped blurb leaves them hanging off to one side.
+   */
+  heroBlurb: 'Generate, edit, and transform images across multiple engines.',
   /** Footer credit line product label (links to the repo). */
   shortName: 'Scene Assembly',
   githubUrl: 'https://github.com/vmyazin/nano-banana-ui',

@@ -1,12 +1,17 @@
 'use client';
 
+import { type StaticImageData } from 'next/image';
 import { ImagePlus, MoveRight, Type } from 'lucide-react';
 import FalGenerationWorkspace from '@/components/FalGenerationWorkspace';
 import KieGenerationWorkspace from '@/components/KieGenerationWorkspace';
+import MediaCard from '@/components/MediaCard';
 import ProviderLogo from '@/components/ProviderLogo';
 import ProviderSelector, { type VideoProvider } from '@/components/ProviderSelector';
 import type { FalInputMode } from '@/lib/fal/types';
 import { useAppStore } from '@/store/useAppStore';
+import catalogThumbnail from '@/public/thumbnails/neon-cat-catalog-isometric.jpg';
+import leapThumbnail from '@/public/thumbnails/neon-cat-leap-cyan-magenta.jpg';
+import bookendThumbnail from '@/public/thumbnails/neon-cat-jump-dashboard.jpg';
 
 interface VideoWorkspaceProps {
   inputMode: FalInputMode;
@@ -18,16 +23,47 @@ interface VideoWorkspaceProps {
 /**
  * First-and-last-frame runs are a fal-only flow, so the third mode is offered
  * only while fal is the selected provider.
+ *
+ * The thumbnails illustrate what each mode does: one cat drawn a dozen ways for
+ * the open field a prompt gives you, one cat mid-leap across consecutive frames
+ * for a still put into motion, and one cat bookended by a crouch and a landing
+ * with the jump between them left as a ghosted arc.
  */
 const MODES: ReadonlyArray<{
   id: FalInputMode;
   label: string;
+  blurb: string;
+  /** What the mode needs before it can run, shown as the card's badge. */
+  requires: string;
   icon: typeof Type;
+  thumbnail?: StaticImageData;
   falOnly?: boolean;
 }> = [
-  { id: 'text', label: 'Text to video', icon: Type },
-  { id: 'image', label: 'Image to video', icon: ImagePlus },
-  { id: 'frames', label: 'First & last frame', icon: MoveRight, falOnly: true },
+  {
+    id: 'text',
+    label: 'Text to video',
+    blurb: 'Start from a written prompt',
+    requires: 'Prompt only',
+    icon: Type,
+    thumbnail: catalogThumbnail,
+  },
+  {
+    id: 'image',
+    label: 'Image to video',
+    blurb: 'Put a still frame into motion',
+    requires: 'Needs an image',
+    icon: ImagePlus,
+    thumbnail: leapThumbnail,
+  },
+  {
+    id: 'frames',
+    label: 'First & last frame',
+    blurb: 'Fill the motion between two stills',
+    requires: 'Needs two images',
+    icon: MoveRight,
+    thumbnail: bookendThumbnail,
+    falOnly: true,
+  },
 ];
 
 export default function VideoWorkspace({
@@ -61,8 +97,10 @@ export default function VideoWorkspace({
         </h2>
 
         <div className="flex flex-col flex-wrap items-center justify-center gap-x-4 gap-y-3 px-4 sm:flex-row">
+          {/* One line, so the blurb and the pills read as a single band. The
+              starting points it used to list are now the cards below. */}
           <p className="max-w-xl text-sm leading-relaxed text-[var(--foreground-muted)] sm:text-base">
-            Start from a prompt, a single image, or a first and last frame. Tasks keep running while you explore this tab.
+            Tasks keep running while you explore this tab.
           </p>
 
           <div className="flex flex-wrap items-center justify-center gap-2">
@@ -78,28 +116,44 @@ export default function VideoWorkspace({
         </div>
       </div>
 
-      {/* Input mode — a segmented control, centered under the hero. */}
-      <div className="flex justify-center">
-        <div className="flex flex-wrap justify-center rounded-xl border border-[var(--border)] bg-[var(--background-elevated)] p-1">
-          {modes.map((mode) => {
-            const Icon = mode.icon;
-            return (
-              <button
-                key={mode.id}
-                type="button"
-                onClick={() => onInputModeChange(mode.id)}
-                className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm transition-colors ${activeMode === mode.id ? 'bg-[var(--neon-purple)]/15 text-[var(--neon-purple)]' : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)]'}`}
-              >
-                <Icon size={15} /> {mode.label}
-              </button>
-            );
-          })}
-        </div>
+      {/* Input mode — the same card the landing page uses for features, so the
+          two pickers in this app look and size alike. */}
+      <div
+        className={`grid w-full grid-cols-1 gap-5 md:grid-cols-2 sm:gap-6 ${modes.length === 3 ? 'xl:grid-cols-3' : ''}`}
+      >
+        {modes.map((mode) => {
+          const Icon = mode.icon;
+          return (
+            <MediaCard
+              key={mode.id}
+              accent="purple"
+              selected={activeMode === mode.id}
+              onClick={() => onInputModeChange(mode.id)}
+              title={mode.label}
+              description={mode.blurb}
+              thumbnail={mode.thumbnail}
+              badges={
+                <>
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--neon-purple)]/40 bg-[var(--neon-purple)]/10 px-2.5 py-1 text-[0.7rem] font-medium text-[var(--neon-purple)]">
+                    <Icon size={12} />
+                    {mode.requires}
+                  </span>
+
+                  {mode.falOnly && (
+                    <span className="inline-flex items-center rounded-full border border-[var(--border)] px-2.5 py-1 text-[0.7rem] font-medium text-[var(--foreground-muted)]">
+                      fal.ai only
+                    </span>
+                  )}
+                </>
+              }
+            />
+          );
+        })}
       </div>
 
-      <section className="glass-card p-4 sm:p-5 md:p-6">
-        <ProviderSelector value={videoEngine} onChange={selectEngine} />
-      </section>
+      {/* Free-standing like the mode grid above, so the two choice rows share
+          one left edge instead of one sitting inset inside a panel. */}
+      <ProviderSelector value={videoEngine} onChange={selectEngine} />
 
       {isFal ? (
         <FalGenerationWorkspace
