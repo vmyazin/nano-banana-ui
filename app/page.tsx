@@ -257,56 +257,45 @@ function Studio() {
               animate={{ opacity: 1, y: 0 }}
               className="w-full space-y-10 sm:space-y-12 md:space-y-14"
             >
-              {/* Hero Section */}
-              <div className="text-center space-y-5 sm:space-y-6 md:space-y-8 py-4 sm:py-6 md:py-8">
-                <motion.div
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.05 }}
-                  className="pill"
-                >
-                  <span className="w-1.5 h-1.5 rounded-full bg-[var(--neon-cyan)]" />
-                  {brand.description}
-                </motion.div>
-
+              {/* Hero — compact: one headline line, then a single meta row.
+                  The eyebrow pill is gone on purpose; it repeated the tagline
+                  already sitting next to the product name in the nav. */}
+              <div className="text-center space-y-3 sm:space-y-4 py-2 sm:py-3">
                 <motion.h2
                   initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.12 }}
-                  className="display text-5xl sm:text-6xl md:text-7xl lg:text-[5.5rem] font-semibold px-4"
+                  transition={{ delay: 0.05 }}
+                  className="display text-4xl sm:text-5xl md:text-6xl font-semibold leading-[1.1] px-4 text-balance"
                 >
-                  <span className="gradient-text">Create stunning images</span>
-                  <br />
+                  <span className="gradient-text">Create stunning images</span>{' '}
                   <span className="text-[var(--foreground)]">with AI power</span>
                 </motion.h2>
 
-                <motion.p
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.2 }}
-                  className="text-base sm:text-lg text-[var(--foreground-muted)] max-w-2xl mx-auto px-4 leading-relaxed"
-                >
-                  {brand.heroBlurb}
-                </motion.p>
-
+                {/* Blurb and engines share one row on desktop, stack on mobile. */}
                 <motion.div
                   initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.28 }}
-                  className="flex flex-wrap gap-2.5 justify-center pt-1"
+                  transition={{ delay: 0.12 }}
+                  className="flex flex-col sm:flex-row flex-wrap items-center justify-center gap-x-4 gap-y-3 px-4"
                 >
-                  <span className="pill">
-                    <ProviderLogo provider="gemini" size={13} className="text-emerald-400" />
-                    Gemini
-                  </span>
-                  <span className="pill">
-                    <ProviderLogo provider="pollinations" size={13} className="text-[var(--neon-purple)]" />
-                    Pollinations
-                  </span>
-                  <span className="pill">
-                    <ProviderLogo provider="cloudflare" size={13} className="text-[var(--brand-accent)]" />
-                    Cloudflare
-                  </span>
+                  <p className="text-sm sm:text-base text-[var(--foreground-muted)] max-w-xl leading-relaxed">
+                    {brand.heroBlurb}
+                  </p>
+
+                  <div className="flex flex-wrap items-center justify-center gap-2">
+                    <span className="pill">
+                      <ProviderLogo provider="gemini" size={13} className="text-emerald-400" />
+                      Gemini
+                    </span>
+                    <span className="pill">
+                      <ProviderLogo provider="pollinations" size={13} className="text-[var(--neon-purple)]" />
+                      Pollinations
+                    </span>
+                    <span className="pill">
+                      <ProviderLogo provider="cloudflare" size={13} className="text-[var(--brand-accent)]" />
+                      Cloudflare
+                    </span>
+                  </div>
                 </motion.div>
               </div>
 
