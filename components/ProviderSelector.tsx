@@ -11,8 +11,10 @@ interface ProviderSelectorProps {
 }
 
 const providers = [
-  { id: 'kie' as const, label: 'Kie.ai', blurb: '15 image/video families' },
-  { id: 'fal' as const, label: 'fal.ai', blurb: '9 verified video choices' },
+  // No blurbs: the model counts they carried drifted from the catalogs, and a
+  // provider's name is the whole of what this control chooses.
+  { id: 'kie' as const, label: 'Kie.ai' },
+  { id: 'fal' as const, label: 'fal.ai' },
 ];
 
 export default function ProviderSelector({ value, onChange }: ProviderSelectorProps) {
@@ -53,13 +55,12 @@ export default function ProviderSelector({ value, onChange }: ProviderSelectorPr
             ref={(element) => { buttonRefs.current[index] = element; }}
             onClick={() => onChange(provider.id)}
             onKeyDown={(event) => selectFromKeyboard(event, index)}
-            className={`rounded-xl border p-4 text-left transition-colors ${selected ? 'border-[var(--neon-purple)] bg-[var(--neon-purple)]/10' : 'border-[var(--border)] bg-[var(--background-elevated)]/60 hover:border-[var(--foreground-subtle)]'}`}
+            className={`rounded-xl border px-4 py-3.5 text-left transition-colors ${selected ? 'border-[var(--neon-purple)] bg-[var(--neon-purple)]/10' : 'border-[var(--border)] bg-[var(--background-elevated)]/60 hover:border-[var(--foreground-subtle)]'}`}
           >
             <span className="flex items-center gap-2.5 text-base font-semibold text-[var(--foreground)] sm:text-lg">
               <ProviderLogo provider={provider.id} size={22} />
               {provider.label}
             </span>
-            <span className="mt-1 block text-sm text-[var(--foreground-muted)]">{provider.blurb}</span>
           </button>
         );
       })}

@@ -60,7 +60,7 @@ export const ENGINES: EngineMeta[] = [
   {
     id: 'kie',
     label: 'Kie.ai',
-    blurb: 'BYOK · 15 flagship image and video model families',
+    blurb: 'Image and video, on your own Kie key',
     requiresApiKey: true,
     supportsInputImages: true,
     supportsGoogleSearch: false,
@@ -71,7 +71,7 @@ export const ENGINES: EngineMeta[] = [
   {
     id: 'fal',
     label: 'fal.ai · Nano Banana 2',
-    blurb: 'BYOK · all six image modes · Nano Banana 2',
+    blurb: 'Nano Banana 2, on your own fal key',
     requiresApiKey: true,
     supportsInputImages: true,
     supportsGoogleSearch: true,

@@ -12,7 +12,7 @@ export const EXAMPLE_META_PROMPTS: Record<string, string> = {
   'search-grounding':
     'Produce ONE prompt that asks to visualize current, real-world information (weather, trends, sports, news, prices, and so on) as a creative image, in about one sentence. Vary the topic each time.',
   'social-media-thumbnail':
-    'Produce ONE punchy concept for a viral YouTube or social thumbnail: a dramatic scene with a bold, curiosity-driving idea, in about one sentence. Make it eye-catching and varied.',
+    'Produce ONE concept for a YouTube or social thumbnail: a single dramatic scene with a clear focal point, in about one sentence. Vary the subject each time.',
   'style-transfer':
     'Produce ONE artistic style-transfer instruction that applies a distinctive visual style or aesthetic to an image, in about one sentence. Vary the style each time.',
   'text-to-video':

@@ -114,7 +114,9 @@ describe('VideoWorkspace provider selection', () => {
     fireEvent.click(screen.getByRole('radio', { name: /fal\.ai/i }));
     expect(useAppStore.getState().videoEngine).toBe('fal');
     expect(screen.queryByText(/Kie\.ai video workspace/i)).toBeNull();
-    expect(screen.getByRole('heading', { name: 'Text to video with fal.ai' })).toBeInTheDocument();
+    // Level 2 pins this to the workspace heading: the mode card above renders
+    // the same words as an h3.
+    expect(screen.getByRole('heading', { level: 2, name: 'Text to video' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Back' }));
     fireEvent.click(screen.getByRole('button', { name: /Connect fal key/i }));
     expect(onExit).toHaveBeenCalledOnce();

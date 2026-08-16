@@ -320,7 +320,7 @@ export default function KieGenerationWorkspace({
       });
       // Runs alongside the generation so the name is ready before the result is.
       void attachSlug(taskId, submittedPrompt);
-      toast.success('Kie task queued. You can keep using the studio while it runs.');
+      toast.success('Task queued.');
     } catch (submissionError) {
       const message = submissionError instanceof Error ? submissionError.message : 'Kie could not start this task.';
       setError(message);
@@ -340,14 +340,14 @@ export default function KieGenerationWorkspace({
             </button>
             <div className="min-w-0">
               <div className="eyebrow mb-1 flex items-center gap-1.5 text-[var(--neon-cyan)]">
-                <ProviderLogo provider="kie" size={13} /> Kie.ai BYOK
+                <ProviderLogo provider="kie" size={13} /> Kie.ai
               </div>
               <h2 className="display text-xl font-semibold text-[var(--foreground)] sm:text-2xl">
                 {title ?? titleFor(mediaType, inputMode)}
               </h2>
-              <p className="mt-1 max-w-2xl text-sm text-[var(--foreground-muted)]">
-                {description ?? `Choose a verified Kie ${mediaType} model, configure its supported controls, and create a temporary result.`}
-              </p>
+              {description && (
+                <p className="mt-1 max-w-2xl text-sm text-[var(--foreground-muted)]">{description}</p>
+              )}
             </div>
           </div>
           <button type="button" onClick={onOpenConnections} className="btn-secondary shrink-0 px-3 py-2 text-xs">
@@ -363,8 +363,7 @@ export default function KieGenerationWorkspace({
           <section className="glass-card space-y-4 p-4 sm:p-5 md:p-6">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <h3 className="display text-lg font-semibold">Compatible model</h3>
-                <p className="mt-0.5 text-xs text-[var(--foreground-muted)]">{models.length} verified {mediaType} model families for this flow</p>
+                <h3 className="display text-lg font-semibold">Model</h3>
               </div>
               <div className="flex w-40 max-w-[48%] items-center gap-2">
                 <Search className="pointer-events-none shrink-0 text-[var(--foreground-subtle)]" size={14} />
@@ -508,7 +507,7 @@ export default function KieGenerationWorkspace({
           <div className="flex items-start justify-between gap-3">
             <div>
               <h3 className="display text-lg font-semibold">Result</h3>
-              <p className="mt-0.5 text-xs text-[var(--foreground-muted)]">Kie outputs are temporary and are not stored by this app.</p>
+              <p className="mt-0.5 text-xs text-[var(--foreground-muted)]">Results are temporary — download anything you want to keep.</p>
             </div>
             {latestJob && (
               <span className={`rounded-full border px-2.5 py-1 text-xs ${latestJob.state === 'fail' ? 'border-red-500/30 bg-red-500/10 text-red-300' : latestJob.state === 'success' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' : 'border-amber-500/30 bg-amber-500/10 text-amber-200'}`}>
@@ -561,7 +560,6 @@ export default function KieGenerationWorkspace({
               onContinue={onContinueFromFrame}
             />
           )}
-          <p className="text-center text-xs text-[var(--foreground-subtle)]">Temporary Kie URLs can expire. Download finished work immediately.</p>
         </section>
       </div>
     </div>

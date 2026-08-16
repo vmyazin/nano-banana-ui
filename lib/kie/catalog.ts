@@ -112,7 +112,7 @@ export const KIE_MODELS: KieModelDefinition[] = [
     id: 'nano-banana-pro',
     label: 'Nano Banana Pro',
     provider: 'Google',
-    description: 'High-fidelity image generation and reference-image editing.',
+    description: 'Text to image, or editing from up to 8 reference images.',
     mediaType: 'image',
     variants: paired(
       'nano-banana-pro',
@@ -126,7 +126,7 @@ export const KIE_MODELS: KieModelDefinition[] = [
     id: 'nano-banana-2',
     label: 'Nano Banana 2',
     provider: 'Google',
-    description: 'Fast Nano Banana image generation with reference support.',
+    description: 'Text to image, or editing from up to 8 reference images. Two output resolutions.',
     mediaType: 'image',
     variants: paired(
       'nano-banana-2',
@@ -140,7 +140,7 @@ export const KIE_MODELS: KieModelDefinition[] = [
     id: 'gpt-image-2',
     label: 'GPT Image 2',
     provider: 'OpenAI',
-    description: 'High-quality text-rich image generation and editing.',
+    description: 'Text to image, or editing from up to 16 reference images.',
     mediaType: 'image',
     variants: paired(
       'gpt-image-2-text-to-image',
@@ -154,7 +154,7 @@ export const KIE_MODELS: KieModelDefinition[] = [
     id: 'flux-2-pro',
     label: 'FLUX.2 Pro',
     provider: 'Black Forest Labs',
-    description: 'Photorealistic image generation and transformation.',
+    description: 'Text to image, or editing from up to 4 reference images.',
     mediaType: 'image',
     variants: paired(
       'flux-2/pro-text-to-image',
@@ -168,7 +168,7 @@ export const KIE_MODELS: KieModelDefinition[] = [
     id: 'seedream-5-pro',
     label: 'Seedream 5 Pro',
     provider: 'ByteDance',
-    description: 'Detailed commercial image generation and editing.',
+    description: 'Text to image, or editing from up to 6 reference images. Takes a negative prompt.',
     mediaType: 'image',
     variants: paired(
       'seedream/5-pro-text-to-image',
@@ -182,7 +182,7 @@ export const KIE_MODELS: KieModelDefinition[] = [
     id: 'imagen-4-ultra',
     label: 'Imagen 4 Ultra',
     provider: 'Google',
-    description: 'Premium text-to-image quality and typography.',
+    description: 'Text to image only. Takes a negative prompt.',
     mediaType: 'image',
     variants: [
       {
@@ -197,7 +197,7 @@ export const KIE_MODELS: KieModelDefinition[] = [
     id: 'ideogram-v3',
     label: 'Ideogram V3',
     provider: 'Ideogram',
-    description: 'Text-forward creative image generation.',
+    description: 'Text to image only. Rendering speed and prompt enhancement are adjustable.',
     mediaType: 'image',
     variants: [
       {
@@ -223,7 +223,7 @@ export const KIE_MODELS: KieModelDefinition[] = [
     id: 'z-image',
     label: 'Z-Image',
     provider: 'Z.ai',
-    description: 'Fast photorealistic text-to-image generation.',
+    description: 'Text to image only. Aspect ratio is the only control.',
     mediaType: 'image',
     variants: [
       {
@@ -238,7 +238,7 @@ export const KIE_MODELS: KieModelDefinition[] = [
     id: 'veo-3-1',
     label: 'Veo 3.1',
     provider: 'Google',
-    description: 'Cinematic text-to-video and image-to-video generation with background audio.',
+    description: 'Text to video, or from up to 2 images, including first and last frame. Comes with audio.',
     mediaType: 'video',
     variants: [
       {
@@ -277,7 +277,7 @@ export const KIE_MODELS: KieModelDefinition[] = [
     id: 'kling-3-0',
     label: 'Kling 3.0',
     provider: 'Kling',
-    description: 'Cinematic short-form video generation.',
+    description: 'Text to video, or animates one image. Duration and resolution are adjustable.',
     mediaType: 'video',
     variants: paired(
       'kling-3.0/video',
@@ -291,7 +291,7 @@ export const KIE_MODELS: KieModelDefinition[] = [
     id: 'seedance-2',
     label: 'Seedance 2',
     provider: 'ByteDance',
-    description: 'High-motion, audio-capable video generation.',
+    description: 'Text to video only. Audio optional.',
     mediaType: 'video',
     variants: [
       {
@@ -306,7 +306,7 @@ export const KIE_MODELS: KieModelDefinition[] = [
     id: 'wan-2-7',
     label: 'Wan 2.7',
     provider: 'Wan',
-    description: 'Flexible text-to-video and image animation.',
+    description: 'Text to video, or animates one image. Expands short prompts.',
     mediaType: 'video',
     variants: paired(
       'wan/2-7-text-to-video',
@@ -321,7 +321,7 @@ export const KIE_MODELS: KieModelDefinition[] = [
     id: 'hailuo-2-3-pro',
     label: 'Hailuo 2.3 Pro',
     provider: 'MiniMax',
-    description: 'High-fidelity image-to-video animation.',
+    description: 'Animates one image. No text-only mode.',
     mediaType: 'video',
     variants: [
       {
@@ -338,7 +338,7 @@ export const KIE_MODELS: KieModelDefinition[] = [
     id: 'grok-imagine',
     label: 'Grok Imagine',
     provider: 'xAI',
-    description: 'Expressive text-to-video and image animation.',
+    description: 'Text to video, or animates one image.',
     mediaType: 'video',
     variants: paired(
       'grok-imagine/text-to-video',
@@ -352,7 +352,7 @@ export const KIE_MODELS: KieModelDefinition[] = [
     id: 'pixverse-v6',
     label: 'PixVerse V6',
     provider: 'PixVerse',
-    description: 'Fast social video generation and animation.',
+    description: 'Text to video, or animates one image. Audio and multi-clip optional.',
     mediaType: 'video',
     variants: paired(
       'pixverse-v6/text-to-video',

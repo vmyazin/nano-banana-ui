@@ -116,7 +116,7 @@ describe('FalGenerationWorkspace', () => {
     expect(screen.getByRole('combobox', { name: 'Duration' })).toHaveDisplayValue('8s');
     expect(screen.getByRole('radio', { name: '720p' })).toHaveAttribute('aria-checked', 'true');
     expect(screen.getByRole('checkbox', { name: 'Generate audio' })).toBeChecked();
-    expect(screen.getByText('fal inputs and outputs use public, temporary CDN URLs.')).toBeInTheDocument();
+    expect(screen.getByText('Inputs and outputs use public, temporary URLs.')).toBeInTheDocument();
   });
 
   it('lists exactly nine curated models and searches label, provider, and description', () => {
@@ -549,13 +549,13 @@ describe('FalGenerationWorkspace', () => {
     ['cancelled', 'Cancelled'],
   ] as Array<[FalTaskState, string]>)('renders a distinct safe %s state', (state, label) => {
     useFalJobsStore.getState().upsertJob(makeJob(state, {
-      error: state === 'fail' ? '<img src=x onerror=alert(1)> fal-key-secret' : state === 'timed_out' ? 'Polling stopped. The fal job may still complete upstream.' : undefined,
+      error: state === 'fail' ? '<img src=x onerror=alert(1)> fal-key-secret' : state === 'timed_out' ? 'Stopped checking. The job may still finish at fal.' : undefined,
       resultUrl: state === 'success' ? SAFE_VIDEO_URL : undefined,
       mimeType: state === 'success' ? 'video/mp4' : undefined,
     }));
     const { container } = renderWorkspace();
     expect(screen.getByText(label)).toBeInTheDocument();
-    if (state === 'timed_out') expect(screen.getByText(/may still complete upstream/i)).toBeInTheDocument();
+    if (state === 'timed_out') expect(screen.getByText(/may still finish at fal/i)).toBeInTheDocument();
     if (state === 'fail') {
       expect(container.querySelector('img')).toBeNull();
       expect(screen.queryByText(/fal-key-secret/)).toBeNull();

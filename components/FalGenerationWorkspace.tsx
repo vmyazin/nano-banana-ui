@@ -200,7 +200,7 @@ function JobCard({
       {(job.state === 'fail' || job.state === 'timed_out') && (
         <p className="text-sm text-red-300">
           {job.state === 'timed_out'
-            ? 'Polling stopped. The fal job may still complete upstream.'
+            ? 'Stopped checking. The job may still finish at fal.'
             : error}
         </p>
       )}
@@ -588,14 +588,11 @@ function FalGenerationWorkspaceSession({
             </button>
             <div>
               <p className="eyebrow mb-1 flex items-center gap-1.5 text-[var(--neon-cyan)]">
-                <ProviderLogo provider="fal" size={13} /> fal.ai BYOK
+                <ProviderLogo provider="fal" size={13} /> fal.ai
               </p>
               <h2 className="display text-xl font-semibold sm:text-2xl">
-                {modeTitles[inputMode]} with fal.ai
+                {modeTitles[inputMode]}
               </h2>
-              <p className="mt-1 max-w-2xl text-sm text-[var(--foreground-muted)]">
-                Choose one of {models.length} curated video models and configure only its verified controls.
-              </p>
             </div>
           </div>
           <button type="button" onClick={onOpenConnections} className="btn-secondary shrink-0 px-3 py-2 text-xs">
@@ -609,8 +606,7 @@ function FalGenerationWorkspaceSession({
           <section className="glass-card space-y-4 p-4 sm:p-5 md:p-6">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <h3 className="display text-lg font-semibold">Curated video model</h3>
-                <p className="mt-0.5 text-xs text-[var(--foreground-muted)]">{models.length} verified choices</p>
+                <h3 className="display text-lg font-semibold">Model</h3>
               </div>
               <div className="flex w-44 max-w-[52%] items-center gap-2">
                 <Search aria-hidden="true" size={14} className="shrink-0 text-[var(--foreground-subtle)]" />
@@ -776,13 +772,13 @@ function FalGenerationWorkspaceSession({
 
         <section className="glass-card min-h-[420px] space-y-4 p-4 sm:p-5 md:p-6">
           <div>
-            <h3 className="display text-lg font-semibold">fal video jobs</h3>
+            <h3 className="display text-lg font-semibold">Jobs</h3>
             <p className="mt-0.5 text-xs text-[var(--foreground-muted)]">Recent jobs remain visible while you change models and providers.</p>
           </div>
           {videoJobs.length === 0 ? (
             <div className="rounded-xl border border-[var(--border)] p-8 text-center text-[var(--foreground-muted)]">
               <Video className="mx-auto mb-3 opacity-35" size={46} />
-              <p>Your fal video jobs will appear here.</p>
+              <p>Your jobs will appear here.</p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -799,7 +795,7 @@ function FalGenerationWorkspaceSession({
               ))}
             </div>
           )}
-          <p className="text-center text-xs text-[var(--foreground-subtle)]">fal inputs and outputs use public, temporary CDN URLs.</p>
+          <p className="text-center text-xs text-[var(--foreground-subtle)]">Inputs and outputs use public, temporary URLs.</p>
         </section>
       </div>
     </div>

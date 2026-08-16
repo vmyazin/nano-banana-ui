@@ -441,7 +441,7 @@ export default function ApiKeyConfig({ open, onOpenChange }: ApiKeyConfigProps) 
                   API connections
                 </h2>
                 <p className="text-[0.9375rem] text-[var(--foreground-muted)]">
-                  Add a key for any engine. Keys stay in this browser.
+                  Add a key for any engine you want to use.
                 </p>
               </div>
               <button
@@ -460,7 +460,7 @@ export default function ApiKeyConfig({ open, onOpenChange }: ApiKeyConfigProps) 
                   provider="gemini"
                   name="Google Gemini"
                   connected={!!savedKey}
-                  description="Every image and video mode Gemini offers."
+                  description="Image and video, billed to your Google account."
                   linkPrefix="Get a key at"
                   href="https://aistudio.google.com/apikey"
                   urlLabel="aistudio.google.com/apikey"

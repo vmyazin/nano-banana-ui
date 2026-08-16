@@ -504,9 +504,9 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
   const estCost = (OUTPUT_COST[config.imageSize ?? '1K'] ?? 0.134) + images.length * 0.0011;
   const costLine =
     activeEngine.id === 'pollinations'
-      ? 'Free · Pollinations (FLUX) · no key needed'
+      ? 'Free · Pollinations (FLUX)'
       : activeEngine.id === 'cloudflare'
-        ? 'Free daily tier · Cloudflare · FLUX.1 [schnell]'
+        ? 'Free daily tier · FLUX.1 [schnell]'
         : activeEngine.id === 'fal'
           ? 'fal usage rates apply · Nano Banana 2'
           : `Est. ≈ $${estCost.toFixed(2)} / image · Gemini 3 Pro Image`;
@@ -654,7 +654,6 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
         mediaType="image"
         inputMode={feature.requiresImage ? 'image' : 'text'}
         title={feature.name}
-        description={feature.description}
         initialPrompt={feature.examplePrompt}
         exampleFeatureId={feature.id}
         engineSelector={
@@ -687,12 +686,13 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
             >
               ← Back
             </button>
+            {/* Title only: the feature's card copy sells the mode on the landing
+                page, and repeating it over the controls of a mode already chosen
+                is noise. The emoji goes with it — decoration at 36px. */}
             <div className="min-w-0">
-              <h2 className="display text-lg sm:text-xl md:text-2xl font-semibold flex items-center gap-2">
-                <span className="text-2xl sm:text-3xl md:text-4xl">{feature.icon}</span>
-                <span className="truncate">{feature.name}</span>
+              <h2 className="display truncate text-lg font-semibold sm:text-xl md:text-2xl">
+                {feature.name}
               </h2>
-              <p className="text-xs sm:text-sm text-[var(--foreground-muted)] line-clamp-2">{feature.description}</p>
             </div>
           </div>
         </div>
@@ -824,8 +824,8 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
               }}
               placeholder={
                 feature.id === 'social-media-thumbnail'
-                  ? 'Describe the subject, emotion, and key elements you want in your thumbnail...'
-                  : 'Describe the image you want to generate...'
+                  ? 'Describe the subject, emotion, and action'
+                  : 'Describe the image'
               }
               className="w-full min-h-[150px] resize-none"
             />

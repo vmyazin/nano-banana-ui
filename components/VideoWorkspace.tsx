@@ -5,7 +5,6 @@ import { ImagePlus, MoveRight, Type } from 'lucide-react';
 import FalGenerationWorkspace from '@/components/FalGenerationWorkspace';
 import KieGenerationWorkspace from '@/components/KieGenerationWorkspace';
 import MediaCard from '@/components/MediaCard';
-import ProviderLogo from '@/components/ProviderLogo';
 import ProviderSelector, { type VideoProvider } from '@/components/ProviderSelector';
 import type { FalInputMode } from '@/lib/fal/types';
 import { useAppStore } from '@/store/useAppStore';
@@ -96,23 +95,13 @@ export default function VideoWorkspace({
           <span className="text-[var(--foreground)]">from an idea or image</span>
         </h2>
 
-        <div className="flex flex-col flex-wrap items-center justify-center gap-x-4 gap-y-3 px-4 sm:flex-row">
-          {/* One line, so the blurb and the pills read as a single band. The
-              starting points it used to list are now the cards below. */}
+        {/* States what this tab makes, in the plainest terms. The provider pills
+            that used to sit beside it are gone: the selector below names the same
+            two providers, and is the control rather than a label. */}
+        <div className="flex justify-center px-4">
           <p className="max-w-xl text-sm leading-relaxed text-[var(--foreground-muted)] sm:text-base">
-            Tasks keep running while you explore this tab.
+            Turn a prompt or a still image into a short video clip.
           </p>
-
-          <div className="flex flex-wrap items-center justify-center gap-2">
-            <span className="pill">
-              <ProviderLogo provider="fal" size={13} className="text-[var(--neon-pink)]" />
-              fal.ai
-            </span>
-            <span className="pill">
-              <ProviderLogo provider="kie" size={13} />
-              Kie.ai
-            </span>
-          </div>
         </div>
       </div>
 

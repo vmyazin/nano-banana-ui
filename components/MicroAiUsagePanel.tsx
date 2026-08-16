@@ -18,8 +18,6 @@ export function formatUsd(cost: number): string {
  */
 export default function MicroAiUsagePanel() {
   const requests = useMicroAiUsageStore((state) => state.requests);
-  const promptTokens = useMicroAiUsageStore((state) => state.promptTokens);
-  const completionTokens = useMicroAiUsageStore((state) => state.completionTokens);
   const costUsd = useMicroAiUsageStore((state) => state.costUsd);
   const lastModel = useMicroAiUsageStore((state) => state.lastModel);
 
@@ -40,20 +38,18 @@ export default function MicroAiUsagePanel() {
       </h3>
       <p className="field-hint">
         {active
-          ? `Small helper tasks are running on ${modelLabel} at no cost to you.`
-          : 'Small helper tasks — download filenames and example prompts — run on a shared fast model when this deployment provides one, then fall back to your Gemini key, then to a plain text slug.'}
+          ? `Filenames and example prompts are running on ${modelLabel} at no cost to you.`
+          : 'Filenames and example prompts run on a shared model, or on your Gemini key.'}
       </p>
 
+      {/* Two figures, not three: what ran and what it would have cost. The raw
+          token count measured the same thing in a unit nobody spends. */}
       {requests > 0 && (
         <div className="rounded-lg border border-[var(--border)] bg-[var(--background-elevated)]/60 p-3">
-          <dl className="grid grid-cols-3 gap-2 text-center">
+          <dl className="grid grid-cols-2 gap-2 text-center">
             <div>
               <dt className="text-[0.8125rem] text-[var(--foreground-muted)]">Requests</dt>
               <dd className="font-mono text-base text-[var(--foreground)]">{requests}</dd>
-            </div>
-            <div>
-              <dt className="text-[0.8125rem] text-[var(--foreground-muted)]">Tokens</dt>
-              <dd className="font-mono text-base text-[var(--foreground)]">{promptTokens + completionTokens}</dd>
             </div>
             <div>
               <dt className="text-[0.8125rem] text-[var(--foreground-muted)]">Est. cost</dt>

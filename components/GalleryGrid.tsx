@@ -66,7 +66,7 @@ export default function GalleryGrid({ onUsedReference }: { onUsedReference?: () 
           ? await extractLastFrameFromBlob(blob).catch(() => undefined)
           : undefined;
       await useGalleryStore.getState().keep(record.id, blob, poster);
-      toast.success('Kept for good');
+      toast.success('Pinned');
     } catch {
       toast.error('This result is no longer available to keep.');
     } finally {
@@ -165,7 +165,7 @@ export default function GalleryGrid({ onUsedReference }: { onUsedReference?: () 
                 type="button"
                 onClick={() => void useGalleryStore.getState().setPinned(record.id, !record.pinned)}
                 aria-label={record.pinned ? 'Unpin result' : 'Pin result'}
-                title={record.pinned ? 'Unpin' : 'Pin so it is never evicted'}
+                title={record.pinned ? 'Unpin' : 'Pin to keep when storage fills'}
                 className="shrink-0 rounded-md border border-[var(--border)] p-1.5 text-[var(--foreground-muted)] hover:text-[var(--neon-cyan)]"
               >
                 {record.pinned ? <Pin size={13} /> : <PinOff size={13} />}

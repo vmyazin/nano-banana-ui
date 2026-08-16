@@ -85,7 +85,7 @@ export default function LibraryOverlay({ open, onOpenChange }: LibraryOverlayPro
               <div className="min-w-0 flex-1">
                 <h2 className="text-lg font-semibold text-[var(--foreground)]">Library</h2>
                 <p className="text-[0.9375rem] text-[var(--foreground-muted)]">
-                  Results kept in this browser, outliving the provider links they came from
+                  Results kept in this browser after the provider links expire
                 </p>
               </div>
               <button
