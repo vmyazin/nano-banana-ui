@@ -116,11 +116,12 @@ export default function VideoWorkspace({
         </div>
       </div>
 
-      {/* Input mode — the same card and the same track widths the landing page
-          uses for features, so a card is the same size wherever you meet it.
-          The third column stays empty when Kie hides the fal-only mode rather
-          than letting two cards stretch to fill it. */}
-      <div className="grid w-full grid-cols-1 gap-5 sm:gap-6 md:grid-cols-2 xl:grid-cols-3">
+      {/* Input mode — the same card the landing page uses for features, at the
+          same widths a 1/2 and 1/3 grid track would give it, so a card is the
+          same size wherever you meet it. Laid out as centered flex rather than
+          a grid so that hiding the fal-only mode leaves the two remaining cards
+          centered instead of parked against the left edge. */}
+      <div className="flex w-full flex-wrap justify-center gap-5 *:w-full sm:gap-6 md:*:w-[calc(50%-12px)] xl:*:w-[calc(33.333%-16px)]">
         {modes.map((mode) => {
           const Icon = mode.icon;
           return (
