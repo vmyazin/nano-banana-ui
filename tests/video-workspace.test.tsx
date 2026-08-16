@@ -194,7 +194,9 @@ describe('VideoWorkspace provider selection', () => {
       />
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Image to video' }));
+    // A mode card's accessible name is its badge, title, and blurb run together,
+    // so these match on the title rather than pinning the whole card's copy.
+    fireEvent.click(screen.getByRole('button', { name: /Image to video/ }));
     expect(onInputModeChange).toHaveBeenCalledWith('image');
     view.rerender(
       <VideoWorkspace
@@ -222,10 +224,10 @@ describe('VideoWorkspace provider selection', () => {
         onOpenConnections={() => undefined}
       />
     );
-    expect(screen.queryByRole('button', { name: 'First & last frame' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /First & last frame/ })).toBeNull();
 
     fireEvent.click(screen.getByRole('radio', { name: /fal\.ai/i }));
-    fireEvent.click(screen.getByRole('button', { name: 'First & last frame' }));
+    fireEvent.click(screen.getByRole('button', { name: /First & last frame/ }));
     expect(onInputModeChange).toHaveBeenCalledWith('frames');
 
     // Kie has no frames models, so it falls back to image-to-video on the way out.
