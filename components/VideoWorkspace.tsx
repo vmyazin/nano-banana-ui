@@ -116,11 +116,11 @@ export default function VideoWorkspace({
         </div>
       </div>
 
-      {/* Input mode — the same card the landing page uses for features, so the
-          two pickers in this app look and size alike. */}
-      <div
-        className={`grid w-full grid-cols-1 gap-5 md:grid-cols-2 sm:gap-6 ${modes.length === 3 ? 'xl:grid-cols-3' : ''}`}
-      >
+      {/* Input mode — the same card and the same track widths the landing page
+          uses for features, so a card is the same size wherever you meet it.
+          The third column stays empty when Kie hides the fal-only mode rather
+          than letting two cards stretch to fill it. */}
+      <div className="grid w-full grid-cols-1 gap-5 sm:gap-6 md:grid-cols-2 xl:grid-cols-3">
         {modes.map((mode) => {
           const Icon = mode.icon;
           return (
