@@ -12,56 +12,12 @@ import LibraryOverlay from '@/components/LibraryOverlay';
 import { usePromptLibraryStore } from '@/store/usePromptLibraryStore';
 import FeatureSelector from '@/components/FeatureSelector';
 import ProviderLogo from '@/components/ProviderLogo';
-import type { EngineId } from '@/lib/engines/registry';
+import { ENGINE_DOCS } from '@/lib/engines/docs';
 import { CommandPalette } from '@/components/CommandPalette';
 import VideoWorkspace from '@/components/VideoWorkspace';
 import { Feature, FEATURES } from '@/types';
 import { brand } from '@/lib/brand';
 import { useAppStore } from '@/store/useAppStore';
-
-/**
- * Where to read up on each engine we can call. These are the vendors' own API
- * docs — the page a developer needs to understand what a connected key buys
- * them, and what the engine can do beyond what this UI exposes.
- */
-const ENGINE_DOCS: ReadonlyArray<{
-  id: EngineId;
-  label: string;
-  href: string;
-  /** Hover accent, matched to the color each engine carries elsewhere. */
-  accentClass: string;
-}> = [
-  {
-    id: 'gemini',
-    label: 'Gemini',
-    href: 'https://ai.google.dev/gemini-api/docs/image-generation',
-    accentClass: 'hover:text-[var(--neon-cyan)]',
-  },
-  {
-    id: 'pollinations',
-    label: 'Pollinations',
-    href: 'https://gen.pollinations.ai/docs',
-    accentClass: 'hover:text-[var(--neon-purple)]',
-  },
-  {
-    id: 'cloudflare',
-    label: 'Cloudflare Workers AI',
-    href: 'https://developers.cloudflare.com/workers-ai/models/flux-1-schnell/',
-    accentClass: 'hover:text-[var(--brand-accent)]',
-  },
-  {
-    id: 'fal',
-    label: 'fal.ai',
-    href: 'https://fal.ai/docs',
-    accentClass: 'hover:text-[var(--neon-pink)]',
-  },
-  {
-    id: 'kie',
-    label: 'Kie.ai',
-    href: 'https://docs.kie.ai/',
-    accentClass: 'hover:text-[var(--foreground)]',
-  },
-];
 
 // Lazy-load the heavy generation workspace so the landing bundle stays light.
 const GenerationInterface = dynamic(() => import('@/components/GenerationInterface'), {
@@ -113,6 +69,12 @@ function Studio() {
   const [keyDialogOpen, setKeyDialogOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [libraryOpen, setLibraryOpen] = useState(false);
+  // ⌘K can aim at either library section; the header button always opens results.
+  const [libraryTab, setLibraryTab] = useState<'results' | 'prompts'>('results');
+  const openLibrary = (tab: 'results' | 'prompts' = 'results') => {
+    setLibraryTab(tab);
+    setLibraryOpen(true);
+  };
 
   return (
     <div className="min-h-screen relative w-full overflow-x-hidden">
@@ -167,7 +129,7 @@ function Studio() {
               className="flex items-center gap-2 flex-shrink-0"
             >
               <button
-                onClick={() => setLibraryOpen(true)}
+                onClick={() => openLibrary()}
                 className="inline-flex items-center gap-1.5 rounded-[9px] border border-[var(--border)] px-2.5 py-2 text-xs text-[var(--foreground-muted)] transition-colors hover:border-[var(--border-hover)] hover:text-[var(--foreground)]"
                 title="Kept results and saved prompts"
               >
@@ -219,11 +181,18 @@ function Studio() {
         open={paletteOpen}
         onOpenChange={setPaletteOpen}
         onOpenApiKey={() => setKeyDialogOpen(true)}
-        onOpenLibrary={() => setLibraryOpen(true)}
+        onOpenLibrary={openLibrary}
       />
 
       {/* Kept results and saved prompts */}
-      <LibraryOverlay open={libraryOpen} onOpenChange={setLibraryOpen} />
+      {/* Keyed on the tab: ⌘K's "Saved prompts" remounts the overlay so it
+          lands on that section instead of whatever was last selected. */}
+      <LibraryOverlay
+        key={libraryTab}
+        open={libraryOpen}
+        onOpenChange={setLibraryOpen}
+        initialTab={libraryTab}
+      />
 
       {/* Main Content */}
       <main className="relative z-10 w-full max-w-7xl mx-auto px-6 sm:px-8 md:px-12 lg:px-16 py-4 sm:py-5 md:py-6">

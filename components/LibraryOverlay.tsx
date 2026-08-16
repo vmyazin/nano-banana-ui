@@ -11,6 +11,12 @@ import { useGalleryStore } from '@/store/useGalleryStore';
 interface LibraryOverlayProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /**
+   * Section to land on. Only read on mount — the page remounts this overlay
+   * (keyed on the tab) when ⌘K aims at a different section, which is the
+   * lint-clean way to reset the tab without a setState-in-effect.
+   */
+  initialTab?: 'results' | 'prompts';
 }
 
 function formatBytes(bytes: number) {
@@ -25,11 +31,15 @@ function formatBytes(bytes: number) {
   return `${value < 10 ? value.toFixed(1) : Math.round(value)} ${units[unit]}`;
 }
 
-export default function LibraryOverlay({ open, onOpenChange }: LibraryOverlayProps) {
+export default function LibraryOverlay({
+  open,
+  onOpenChange,
+  initialTab = 'results',
+}: LibraryOverlayProps) {
   const records = useGalleryStore((state) => state.records);
   const storageError = useGalleryStore((state) => state.storageError);
   const [quota, setQuota] = useState<{ usage: number; quota: number } | null>(null);
-  const [tab, setTab] = useState<'results' | 'prompts'>('results');
+  const [tab, setTab] = useState<'results' | 'prompts'>(initialTab);
   const panelRef = useRef<HTMLDivElement>(null);
 
   const close = useCallback(() => onOpenChange(false), [onOpenChange]);

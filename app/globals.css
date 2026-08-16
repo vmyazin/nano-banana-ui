@@ -406,7 +406,11 @@ textarea::placeholder {
 }
 
 [cmdk-list] {
-  max-height: 320px;
+  /* Floor and ceiling both matter: the floor keeps the panel from resizing
+     under you as a search narrows, the ceiling keeps it off the fold. Both are
+     viewport-relative so a short window (or an open phone keyboard) wins. */
+  min-height: min(320px, 45vh);
+  max-height: min(520px, 60vh);
   overflow-y: auto;
   padding: 6px;
 }
@@ -438,6 +442,50 @@ textarea::placeholder {
 
 [cmdk-item] svg {
   color: var(--neon-cyan);
+  flex-shrink: 0;
+}
+
+/* Video rows carry the same purple the nav's Video toggle does; the Resources
+   group is reference material, so its marks stay out of the accent palette. */
+[cmdk-item][data-accent='purple'] svg {
+  color: var(--neon-purple);
+}
+
+[cmdk-item][data-accent='muted'] svg {
+  color: var(--foreground-subtle);
+}
+
+/* Two-line rows: title over a one-line blurb, with the requirement badge
+   right-aligned. Both lines truncate — a wrapped row breaks the scan rhythm. */
+.cmd-item-body {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.cmd-item-title,
+.cmd-item-desc {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cmd-item-desc {
+  font-size: var(--text-ui-sm);
+  color: var(--foreground-subtle);
+}
+
+.cmd-item-meta {
+  flex-shrink: 0;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 1px 6px;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.66rem;
+  letter-spacing: 0.04em;
+  color: var(--foreground-subtle);
 }
 
 [cmdk-empty] {
