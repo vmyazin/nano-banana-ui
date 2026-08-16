@@ -15,6 +15,7 @@ import {
   resolveFalVariant,
   validateFalInput,
 } from '@/lib/fal/catalog';
+import { useFileDrop } from '@/lib/drop/use-file-drop';
 import { isFalJobTerminal } from '@/lib/fal/queue';
 import type { FalFieldDefinition, FalInputMode, FalJob, FalTaskState, FalValue } from '@/lib/fal/types';
 import {
@@ -398,6 +399,13 @@ function FalGenerationWorkspaceSession({
     }
   };
 
+  const isPickerFull = isFramesMode && references.length >= maxInputImages;
+  const { isDragging, isFetching, dropProps } = useFileDrop({
+    onFiles: (files) => addReferences(files),
+    onError: setError,
+    disabled: isPickerFull,
+  });
+
   const removeReference = (index: number) => {
     const reference = references[index];
     if (reference) useDraftStore.getState().removeReference(reference.id);
@@ -660,21 +668,6 @@ function FalGenerationWorkspaceSession({
             />
           </section>
 
-          <section className="glass-card space-y-4 p-4 sm:p-5 md:p-6">
-            <div>
-              <h3 className="display text-lg font-semibold">Model controls</h3>
-              <p className="mt-0.5 text-xs text-[var(--foreground-muted)]">Only controls supported by {selectedModel.label} are shown.</p>
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <ModelControls
-                namespace={`fal-${variant.id}`}
-                fields={variant.fields as FalFieldDefinition[]}
-                values={values}
-                onChange={updateValue}
-              />
-            </div>
-          </section>
-
           {inputMode !== 'text' && (
             <section className="glass-card space-y-4 p-4 sm:p-5 md:p-6">
               <div>
@@ -701,12 +694,19 @@ function FalGenerationWorkspaceSession({
               />
               <button
                 type="button"
-                disabled={isFramesMode && references.length >= maxInputImages}
+                disabled={isPickerFull}
                 onClick={() => fileInputRef.current?.click()}
-                className="flex w-full flex-col items-center gap-2 rounded-xl border-2 border-dashed border-[var(--neon-cyan)]/30 py-5 text-sm text-[var(--foreground-muted)] disabled:cursor-not-allowed disabled:opacity-50"
+                {...dropProps}
+                className={`flex w-full flex-col items-center gap-2 rounded-xl border-2 border-dashed py-5 text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${isDragging ? 'border-[var(--neon-cyan)] bg-[var(--neon-cyan)]/10 text-[var(--neon-cyan)]' : 'border-[var(--neon-cyan)]/30 text-[var(--foreground-muted)]'}`}
               >
-                {isReadingFrame ? <Loader2 className="animate-spin" size={28} /> : <ImagePlus size={28} />}
-                {isReadingFrame ? 'Reading last frame…' : pickerLabel}
+                {isReadingFrame || isFetching ? <Loader2 className="animate-spin" size={28} /> : <ImagePlus size={28} />}
+                {isReadingFrame
+                  ? 'Reading last frame…'
+                  : isFetching
+                    ? 'Fetching dropped image…'
+                    : isDragging
+                      ? 'Drop to use as a source'
+                      : pickerLabel}
               </button>
               {references.map((reference, index) => (
                 <div key={reference.id} className="space-y-1">
@@ -752,6 +752,21 @@ function FalGenerationWorkspaceSession({
               )}
             </section>
           )}
+
+          <section className="glass-card space-y-4 p-4 sm:p-5 md:p-6">
+            <div>
+              <h3 className="display text-lg font-semibold">Model controls</h3>
+              <p className="mt-0.5 text-xs text-[var(--foreground-muted)]">Only controls supported by {selectedModel.label} are shown.</p>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <ModelControls
+                namespace={`fal-${variant.id}`}
+                fields={variant.fields as FalFieldDefinition[]}
+                values={values}
+                onChange={updateValue}
+              />
+            </div>
+          </section>
 
           <button type="button" disabled={isSubmitting} onClick={() => void submit()} className="btn-primary flex w-full items-center justify-center gap-2 py-4 text-lg disabled:cursor-not-allowed disabled:opacity-50">
             {isSubmitting ? <><Loader2 className="animate-spin" size={21} /> Uploading & starting…</> : <><Sparkles size={21} /> Generate video</>}

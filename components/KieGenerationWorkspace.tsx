@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Download, ImagePlus, Loader2, Search, Sparkles, Trash2, Video } from 'lucide-react';
 import { toast } from 'sonner';
 import ProviderLogo from '@/components/ProviderLogo';
+import { useFileDrop } from '@/lib/drop/use-file-drop';
 import { requestExamplePrompt, requestPromptSlug } from '@/lib/micro-ai/browser';
 import { submitKieJob, uploadKieFiles } from '@/lib/kie/browser';
 import { defaultKieValues, modelsForKieMode, resolveKieVariant, validateKieInput } from '@/lib/kie/catalog';
@@ -212,6 +213,11 @@ export default function KieGenerationWorkspace({
     addReferencesRef.current = addReferences;
   });
 
+  const { isDragging, isFetching, dropProps } = useFileDrop({
+    onFiles: (files) => addReferencesRef.current(files),
+    onError: setError,
+  });
+
   const removeReference = (index: number) => {
     const reference = references[index];
     if (reference) useDraftStore.getState().removeReference(reference.id);
@@ -413,21 +419,6 @@ export default function KieGenerationWorkspace({
             />
           </section>
 
-          <section className="glass-card space-y-4 p-4 sm:p-5 md:p-6">
-            <div>
-              <h3 className="display text-lg font-semibold">Model controls</h3>
-              <p className="mt-0.5 text-xs text-[var(--foreground-muted)]">Only controls supported by {selectedModel.label} are shown.</p>
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <ModelControls
-                namespace={`kie-${variantKey}`}
-                fields={variant.fields.filter(isKieModelControlField)}
-                values={values}
-                onChange={updateValues}
-              />
-            </div>
-          </section>
-
           {inputMode === 'image' && (
             <section className="glass-card space-y-4 p-4 sm:p-5 md:p-6">
               <div>
@@ -448,10 +439,17 @@ export default function KieGenerationWorkspace({
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="flex w-full flex-col items-center gap-2 rounded-xl border-2 border-dashed border-[var(--neon-cyan)]/30 py-5 text-sm text-[var(--foreground-muted)] transition-colors hover:border-[var(--neon-cyan)] hover:bg-[var(--neon-cyan)]/5 hover:text-[var(--neon-cyan)]"
+                {...dropProps}
+                className={`flex w-full flex-col items-center gap-2 rounded-xl border-2 border-dashed py-5 text-sm transition-colors ${isDragging ? 'border-[var(--neon-cyan)] bg-[var(--neon-cyan)]/10 text-[var(--neon-cyan)]' : 'border-[var(--neon-cyan)]/30 text-[var(--foreground-muted)] hover:border-[var(--neon-cyan)] hover:bg-[var(--neon-cyan)]/5 hover:text-[var(--neon-cyan)]'}`}
               >
-                {isReadingFrame ? <Loader2 className="animate-spin" size={28} /> : <ImagePlus size={28} />}
-                {isReadingFrame ? 'Reading last frame…' : 'Upload an image or video, or paste from clipboard'}
+                {isReadingFrame || isFetching ? <Loader2 className="animate-spin" size={28} /> : <ImagePlus size={28} />}
+                {isReadingFrame
+                  ? 'Reading last frame…'
+                  : isFetching
+                    ? 'Fetching dropped image…'
+                    : isDragging
+                      ? 'Drop to use as a source'
+                      : 'Drop, upload, or paste an image or video'}
               </button>
               {references.length > 0 && (
                 <div className="grid grid-cols-2 gap-3">
@@ -479,6 +477,21 @@ export default function KieGenerationWorkspace({
               )}
             </section>
           )}
+
+          <section className="glass-card space-y-4 p-4 sm:p-5 md:p-6">
+            <div>
+              <h3 className="display text-lg font-semibold">Model controls</h3>
+              <p className="mt-0.5 text-xs text-[var(--foreground-muted)]">Only controls supported by {selectedModel.label} are shown.</p>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <ModelControls
+                namespace={`kie-${variantKey}`}
+                fields={variant.fields.filter(isKieModelControlField)}
+                values={values}
+                onChange={updateValues}
+              />
+            </div>
+          </section>
 
           <button
             type="button"

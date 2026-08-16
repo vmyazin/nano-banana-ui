@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useMutation } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Feature, GenerationConfig } from '@/types';
+import { useFileDrop } from '@/lib/drop/use-file-drop';
 import { metaForFeature, slugify } from '@/lib/example-prompts';
 import { requestExamplePrompt, requestPromptSlug } from '@/lib/micro-ai/browser';
 import {
@@ -239,7 +240,12 @@ export default function GenerationInterface({ feature, apiKey, onBack, onOpenCon
 
   const addImageFiles = useCallback(async (files: File[]) => {
     const imageFiles = files.filter((file) => file.type.startsWith('image/'));
-    if (imageFiles.length === 0) return;
+    if (imageFiles.length === 0) {
+      // Silence was fine when only the picker (accept="image/*") fed this, but a drop can
+      // arrive carrying anything at all, and a dead zone reads as a broken one.
+      if (files.length > 0) setError('Drop an image file, or an image dragged from a web page.');
+      return;
+    }
 
     const maxImages = feature.maxImages || 1;
 
@@ -306,6 +312,12 @@ export default function GenerationInterface({ feature, apiKey, onBack, onOpenCon
     document.addEventListener('paste', handlePaste);
     return () => document.removeEventListener('paste', handlePaste);
   }, [addImageFiles, feature.requiresImage]);
+
+  const { isDragging, isFetching, dropProps } = useFileDrop({
+    onFiles: addImageFiles,
+    onError: setError,
+    disabled: !feature.requiresImage,
+  });
 
   const removeImage = (index: number) => {
     const reference = references[index];
@@ -718,11 +730,16 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="w-full py-4 border-2 border-dashed border-[var(--neon-cyan)]/30 rounded-xl hover:border-[var(--neon-cyan)] hover:bg-[var(--neon-cyan)]/5 transition-all flex flex-col items-center gap-2 text-[var(--foreground-muted)] hover:text-[var(--neon-cyan)]"
+                {...dropProps}
+                className={`w-full py-4 border-2 border-dashed rounded-xl transition-all flex flex-col items-center gap-2 ${isDragging ? 'border-[var(--neon-cyan)] bg-[var(--neon-cyan)]/10 text-[var(--neon-cyan)]' : 'border-[var(--neon-cyan)]/30 text-[var(--foreground-muted)] hover:border-[var(--neon-cyan)] hover:bg-[var(--neon-cyan)]/5 hover:text-[var(--neon-cyan)]'}`}
               >
-                <ImagePlus size={32} />
+                {isFetching ? <Loader2 size={32} className="animate-spin" /> : <ImagePlus size={32} />}
                 <span className="font-medium">
-                  Click to upload{feature.requiresMultipleImages && ` (max ${feature.maxImages})`}
+                  {isFetching
+                    ? 'Fetching dropped image…'
+                    : isDragging
+                      ? 'Drop to use as a source'
+                      : `Drop or click to upload${feature.requiresMultipleImages ? ` (max ${feature.maxImages})` : ''}`}
                 </span>
                 <span className="text-xs text-[var(--foreground-subtle)]">
                   or paste with ⌘V / Ctrl+V
