@@ -56,6 +56,20 @@ Do not modify: `lib/`, `store/`, `types/`, `app/api/`, `app/layout.tsx`,
       same 2 `video-workspace` failures that `git stash` confirms are already
       failing on unmodified `main`; screenshots at 768 / 820 / 1440.
 
+## Follow-up decision (2026-08-16) — nav reverted
+
+Overrides the "Page rhythm" task for the header only. The `<header>` block in
+`app/page.tsx` is restored byte-identical to `main`: original `py-3.5 md:py-4`,
+36px brand mark, `text-base sm:text-lg` wordmark, `rounded-xl p-1` workspace
+toggle, and `px-2.5 py-2` on the Library and ⌘K buttons. The rest of the
+density pass stands.
+
+One thing inside the nav is deliberately *not* restored: the Add API Key button
+picks up `.btn-primary` / `.btn-secondary`, which are global, so it sits on the
+shared 36px `--control-h` instead of its old ~44px. Pinning it back would mean
+reintroducing a header-only button size, which is the inconsistency this pass
+removed. Left compact; revisit only if the CTA reads as underweight.
+
 ## Follow-up decision (2026-08-16)
 
 Three-up was specified for `md` (768px), not `lg`. Checked rather than assumed:

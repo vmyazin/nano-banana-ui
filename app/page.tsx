@@ -118,8 +118,8 @@ function Studio() {
     <div className="min-h-screen relative w-full overflow-x-hidden">
       {/* Header — sticky, hairline border, backdrop blur (Linear/Vercel nav) */}
       <header className="sticky top-0 z-50 border-b border-[var(--border)] bg-[rgba(8,8,11,0.72)] backdrop-blur-xl">
-        <div className="w-full max-w-7xl mx-auto px-6 sm:px-8 md:px-12 lg:px-16 py-2 md:py-2.5">
-          <div className="flex items-center justify-between gap-3">
+        <div className="w-full max-w-7xl mx-auto px-6 sm:px-8 md:px-12 lg:px-16 py-3.5 md:py-4">
+          <div className="flex items-center justify-between gap-4">
             <Link
               href="/"
               aria-label="Go to Scene Assembly home"
@@ -130,11 +130,11 @@ function Studio() {
                 animate={{ opacity: 1, y: 0 }}
                 className="brand-mark flex items-center gap-2.5 min-w-0"
               >
-                <div className="brand-mark-icon w-7 h-7 rounded-lg bg-gradient-to-br from-[var(--neon-cyan)] to-[var(--neon-purple)] flex items-center justify-center flex-shrink-0 shadow-[0_2px_12px_-2px_rgba(0,245,255,0.35)]">
-                  <Layers className="w-4 h-4 text-black" aria-hidden />
+                <div className="brand-mark-icon w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-gradient-to-br from-[var(--neon-cyan)] to-[var(--neon-purple)] flex items-center justify-center flex-shrink-0 shadow-[0_2px_12px_-2px_rgba(0,245,255,0.35)]">
+                  <Layers className="w-4 h-4 sm:w-[18px] sm:h-[18px] text-black" aria-hidden />
                 </div>
-                <div className="min-w-0 flex items-center gap-2">
-                  <h1 className="display text-sm sm:text-[0.9375rem] font-semibold text-[var(--foreground)] truncate">
+                <div className="min-w-0 flex items-center gap-2.5">
+                  <h1 className="display text-base sm:text-lg font-semibold text-[var(--foreground)] truncate">
                     {brand.name}
                   </h1>
                   <span className="hidden md:inline-block h-3.5 w-px bg-[var(--border-hover)]" />
@@ -143,18 +143,18 @@ function Studio() {
               </motion.div>
             </Link>
 
-            <nav aria-label="Workspace" className="flex items-center rounded-[9px] border border-[var(--border)] bg-[var(--background-elevated)]/70 p-0.5">
+            <nav aria-label="Workspace" className="flex items-center rounded-xl border border-[var(--border)] bg-[var(--background-elevated)]/70 p-1">
               <button
                 type="button"
                 onClick={() => selectWorkspace('image')}
-                className={`rounded-md px-2.5 py-1 text-[0.8125rem] font-medium transition-colors ${activeWorkspace === 'image' ? 'bg-[var(--brand-accent)]/15 text-[var(--brand-accent)]' : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)]'}`}
+                className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors sm:text-sm ${activeWorkspace === 'image' ? 'bg-[var(--brand-accent)]/15 text-[var(--brand-accent)]' : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)]'}`}
               >
                 Image
               </button>
               <button
                 type="button"
                 onClick={() => selectWorkspace('video')}
-                className={`rounded-md px-2.5 py-1 text-[0.8125rem] font-medium transition-colors ${activeWorkspace === 'video' ? 'bg-[var(--neon-purple)]/15 text-[var(--neon-purple)]' : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)]'}`}
+                className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors sm:text-sm ${activeWorkspace === 'video' ? 'bg-[var(--neon-purple)]/15 text-[var(--neon-purple)]' : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)]'}`}
               >
                 Video
               </button>
@@ -164,13 +164,11 @@ function Studio() {
               initial={{ opacity: 0, y: -8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.05 }}
-              className="flex items-center gap-1.5 flex-shrink-0"
+              className="flex items-center gap-2 flex-shrink-0"
             >
-              {/* h-8 on the two icon buttons, --control-h (36px) on the key CTA:
-                  the secondary pair reads as chrome, the CTA as the action. */}
               <button
                 onClick={() => setLibraryOpen(true)}
-                className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-[var(--border)] px-2.5 text-[0.8125rem] text-[var(--foreground-muted)] transition-colors hover:border-[var(--border-hover)] hover:text-[var(--foreground)]"
+                className="inline-flex items-center gap-1.5 rounded-[9px] border border-[var(--border)] px-2.5 py-2 text-xs text-[var(--foreground-muted)] transition-colors hover:border-[var(--border-hover)] hover:text-[var(--foreground)]"
                 title="Kept results and saved prompts"
               >
                 <LibraryIcon size={13} />
@@ -179,7 +177,7 @@ function Studio() {
 
               <button
                 onClick={() => setPaletteOpen(true)}
-                className="hidden h-8 sm:inline-flex items-center gap-1.5 text-[0.8125rem] text-[var(--foreground-muted)] hover:text-[var(--foreground)] border border-[var(--border)] hover:border-[var(--border-hover)] rounded-lg px-2.5 transition-colors"
+                className="hidden sm:inline-flex items-center gap-1.5 text-xs text-[var(--foreground-muted)] hover:text-[var(--foreground)] border border-[var(--border)] hover:border-[var(--border-hover)] rounded-[9px] px-2.5 py-2 transition-colors"
                 title="Open command menu (⌘K)"
               >
                 <CommandIcon size={13} />
@@ -188,7 +186,7 @@ function Studio() {
 
               <button
                 onClick={() => setKeyDialogOpen(true)}
-                className={hasKey ? 'btn-secondary' : 'btn-primary'}
+                className={`${hasKey ? 'btn-secondary' : 'btn-primary'} text-sm`}
                 title={hasKey ? 'Update your API key' : 'Add your Gemini API key'}
               >
                 {hasKey ? (
