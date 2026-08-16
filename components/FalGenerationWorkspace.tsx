@@ -160,7 +160,10 @@ function JobCard({
   return (
     <article className="space-y-3 rounded-xl border border-[var(--border)] bg-[var(--background-elevated)]/60 p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className={`rounded-full border px-2.5 py-1 text-xs ${job.state === 'success' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' : job.state === 'fail' || job.state === 'timed_out' ? 'border-red-500/30 bg-red-500/10 text-red-300' : job.state === 'cancelled' ? 'border-[var(--border)] text-[var(--foreground-muted)]' : 'border-amber-500/30 bg-amber-500/10 text-amber-200'}`}>
+        <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs ${job.state === 'success' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' : job.state === 'fail' || job.state === 'timed_out' ? 'border-red-500/30 bg-red-500/10 text-red-300' : job.state === 'cancelled' ? 'border-[var(--border)] text-[var(--foreground-muted)]' : 'border-amber-500/30 bg-amber-500/10 text-amber-200'}`}>
+          {/* A queued or running job has nothing else moving on the card until the
+              video lands, so the spinner is the only sign polling is still alive. */}
+          {!isFalJobTerminal(job.state) && <Loader2 aria-hidden className="animate-spin" size={12} />}
           {statusCopy[job.state]}
         </span>
         <code className="text-xs text-[var(--foreground-subtle)]">{job.requestId}</code>
