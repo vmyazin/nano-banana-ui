@@ -74,7 +74,8 @@ const unavailable = (reason: UnavailableReason): Unavailable => ({
  */
 const UNPINNED_WARNING =
   'This clip could not be pinned, so your library may evict it to reclaim space.';
-const UNSAVED_WARNING = 'This clip could not be saved to your library and will not survive a reload.';
+export const UNSAVED_WARNING =
+  'This clip could not be saved to your library and will not survive a reload.';
 
 /**
  * Assembles a ready result, keeping the optional fields genuinely absent
@@ -100,14 +101,14 @@ function ready(
  * whether `setPinned`/`keep` threw — they never throw outward, they swallow
  * failures and leave `records` untouched instead.
  */
-function isPersisted(recordId: string): boolean {
+export function isPersisted(recordId: string): boolean {
   const record = useGalleryStore.getState().records.find((candidate) => candidate.id === recordId);
   return record?.pinned === true && record?.blob !== undefined;
 }
 
 /** The store's own explanation for the failure, when it recorded one —
  *  otherwise the accurate statement for the path that failed. */
-function persistenceWarning(fallback: string): string {
+export function persistenceWarning(fallback: string): string {
   return useGalleryStore.getState().storageError ?? fallback;
 }
 

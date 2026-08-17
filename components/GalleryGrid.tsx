@@ -8,6 +8,7 @@ import { fetchResultBlob } from '@/lib/gallery/capture';
 import { hasBytes, type GalleryRecord } from '@/lib/gallery/storage';
 import { downloadRemoteMedia, extensionForMedia, fallbackFilenameBase } from '@/lib/media-download';
 import { extractLastFrameFromBlob } from '@/lib/video-frame';
+import RecoverMediaDropZone from '@/components/RecoverMediaDropZone';
 import { useDraftStore } from '@/store/useDraftStore';
 import { useGalleryStore } from '@/store/useGalleryStore';
 
@@ -46,6 +47,14 @@ export default function GalleryGrid({ onUsedReference }: { onUsedReference?: () 
   const records = useGalleryStore((state) => state.records);
   const previews = usePreviewUrls(records);
   const [busyId, setBusyId] = useState<string | null>(null);
+  /**
+   * Video records whose Keep failed because the provider URL is dead. Repair is
+   * offered here rather than on every unkept video: most video records have no
+   * bytes yet simply because nobody asked to keep them, and a permanent
+   * "replace file" affordance on all of them would be noise. A failed download
+   * is the moment the user actually learns the file is gone.
+   */
+  const [expiredIds, setExpiredIds] = useState<Set<string>>(new Set());
 
   if (records.length === 0) {
     return (
@@ -66,9 +75,20 @@ export default function GalleryGrid({ onUsedReference }: { onUsedReference?: () 
           ? await extractLastFrameFromBlob(blob).catch(() => undefined)
           : undefined;
       await useGalleryStore.getState().keep(record.id, blob, poster);
+      setExpiredIds((prev) => {
+        if (!prev.has(record.id)) return prev;
+        const next = new Set(prev);
+        next.delete(record.id);
+        return next;
+      });
       toast.success('Pinned');
     } catch {
-      toast.error('This result is no longer available to keep.');
+      if (record.kind === 'video') {
+        setExpiredIds((prev) => new Set(prev).add(record.id));
+        toast.error('That clip’s source is gone. You can restore it from your own copy.');
+      } else {
+        toast.error('This result is no longer available to keep.');
+      }
     } finally {
       setBusyId(null);
     }
@@ -171,6 +191,19 @@ export default function GalleryGrid({ onUsedReference }: { onUsedReference?: () 
                 {record.pinned ? <Pin size={13} /> : <PinOff size={13} />}
               </button>
             </div>
+
+            {expiredIds.has(record.id) && (
+              <RecoverMediaDropZone
+                recordId={record.id}
+                onRepaired={() =>
+                  setExpiredIds((prev) => {
+                    const next = new Set(prev);
+                    next.delete(record.id);
+                    return next;
+                  })
+                }
+              />
+            )}
 
             <div className="flex flex-wrap gap-1.5">
               {!stored && record.sourceUrl && (

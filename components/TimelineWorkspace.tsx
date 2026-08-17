@@ -120,10 +120,15 @@ export default function TimelineWorkspace({
   // Each placement gets its own AbortController so removing the clip — or
   // closing the workspace — can cancel the fetch/decode in flight instead of
   // letting it land under a placement id that no longer exists.
-  const addClip = useCallback(async (recordId: string) => {
-    const placementId = useTimelineStore.getState().addClip(recordId);
+  // Shared by adding a clip and by re-resolving one whose file was just
+  // restored, so both go through exactly the same acquisition, abort handling
+  // and stale-write guard rather than growing a second, subtly different copy.
+  const resolveClip = useCallback(async (placementId: string, recordId: string) => {
     setClipStates((prev) => ({ ...prev, [placementId]: { status: 'loading' } }));
 
+    // A repair can land while a previous acquisition for this placement is
+    // still in flight; the older one must not overwrite the newer result.
+    controllersRef.current.get(placementId)?.abort();
     const controller = new AbortController();
     controllersRef.current.set(placementId, controller);
 
@@ -146,9 +151,37 @@ export default function TimelineWorkspace({
       if (error instanceof DOMException && error.name === 'AbortError') return;
       throw error;
     } finally {
-      controllersRef.current.delete(placementId);
+      // Only clear the slot if it is still ours — a newer resolve for this
+      // placement may have replaced it while this one was awaiting.
+      if (controllersRef.current.get(placementId) === controller) {
+        controllersRef.current.delete(placementId);
+      }
     }
   }, []);
+
+  const addClip = useCallback(
+    async (recordId: string) => {
+      const placementId = useTimelineStore.getState().addClip(recordId);
+      await resolveClip(placementId, recordId);
+    },
+    [resolveClip]
+  );
+
+  /**
+   * A repair fixes the gallery *record*, and the same record can sit on the
+   * timeline more than once — so every placement of it is re-resolved, not
+   * just the row the user happened to drop the file on. Fixing one twin and
+   * leaving the other broken would be the more confusing outcome.
+   */
+  const repairedRecord = useCallback(
+    (recordId: string) => {
+      useTimelineStore
+        .getState()
+        .timeline.clips.filter((clip) => clip.recordId === recordId)
+        .forEach((clip) => void resolveClip(clip.id, recordId));
+    },
+    [resolveClip]
+  );
 
   const removeClip = useCallback((clipId: string) => {
     controllersRef.current.get(clipId)?.abort();
@@ -251,11 +284,23 @@ export default function TimelineWorkspace({
           {isWide ? (
             <>
               <TimelineExportPanel engines={engines} clips={clips} clipStates={clipStates} output={output} />
-              <TimelineTrack clips={clips} records={records} clipStates={clipStates} onRemove={removeClip} />
+              <TimelineTrack
+                clips={clips}
+                records={records}
+                clipStates={clipStates}
+                onRemove={removeClip}
+                onRepaired={repairedRecord}
+              />
             </>
           ) : (
             <>
-              <TimelineList clips={clips} records={records} clipStates={clipStates} onRemove={removeClip} />
+              <TimelineList
+                clips={clips}
+                records={records}
+                clipStates={clipStates}
+                onRemove={removeClip}
+                onRepaired={repairedRecord}
+              />
               <TimelineExportPanel engines={engines} clips={clips} clipStates={clipStates} output={output} />
             </>
           )}

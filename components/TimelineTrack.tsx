@@ -8,12 +8,15 @@ import type { GalleryRecord } from '@/lib/gallery/storage';
 import { UNDECODABLE_WARNING } from '@/lib/timeline/acquire';
 import { useTimelineStore, type TimelineClip } from '@/store/useTimelineStore';
 import type { ClipState } from '@/components/TimelineWorkspace';
+import RecoverMediaDropZone from '@/components/RecoverMediaDropZone';
 
 interface TimelineTrackProps {
   clips: TimelineClip[];
   records: GalleryRecord[];
   clipStates: Record<string, ClipState>;
   onRemove: (clipId: string) => void;
+  /** Fires with the repaired record id so every placement of it re-resolves. */
+  onRepaired: (recordId: string) => void;
 }
 
 /**
@@ -69,12 +72,14 @@ function TrackBlock({
   state,
   index,
   onRemove,
+  onRepaired,
 }: {
   clip: TimelineClip;
   record: GalleryRecord | undefined;
   state: ClipState | undefined;
   index: number;
   onRemove: (clipId: string) => void;
+  onRepaired: (recordId: string) => void;
 }) {
   const [draggedOver, setDraggedOver] = useState(false);
   const poster = record?.posterBlob ?? (state?.status === 'ready' ? state.blob : record?.blob);
@@ -131,6 +136,15 @@ function TrackBlock({
         <div className="flex aspect-video w-full flex-col items-center justify-center gap-1 rounded-md bg-black/30 p-1.5 text-center">
           <AlertTriangle size={16} className="shrink-0 text-red-400" />
           <p className="text-[0.65rem] leading-tight text-red-300">{state.message}</p>
+          {/* `missing` means the record is gone from the library entirely, so
+              there is nothing to re-fill and Remove is the only honest action. */}
+          {state.reason !== 'missing' && (
+            <RecoverMediaDropZone
+              recordId={clip.recordId}
+              onRepaired={() => onRepaired(clip.recordId)}
+              compact
+            />
+          )}
         </div>
       ) : (
         <div className="flex aspect-video w-full cursor-grab items-center justify-center overflow-hidden rounded-md bg-black/40 active:cursor-grabbing">
@@ -204,7 +218,13 @@ function TrackBlock({
  * exactly one of the two, never both, so drag listeners never double up
  * over the same clips.
  */
-export default function TimelineTrack({ clips, records, clipStates, onRemove }: TimelineTrackProps) {
+export default function TimelineTrack({
+  clips,
+  records,
+  clipStates,
+  onRemove,
+  onRepaired,
+}: TimelineTrackProps) {
   const byId = useMemo(() => new Map(records.map((record) => [record.id, record])), [records]);
 
   if (clips.length === 0) {
@@ -228,6 +248,7 @@ export default function TimelineTrack({ clips, records, clipStates, onRemove }: 
             state={clipStates[clip.id]}
             index={index}
             onRemove={onRemove}
+            onRepaired={onRepaired}
           />
         ))}
       </div>

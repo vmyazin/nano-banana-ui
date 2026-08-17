@@ -8,12 +8,15 @@ import type { GalleryRecord } from '@/lib/gallery/storage';
 import { UNDECODABLE_WARNING } from '@/lib/timeline/acquire';
 import { useTimelineStore, type TimelineClip } from '@/store/useTimelineStore';
 import type { ClipState } from '@/components/TimelineWorkspace';
+import RecoverMediaDropZone from '@/components/RecoverMediaDropZone';
 
 interface TimelineListProps {
   clips: TimelineClip[];
   records: GalleryRecord[];
   clipStates: Record<string, ClipState>;
   onRemove: (clipId: string) => void;
+  /** Fires with the repaired record id so every placement of it re-resolves. */
+  onRepaired: (recordId: string) => void;
 }
 
 function titleOf(record: GalleryRecord | undefined) {
@@ -51,12 +54,14 @@ function ClipRow({
   state,
   index,
   onRemove,
+  onRepaired,
 }: {
   clip: TimelineClip;
   record: GalleryRecord | undefined;
   state: ClipState | undefined;
   index: number;
   onRemove: (clipId: string) => void;
+  onRepaired: (recordId: string) => void;
 }) {
   const [draggedOver, setDraggedOver] = useState(false);
   const poster = record?.posterBlob ?? (state?.status === 'ready' ? state.blob : record?.blob);
@@ -116,9 +121,18 @@ function ClipRow({
         </p>
 
         {state?.status === 'unavailable' && (
-          <p className="flex items-center gap-1.5 text-xs text-red-300">
-            <AlertTriangle size={12} className="shrink-0" /> {state.message}
-          </p>
+          <div className="space-y-1.5">
+            <p className="flex items-center gap-1.5 text-xs text-red-300">
+              <AlertTriangle size={12} className="shrink-0" /> {state.message}
+            </p>
+            {/* `missing` means the record itself is gone from the library, so
+                there is nothing left to re-fill — the only honest action is
+                Remove. Every other reason is a dead or absent source, which is
+                exactly what the user's own copy of the file can fix. */}
+            {state.reason !== 'missing' && (
+              <RecoverMediaDropZone recordId={clip.recordId} onRepaired={() => onRepaired(clip.recordId)} />
+            )}
+          </div>
         )}
 
         {state?.status === 'loading' && (
@@ -181,7 +195,13 @@ function ClipRow({
  * handle. Works at every width — the horizontal track is an enhancement on
  * top of this, not a replacement for it below the lg breakpoint.
  */
-export default function TimelineList({ clips, records, clipStates, onRemove }: TimelineListProps) {
+export default function TimelineList({
+  clips,
+  records,
+  clipStates,
+  onRemove,
+  onRepaired,
+}: TimelineListProps) {
   const byId = useMemo(() => new Map(records.map((record) => [record.id, record])), [records]);
 
   if (clips.length === 0) {
@@ -204,6 +224,7 @@ export default function TimelineList({ clips, records, clipStates, onRemove }: T
           state={clipStates[clip.id]}
           index={index}
           onRemove={onRemove}
+          onRepaired={onRepaired}
         />
       ))}
     </ul>
