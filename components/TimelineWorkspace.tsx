@@ -11,6 +11,7 @@ import { useTimelineStore } from '@/store/useTimelineStore';
 import TimelineClipDrawer from '@/components/TimelineClipDrawer';
 import TimelineList from '@/components/TimelineList';
 import TimelinePreview from '@/components/TimelinePreview';
+import TimelineTrack from '@/components/TimelineTrack';
 
 /**
  * The state of one placement on the timeline while its bytes are acquired.
@@ -184,7 +185,7 @@ export default function TimelineWorkspace({
       <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-[280px_1fr] lg:gap-4">
         <TimelineClipDrawer records={records} onAdd={(recordId) => void addClip(recordId)} />
 
-        <div className="space-y-3.5">
+        <div className="min-w-0 space-y-3.5">
           <TimelinePreview clips={clips} clipStates={clipStates} />
 
           <div className="glass-card flex flex-wrap items-center justify-between gap-3 p-3.5">
@@ -215,7 +216,11 @@ export default function TimelineWorkspace({
             </p>
           </div>
 
-          <TimelineList clips={clips} records={records} clipStates={clipStates} onRemove={removeClip} />
+          {isWide ? (
+            <TimelineTrack clips={clips} records={records} clipStates={clipStates} onRemove={removeClip} />
+          ) : (
+            <TimelineList clips={clips} records={records} clipStates={clipStates} onRemove={removeClip} />
+          )}
         </div>
       </div>
     </div>
