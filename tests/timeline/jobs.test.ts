@@ -60,6 +60,22 @@ async function waitUntil(predicate: () => boolean, timeoutMs = 10000): Promise<v
   }
 }
 
+/**
+ * Waits until the registry has genuinely released every slot.
+ *
+ * `runOne` sets a job's terminal phase *before* its `finally` awaits temp-dir
+ * cleanup and decrements `runningCount`, so a test that waits only for
+ * `phase === 'done'` can return while the registry still counts that job as
+ * running. Under load that pending `finally` lands inside whatever test comes
+ * next — which, if that test asserts on capacity, fails it for reasons in an
+ * earlier one. The epoch guard in `__resetJobsForTests` makes such a landing
+ * harmless to the counter; this makes the tests stop producing them at all.
+ */
+async function awaitQuiescence(): Promise<void> {
+  await waitUntil(() => hasCapacity());
+  await new Promise((resolve) => setTimeout(resolve, 0));
+}
+
 const tempDirs: string[] = [];
 
 function trackedTempDir(): string {
@@ -114,6 +130,11 @@ describe('jobs registry — concurrency', () => {
     await waitUntil(() => r3.calls.length === 1);
     r3.resolve({ outputPath: '/out/3.mp4' });
     await waitUntil(() => getJob(job3.id, 'a')?.phase === 'done');
+    // Wait for the slot to actually come back, not just for the phase flag.
+    // `runOne` flips the phase before its `finally` awaits temp-dir cleanup,
+    // so a test that stops at 'done' can hand a still-occupied counter to the
+    // next one. See `awaitQuiescence`.
+    await awaitQuiescence();
   });
 });
 
@@ -148,6 +169,8 @@ describe('jobs registry — resetting while a runner is still in flight', () => 
     expect(() => enqueue(fourth.id, makeGatedRunner().runner)).toThrow(TooBusyError);
 
     runners.forEach((runner) => runner.resolve({ outputPath: '/out/x.mp4' }));
+    await waitUntil(() => getJob(fresh[2].id, 'b')?.phase === 'done');
+    await awaitQuiescence();
   });
 });
 

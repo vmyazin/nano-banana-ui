@@ -1,7 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import type { KeyboardEvent } from 'react';
+import type { FocusEvent, KeyboardEvent } from 'react';
 import { Settings2 } from 'lucide-react';
 
 import type { TimelineOutput } from '@/store/useTimelineStore';
@@ -67,35 +66,35 @@ const INPUT_CLASS =
   'focus:border-[var(--neon-cyan)]/60';
 
 export default function TimelineOutputFormat({ output, onEdit, onMatchClips }: TimelineOutputFormatProps) {
-  // Drafts are strings so a half-typed "19" on the way to "1920" is not
-  // clamped out from under the cursor. They are only interpreted on commit.
-  const [draft, setDraft] = useState(() => ({
-    width: String(output.width),
-    height: String(output.height),
-    fps: String(output.fps),
-  }));
-
-  // The store is also written from outside this component — the auto recompute
-  // as clips arrive, and "match clips" — so the draft follows it whenever the
-  // committed value changes.
-  useEffect(() => {
-    setDraft({ width: String(output.width), height: String(output.height), fps: String(output.fps) });
-  }, [output.width, output.height, output.fps]);
-
-  const commit = (field: Field) => {
-    const raw = draft[field];
+  /**
+   * The inputs are uncontrolled, and the whole control is keyed on the
+   * committed format.
+   *
+   * Two things have to be true at once: a half-typed "19" on the way to "1920"
+   * must not be clamped out from under the cursor, and a value changed from
+   * *outside* — the auto recompute as clips arrive, or "match clips" — must
+   * show up immediately. A controlled draft would need an effect syncing state
+   * to props, which is the cascading-render pattern React specifically warns
+   * against; remounting on the committed value does the same job with no state
+   * of our own to keep in step.
+   */
+  const commit = (field: Field, input: HTMLInputElement) => {
+    const raw = input.value;
     const current = output[field];
     const parsed = Number(raw);
 
     // Empty or nonsense is not an edit, it is a slip: put the committed value
     // back and leave `auto` alone rather than freezing the format on a typo.
     if (raw.trim() === '' || !Number.isFinite(parsed) || parsed <= 0) {
-      setDraft((prev) => ({ ...prev, [field]: String(current) }));
+      input.value = String(current);
       return;
     }
 
     const next = field === 'fps' ? constrainFps(parsed) : constrainDimension(parsed);
-    setDraft((prev) => ({ ...prev, [field]: String(next) }));
+    // Written back directly, because a constrained value that equals the
+    // committed one leaves the key unchanged and so triggers no remount —
+    // the field would otherwise keep showing the rejected 1921.
+    input.value = String(next);
 
     // Compared against what was typed, not against the constrained result: a
     // hand-entered 1921 constrains back to 1920 and still counts as an edit
@@ -116,16 +115,18 @@ export default function TimelineOutputFormat({ output, onEdit, onMatchClips }: T
       min={name === 'fps' ? MIN_FPS : MIN_DIMENSION}
       max={name === 'fps' ? MAX_FPS : MAX_DIMENSION}
       step={step}
-      value={draft[name]}
-      onChange={(event) => setDraft((prev) => ({ ...prev, [name]: event.target.value }))}
-      onBlur={() => commit(name)}
+      defaultValue={String(output[name])}
+      onBlur={(event: FocusEvent<HTMLInputElement>) => commit(name, event.currentTarget)}
       onKeyDown={onKeyDown}
       className={INPUT_CLASS}
     />
   );
 
   return (
-    <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-[0.8125rem] text-[var(--foreground-muted)]">
+    <div
+      key={`${output.width}x${output.height}@${output.fps}`}
+      className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-[0.8125rem] text-[var(--foreground-muted)]"
+    >
       <span className="flex items-center gap-1.5">
         <Settings2 size={13} className="text-[var(--foreground-subtle)]" aria-hidden />
         Output

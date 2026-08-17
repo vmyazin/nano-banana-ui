@@ -19,8 +19,12 @@ import { acquireClipMedia } from '../../lib/timeline/acquire';
  * can't be used" without a real network or a real video decoder.
  */
 vi.mock('../../lib/timeline/acquire', () => {
-  const acquireClipMedia = vi.fn(async (id: string, _options?: { signal?: AbortSignal }) =>
-    id === 'dead'
+  const acquireClipMedia = vi.fn(async (id: string, options?: { signal?: AbortSignal }) => {
+    // Honours the signal the way the real one does — it rethrows AbortError
+    // rather than degrading to an Unavailable — so a test that aborts before
+    // the call gets the same behaviour a real acquisition would give it.
+    if (options?.signal?.aborted) throw new DOMException('aborted', 'AbortError');
+    return id === 'dead'
       ? {
           status: 'unavailable',
           reason: 'expired',
@@ -31,8 +35,8 @@ vi.mock('../../lib/timeline/acquire', () => {
           blob: new Blob(['v']),
           dimensions: { width: 1920, height: 1080, durationSeconds: 4 },
           durable: true,
-        }
-  );
+        };
+  });
   // Delegates to the mock above rather than returning a canned array: the
   // export panel resolves through `acquireAll`, so a stub that ignored
   // `acquireClipMedia` would silently disconnect every per-clip override a
