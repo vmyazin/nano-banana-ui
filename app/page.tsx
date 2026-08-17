@@ -135,6 +135,7 @@ function Studio() {
               <button
                 type="button"
                 onClick={() => selectWorkspace('timeline')}
+                title="Timeline"
                 className={`flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors sm:px-3 sm:text-sm ${activeWorkspace === 'timeline' ? 'bg-[var(--neon-cyan)]/15 text-[var(--neon-cyan)]' : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)]'}`}
               >
                 <Film size={13} className="sm:hidden" aria-hidden />
