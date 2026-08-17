@@ -3,7 +3,15 @@ import type { Feature } from '@/types';
 // Dependency-free engine metadata + capability gating. Safe to import from both
 // client components and server routes (no provider SDKs here).
 
-export type EngineId = 'gemini' | 'pollinations' | 'cloudflare' | 'kie' | 'fal';
+export type EngineId =
+  | 'gemini'
+  | 'pollinations'
+  | 'cloudflare'
+  | 'kie'
+  | 'fal'
+  | 'runware'
+  | 'atlas'
+  | 'comet';
 
 export interface EngineMeta {
   id: EngineId;
@@ -66,6 +74,39 @@ export const ENGINES: EngineMeta[] = [
     supportsGoogleSearch: false,
     supportsAspectRatio: true,
     supportsImageSize: true,
+    free: false,
+  },
+  {
+    id: 'runware',
+    label: 'Runware',
+    blurb: 'Cheapest per image — Z-Image Turbo and FLUX, on your own Runware key',
+    requiresApiKey: true,
+    supportsInputImages: true,
+    supportsGoogleSearch: false,
+    supportsAspectRatio: true,
+    supportsImageSize: false,
+    free: false,
+  },
+  {
+    id: 'atlas',
+    label: 'Atlas Cloud',
+    blurb: 'Image, video, and LLMs on one key — FLUX schnell from $0.003',
+    requiresApiKey: true,
+    supportsInputImages: true,
+    supportsGoogleSearch: false,
+    supportsAspectRatio: true,
+    supportsImageSize: false,
+    free: false,
+  },
+  {
+    id: 'comet',
+    label: 'CometAPI',
+    blurb: 'Broad commercial coverage behind an OpenAI-compatible interface',
+    requiresApiKey: true,
+    supportsInputImages: false,
+    supportsGoogleSearch: false,
+    supportsAspectRatio: true,
+    supportsImageSize: false,
     free: false,
   },
   {

@@ -7,6 +7,8 @@ import { toast } from 'sonner';
 import { useAppStore } from '@/store/useAppStore';
 import MicroAiUsagePanel from '@/components/MicroAiUsagePanel';
 import ProviderLogo from '@/components/ProviderLogo';
+import type { EngineId } from '@/lib/engines/registry';
+import type { ProviderId } from '@/lib/providers/types';
 
 interface ApiKeyConfigProps {
   open: boolean;
@@ -23,6 +25,41 @@ const PUBLIC_FAL_VALIDATION_ERRORS = new Set([
   'fal could not complete that request.',
   'Something went wrong while contacting fal.',
 ]);
+
+/**
+ * The three aggregator providers, in the cost order the app recommends:
+ * Runware first (cheapest per image and per second of video), Atlas when the
+ * same key should also cover LLMs, Comet for the widest commercial coverage.
+ */
+const AGGREGATORS: ReadonlyArray<{
+  id: ProviderId;
+  name: string;
+  description: string;
+  href: string;
+  urlLabel: string;
+}> = [
+  {
+    id: 'runware',
+    name: 'Runware',
+    description: 'Image and video across hundreds of models, billed per megapixel or second.',
+    href: 'https://runware.ai/signup',
+    urlLabel: 'runware.ai/signup',
+  },
+  {
+    id: 'atlas',
+    name: 'Atlas Cloud',
+    description: 'Image, video, and LLMs on one key, with published per-request pricing.',
+    href: 'https://www.atlascloud.ai/console/api-keys',
+    urlLabel: 'atlascloud.ai/console/api-keys',
+  },
+  {
+    id: 'comet',
+    name: 'CometAPI',
+    description: 'Commercial models — GPT Image, Seedance, Veo, Kling — behind one OpenAI-shaped API.',
+    href: 'https://api.cometapi.com/console/token',
+    urlLabel: 'api.cometapi.com/console/token',
+  },
+];
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -42,7 +79,7 @@ function ProviderCard({
   className,
   children,
 }: {
-  provider: 'gemini' | 'kie' | 'fal' | 'cloudflare';
+  provider: EngineId;
   name: string;
   connected: boolean;
   description: string;
@@ -165,6 +202,15 @@ export default function ApiKeyConfig({ open, onOpenChange }: ApiKeyConfigProps) 
   const savedKieKey = useAppStore((s) => s.kieApiKey);
   const setKieApiKey = useAppStore((s) => s.setKieApiKey);
   const kieConnected = !!savedKieKey;
+  const runwareApiKey = useAppStore((s) => s.runwareApiKey);
+  const atlasApiKey = useAppStore((s) => s.atlasApiKey);
+  const cometApiKey = useAppStore((s) => s.cometApiKey);
+  const setProviderApiKey = useAppStore((s) => s.setProviderApiKey);
+  const providerKeys: Record<ProviderId, string> = {
+    runware: runwareApiKey,
+    atlas: atlasApiKey,
+    comet: cometApiKey,
+  };
   const savedFalKey = useAppStore((s) => s.falApiKey);
   const setFalApiKey = useAppStore((s) => s.setFalApiKey);
   const falConnected = !!savedFalKey;
@@ -176,6 +222,7 @@ export default function ApiKeyConfig({ open, onOpenChange }: ApiKeyConfigProps) 
   const [showKieKey, setShowKieKey] = useState(false);
   const [falKeyInput, setFalKeyInput] = useState('');
   const [showFalKey, setShowFalKey] = useState(false);
+  const [showProviderKey, setShowProviderKey] = useState<Partial<Record<ProviderId, boolean>>>({});
   const [isValidating, setIsValidating] = useState(false);
   const [validationError, setValidationError] = useState('');
   const [kieValidationError, setKieValidationError] = useState('');
@@ -536,8 +583,10 @@ export default function ApiKeyConfig({ open, onOpenChange }: ApiKeyConfigProps) 
                   {falValidationError && <FieldError message={falValidationError} alert />}
                 </ProviderCard>
 
-                {/* Cloudflare Workers AI — two fields, so it takes the full width
-                    on its own row and pairs them side by side. */}
+                {/* Cloudflare Workers AI — two fields, so it takes the full
+                    width on its own row and pairs them side by side. Ordered
+                    after the one-field cards so their grid never breaks around
+                    it and leaves a hole. */}
                 <ProviderCard
                   provider="cloudflare"
                   name="Cloudflare"
@@ -546,7 +595,7 @@ export default function ApiKeyConfig({ open, onOpenChange }: ApiKeyConfigProps) 
                   linkPrefix="Create a token at"
                   href="https://dash.cloudflare.com/profile/api-tokens"
                   urlLabel="dash.cloudflare.com/profile/api-tokens"
-                  className="sm:order-2 sm:col-span-2"
+                  className="sm:order-1 sm:col-span-2"
                 >
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div className="space-y-1.5">
@@ -587,8 +636,45 @@ export default function ApiKeyConfig({ open, onOpenChange }: ApiKeyConfigProps) 
                   </div>
                 </ProviderCard>
 
-                {/* Fills the cell beside fal on two columns; stays last on one. */}
-                <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:order-1">
+                {/* The aggregators. These save as you type like Cloudflare
+                    rather than on Save & close: none of them publishes a
+                    validate-only endpoint, and the alternative — spending a
+                    generation to check a key — is not something to do behind
+                    someone's back. */}
+                {AGGREGATORS.map((aggregator) => (
+                  <ProviderCard
+                    key={aggregator.id}
+                    provider={aggregator.id}
+                    name={aggregator.name}
+                    connected={!!providerKeys[aggregator.id]}
+                    description={aggregator.description}
+                    linkPrefix="Get a key at"
+                    href={aggregator.href}
+                    urlLabel={aggregator.urlLabel}
+                  >
+                    <SecretInput
+                      ariaLabel={`${aggregator.name} API key`}
+                      toggleLabels={[`Show ${aggregator.name} key`, `Hide ${aggregator.name} key`]}
+                      value={providerKeys[aggregator.id]}
+                      onChange={(value) => setProviderApiKey(aggregator.id, value.trim())}
+                      onEnter={() => void handleSave()}
+                      placeholder={`${aggregator.name} API key`}
+                      visible={!!showProviderKey[aggregator.id]}
+                      onToggleVisible={() =>
+                        setShowProviderKey((current) => ({
+                          ...current,
+                          [aggregator.id]: !current[aggregator.id],
+                        }))
+                      }
+                      disabled={isValidating}
+                    />
+                  </ProviderCard>
+                ))}
+
+                {/* Last, on both column counts. Nothing here is a credential —
+                    it reports what the shared helper tier is doing — so it sits
+                    below every field rather than breaking up the run of them. */}
+                <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:order-2 sm:col-span-2">
                   <MicroAiUsagePanel />
                 </div>
               </div>

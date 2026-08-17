@@ -5,6 +5,9 @@ import { cloudflareGenerate } from '@/lib/engines/cloudflare';
 import { createKieTask, getKieTask } from '@/lib/kie/client';
 import { resolveKieVariant, validateKieInput } from '@/lib/kie/catalog';
 import type { KieInputMode, KieProtocol } from '@/lib/kie/types';
+import { fetchAsBase64, getAdapter, isProviderId } from '@/lib/providers';
+import { findModel, resolveModel } from '@/lib/providers/catalog';
+import { ProviderError, type ProviderId } from '@/lib/providers/types';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object';
@@ -72,10 +75,70 @@ async function handleKieRequest(body: Record<string, unknown>) {
   }
 }
 
+/**
+ * Runware / Atlas Cloud / CometAPI images. All three answer with a hosted URL
+ * (Comet's GPT models with base64), so the bytes are resolved here and the
+ * response looks exactly like every other engine's to the client.
+ */
+async function handleProviderRequest(provider: ProviderId, body: Record<string, unknown>) {
+  const adapter = getAdapter(provider);
+  try {
+    const apiKey = typeof body.apiKey === 'string' ? body.apiKey.trim() : '';
+    if (!apiKey) {
+      return NextResponse.json(
+        { success: false, error: `A ${adapter.label} API key is required` },
+        { status: 400 }
+      );
+    }
+    const prompt = typeof body.prompt === 'string' ? body.prompt.trim() : '';
+    if (!prompt) {
+      return NextResponse.json({ success: false, error: 'Prompt is required' }, { status: 400 });
+    }
+
+    const config = isRecord(body.config) ? body.config : {};
+    // Reference images arrive as bare base64 (the client strips the data: prefix);
+    // every provider here wants a data URI or URL.
+    const images = Array.isArray(body.images)
+      ? body.images
+          .filter((image): image is string => typeof image === 'string' && image.length > 0)
+          .map((image) => (image.startsWith('data:') || image.startsWith('http') ? image : `data:image/png;base64,${image}`))
+      : [];
+
+    const model = resolveModel(provider, 'image', typeof body.model === 'string' ? body.model : undefined);
+    const catalogModel = findModel(provider, model);
+    const result = await adapter.generateImage({
+      apiKey,
+      model,
+      prompt,
+      // Trimmed to what the model documents it accepts.
+      images: catalogModel?.maxInputImages ? images.slice(0, catalogModel.maxInputImages) : images,
+      aspectRatio: typeof config.aspectRatio === 'string' ? config.aspectRatio : undefined,
+      imageInput: catalogModel?.imageInput,
+    });
+
+    const media = result.base64
+      ? { base64: result.base64, mimeType: result.mimeType ?? 'image/png' }
+      : await fetchAsBase64(result.url as string, provider);
+
+    return NextResponse.json({
+      success: true,
+      imageData: media.base64,
+      mimeType: media.mimeType,
+      cost: result.cost,
+    });
+  } catch (error: unknown) {
+    const status = error instanceof ProviderError ? error.status : 500;
+    const message =
+      error instanceof Error ? error.message : `${adapter.label} could not process this request.`;
+    return NextResponse.json({ success: false, error: message }, { status });
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     if (isRecord(body) && body.engine === 'kie') return handleKieRequest(body);
+    if (isRecord(body) && isProviderId(body.engine)) return handleProviderRequest(body.engine, body);
     const { engine = 'gemini', prompt, images, config, apiKey, cfAccountId, cfToken } = body;
 
     if (!prompt && !images?.length) {

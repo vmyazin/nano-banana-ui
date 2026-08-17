@@ -47,4 +47,22 @@ export const ENGINE_DOCS: ReadonlyArray<{
     href: 'https://docs.kie.ai/',
     accentClass: 'hover:text-[var(--foreground)]',
   },
+  {
+    id: 'runware',
+    label: 'Runware',
+    href: 'https://runware.ai/docs',
+    accentClass: 'hover:text-[var(--neon-cyan)]',
+  },
+  {
+    id: 'atlas',
+    label: 'Atlas Cloud',
+    href: 'https://atlascloud.ai/docs',
+    accentClass: 'hover:text-[var(--neon-purple)]',
+  },
+  {
+    id: 'comet',
+    label: 'CometAPI',
+    href: 'https://apidoc.cometapi.com',
+    accentClass: 'hover:text-[var(--neon-pink)]',
+  },
 ];

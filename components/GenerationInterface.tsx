@@ -20,6 +20,8 @@ import {
 import { runFalImage } from '@/lib/fal/browser';
 import ProviderLogo from '@/components/ProviderLogo';
 import { useAppStore } from '@/store/useAppStore';
+import { modelsFor, resolveModel } from '@/lib/providers/catalog';
+import type { ProviderId } from '@/lib/providers/types';
 import { useDraftStore } from '@/store/useDraftStore';
 import { usePromptLibraryStore } from '@/store/usePromptLibraryStore';
 import { useGalleryStore } from '@/store/useGalleryStore';
@@ -200,10 +202,44 @@ export default function GenerationInterface({ feature, apiKey, onBack, onOpenCon
   const cfAccountId = useAppStore((s) => s.cfAccountId);
   const cfToken = useAppStore((s) => s.cfToken);
   const falApiKey = useAppStore((s) => s.falApiKey);
+  const runwareApiKey = useAppStore((s) => s.runwareApiKey);
+  const atlasApiKey = useAppStore((s) => s.atlasApiKey);
+  const cometApiKey = useAppStore((s) => s.cometApiKey);
+  const runwareImageModel = useAppStore((s) => s.runwareImageModel);
+  const atlasImageModel = useAppStore((s) => s.atlasImageModel);
+  const cometImageModel = useAppStore((s) => s.cometImageModel);
+  const setProviderModel = useAppStore((s) => s.setProviderModel);
   const hasCfCreds = !!cfAccountId && !!cfToken;
   const availableEngines = enginesForFeature(feature);
   const activeEngine =
     availableEngines.find((e) => e.id === storeEngine) ?? availableEngines[0];
+
+  // Aggregator credentials and model choices, keyed by engine id so the gating,
+  // the model select, and the cost line stay one branch instead of three.
+  const providerKeys: Record<ProviderId, string> = {
+    runware: runwareApiKey,
+    atlas: atlasApiKey,
+    comet: cometApiKey,
+  };
+  const providerImageModels: Record<ProviderId, string> = {
+    runware: runwareImageModel,
+    atlas: atlasImageModel,
+    comet: cometImageModel,
+  };
+  // Derived from the persisted engine id rather than from activeEngine: passing
+  // anything aliased to activeEngine into an imported helper makes the React
+  // compiler treat the object as possibly-mutated, and it then skips optimizing
+  // this component entirely. The membership check keeps it in step with the
+  // fallback above (persisted engine that can't run this feature → not active).
+  const isAggregator =
+    storeEngine === 'runware' || storeEngine === 'atlas' || storeEngine === 'comet';
+  const activeProvider: ProviderId | null =
+    isAggregator && availableEngines.some((engine) => engine.id === storeEngine)
+      ? storeEngine
+      : null;
+  const activeProviderModel = activeProvider
+    ? resolveModel(activeProvider, 'image', providerImageModels[activeProvider])
+    : null;
 
   const [error, setError] = useState<string | null>(null);
   const [lightboxOpen, setLightboxOpen] = useState(false);
@@ -412,7 +448,8 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
           images: images.map((img) => img.split(',')[1]), // strip data: prefix
           config,
           featureId: feature.id,
-          apiKey,
+          apiKey: activeProvider ? providerKeys[activeProvider] : apiKey,
+          model: activeProviderModel ?? undefined,
           cfAccountId,
           cfToken,
         }),
@@ -502,6 +539,13 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
   // (~$0.24); each uploaded input image ≈ 560 tokens (~$0.0011). Pollinations is free.
   const OUTPUT_COST: Record<string, number> = { '1K': 0.134, '2K': 0.134, '4K': 0.24 };
   const estCost = (OUTPUT_COST[config.imageSize ?? '1K'] ?? 0.134) + images.length * 0.0011;
+  // Aggregator prices are the vendors' published rates, carried on the catalog
+  // entry — the units differ per provider, so they are shown as written rather
+  // than folded into one estimate.
+  const activeProviderCatalogModel =
+    activeProvider && activeProviderModel
+      ? modelsFor(activeProvider, 'image').find((model) => model.id === activeProviderModel)
+      : undefined;
   const costLine =
     activeEngine.id === 'pollinations'
       ? 'Free · Pollinations (FLUX)'
@@ -509,7 +553,9 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
         ? 'Free daily tier · FLUX.1 [schnell]'
         : activeEngine.id === 'fal'
           ? 'fal usage rates apply · Nano Banana 2'
-          : `Est. ≈ $${estCost.toFixed(2)} / image · Gemini 3 Pro Image`;
+          : activeProviderCatalogModel
+            ? `${activeProviderCatalogModel.price ?? 'Usage rates apply'} · ${activeProviderCatalogModel.label}`
+            : `Est. ≈ $${estCost.toFixed(2)} / image · Gemini 3 Pro Image`;
 
   // Close the full-screen lightbox on Escape.
   useEffect(() => {
@@ -539,6 +585,11 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
     }
     if (activeEngine.id === 'fal' && !falApiKey.trim()) {
       setError('Connect your fal API key first in API connections.');
+      onOpenConnections();
+      return;
+    }
+    if (activeProvider && !providerKeys[activeProvider].trim()) {
+      setError(`Connect your ${activeEngine.label} key first in API connections.`);
       onOpenConnections();
       return;
     }
@@ -703,6 +754,43 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
         activeEngineId={activeEngine.id}
         onSelect={handleEngineSelect}
       />
+
+      {/* Same shape as the Model card in the Kie and fal workspaces: a select
+          of what this provider serves, with the vendor's own description of the
+          chosen one underneath. */}
+      {activeProvider && (
+        <section className="glass-card space-y-3 p-3.5 md:p-4">
+          <h3 className="display text-base font-semibold">Model</h3>
+          <div className="space-y-2">
+            <label htmlFor="provider-model" className="sr-only">
+              Model
+            </label>
+            <select
+              id="provider-model"
+              aria-label="Model"
+              value={activeProviderModel ?? ''}
+              onChange={(event) => setProviderModel(activeProvider, 'image', event.target.value)}
+              className="w-full"
+            >
+              {modelsFor(activeProvider, 'image').map((model) => (
+                <option key={model.id} value={model.id}>
+                  {model.label}
+                  {model.price ? ` · ${model.price}` : ''}
+                </option>
+              ))}
+            </select>
+            {activeProviderCatalogModel && (
+              <p className="px-0.5 text-sm leading-relaxed text-[var(--foreground-muted)]">
+                <span className="font-medium text-[var(--foreground)]">
+                  {activeProviderCatalogModel.label}:
+                </span>{' '}
+                {activeProviderCatalogModel.note ??
+                  `Billed to your ${activeEngine.label} account at ${activeProviderCatalogModel.price ?? 'the vendor’s rates'}.`}
+              </p>
+            )}
+          </div>
+        </section>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3.5 md:gap-4">
         {/* Input Section */}

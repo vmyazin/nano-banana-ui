@@ -21,7 +21,7 @@ interface FinishedJob {
  * that URL is alive, and Keep fetches the bytes once when the user asks.
  */
 export function recordFinishedJob(
-  provider: 'kie' | 'fal',
+  provider: 'kie' | 'fal' | 'runware' | 'atlas' | 'comet',
   job: FinishedJob,
   resultUrl: string | undefined
 ) {

@@ -58,7 +58,7 @@ describe('VideoWorkspace provider selection', () => {
     useFalJobsStore.getState().clearJobs();
   });
 
-  it('keeps Kie as the persisted default and renders exactly two accessible providers', () => {
+  it('keeps Kie as the persisted default and lists every video provider', () => {
     render(
       <VideoWorkspace
         inputMode="text"
@@ -69,9 +69,14 @@ describe('VideoWorkspace provider selection', () => {
     );
 
     const providers = screen.getByRole('radiogroup', { name: 'Video provider' });
+    // Runware leads on cost, so it takes the first slot; the rest keep their
+    // established order behind it.
     expect(screen.getAllByRole('radio').map((radio) => radio.textContent)).toEqual([
+      expect.stringContaining('Runware'),
       expect.stringContaining('Kie.ai'),
       expect.stringContaining('fal.ai'),
+      expect.stringContaining('Atlas Cloud'),
+      expect.stringContaining('CometAPI'),
     ]);
     expect(screen.getByRole('radio', { name: /Kie\.ai/i })).toHaveAttribute('aria-checked', 'true');
     expect(providers.compareDocumentPosition(screen.getByTestId('kie-workspace'))).toBe(

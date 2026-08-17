@@ -2,6 +2,24 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage, type StateStorage } from 'zustand/middleware';
 import type { EngineId } from '@/lib/engines/registry';
+import { DEFAULT_MODELS } from '@/lib/providers/catalog';
+import type { ProviderId } from '@/lib/providers/types';
+
+/** Engines that can produce video: the two original ones plus the aggregators. */
+export type VideoEngineId = 'kie' | 'fal' | ProviderId;
+
+/** Store field names per provider, so the setters stay one line each. */
+const KEY_FIELDS: Record<ProviderId, 'runwareApiKey' | 'atlasApiKey' | 'cometApiKey'> = {
+  runware: 'runwareApiKey',
+  atlas: 'atlasApiKey',
+  comet: 'cometApiKey',
+};
+
+const MODEL_FIELDS: Record<ProviderId, Record<'image' | 'video', string>> = {
+  runware: { image: 'runwareImageModel', video: 'runwareVideoModel' },
+  atlas: { image: 'atlasImageModel', video: 'atlasVideoModel' },
+  comet: { image: 'cometImageModel', video: 'cometVideoModel' },
+};
 
 /** Public persist key after rebrand. */
 const STORAGE_KEY = 'scene-assembly-store';
@@ -21,8 +39,22 @@ interface AppState {
   kieImageModel: string;
   kieVideoModel: string;
   falApiKey: string;
-  videoEngine: 'kie' | 'fal';
+  videoEngine: VideoEngineId;
   falVideoModel: string;
+  /**
+   * Aggregator providers (Runware, Atlas Cloud, CometAPI). One key each, plus
+   * the model chosen per media kind — their catalogs are large enough that the
+   * choice is worth persisting rather than resetting to the default each visit.
+   */
+  runwareApiKey: string;
+  runwareImageModel: string;
+  runwareVideoModel: string;
+  atlasApiKey: string;
+  atlasImageModel: string;
+  atlasVideoModel: string;
+  cometApiKey: string;
+  cometImageModel: string;
+  cometVideoModel: string;
   /** True once the persisted state has rehydrated on the client. */
   hasHydrated: boolean;
   setApiKey: (key: string) => void;
@@ -34,8 +66,10 @@ interface AppState {
   setKieImageModel: (modelId: string) => void;
   setKieVideoModel: (modelId: string) => void;
   setFalApiKey: (key: string) => void;
-  setVideoEngine: (engine: 'kie' | 'fal') => void;
+  setVideoEngine: (engine: VideoEngineId) => void;
   setFalVideoModel: (modelId: string) => void;
+  setProviderApiKey: (provider: ProviderId, key: string) => void;
+  setProviderModel: (provider: ProviderId, kind: 'image' | 'video', modelId: string) => void;
   setHasHydrated: (v: boolean) => void;
 }
 
@@ -88,6 +122,15 @@ export const useAppStore = create<AppState>()(
       falApiKey: '',
       videoEngine: 'kie',
       falVideoModel: 'veo-3-1-fast',
+      runwareApiKey: '',
+      runwareImageModel: DEFAULT_MODELS.runware.image,
+      runwareVideoModel: DEFAULT_MODELS.runware.video,
+      atlasApiKey: '',
+      atlasImageModel: DEFAULT_MODELS.atlas.image,
+      atlasVideoModel: DEFAULT_MODELS.atlas.video,
+      cometApiKey: '',
+      cometImageModel: DEFAULT_MODELS.comet.image,
+      cometVideoModel: DEFAULT_MODELS.comet.video,
       hasHydrated: false,
       setApiKey: (key) => set({ apiKey: key }),
       clearApiKey: () => set({ apiKey: '' }),
@@ -100,6 +143,9 @@ export const useAppStore = create<AppState>()(
       setFalApiKey: (key) => set({ falApiKey: key }),
       setVideoEngine: (engine) => set({ videoEngine: engine }),
       setFalVideoModel: (modelId) => set({ falVideoModel: modelId }),
+      setProviderApiKey: (provider, key) => set({ [KEY_FIELDS[provider]]: key } as Partial<AppState>),
+      setProviderModel: (provider, kind, modelId) =>
+        set({ [MODEL_FIELDS[provider][kind]]: modelId } as Partial<AppState>),
       setHasHydrated: (v) => set({ hasHydrated: v }),
     }),
     {
@@ -116,6 +162,15 @@ export const useAppStore = create<AppState>()(
         falApiKey: s.falApiKey,
         videoEngine: s.videoEngine,
         falVideoModel: s.falVideoModel,
+        runwareApiKey: s.runwareApiKey,
+        runwareImageModel: s.runwareImageModel,
+        runwareVideoModel: s.runwareVideoModel,
+        atlasApiKey: s.atlasApiKey,
+        atlasImageModel: s.atlasImageModel,
+        atlasVideoModel: s.atlasVideoModel,
+        cometApiKey: s.cometApiKey,
+        cometImageModel: s.cometImageModel,
+        cometVideoModel: s.cometVideoModel,
       }),
       skipHydration: true,
       onRehydrateStorage: () => (state) => {

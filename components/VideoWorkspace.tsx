@@ -6,6 +6,15 @@ import FalGenerationWorkspace from '@/components/FalGenerationWorkspace';
 import KieGenerationWorkspace from '@/components/KieGenerationWorkspace';
 import MediaCard from '@/components/MediaCard';
 import ProviderSelector, { type VideoProvider } from '@/components/ProviderSelector';
+import ProviderVideoWorkspace from '@/components/ProviderVideoWorkspace';
+import type { ProviderId } from '@/lib/providers/types';
+
+/** Display names for the aggregator providers in the video workspace header. */
+const PROVIDER_LABELS: Record<ProviderId, string> = {
+  runware: 'Runware',
+  atlas: 'Atlas Cloud',
+  comet: 'CometAPI',
+};
 import type { FalInputMode } from '@/lib/fal/types';
 import { useAppStore } from '@/store/useAppStore';
 import catalogThumbnail from '@/public/thumbnails/neon-cat-catalog-isometric.jpg';
@@ -74,6 +83,10 @@ export default function VideoWorkspace({
   const videoEngine = useAppStore((state) => state.videoEngine);
   const setVideoEngine = useAppStore((state) => state.setVideoEngine);
   const isFal = videoEngine === 'fal';
+  const activeProvider: ProviderId | null =
+    videoEngine === 'runware' || videoEngine === 'atlas' || videoEngine === 'comet'
+      ? videoEngine
+      : null;
   const modes = MODES.filter((mode) => !mode.falOnly || isFal);
   // Kie has no first-and-last-frame models, so a ?videoMode=frames deep link
   // lands on the closest flow it does have until fal is selected.
@@ -150,7 +163,19 @@ export default function VideoWorkspace({
           one left edge instead of one sitting inset inside a panel. */}
       <ProviderSelector value={videoEngine} onChange={selectEngine} />
 
-      {isFal ? (
+      {activeProvider ? (
+        <ProviderVideoWorkspace
+          key={`${activeProvider}-${activeMode}`}
+          provider={activeProvider}
+          label={PROVIDER_LABELS[activeProvider]}
+          // These three have no first-and-last-frame models, so a ?videoMode=frames
+          // deep link lands on image-to-video the way Kie already does.
+          inputMode={activeMode === 'text' ? 'text' : 'image'}
+          onBack={onExit}
+          onOpenConnections={onOpenConnections}
+          onContinueFromFrame={() => onInputModeChange('image')}
+        />
+      ) : isFal ? (
         <FalGenerationWorkspace
           key={`fal-${activeMode}`}
           inputMode={activeMode}
