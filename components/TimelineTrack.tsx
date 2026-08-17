@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import type { DragEvent } from 'react';
-import { AlertTriangle, Trash2 } from 'lucide-react';
+import { AlertTriangle, Crop, Scan, Trash2 } from 'lucide-react';
 
 import type { GalleryRecord } from '@/lib/gallery/storage';
 import { useTimelineStore, type TimelineClip } from '@/store/useTimelineStore';
@@ -127,9 +127,9 @@ function TrackBlock({
       </button>
 
       {isUnavailable ? (
-        <div className="flex aspect-video w-full flex-col items-center justify-center gap-1 rounded-md bg-black/30 text-center">
+        <div className="flex aspect-video w-full flex-col items-center justify-center gap-1 rounded-md bg-black/30 p-1.5 text-center">
           <AlertTriangle size={16} className="shrink-0 text-red-400" />
-          <p className="text-[0.65rem] font-medium text-red-300">Unavailable</p>
+          <p className="text-[0.65rem] leading-tight text-red-300">{state.message}</p>
         </div>
       ) : (
         <div className="flex aspect-video w-full cursor-grab items-center justify-center overflow-hidden rounded-md bg-black/40 active:cursor-grabbing">
@@ -149,9 +149,33 @@ function TrackBlock({
           {titleOf(record)}
         </p>
         {state?.status === 'ready' && (
-          <p className="text-[0.65rem] text-[var(--foreground-muted)]">
-            {formatDuration(state.dimensions.durationSeconds)}
-          </p>
+          <div className="flex flex-wrap items-center gap-1">
+            <p className="text-[0.65rem] text-[var(--foreground-muted)]">
+              {formatDuration(state.dimensions.durationSeconds)}
+            </p>
+            <div
+              role="group"
+              aria-label="Fit"
+              className="flex overflow-hidden rounded-md border border-[var(--border)]"
+            >
+              {(['contain', 'cover'] as const).map((fit) => (
+                <button
+                  key={fit}
+                  type="button"
+                  aria-pressed={clip.fit === fit}
+                  onClick={() => useTimelineStore.getState().setFit(clip.id, fit)}
+                  className={`flex items-center gap-0.5 px-1.5 py-0.5 text-[0.6rem] capitalize transition-colors ${
+                    clip.fit === fit
+                      ? 'bg-[var(--neon-cyan)]/15 text-[var(--neon-cyan)]'
+                      : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)]'
+                  }`}
+                >
+                  {fit === 'contain' ? <Scan size={10} /> : <Crop size={10} />}
+                  {fit}
+                </button>
+              ))}
+            </div>
+          </div>
         )}
       </div>
 
