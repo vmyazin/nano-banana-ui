@@ -34,6 +34,12 @@ export interface GalleryRecord {
   posterBlob?: Blob;
   /** Size of whatever is actually stored, for the quota readout and eviction. */
   bytes: number;
+  /** Probed once by the timeline; optional, so no IndexedDB migration is needed. */
+  width?: number;
+  height?: number;
+  durationSeconds?: number;
+  /** Best-effort — only a demuxer can report it. */
+  fps?: number;
 }
 
 /**

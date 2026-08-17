@@ -6,7 +6,7 @@ import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useQueryState } from 'nuqs';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Key, Check, Command as CommandIcon, Layers, Library as LibraryIcon } from 'lucide-react';
+import { Key, Check, Command as CommandIcon, Layers, Library as LibraryIcon, Film } from 'lucide-react';
 import ApiKeyConfig from '@/components/ApiKeyConfig';
 import LibraryOverlay from '@/components/LibraryOverlay';
 import { usePromptLibraryStore } from '@/store/usePromptLibraryStore';
@@ -21,6 +21,17 @@ import { useAppStore } from '@/store/useAppStore';
 
 // Lazy-load the heavy generation workspace so the landing bundle stays light.
 const GenerationInterface = dynamic(() => import('@/components/GenerationInterface'), {
+  ssr: false,
+  loading: () => (
+    <div className="flex items-center justify-center py-16">
+      <div className="loading-spinner" />
+    </div>
+  ),
+});
+
+// Same pattern: the timeline workspace pulls in WebCodecs/mediabunny-adjacent
+// code paths that have no business in the landing bundle.
+const TimelineWorkspace = dynamic(() => import('@/components/TimelineWorkspace'), {
   ssr: false,
   loading: () => (
     <div className="flex items-center justify-center py-16">
@@ -51,20 +62,21 @@ function Studio() {
   const [featureId, setFeatureId] = useQueryState('feature', { history: 'push' });
   const [workspace, setWorkspace] = useQueryState('workspace', { history: 'push' });
   const [videoMode, setVideoMode] = useQueryState('videoMode', { history: 'push' });
-  const activeWorkspace = workspace === 'video' ? 'video' : 'image';
+  const activeWorkspace =
+    workspace === 'video' ? 'video' : workspace === 'timeline' ? 'timeline' : 'image';
   const activeVideoMode =
     videoMode === 'image' || videoMode === 'frames' ? videoMode : 'text';
   const selectedFeature: Feature | null =
     FEATURES.find((f) => f.id === featureId) ?? null;
   const selectFeature = (feature: Feature) => setFeatureId(feature.id);
   const clearFeature = () => setFeatureId(null);
-  const selectWorkspace = (nextWorkspace: 'image' | 'video') => {
-    if (nextWorkspace === 'video') {
-      void setFeatureId(null);
-      void setWorkspace('video');
+  const selectWorkspace = (nextWorkspace: 'image' | 'video' | 'timeline') => {
+    if (nextWorkspace === 'image') {
+      void setWorkspace(null);
       return;
     }
-    void setWorkspace(null);
+    void setFeatureId(null);
+    void setWorkspace(nextWorkspace);
   };
   const [keyDialogOpen, setKeyDialogOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -109,16 +121,25 @@ function Studio() {
               <button
                 type="button"
                 onClick={() => selectWorkspace('image')}
-                className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors sm:text-sm ${activeWorkspace === 'image' ? 'bg-[var(--brand-accent)]/15 text-[var(--brand-accent)]' : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)]'}`}
+                className={`rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors sm:px-3 sm:text-sm ${activeWorkspace === 'image' ? 'bg-[var(--brand-accent)]/15 text-[var(--brand-accent)]' : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)]'}`}
               >
                 Image
               </button>
               <button
                 type="button"
                 onClick={() => selectWorkspace('video')}
-                className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors sm:text-sm ${activeWorkspace === 'video' ? 'bg-[var(--neon-purple)]/15 text-[var(--neon-purple)]' : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)]'}`}
+                className={`rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors sm:px-3 sm:text-sm ${activeWorkspace === 'video' ? 'bg-[var(--neon-purple)]/15 text-[var(--neon-purple)]' : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)]'}`}
               >
                 Video
+              </button>
+              <button
+                type="button"
+                onClick={() => selectWorkspace('timeline')}
+                title="Timeline"
+                className={`flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors sm:px-3 sm:text-sm ${activeWorkspace === 'timeline' ? 'bg-[var(--neon-cyan)]/15 text-[var(--neon-cyan)]' : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)]'}`}
+              >
+                <Film size={13} className="sm:hidden" aria-hidden />
+                <span className="hidden sm:inline">Timeline</span>
               </button>
             </nav>
 
@@ -208,6 +229,19 @@ function Studio() {
               <VideoWorkspace
                 inputMode={activeVideoMode}
                 onInputModeChange={(mode) => void setVideoMode(mode === 'text' ? null : mode)}
+                onExit={() => selectWorkspace('image')}
+                onOpenConnections={() => setKeyDialogOpen(true)}
+              />
+            </motion.div>
+          ) : activeWorkspace === 'timeline' ? (
+            <motion.div
+              key="timeline"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.18 }}
+            >
+              <TimelineWorkspace
                 onExit={() => selectWorkspace('image')}
                 onOpenConnections={() => setKeyDialogOpen(true)}
               />

@@ -30,6 +30,11 @@ interface GalleryState {
   keep: (id: string, blob: Blob, posterBlob?: Blob) => Promise<void>;
   /** Protects (or releases) a record that already has bytes, such as an image. */
   setPinned: (id: string, pinned: boolean) => Promise<void>;
+  /** Caches probed dimensions so the timeline does not re-decode on every visit. */
+  setDimensions: (
+    id: string,
+    dims: { width?: number; height?: number; durationSeconds?: number; fps?: number }
+  ) => Promise<void>;
   remove: (id: string) => Promise<void>;
   clear: () => Promise<void>;
 }
@@ -133,6 +138,22 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
       await galleryStorage().put(updated);
     } catch {
       set({ storageError: 'Could not update this result.' });
+      return;
+    }
+    set((state) => ({
+      records: state.records.map((record) => (record.id === id ? updated : record)),
+    }));
+  },
+
+  setDimensions: async (id, dims) => {
+    const existing = get().records.find((record) => record.id === id);
+    if (!existing) return;
+
+    const updated: GalleryRecord = { ...existing, ...dims };
+    try {
+      await galleryStorage().put(updated);
+    } catch {
+      // Dimensions are a cache. Failing to persist them must not fail the add.
       return;
     }
     set((state) => ({
