@@ -48,3 +48,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# superpowers — brainstorming mockups and subagent-execution ledger
+.superpowers/
