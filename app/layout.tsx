@@ -1,6 +1,7 @@
 // app/layout.tsx
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import Script from "next/script";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { brand } from "@/lib/brand";
 import { Providers } from "./providers";
@@ -53,6 +54,21 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
+        {process.env.NODE_ENV === "production" && (
+          <>
+            {/* beforeInteractive scripts are injected into the document head. */}
+            <Script
+              id="plausible-loader"
+              strategy="beforeInteractive"
+              async
+              src="https://plausible.io/js/pa-IvadW-ZiJU71wFTpSyL7C.js"
+            />
+            <Script id="plausible-init" strategy="beforeInteractive">
+              {`window.plausible=window.plausible||function(){(plausible.q=plausible.q||[]).push(arguments)},plausible.init=plausible.init||function(i){plausible.o=i||{}};
+plausible.init()`}
+            </Script>
+          </>
+        )}
         <NuqsAdapter>
           <Providers>{children}</Providers>
         </NuqsAdapter>
