@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { fetchResultBlob } from '../../lib/gallery/capture';
 import { createMemoryGalleryStorage } from '../../lib/gallery/memory-storage';
-import type { GalleryRecord } from '../../lib/gallery/storage';
+import type { GalleryRecord, GalleryStorage } from '../../lib/gallery/storage';
 import { configureGalleryStorage, useGalleryStore } from '../../store/useGalleryStore';
 import { acquireClipMedia } from '../../lib/timeline/acquire';
 
@@ -39,6 +39,8 @@ describe('acquireClipMedia', () => {
     const result = await acquireClipMedia('clip');
     expect(result.status).toBe('ready');
     expect(useGalleryStore.getState().records[0].pinned).toBe(true);
+    // A regression that hard-codes `durable: false` (or omits it) must fail here.
+    expect(result).toMatchObject({ durable: true });
   });
 
   it('probes a record kept before this feature existed, so old clips can vote', async () => {
@@ -65,6 +67,8 @@ describe('acquireClipMedia', () => {
     expect(record.pinned).toBe(true);
     expect(record.blob).toBeDefined();
     expect(record.posterBlob).toBeDefined();
+    // A regression that hard-codes `durable: false` (or omits it) must fail here.
+    expect(result).toMatchObject({ durable: true });
   });
 
   it('reports expired when the provider URL is gone', async () => {
@@ -82,6 +86,73 @@ describe('acquireClipMedia', () => {
     expect(await acquireClipMedia('clip')).toMatchObject({
       status: 'unavailable', reason: 'no-source',
     });
+  });
+});
+
+/** A storage adapter whose `put()` always rejects, so `setPinned`/`keep` fail
+ *  internally without ever throwing out to acquire.ts. */
+function withFailingPut(seed: GalleryRecord[] = []): GalleryStorage {
+  const base = createMemoryGalleryStorage(seed);
+  return {
+    ...base,
+    put: () => Promise.reject(new Error('disk full')),
+  };
+}
+
+describe('acquireClipMedia when the store cannot persist', () => {
+  beforeEach(() => {
+    useGalleryStore.setState({ records: [], hydrated: true, storageError: null });
+    vi.unstubAllGlobals();
+  });
+
+  it('reports usable-but-not-durable when pinning a has-bytes record fails, and leaves it genuinely unpinned', async () => {
+    // setPinned() and keep() swallow put() rejections internally (catch → set
+    // storageError → return, leaving `records` untouched) rather than
+    // throwing, so acquireClipMedia cannot tell success from failure just by
+    // awaiting the call without segfaulting into a false "ready+durable".
+    // This is the exact gap the `durable` flag exists to close — do not
+    // remove the re-read as "redundant" with the call above it.
+    configureGalleryStorage(withFailingPut());
+    useGalleryStore.setState({
+      records: [video({ blob: new Blob(['x']), pinned: false, bytes: 1 })],
+    });
+
+    const result = await acquireClipMedia('clip');
+
+    expect(result).toMatchObject({ status: 'ready', durable: false });
+    expect(useGalleryStore.getState().records[0].pinned).toBe(false);
+  });
+
+  it('reports usable-but-not-durable when keeping a downloaded record fails, but still hands back the real blob', async () => {
+    configureGalleryStorage(withFailingPut());
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(new Blob(['bytes']), {
+      status: 200, headers: { 'Content-Type': 'video/mp4' },
+    })));
+    useGalleryStore.setState({
+      records: [video({ sourceUrl: 'https://cdn.example.com/a.mp4' })],
+    });
+
+    const result = await acquireClipMedia('clip');
+
+    expect(result.status).toBe('ready');
+    expect(result).toMatchObject({ durable: false });
+    if (result.status === 'ready') {
+      expect(result.blob).toBeInstanceOf(Blob);
+      expect(result.blob.size).toBeGreaterThan(0);
+    }
+    expect(useGalleryStore.getState().records[0].blob).toBeUndefined();
+  });
+
+  it('surfaces the store\'s own storageError text as the warning', async () => {
+    configureGalleryStorage(withFailingPut());
+    useGalleryStore.setState({
+      records: [video({ blob: new Blob(['x']), pinned: false, bytes: 1 })],
+    });
+
+    const result = await acquireClipMedia('clip');
+
+    expect(result).toMatchObject({ warning: 'Could not update this result.' });
+    expect(useGalleryStore.getState().storageError).toBe('Could not update this result.');
   });
 });
 

@@ -11,6 +11,18 @@ export interface ClipMedia {
   status: 'ready';
   blob: Blob;
   dimensions: ClipDimensions;
+  /**
+   * True once the gallery record is confirmed pinned and holding bytes; false
+   * when the clip is usable right now but persistence failed, so it will not
+   * survive a reload. `setPinned`/`keep` swallow storage failures internally
+   * (catch → set `storageError` → return, leaving `records` untouched) rather
+   * than throwing or returning a result, so this can only be known by
+   * re-reading the store after calling them — never by whether the call threw.
+   */
+  durable: boolean;
+  /** Why `durable` is false. Sourced from the store's `storageError` so the
+   *  user sees the real cause (e.g. quota) rather than a generic message. */
+  warning?: string;
 }
 
 export interface Unavailable {
@@ -31,6 +43,24 @@ const unavailable = (reason: UnavailableReason): Unavailable => ({
   reason,
   message: MESSAGES[reason],
 });
+
+const UNSAVED_WARNING = 'This clip could not be saved to your library and will not survive a reload.';
+
+/**
+ * Whether a record is genuinely safe from eviction right now: pinned *and*
+ * holding bytes, re-read fresh from the store rather than inferred from
+ * whether `setPinned`/`keep` threw — they never throw outward, they swallow
+ * failures and leave `records` untouched instead.
+ */
+function isPersisted(recordId: string): boolean {
+  const record = useGalleryStore.getState().records.find((candidate) => candidate.id === recordId);
+  return record?.pinned === true && record?.blob !== undefined;
+}
+
+/** The store's own explanation for the failure, when it recorded one. */
+function persistenceWarning(): string {
+  return useGalleryStore.getState().storageError ?? UNSAVED_WARNING;
+}
 
 /**
  * Cached dimensions when we have them, freshly probed otherwise. Old records —
@@ -67,7 +97,11 @@ export async function acquireClipMedia(
   //    library lets the user unpin at any time, so a blob is not safety.
   if (record.blob) {
     if (!record.pinned) await store.setPinned(recordId, true);
-    return { status: 'ready', blob: record.blob, dimensions: await dimensionsFor(recordId, record.blob) };
+    const durable = isPersisted(recordId);
+    const dimensions = await dimensionsFor(recordId, record.blob);
+    return durable
+      ? { status: 'ready', blob: record.blob, dimensions, durable: true }
+      : { status: 'ready', blob: record.blob, dimensions, durable: false, warning: persistenceWarning() };
   }
 
   // 3. A URL that may or may not still resolve.
@@ -91,7 +125,11 @@ export async function acquireClipMedia(
     // "Use as reference" depends on it being the end of the clip.
     const poster = await extractLastFrameFromBlob(blob).catch(() => undefined);
     await store.keep(recordId, blob, poster);
-    return { status: 'ready', blob, dimensions: await dimensionsFor(recordId, blob) };
+    const durable = isPersisted(recordId);
+    const dimensions = await dimensionsFor(recordId, blob);
+    return durable
+      ? { status: 'ready', blob, dimensions, durable: true }
+      : { status: 'ready', blob, dimensions, durable: false, warning: persistenceWarning() };
   }
 
   return unavailable('no-source');
