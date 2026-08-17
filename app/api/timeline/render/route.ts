@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { createReadStream } from 'node:fs';
-import { mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Readable } from 'node:stream';
@@ -13,6 +13,7 @@ import {
   createJob,
   enqueue,
   getJob,
+  hasCapacity,
   sweepAbandoned,
   TooBusyError,
   type JobRunner,
@@ -28,15 +29,25 @@ export const runtime = 'nodejs';
  * Total bytes accepted per upload, enforced by this route rather than left to
  * whatever the reverse proxy in front of it happens to allow. nginx's
  * `client_max_body_size` defaults to 1 MB (see .env.example) — this is the
- * app's own, much larger, ceiling, chosen with headroom for a timeline of
- * several generated clips (fal/kie clips run a few seconds each, commonly
- * tens of MB at 1080p) while still being a concrete number rather than
- * "whatever RAM is free." Every uploaded byte is buffered by the platform's
- * FormData parser before this route ever inspects it, so this is a memory
- * ceiling as much as a network one, not something a streaming-to-disk parser
- * would size — there is no such parser in this app's dependencies today.
+ * app's own, much larger, ceiling.
+ *
+ * Set to the same order of magnitude as `MAX_REMOTE_VIDEO_BYTES` in
+ * lib/media-download.ts (512 MiB) — this app's existing precedent for "how
+ * big a video is allowed to be" — even though this is a *total* across every
+ * clip in one timeline, not a per-clip bound: fal/kie clips run a few
+ * seconds each, commonly tens of MB at 1080p, so 512 MiB is still generous
+ * headroom for a real multi-clip render. (An earlier version of this route
+ * used 1 GiB, chosen without that comparison; there is nothing this feature
+ * produces that needs it.) Every uploaded byte is still buffered by the
+ * platform's FormData parser before this route ever inspects it, so this
+ * number is a memory ceiling per upload as much as a network one — bounding
+ * how many uploads can be *in flight* at once (see `hasCapacity()` below,
+ * checked before any of that buffering happens) matters just as much as
+ * bounding the size of any one of them. A true streaming-to-disk multipart
+ * parser would remove the memory concern entirely but needs a dependency
+ * this app doesn't have.
  */
-export const MAX_UPLOAD_BYTES = 1024 * 1024 * 1024;
+export const MAX_UPLOAD_BYTES = 512 * 1024 * 1024;
 
 /** At most this many clips per render — matches the registry's own sanity
  *  bound rather than trusting a client-supplied array length unbounded. */
@@ -66,23 +77,77 @@ class UploadTooLargeError extends Error {
 }
 
 /**
- * Runs `sweepAbandoned` on a timer so abandoned temp dirs and output files
- * are actually reclaimed instead of accumulating on the host forever — it is
- * otherwise only ever called from tests. Started lazily, once, the first
- * time this process handles a render request (rather than unconditionally at
- * module scope): the process this runs in is the long-lived `next start`
- * behind pm2 (see scripts/deploy-production.sh), so a single `setInterval`
- * here lives for the whole process lifetime. `unref()` so it never itself
- * keeps the process — or a test run — alive.
+ * `JOBS_ROOT` entries are named by `mkdtemp`'s random suffix (`job-XXXXXX`),
+ * not by job id, so they can never be matched back to a live job by name —
+ * safe only as a one-time *startup* wipe (see `ensureSweepLoopStarted`),
+ * never on a recurring timer: a periodic version of this would delete an
+ * actively-running job's own input directory, since its on-disk name is
+ * never going to equal any job id. Startup is different: the in-memory job
+ * registry is empty the instant this process starts, so nothing under
+ * `JOBS_ROOT` can belong to a job this process actually knows about yet —
+ * anything present is left over from a previous process, most often a crash
+ * mid-render, which otherwise orphans that directory forever (the registry
+ * that would normally reclaim it lived only in the crashed process's memory).
  */
-let sweepLoopStarted = false;
-function ensureSweepLoopStarted(): void {
-  if (sweepLoopStarted) return;
-  sweepLoopStarted = true;
-  const timer = setInterval(() => {
-    void sweepAbandoned().catch(() => {});
-  }, SWEEP_INTERVAL_MS);
-  timer.unref?.();
+async function wipeStaleJobsRootOnStartup(): Promise<void> {
+  const entries = await readdir(JOBS_ROOT).catch(() => [] as string[]);
+  await Promise.all(
+    entries.map((name) => rm(join(JOBS_ROOT, name), { recursive: true, force: true }).catch(() => {}))
+  );
+}
+
+/**
+ * Unlike `JOBS_ROOT`, `OUTPUT_ROOT` subdirectories *are* named by job id
+ * (`OUTPUT_ROOT/<job.id>`), so they can be matched against the live registry
+ * — safe to run repeatedly, not just at startup. Removes a directory
+ * whenever its job id is not (or no longer) tracked: either `sweepAbandoned`
+ * just reaped that job — which deletes `job.outputPath`, the file, but has
+ * no reason to know about this route's own directory-per-job convention, so
+ * it leaves an empty directory behind — or the directory predates this
+ * process entirely (the startup case, same reasoning as the jobs-root wipe
+ * above).
+ */
+async function reconcileOutputRoot(): Promise<void> {
+  const entries = await readdir(OUTPUT_ROOT).catch(() => [] as string[]);
+  await Promise.all(
+    entries.map(async (name) => {
+      if (getJob(name)) return; // still a live/known job — leave its directory alone
+      await rm(join(OUTPUT_ROOT, name), { recursive: true, force: true }).catch(() => {});
+    })
+  );
+}
+
+/**
+ * Starts this process's one render-maintenance loop, and returns a promise
+ * that resolves once the *startup* reconciliation (above) has actually run.
+ * Callers `await` it before creating any directory of their own, so a
+ * request racing the very first call can't have its brand-new tempDir wiped
+ * out from under it by the startup sweep — the two are serialized through
+ * this one cached promise rather than a boolean flag.
+ *
+ * Once started, `sweepAbandoned` (otherwise only ever called from tests) and
+ * `reconcileOutputRoot` both run on a 5-minute timer so abandoned temp dirs
+ * and orphaned output directories are actually reclaimed instead of
+ * accumulating on the host forever. The process this runs in is the
+ * long-lived `next start` behind pm2 (see scripts/deploy-production.sh), so
+ * one `setInterval` per process lifetime is correct; `unref()` so it never
+ * itself keeps the process — or a test run — alive.
+ */
+let sweepLoopStarted: Promise<void> | null = null;
+function ensureSweepLoopStarted(): Promise<void> {
+  if (!sweepLoopStarted) {
+    sweepLoopStarted = (async () => {
+      await wipeStaleJobsRootOnStartup();
+      await reconcileOutputRoot();
+
+      const timer = setInterval(() => {
+        void sweepAbandoned().catch(() => {});
+        void reconcileOutputRoot().catch(() => {});
+      }, SWEEP_INTERVAL_MS);
+      timer.unref?.();
+    })();
+  }
+  return sweepLoopStarted;
 }
 
 /**
@@ -256,7 +321,17 @@ export async function POST(request: NextRequest) {
   const gate = requireApprovedAccount(request);
   if (isGateFailure(gate)) return gate.response;
 
-  ensureSweepLoopStarted();
+  // Checked before any body parsing, deliberately: `enqueue`'s own capacity
+  // check runs far too late to bound anything, since by the time a caller
+  // reaches it the expensive part — buffering the whole multipart body into
+  // memory and writing every clip to disk — has already happened. A fourth
+  // concurrent upload rejected only at `enqueue` has already cost up to
+  // MAX_UPLOAD_BYTES of RSS and disk I/O for nothing. `hasCapacity()` is the
+  // same check `enqueue` makes, just moved to where it can actually prevent
+  // that cost instead of merely explaining it afterward.
+  if (!hasCapacity()) return fail(503, new TooBusyError().message);
+
+  await ensureSweepLoopStarted();
 
   // Fast pre-check against the declared header — cheap, and rejects an
   // obviously oversized request before touching the body at all. Not trusted
@@ -337,6 +412,10 @@ export async function GET(request: NextRequest) {
 
   const gate = requireApprovedAccount(request);
   if (isGateFailure(gate)) return gate.response;
+
+  // So the startup reconciliation above still runs even if the very first
+  // request this process handles is a status poll rather than a POST.
+  await ensureSweepLoopStarted();
 
   const sessionToken = sessionIdentity(request, gate);
   const { searchParams } = new URL(request.url);

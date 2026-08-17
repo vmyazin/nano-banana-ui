@@ -110,6 +110,22 @@ export function getJob(id: string, sessionToken?: string | null): RenderJob | un
 }
 
 /**
+ * Read-only capacity check: true iff a subsequent `enqueue` would not throw
+ * `TooBusyError` right now. Exists so a caller can refuse expensive work
+ * (parsing/buffering an upload, writing it to disk) *before* doing any of
+ * it, rather than discovering the queue was full only after paying for all
+ * of that — `enqueue`'s own check runs too late for that purpose, since by
+ * the time a caller has something to enqueue it has already done the
+ * expensive part. Reads the same counters `enqueue` checks; does not
+ * reserve a slot, so a caller that checks capacity and then does slow work
+ * before calling `enqueue` can still race a `TooBusyError` — the check is a
+ * cheap early rejection, not a guarantee.
+ */
+export function hasCapacity(): boolean {
+  return runningCount + waiting.length < MAX_RUNNING + MAX_QUEUED;
+}
+
+/**
  * Schedules `run` for a job created by `createJob`. Throws `TooBusyError`
  * synchronously, before touching the filesystem or the job, when one job is
  * already running and two more are already waiting — a fourth is rejected

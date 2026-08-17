@@ -2,6 +2,7 @@
 
 import { EventEmitter } from 'node:events';
 import { rmSync, writeFileSync } from 'node:fs';
+import { mkdir, mkdtemp, readdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -14,7 +15,7 @@ vi.mock('node:child_process', () => ({ spawn: spawnMock }));
 
 import { createAccount, createSession, setAccountStatus, SESSION_COOKIE } from '../../lib/auth/accounts';
 import { useAuthDatabase } from '../../lib/auth/db';
-import { __resetJobsForTests } from '../../lib/timeline/jobs';
+import { __resetJobsForTests, createJob, enqueue, hasCapacity, type JobRunner } from '../../lib/timeline/jobs';
 import { GET, MAX_UPLOAD_BYTES, POST } from '../../app/api/timeline/render/route';
 
 const PASSWORD = 'correct horse battery staple';
@@ -176,6 +177,45 @@ describe('POST /api/timeline/render — upload ceiling', () => {
     const body = await response.json();
     expect(body.error).toMatch(/too large/i);
     expect(spawnMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('POST /api/timeline/render — capacity checked before the body is read', () => {
+  beforeEach(() => {
+    process.env.TIMELINE_FFMPEG_PATH = '/usr/bin/ffmpeg';
+    process.env.AUTH_ADMIN_EMAIL = 'owner@example.com';
+  });
+
+  it('rejects with 503 before doing any of the expensive work a real upload triggers, once the queue is full', async () => {
+    const token = await approvedSession('owner@example.com');
+
+    // Fill every running + queued slot (1 + 2) directly through the registry
+    // — a runner that never resolves, so capacity stays "full" for the
+    // duration of the assertion below regardless of timing.
+    const hangingRunner: JobRunner = () => new Promise(() => {});
+    await mkdir(JOBS_ROOT, { recursive: true });
+    for (let i = 0; i < 3; i += 1) {
+      const tempDir = await mkdtemp(join(JOBS_ROOT, 'capacity-test-'));
+      const job = createJob({ sessionToken: null, tempDir });
+      enqueue(job.id, hangingRunner);
+    }
+    expect(hasCapacity()).toBe(false);
+
+    // A real multipart body (same shape a genuine upload would send) so this
+    // proves the *route* short-circuits before doing anything with it —
+    // parsing it, or writing a clip to a new temp dir — rather than merely
+    // asserting on low-level stream-read timing, which Node's own Request
+    // implementation can begin eagerly regardless of what route code does.
+    const dirsBefore = await readdir(JOBS_ROOT);
+
+    const response = await POST(postRequest(multipartBody(), token));
+
+    expect(response.status).toBe(503);
+    expect(spawnMock).not.toHaveBeenCalled();
+    // No new job directory was created — the expensive part (buffering the
+    // upload, writing clip files to disk) never ran.
+    const dirsAfter = await readdir(JOBS_ROOT);
+    expect(dirsAfter.sort()).toEqual(dirsBefore.sort());
   });
 });
 
