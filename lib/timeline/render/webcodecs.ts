@@ -150,17 +150,22 @@ async function renderInBrowser(
         source: new BlobSource(clip.media),
       });
 
+      // The clip's own name where the caller supplied one: "Clip 3" is a poor
+      // answer on a timeline that holds the same record twice, and a person
+      // scanning a failure message is looking for which clip to replace.
+      const name = clip.label?.trim() || `Clip ${index + 1}`;
+
       let track: InputVideoTrack | null;
       let decoderConfig: VideoDecoderConfig | null;
       let startTimestamp: number;
       let endTimestamp: number;
       try {
         track = await input.getPrimaryVideoTrack();
-        if (!track) throw new Error(`Clip ${index + 1} has no video track.`);
+        if (!track) throw new Error(`"${name}" has no video track.`);
 
         decoderConfig = await track.getDecoderConfig();
         if (!decoderConfig) {
-          throw new Error(`Clip ${index + 1} is in a format this browser cannot decode.`);
+          throw new Error(`"${name}" is in a format this browser cannot decode.`);
         }
 
         startTimestamp = await track.getFirstTimestamp();

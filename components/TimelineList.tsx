@@ -5,6 +5,7 @@ import type { DragEvent } from 'react';
 import { AlertTriangle, Crop, GripVertical, Scan, Trash2 } from 'lucide-react';
 
 import type { GalleryRecord } from '@/lib/gallery/storage';
+import { UNDECODABLE_WARNING } from '@/lib/timeline/acquire';
 import { useTimelineStore, type TimelineClip } from '@/store/useTimelineStore';
 import type { ClipState } from '@/components/TimelineWorkspace';
 
@@ -151,6 +152,12 @@ function ClipRow({
               <p className="flex w-full items-center gap-1.5 text-xs text-amber-300">
                 <AlertTriangle size={12} className="shrink-0" />
                 {state.warning ?? 'This clip could not be saved and will not survive a reload.'}
+              </p>
+            )}
+            {state.decodable === false && (
+              <p className="flex w-full items-center gap-1.5 text-xs text-amber-300">
+                <AlertTriangle size={12} className="shrink-0" />
+                {UNDECODABLE_WARNING}
               </p>
             )}
           </div>

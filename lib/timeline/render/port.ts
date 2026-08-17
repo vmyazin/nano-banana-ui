@@ -2,7 +2,17 @@ import type { TimelineOutput } from '@/store/useTimelineStore';
 
 export interface RenderRequest {
   output: TimelineOutput;
-  clips: Array<{ media: Blob; fit: 'contain' | 'cover' }>;
+  clips: Array<{
+    media: Blob;
+    fit: 'contain' | 'cover';
+    /**
+     * Human name for this clip, used only when an engine has to say which one
+     * failed. Optional because a render is perfectly well-defined without it —
+     * an engine falls back to the clip's position. "Clip 3" is a poor answer
+     * on a timeline holding the same record twice.
+     */
+    label?: string;
+  }>;
 }
 
 export interface RenderProgress {

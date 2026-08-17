@@ -18,8 +18,8 @@ import { acquireClipMedia } from '../../lib/timeline/acquire';
  * 1920x1080 clip — enough for both "add and see it" and "add and see why it
  * can't be used" without a real network or a real video decoder.
  */
-vi.mock('../../lib/timeline/acquire', () => ({
-  acquireClipMedia: vi.fn(async (id: string) =>
+vi.mock('../../lib/timeline/acquire', () => {
+  const acquireClipMedia = vi.fn(async (id: string, _options?: { signal?: AbortSignal }) =>
     id === 'dead'
       ? {
           status: 'unavailable',
@@ -32,9 +32,20 @@ vi.mock('../../lib/timeline/acquire', () => ({
           dimensions: { width: 1920, height: 1080, durationSeconds: 4 },
           durable: true,
         }
-  ),
-  acquireAll: vi.fn(async () => []),
-}));
+  );
+  // Delegates to the mock above rather than returning a canned array: the
+  // export panel resolves through `acquireAll`, so a stub that ignored
+  // `acquireClipMedia` would silently disconnect every per-clip override a
+  // test sets up with `mockResolvedValueOnce`.
+  const acquireAll = vi.fn(async (ids: string[], options?: { signal?: AbortSignal }) =>
+    Promise.all(ids.map((id) => acquireClipMedia(id, options)))
+  );
+  return {
+    acquireClipMedia,
+    acquireAll,
+    UNDECODABLE_WARNING: 'This browser cannot decode this clip — export on the server instead.',
+  };
+});
 
 /**
  * Overrides the next `acquireClipMedia` call's result — e.g. to simulate a

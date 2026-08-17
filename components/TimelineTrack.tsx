@@ -5,6 +5,7 @@ import type { DragEvent } from 'react';
 import { AlertTriangle, Crop, Scan, Trash2 } from 'lucide-react';
 
 import type { GalleryRecord } from '@/lib/gallery/storage';
+import { UNDECODABLE_WARNING } from '@/lib/timeline/acquire';
 import { useTimelineStore, type TimelineClip } from '@/store/useTimelineStore';
 import type { ClipState } from '@/components/TimelineWorkspace';
 
@@ -183,6 +184,13 @@ function TrackBlock({
         <p className="flex items-center gap-1 text-[0.625rem] leading-tight text-amber-300">
           <AlertTriangle size={11} className="shrink-0" />
           {state.warning ?? 'This clip could not be saved and will not survive a reload.'}
+        </p>
+      )}
+
+      {state?.status === 'ready' && state.decodable === false && (
+        <p className="flex items-center gap-1 text-[0.625rem] leading-tight text-amber-300">
+          <AlertTriangle size={11} className="shrink-0" />
+          {UNDECODABLE_WARNING}
         </p>
       )}
     </div>

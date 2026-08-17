@@ -50,6 +50,25 @@ describe('TimelineWorkspace', () => {
     );
   });
 
+  it('warns on a clip the browser cannot decode, at add time rather than mid-export', async () => {
+    mockNextAcquireResult({
+      status: 'ready',
+      blob: new Blob(['v']),
+      dimensions: { width: 1920, height: 1080, durationSeconds: 4 },
+      durable: true,
+      decodable: false,
+    });
+    renderWorkspace();
+    await userEvent.click(screen.getAllByRole('button', { name: /add/i })[0]);
+
+    const list = screen.getByTestId('timeline-list');
+    await waitFor(() =>
+      expect(within(list).getByText(/cannot decode this clip/i)).toBeInTheDocument()
+    );
+    // Still a usable clip, not a broken placeholder — the server can render it.
+    expect(within(list).queryByText(/no longer in your library/i)).not.toBeInTheDocument();
+  });
+
   it('drops the placement from clipStates when it is removed while acquisition is in flight, even once the acquisition later resolves', async () => {
     const pending = mockPendingAcquire();
     const snapshots: Array<Record<string, ClipState>> = [];

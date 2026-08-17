@@ -10,7 +10,7 @@ import {
   type RenderProgress,
   type RenderRequest,
 } from '@/lib/timeline/render/port';
-import { acquireClipMedia, type ClipMedia } from '@/lib/timeline/acquire';
+import { acquireAll, type ClipMedia } from '@/lib/timeline/acquire';
 import { useGalleryStore } from '@/store/useGalleryStore';
 import type { TimelineClip, TimelineOutput } from '@/store/useTimelineStore';
 import type { ClipState } from '@/components/TimelineWorkspace';
@@ -91,6 +91,8 @@ export default function TimelineExportPanel({ engines, clips, clipStates, output
 
   const [render, setRender] = useState<RenderState | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** Set after a failed browser render when the server can actually take over. */
+  const [fallbackEngine, setFallbackEngine] = useState<RenderEngine | null>(null);
   const [selection, setSelection] = useState<EngineSelection | null>(null);
 
   const unavailableClips = clips.filter((clip) => clipStates[clip.id]?.status === 'unavailable');
@@ -99,6 +101,31 @@ export default function TimelineExportPanel({ engines, clips, clipStates, output
     return !state || state.status === 'loading';
   });
   const canProbe = clips.length > 0 && unavailableClips.length === 0 && pendingClips.length === 0;
+
+  /**
+   * Clips this browser said, at add time, that it cannot decode. That is a
+   * question about the *clips*, which `VideoEncoder.isConfigSupported` — the
+   * only thing the browser engine's own `unavailableReason` can ask — has no
+   * way to answer. Withdrawing the engine here rather than letting the export
+   * dead-end minutes in is the "offers the server engine as a next step"
+   * the design spec's error handling asks for.
+   */
+  const undecodableNames = clips
+    .filter((clip) => {
+      const state = clipStates[clip.id];
+      return state?.status === 'ready' && state.decodable === false;
+    })
+    .map((clip) => titleOf(recordsById.get(clip.recordId)));
+
+  const decodeBlock =
+    undecodableNames.length > 0
+      ? `This browser cannot decode ${undecodableNames.join(', ')}.`
+      : null;
+
+  const availableEngines = useMemo(
+    () => (decodeBlock ? engines.filter((engine) => engine.id !== 'webcodecs') : engines),
+    [engines, decodeBlock]
+  );
 
   // A cheap signature so the probe effect only re-runs when something that
   // could change engine availability actually changed, not on every render.
@@ -119,16 +146,16 @@ export default function TimelineExportPanel({ engines, clips, clipStates, output
         return { media: state?.status === 'ready' ? state.blob : new Blob(), fit: clip.fit };
       }),
     };
-    void selectRenderEngine(engines, request).then((result) => {
+    void selectRenderEngine(availableEngines, request).then((result) => {
       if (!cancelled) setSelection(result);
     });
     return () => {
       cancelled = true;
     };
-    // clipsSignature stands in for `clips`/`clipStates`; `engines` and `output`'s
-    // fields are the rest of what the probe actually depends on.
+    // clipsSignature stands in for `clips`/`clipStates`; `availableEngines` and
+    // `output`'s fields are the rest of what the probe actually depends on.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [engines, output.width, output.height, output.fps, clipsSignature, canProbe]);
+  }, [availableEngines, output.width, output.height, output.fps, clipsSignature, canProbe]);
 
   // Derived, not stored: when the timeline is not currently probeable the
   // last computed `selection` may be stale (it answered a question about a
@@ -157,16 +184,21 @@ export default function TimelineExportPanel({ engines, clips, clipStates, output
    */
   const runExport = async (engine: RenderEngine) => {
     setError(null);
+    setFallbackEngine(null);
     const controller = new AbortController();
     setRender({ progress: { phase: 'preparing', completed: null }, controller });
 
+    let request: RenderRequest | null = null;
     try {
-      const resolved = await Promise.all(
-        clips.map(async (clip) => ({
-          clip,
-          result: await acquireClipMedia(clip.recordId, { signal: controller.signal }),
-        }))
+      // `acquireAll` rather than a bare `Promise.all`: design spec §3 caps
+      // acquisition at a concurrency of 3 so a large timeline neither spikes
+      // memory nor hammers the CDN, and this is where the fan-out actually
+      // happens. Results come back index-aligned with the ids passed in.
+      const results = await acquireAll(
+        clips.map((clip) => clip.recordId),
+        { signal: controller.signal }
       );
+      const resolved = clips.map((clip, index) => ({ clip, result: results[index] }));
 
       const failed = resolved.filter((entry) => entry.result.status !== 'ready');
       if (failed.length > 0) {
@@ -176,11 +208,14 @@ export default function TimelineExportPanel({ engines, clips, clipStates, output
         );
       }
 
-      const request: RenderRequest = {
+      request = {
         output,
         clips: resolved.map((entry) => ({
           media: (entry.result as ClipMedia).blob,
           fit: entry.clip.fit,
+          // So an engine that fails on one clip can name it, rather than
+          // pointing at a position the user has to count out.
+          label: titleOf(recordsById.get(entry.clip.recordId)),
         })),
       };
 
@@ -195,6 +230,17 @@ export default function TimelineExportPanel({ engines, clips, clipStates, output
       setRender(null);
       if (err instanceof DOMException && err.name === 'AbortError') return;
       setError(err instanceof Error ? err.message : 'The export failed.');
+
+      // A browser render that died — most often on a clip it turned out not
+      // to be able to decode — must not dead-end. Ask the server engine
+      // whether it could actually take over before offering it, so the
+      // fallback is a real next step rather than a second failure.
+      const server = engines.find((candidate) => candidate.id === 'server');
+      if (engine.id === 'webcodecs' && server) {
+        const probe: RenderRequest = request ?? { output, clips: [] };
+        const reason = await server.unavailableReason(probe).catch(() => 'unavailable');
+        if (reason === null) setFallbackEngine(server);
+      }
     }
   };
 
@@ -288,6 +334,20 @@ export default function TimelineExportPanel({ engines, clips, clipStates, output
           Export {formatDuration(totalDuration)} · silent · in your browser
         </button>
         {error && <p className="text-xs text-red-300">{error}</p>}
+        {/* Design spec error handling: a browser decode failure names which
+            clip failed and offers the server engine as a next step rather
+            than dead-ending. Only shown once the server has confirmed it can
+            actually run this request. */}
+        {error && fallbackEngine && (
+          <button
+            type="button"
+            onClick={() => void runExport(fallbackEngine)}
+            className="btn-secondary w-full justify-center text-xs"
+          >
+            <UploadCloud size={13} aria-hidden />
+            Export on the server instead · upload {formatBytes(totalUploadBytes)}
+          </button>
+        )}
       </div>
     );
   }
@@ -296,6 +356,7 @@ export default function TimelineExportPanel({ engines, clips, clipStates, output
   if (effectiveSelection.chosen?.id === 'server') {
     const engine = effectiveSelection.chosen;
     const browserReasonText =
+      decodeBlock ??
       browserRejection?.reason ??
       (browserEngine ? 'The browser engine is unavailable.' : 'This browser cannot run the export directly.');
     return (
@@ -320,9 +381,11 @@ export default function TimelineExportPanel({ engines, clips, clipStates, output
   }
 
   // ---- State: neither available ---------------------------------------------
-  const browserReasonText = browserEngine
-    ? browserRejection?.reason ?? 'The browser engine is unavailable.'
-    : 'No browser render engine is loaded.';
+  const browserReasonText =
+    decodeBlock ??
+    (browserEngine
+      ? browserRejection?.reason ?? 'The browser engine is unavailable.'
+      : 'No browser render engine is loaded.');
   const serverReasonText = serverEngine
     ? serverRejection?.reason ?? 'The server engine is unavailable.'
     : 'No server render is configured.';

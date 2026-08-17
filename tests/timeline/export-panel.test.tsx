@@ -6,7 +6,7 @@ import { setupTimelineTest } from './helpers';
 import TimelineExportPanel from '../../components/TimelineExportPanel';
 import type { ClipState } from '../../components/TimelineWorkspace';
 import type { RenderEngine, RenderProgress, RenderRequest } from '../../lib/timeline/render/port';
-import { acquireClipMedia } from '../../lib/timeline/acquire';
+import { acquireAll, acquireClipMedia } from '../../lib/timeline/acquire';
 import type { TimelineClip, TimelineOutput } from '../../store/useTimelineStore';
 
 /**
@@ -20,6 +20,7 @@ import type { TimelineClip, TimelineOutput } from '../../store/useTimelineStore'
 beforeEach(() => {
   setupTimelineTest();
   vi.mocked(acquireClipMedia).mockClear();
+  vi.mocked(acquireAll).mockClear();
 });
 
 const OUTPUT: TimelineOutput = { width: 1920, height: 1080, fps: 30, auto: true };
@@ -175,6 +176,109 @@ describe('TimelineExportPanel', () => {
     await waitFor(() => expect(engine.render).toHaveBeenCalled());
     const [request] = vi.mocked(engine.render).mock.calls[0] as [RenderRequest, unknown];
     expect(request.clips[0].media.size).toBe(new Blob(['freshly-resolved-bytes']).size);
+  });
+
+  it('withdraws the browser engine and names the clip when the browser cannot decode it', async () => {
+    // VideoEncoder.isConfigSupported — all the browser engine's own
+    // unavailableReason can ask — knows nothing about the clips, so without
+    // this the export would start and die minutes in.
+    const browser = stubEngine('webcodecs');
+    const server = stubEngine('server');
+    render(
+      <TimelineExportPanel
+        engines={[browser, server]}
+        clips={[clip()]}
+        clipStates={{ p1: readyState({ decodable: false }) }}
+        output={OUTPUT}
+      />
+    );
+
+    await waitFor(() => expect(screen.getByText(/cannot decode neon tiger/i)).toBeInTheDocument());
+    // Offered as a next step rather than dead-ending.
+    const button = screen.getByRole('button', { name: /export/i });
+    expect(button).toHaveTextContent(/on the server/i);
+    expect(button).not.toBeDisabled();
+    // The browser engine was never even asked to run this request.
+    expect(browser.unavailableReason).not.toHaveBeenCalled();
+  });
+
+  it('offers the server engine after a browser render fails, once the server confirms it can run', async () => {
+    const browser = stubEngine('webcodecs', {
+      render: vi.fn(async () => {
+        throw new Error('"neon tiger" is in a format this browser cannot decode.');
+      }),
+    });
+    const server = stubEngine('server');
+    render(
+      <TimelineExportPanel
+        engines={[browser, server]}
+        clips={[clip()]}
+        clipStates={{ p1: readyState() }}
+        output={OUTPUT}
+      />
+    );
+
+    await userEvent.click(await screen.findByRole('button', { name: /export .* in your browser/i }));
+
+    await waitFor(() => expect(screen.getByText(/neon tiger.*cannot decode/i)).toBeInTheDocument());
+    const fallback = await screen.findByRole('button', { name: /on the server instead/i });
+
+    await userEvent.click(fallback);
+    await waitFor(() => expect(server.render).toHaveBeenCalled());
+  });
+
+  it('does not offer a server fallback the server itself cannot honour', async () => {
+    const browser = stubEngine('webcodecs', {
+      render: vi.fn(async () => {
+        throw new Error('The export failed.');
+      }),
+    });
+    const server = stubEngine('server', {
+      unavailableReason: vi.fn(async () => 'Sign in to use server rendering.'),
+    });
+    render(
+      <TimelineExportPanel
+        engines={[browser, server]}
+        clips={[clip()]}
+        clipStates={{ p1: readyState() }}
+        output={OUTPUT}
+      />
+    );
+
+    await userEvent.click(await screen.findByRole('button', { name: /export .* in your browser/i }));
+
+    await waitFor(() => expect(screen.getByText('The export failed.')).toBeInTheDocument());
+    expect(screen.queryByRole('button', { name: /on the server instead/i })).not.toBeInTheDocument();
+  });
+
+  it('labels each clip in the render request so an engine can name the one that failed', async () => {
+    const engine = stubEngine('webcodecs');
+    render(
+      <TimelineExportPanel engines={[engine]} clips={[clip()]} clipStates={{ p1: readyState() }} output={OUTPUT} />
+    );
+
+    await userEvent.click(await screen.findByRole('button', { name: /export/i }));
+
+    await waitFor(() => expect(engine.render).toHaveBeenCalled());
+    const [request] = vi.mocked(engine.render).mock.calls[0] as [RenderRequest, unknown];
+    expect(request.clips[0].label).toBe('neon tiger');
+  });
+
+  it('resolves the export through acquireAll, so the spec bounded concurrency applies where the work happens', async () => {
+    const engine = stubEngine('webcodecs');
+    render(
+      <TimelineExportPanel
+        engines={[engine]}
+        clips={[clip({ id: 'p1' }), clip({ id: 'p2' })]}
+        clipStates={{ p1: readyState(), p2: readyState() }}
+        output={OUTPUT}
+      />
+    );
+
+    await userEvent.click(await screen.findByRole('button', { name: /export/i }));
+
+    await waitFor(() => expect(acquireAll).toHaveBeenCalled());
+    expect(acquireAll).toHaveBeenCalledWith(['clip', 'clip'], expect.objectContaining({ signal: expect.anything() }));
   });
 
   it('blocks export and reports the failure when re-resolution finds a clip has vanished', async () => {

@@ -1,7 +1,7 @@
 import { fetchResultBlob } from '@/lib/gallery/capture';
 import { isDownloadableMediaUrl } from '@/lib/media-download';
 import { extractLastFrameFromBlob } from '@/lib/video-frame';
-import { probeDimensions, probeFramerate } from '@/lib/timeline/probe';
+import { probeDimensions, probeWithDemuxer } from '@/lib/timeline/probe';
 import type { ClipDimensions } from '@/lib/timeline/derive-output';
 import { useGalleryStore } from '@/store/useGalleryStore';
 
@@ -23,6 +23,18 @@ export interface ClipMedia {
   /** Why `durable` is false. Sourced from the store's `storageError` so the
    *  user sees the real cause (e.g. quota) rather than a generic message. */
   warning?: string;
+  /**
+   * `false` when `VideoDecoder.isConfigSupported` said this browser cannot
+   * decode the clip's codec; absent when the probe could not answer.
+   *
+   * Deliberately not an `Unavailable` reason: the server engine decodes
+   * whatever ffmpeg does, so a clip this browser cannot read is still
+   * perfectly exportable — blocking the whole timeline would dead-end the
+   * one route that still works. The UI warns on the clip and withdraws the
+   * browser engine instead, which is the "offers the server engine as a next
+   * step" the design spec's error handling asks for.
+   */
+  decodable?: boolean;
 }
 
 export interface Unavailable {
@@ -38,13 +50,49 @@ const MESSAGES: Record<UnavailableReason, string> = {
   'no-source': 'This clip has no file and no source to download it from.',
 };
 
+/**
+ * Shown on a clip whose codec this browser answered "no" to at add time. Not
+ * an `Unavailable` message: the clip is still exportable, just not here.
+ */
+export const UNDECODABLE_WARNING =
+  'This browser cannot decode this clip — export on the server instead.';
+
 const unavailable = (reason: UnavailableReason): Unavailable => ({
   status: 'unavailable',
   reason,
   message: MESSAGES[reason],
 });
 
+/**
+ * The two ways `durable: false` happens are not the same failure, and saying
+ * the wrong one is worse than saying nothing.
+ *
+ * On the cached path the bytes are already in IndexedDB and only `setPinned`
+ * failed — the clip survives a reload perfectly well; what it has lost is its
+ * protection from `lib/gallery/eviction.ts`. On the download path nothing was
+ * written at all, so the bytes exist only in this tab.
+ */
+const UNPINNED_WARNING =
+  'This clip could not be pinned, so your library may evict it to reclaim space.';
 const UNSAVED_WARNING = 'This clip could not be saved to your library and will not survive a reload.';
+
+/**
+ * Assembles a ready result, keeping the optional fields genuinely absent
+ * rather than present-and-undefined — `expect(result).not.toHaveProperty(...)`
+ * is how the "a clip that abstains is not warned about" rule is pinned.
+ */
+function ready(
+  blob: Blob,
+  dimensions: ClipDimensions,
+  decodable: boolean | undefined,
+  durable: boolean,
+  unsavedFallback: string
+): ClipMedia {
+  const media: ClipMedia = { status: 'ready', blob, dimensions, durable };
+  if (!durable) media.warning = persistenceWarning(unsavedFallback);
+  if (decodable !== undefined) media.decodable = decodable;
+  return media;
+}
 
 /**
  * Whether a record is genuinely safe from eviction right now: pinned *and*
@@ -57,9 +105,29 @@ function isPersisted(recordId: string): boolean {
   return record?.pinned === true && record?.blob !== undefined;
 }
 
-/** The store's own explanation for the failure, when it recorded one. */
-function persistenceWarning(): string {
-  return useGalleryStore.getState().storageError ?? UNSAVED_WARNING;
+/** The store's own explanation for the failure, when it recorded one —
+ *  otherwise the accurate statement for the path that failed. */
+function persistenceWarning(fallback: string): string {
+  return useGalleryStore.getState().storageError ?? fallback;
+}
+
+/**
+ * Whether this browser can decode a given record, remembered for the session.
+ *
+ * Not a `GalleryRecord` field: the scope boundary permits exactly four optional
+ * additions there (width, height, durationSeconds, fps) and this is not one of
+ * them — and unlike those, it is a fact about *this browser*, not about the
+ * file. A module-level map is the right lifetime: the answer cannot change
+ * while the tab is open, and it means the second placement of a clip whose
+ * dimensions are already cached still knows what the first placement learned,
+ * instead of one row warning and its twin staying silent.
+ */
+const decodableByRecord = new Map<string, boolean>();
+
+interface ProbeResult {
+  dimensions: ClipDimensions;
+  /** Absent when nothing has been able to answer for this record yet. */
+  decodable?: boolean;
 }
 
 /**
@@ -67,32 +135,50 @@ function persistenceWarning(): string {
  * anything kept before the timeline existed — have bytes but no dimensions, and
  * without this they would give deriveOutputFormat nothing to vote with.
  *
- * Framerate comes from the demuxer rather than the video element, which cannot
- * report it. It is deliberately the weaker of the two probes: dimensions decide
- * whether the clip can be used at all, framerate only decides whether it gets a
- * vote on the output cadence. So a framerate that cannot be read — an unreadable
- * container, a variable-framerate clip with no fixed rate to report — leaves
- * `fps` undefined and the clip fully usable. `deriveOutputFormat` already skips
- * clips without one.
+ * Framerate and decodability both come from the demuxer rather than the video
+ * element, which can report neither, and both come out of a single open. They
+ * are deliberately the weaker half of this: dimensions decide whether the clip
+ * can be used at all, while a framerate that cannot be read leaves `fps`
+ * undefined (the clip simply abstains from the cadence vote) and a decode
+ * question that cannot be answered leaves `decodable` undefined (render-time
+ * detection still catches it). Neither can fail an add.
  */
-async function dimensionsFor(recordId: string, blob: Blob): Promise<ClipDimensions> {
+async function probeFor(recordId: string, blob: Blob): Promise<ProbeResult> {
   const record = useGalleryStore.getState().records.find((r) => r.id === recordId);
   if (record?.width && record.height) {
     return {
-      width: record.width,
-      height: record.height,
-      durationSeconds: record.durationSeconds ?? 0,
-      fps: record.fps,
+      dimensions: {
+        width: record.width,
+        height: record.height,
+        durationSeconds: record.durationSeconds ?? 0,
+        fps: record.fps,
+      },
+      decodable: decodableByRecord.get(recordId),
     };
   }
 
   // Both probes read the same bytes and neither depends on the other, so they
-  // run together rather than in series. probeFramerate never rejects.
-  const [probed, fps] = await Promise.all([probeDimensions(blob), probeFramerate(blob)]);
-  const dimensions: ClipDimensions = fps === undefined ? probed : { ...probed, fps };
+  // run together rather than in series. Neither ever rejects.
+  // The demuxer probe's own contract is that it never rejects; the `catch` is
+  // so acquisition does not depend on that staying true. A cadence hint and a
+  // decode warning are both worth less than an add that works.
+  const [probed, demuxed] = await Promise.all([
+    probeDimensions(blob),
+    probeWithDemuxer(blob).catch(() => ({}) as Awaited<ReturnType<typeof probeWithDemuxer>>),
+  ]);
+  const dimensions: ClipDimensions = demuxed.fps === undefined ? probed : { ...probed, fps: demuxed.fps };
 
+  if (demuxed.decodable !== undefined) decodableByRecord.set(recordId, demuxed.decodable);
+
+  // Only the four fields the record is allowed to carry are written through the
+  // store; decodability stays in memory (see `decodableByRecord`).
   await useGalleryStore.getState().setDimensions(recordId, dimensions);
-  return dimensions;
+  return { dimensions, decodable: demuxed.decodable };
+}
+
+/** Test-only: clears the per-session decode-support memo. */
+export function __resetDecodeCacheForTests(): void {
+  decodableByRecord.clear();
 }
 
 export async function acquireClipMedia(
@@ -110,10 +196,11 @@ export async function acquireClipMedia(
   if (record.blob) {
     if (!record.pinned) await store.setPinned(recordId, true);
     const durable = isPersisted(recordId);
-    const dimensions = await dimensionsFor(recordId, record.blob);
-    return durable
-      ? { status: 'ready', blob: record.blob, dimensions, durable: true }
-      : { status: 'ready', blob: record.blob, dimensions, durable: false, warning: persistenceWarning() };
+    const { dimensions, decodable } = await probeFor(recordId, record.blob);
+    // The bytes are already in IndexedDB here; only the pin can have failed,
+    // so "will not survive a reload" would be false. What is actually at risk
+    // is eviction reclaiming an unpinned record.
+    return ready(record.blob, dimensions, decodable, durable, UNPINNED_WARNING);
   }
 
   // 3. A URL that may or may not still resolve.
@@ -138,10 +225,10 @@ export async function acquireClipMedia(
     const poster = await extractLastFrameFromBlob(blob).catch(() => undefined);
     await store.keep(recordId, blob, poster);
     const durable = isPersisted(recordId);
-    const dimensions = await dimensionsFor(recordId, blob);
-    return durable
-      ? { status: 'ready', blob, dimensions, durable: true }
-      : { status: 'ready', blob, dimensions, durable: false, warning: persistenceWarning() };
+    const { dimensions, decodable } = await probeFor(recordId, blob);
+    // Nothing was written to IndexedDB on this path, so the bytes really do
+    // exist only in this tab's memory.
+    return ready(blob, dimensions, decodable, durable, UNSAVED_WARNING);
   }
 
   return unavailable('no-source');

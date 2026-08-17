@@ -4,14 +4,14 @@ import { fetchResultBlob } from '../../lib/gallery/capture';
 import { createMemoryGalleryStorage } from '../../lib/gallery/memory-storage';
 import type { GalleryRecord, GalleryStorage } from '../../lib/gallery/storage';
 import { configureGalleryStorage, useGalleryStore } from '../../store/useGalleryStore';
-import { acquireClipMedia } from '../../lib/timeline/acquire';
+import { __resetDecodeCacheForTests, acquireClipMedia } from '../../lib/timeline/acquire';
 
 // jsdom cannot decode video; the probe is a seam the same way SeekableVideo is
 // in tests/video-frame.test.ts. Framerate is the second half of that seam — it
 // needs a demuxer rather than a video element, and jsdom has neither.
 const probe = vi.hoisted(() => ({
   probeDimensions: vi.fn(async () => ({ width: 1920, height: 1080, durationSeconds: 5 })),
-  probeFramerate: vi.fn(async (): Promise<number | undefined> => 24),
+  probeWithDemuxer: vi.fn(async (): Promise<{ fps?: number; decodable?: boolean }> => ({ fps: 24 })),
 }));
 vi.mock('../../lib/timeline/probe', () => probe);
 vi.mock('../../lib/video-frame', () => ({
@@ -25,12 +25,13 @@ const video = (o: Partial<GalleryRecord> = {}): GalleryRecord => ({
 
 describe('acquireClipMedia', () => {
   beforeEach(() => {
+    __resetDecodeCacheForTests();
     configureGalleryStorage(createMemoryGalleryStorage());
     useGalleryStore.setState({ records: [], hydrated: true, storageError: null });
     vi.unstubAllGlobals();
     probe.probeDimensions.mockClear();
-    probe.probeFramerate.mockClear();
-    probe.probeFramerate.mockResolvedValue(24);
+    probe.probeWithDemuxer.mockClear();
+    probe.probeWithDemuxer.mockResolvedValue({ fps: 24 });
   });
 
   it('reports missing for a record that is no longer in the library', async () => {
@@ -105,12 +106,13 @@ describe('acquireClipMedia', () => {
  */
 describe('acquireClipMedia caches the clip framerate', () => {
   beforeEach(() => {
+    __resetDecodeCacheForTests();
     configureGalleryStorage(createMemoryGalleryStorage());
     useGalleryStore.setState({ records: [], hydrated: true, storageError: null });
     vi.unstubAllGlobals();
     probe.probeDimensions.mockClear();
-    probe.probeFramerate.mockClear();
-    probe.probeFramerate.mockResolvedValue(24);
+    probe.probeWithDemuxer.mockClear();
+    probe.probeWithDemuxer.mockResolvedValue({ fps: 24 });
   });
 
   it('writes the probed framerate onto the record, so the clip can vote on cadence', async () => {
@@ -128,7 +130,7 @@ describe('acquireClipMedia caches the clip framerate', () => {
   it('stays ready when the framerate cannot be read, because cadence is a hint', async () => {
     // A VFR clip, or one in a container the demuxer cannot open, abstains from
     // the vote. It must not be downgraded, warned about, or made unavailable.
-    probe.probeFramerate.mockResolvedValue(undefined);
+    probe.probeWithDemuxer.mockResolvedValue({});
     useGalleryStore.setState({
       records: [video({ blob: new Blob(['x']), pinned: true, bytes: 1 })],
     });
@@ -144,7 +146,7 @@ describe('acquireClipMedia caches the clip framerate', () => {
   });
 
   it('carries the framerate through the download path too', async () => {
-    probe.probeFramerate.mockResolvedValue(23.976);
+    probe.probeWithDemuxer.mockResolvedValue({ fps: 23.976 });
     vi.stubGlobal('fetch', vi.fn(async () => new Response(new Blob(['bytes']), {
       status: 200, headers: { 'Content-Type': 'video/mp4' },
     })));
@@ -170,8 +172,93 @@ describe('acquireClipMedia caches the clip framerate', () => {
     const result = await acquireClipMedia('clip');
 
     expect(result).toMatchObject({ status: 'ready', dimensions: { fps: 30, width: 1280 } });
-    expect(probe.probeFramerate).not.toHaveBeenCalled();
+    expect(probe.probeWithDemuxer).not.toHaveBeenCalled();
     expect(probe.probeDimensions).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Design spec §3: acquisition asks `VideoDecoder.isConfigSupported` about the
+ * clip's codec while the demuxer is already open, so "your browser cannot
+ * decode this clip" surfaces at add time rather than minutes into an export.
+ * Best-effort in both directions — a probe that cannot answer must not claim
+ * the clip is fine, and a probe that answers "no" must not fail the add: the
+ * server engine decodes whatever ffmpeg does.
+ */
+describe('acquireClipMedia surfaces browser decode support at add time', () => {
+  beforeEach(() => {
+    __resetDecodeCacheForTests();
+    configureGalleryStorage(createMemoryGalleryStorage());
+    useGalleryStore.setState({ records: [], hydrated: true, storageError: null });
+    vi.unstubAllGlobals();
+    probe.probeDimensions.mockClear();
+    probe.probeWithDemuxer.mockClear();
+  });
+
+  it('carries a negative decode answer onto the ready clip without failing the add', async () => {
+    probe.probeWithDemuxer.mockResolvedValue({ fps: 24, decodable: false });
+    useGalleryStore.setState({
+      records: [video({ blob: new Blob(['x']), pinned: true, bytes: 1 })],
+    });
+
+    const result = await acquireClipMedia('clip');
+
+    // Ready, not unavailable: blocking the timeline would dead-end the one
+    // engine that can still render it.
+    expect(result).toMatchObject({ status: 'ready', decodable: false, durable: true });
+    if (result.status === 'ready') expect(result.blob).toBeInstanceOf(Blob);
+  });
+
+  it('carries a positive decode answer through', async () => {
+    probe.probeWithDemuxer.mockResolvedValue({ fps: 24, decodable: true });
+    useGalleryStore.setState({
+      records: [video({ blob: new Blob(['x']), pinned: true, bytes: 1 })],
+    });
+
+    expect(await acquireClipMedia('clip')).toMatchObject({ status: 'ready', decodable: true });
+  });
+
+  it('leaves decodable absent — never true by omission — when the probe cannot answer', async () => {
+    // No WebCodecs, an unreadable decoder config, an unopenable container: all
+    // "cannot tell". Render-time detection still catches a real failure.
+    probe.probeWithDemuxer.mockResolvedValue({ fps: 24 });
+    useGalleryStore.setState({
+      records: [video({ blob: new Blob(['x']), pinned: true, bytes: 1 })],
+    });
+
+    const result = await acquireClipMedia('clip');
+
+    expect(result).toMatchObject({ status: 'ready' });
+    expect(result).not.toHaveProperty('decodable');
+  });
+
+  it('remembers the answer for a record whose dimensions are already cached', async () => {
+    // The second placement of the same clip skips the demuxer entirely (its
+    // dimensions are on the record by then), so without the session memo one
+    // row would warn and its twin would stay silent about the same file.
+    probe.probeWithDemuxer.mockResolvedValue({ fps: 24, decodable: false });
+    useGalleryStore.setState({
+      records: [video({ blob: new Blob(['x']), pinned: true, bytes: 1 })],
+    });
+
+    expect(await acquireClipMedia('clip')).toMatchObject({ decodable: false });
+
+    probe.probeWithDemuxer.mockClear();
+    const second = await acquireClipMedia('clip');
+
+    expect(probe.probeWithDemuxer).not.toHaveBeenCalled();
+    expect(second).toMatchObject({ status: 'ready', decodable: false });
+  });
+
+  it('never lets the decode probe throw out of an add', async () => {
+    // probeWithDemuxer's own contract is that it never rejects, but acquisition
+    // must not depend on that being true forever.
+    probe.probeWithDemuxer.mockRejectedValue(new Error('demuxer exploded'));
+    useGalleryStore.setState({
+      records: [video({ blob: new Blob(['x']), pinned: true, bytes: 1 })],
+    });
+
+    await expect(acquireClipMedia('clip')).resolves.toMatchObject({ status: 'ready' });
   });
 });
 
@@ -187,6 +274,7 @@ function withFailingPut(seed: GalleryRecord[] = []): GalleryStorage {
 
 describe('acquireClipMedia when the store cannot persist', () => {
   beforeEach(() => {
+    __resetDecodeCacheForTests();
     useGalleryStore.setState({ records: [], hydrated: true, storageError: null });
     vi.unstubAllGlobals();
   });
