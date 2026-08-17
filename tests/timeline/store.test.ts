@@ -54,4 +54,28 @@ describe('useTimelineStore', () => {
     useTimelineStore.getState().matchClips();
     expect(useTimelineStore.getState().timeline.output.auto).toBe(true);
   });
+
+  it('applyDerivedOutput tracks the clips while auto is true', () => {
+    expect(useTimelineStore.getState().timeline.output.auto).toBe(true);
+    useTimelineStore.getState().applyDerivedOutput({ width: 1280, height: 720, fps: 24 });
+    expect(useTimelineStore.getState().timeline.output).toMatchObject({
+      width: 1280,
+      height: 720,
+      fps: 24,
+      auto: true,
+    });
+  });
+
+  it('applyDerivedOutput stops moving the format once the user has edited it', () => {
+    useTimelineStore.getState().setOutput({ width: 640, height: 480, fps: 15 });
+    expect(useTimelineStore.getState().timeline.output.auto).toBe(false);
+    useTimelineStore.getState().applyDerivedOutput({ width: 1920, height: 1080, fps: 30 });
+    // The user's edit is untouched — the derive recompute was a no-op.
+    expect(useTimelineStore.getState().timeline.output).toMatchObject({
+      width: 640,
+      height: 480,
+      fps: 15,
+      auto: false,
+    });
+  });
 });
