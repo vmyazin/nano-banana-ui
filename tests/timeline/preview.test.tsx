@@ -113,67 +113,132 @@ describe('TimelinePreview — object URL lifecycle', () => {
   });
 });
 
-describe('TimelinePreview — playhead against a shrinking clip list', () => {
-  it('advances through the sequence and wraps at the end', () => {
+describe('TimelinePreview — one continuous transport', () => {
+  it('reports the whole sequence, not the current clip', () => {
+    const clips = [clip('a'), clip('b'), clip('c')];
+    render(<TimelinePreview clips={clips} clipStates={statesFor(clips)} />);
+
+    // 3 clips x 4s. The old preview said "Clip 1 of 3"; the point of this one
+    // is that the sequence has a single duration.
+    expect(screen.getByText(/3 clips · 0:12/)).toBeInTheDocument();
+    expect(screen.getByText('0:00 / 0:12')).toBeInTheDocument();
+  });
+
+  it('keeps both media elements mounted so the next clip stays preloaded', () => {
     const clips = [clip('a'), clip('b')];
     render(<TimelinePreview clips={clips} clipStates={statesFor(clips)} />);
 
-    expect(screen.getByText('Clip 1 of 2')).toBeInTheDocument();
-    fireEvent.ended(video());
-    expect(screen.getByText('Clip 2 of 2')).toBeInTheDocument();
-    fireEvent.ended(video());
-    expect(screen.getByText('Clip 1 of 2')).toBeInTheDocument();
+    // A cut is a swap between two ready elements. Tearing one down at a
+    // boundary — which a changing React key would do — is the stutter this
+    // design exists to avoid.
+    expect(screen.getByTestId('preview-slot-0')).toBeInTheDocument();
+    expect(screen.getByTestId('preview-slot-1')).toBeInTheDocument();
+    expect(screen.getByTestId('preview-slot-0')).toHaveAttribute('data-active', 'true');
   });
 
-  it('clamps the playhead when the clip list shrinks underneath it', () => {
+  it('hands over to the other element at a cut instead of reloading', () => {
+    const clips = [clip('a'), clip('b')];
+    render(<TimelinePreview clips={clips} clipStates={statesFor(clips)} />);
+
+    fireEvent.ended(screen.getByTestId('preview-slot-0'));
+
+    expect(screen.getByTestId('preview-slot-1')).toHaveAttribute('data-active', 'true');
+    expect(screen.getByTestId('preview-slot-0')).toHaveAttribute('data-active', 'false');
+    // The playhead is now at the start of the second clip on the global clock.
+    expect(screen.getByText('0:04 / 0:08')).toBeInTheDocument();
+  });
+
+  it('stops at the end of the sequence rather than looping', () => {
+    const clips = [clip('a')];
+    render(<TimelinePreview clips={clips} clipStates={statesFor(clips)} />);
+
+    fireEvent.ended(screen.getByTestId('preview-slot-0'));
+
+    expect(screen.getByText('0:04 / 0:04')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /play preview/i })).toBeInTheDocument();
+  });
+
+  it('scrubs across the whole sequence, not within one clip', () => {
+    const clips = [clip('a'), clip('b'), clip('c')];
+    render(<TimelinePreview clips={clips} clipStates={statesFor(clips)} />);
+
+    fireEvent.change(screen.getByLabelText(/preview position/i), { target: { value: '9' } });
+
+    // 9s lands inside the third clip, one second in.
+    expect(screen.getByText('0:09 / 0:12')).toBeInTheDocument();
+  });
+
+  it('offers play and pause as one control for the sequence', () => {
+    const clips = [clip('a')];
+    render(<TimelinePreview clips={clips} clipStates={statesFor(clips)} />);
+
+    fireEvent.click(screen.getByRole('button', { name: /play preview/i }));
+    expect(screen.getByRole('button', { name: /pause preview/i })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /pause preview/i }));
+    expect(screen.getByRole('button', { name: /play preview/i })).toBeInTheDocument();
+  });
+});
+
+describe('TimelinePreview — a sequence that changes underneath the playhead', () => {
+  it('clamps the playhead when the clip list shrinks', () => {
     const three = [clip('a'), clip('b'), clip('c')];
     const { rerender } = render(<TimelinePreview clips={three} clipStates={statesFor(three)} />);
 
-    // Play through to the last clip, then remove two of them — which is what
-    // a user deleting clips during playback does.
-    fireEvent.ended(video());
-    fireEvent.ended(video());
-    expect(screen.getByText('Clip 3 of 3')).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText(/preview position/i), { target: { value: '11' } });
+    expect(screen.getByText('0:11 / 0:12')).toBeInTheDocument();
 
     const one = [clip('a')];
     rerender(<TimelinePreview clips={one} clipStates={statesFor(one)} />);
 
-    // Index 2 no longer exists. It must clamp rather than render nothing or
-    // read past the end.
-    expect(screen.getByText('Clip 1 of 1')).toBeInTheDocument();
-    expect(document.querySelector('video')).toBeInTheDocument();
+    // 11s no longer exists. The readout must clamp to the new total rather
+    // than reading past the end.
+    expect(screen.getByText('0:04 / 0:04')).toBeInTheDocument();
   });
 
   it('falls back to the empty state when every clip goes away, without crashing', () => {
     const clips = [clip('a'), clip('b')];
     const { rerender } = render(<TimelinePreview clips={clips} clipStates={statesFor(clips)} />);
-    fireEvent.ended(video());
+    fireEvent.ended(screen.getByTestId('preview-slot-0'));
 
     rerender(<TimelinePreview clips={[]} clipStates={{}} />);
 
     expect(screen.getByText(/add a ready clip to preview/i)).toBeInTheDocument();
-    expect(document.querySelector('video')).toBeNull();
-    expect(screen.queryByText(/clip \d+ of/i)).not.toBeInTheDocument();
+    // The transport goes away with the sequence; the elements stay mounted so
+    // their refs survive a clip coming back.
+    expect(screen.queryByRole('button', { name: /play preview/i })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/preview position/i)).not.toBeInTheDocument();
   });
 
-  it('recovers the playhead when clips come back after the list emptied', () => {
+  it('recovers when clips come back after the list emptied', () => {
     const clips = [clip('a'), clip('b')];
     const { rerender } = render(<TimelinePreview clips={clips} clipStates={statesFor(clips)} />);
-    fireEvent.ended(video());
-    expect(screen.getByText('Clip 2 of 2')).toBeInTheDocument();
 
     rerender(<TimelinePreview clips={[]} clipStates={{}} />);
     rerender(<TimelinePreview clips={clips} clipStates={statesFor(clips)} />);
 
-    // The stored index is still 1 and is once again in range, so it is honoured
-    // rather than reset — the clamp is derived, not a destructive write.
-    expect(screen.getByText('Clip 2 of 2')).toBeInTheDocument();
+    expect(screen.getByLabelText(/preview position/i)).toBeInTheDocument();
+    expect(screen.getByText(/2 clips · 0:08/)).toBeInTheDocument();
   });
 
-  it('says it is a playback preview, not a proof of the export', () => {
+  it('says the sequence is incomplete when some clips are not ready', () => {
+    // Silently skipping a broken clip would mean what you watch differs from
+    // what you would export, with nothing saying so.
+    const clips = [clip('a'), clip('b')];
+    render(
+      <TimelinePreview
+        clips={clips}
+        clipStates={{ a: ready(), b: { status: 'unavailable', reason: 'expired', message: 'gone' } }}
+      />
+    );
+
+    expect(screen.getByText(/playing 1 of 2 clips/i)).toBeInTheDocument();
+  });
+
+  it('says it is playback, not a proof of the export', () => {
     const clips = [clip('a')];
     render(<TimelinePreview clips={clips} clipStates={statesFor(clips)} />);
 
-    expect(screen.getByText(/does not show letterboxing or exact cut timing/i)).toBeInTheDocument();
+    expect(screen.getByText(/without letterboxing or exact cut timing/i)).toBeInTheDocument();
   });
 });
