@@ -2,85 +2,101 @@
 
 Date: 2026-08-16
 Task: `.superpowers/sdd/2026-08-16-video-timeline/task-1-brief.md`, Step 2
+Status: **superseded once (fix round below); final choice is `mediabunny`.**
 
-## Evaluation table (verified values)
+## Evaluation table (verified values, unchanged from the first pass — kept as evidence)
 
 All values below were pulled live from the npm registry via `pnpm view` (network access
 confirmed available) and cross-checked against the published README/LICENSE files on GitHub
-and npm. No value here is assumed or guessed.
+and npm, and against the actual `.d.ts` files shipped in `node_modules` after install. No value
+here is assumed or guessed.
 
 | Criterion | Requirement | `mediabunny` | `mp4box` | `mp4-muxer` |
 | --- | --- | --- | --- | --- |
 | Version | — | 1.54.0 | 2.4.1 | 5.2.2 |
-| Licence | MIT or Apache-2.0 | **MPL-2.0 — FAILS** | **BSD-3-Clause — literal FAIL, see note** | MIT — passes |
-| Last release | Within 12 months of 2026-08-16 | 2026-08-14 (2 days ago) — passes | 2026-06-19 (58 days ago) — passes | **2025-07-02 (410 days ago) — FAILS (45 days past the 12-month window)** |
-| Distribution | JavaScript, not wasm | Pure TS/JS — passes | Pure TS/JS (tsup-built ESM/CJS/IIFE) — passes | Pure TS/JS — passes |
-| Bundle | Tree-shakeable ESM | `exports["."].import` present, `type: module` — passes | `exports["."].import` = `./dist/mp4box.all.mjs`, `type: module` — passes | `exports.import` = `./build/mp4-muxer.mjs` — passes |
-| Capability | MP4 demux → encoded chunks AND MP4 mux ← encoded chunks | Both, single package — passes | Demux only (parses to samples; no encoder-chunk muxer) | Mux only: `addVideoChunk(chunk: EncodedVideoChunk, meta?, timestamp?, ...)` / `addAudioChunk(...)` — passes for its half |
-| Framerate | Sample count or per-sample timestamps | Yes (own sample model) | Yes: `onSamples` callback gives `dts`, `cts`, `duration` per sample; track info exposes `nb_samples` — passes | N/A (mux-only, doesn't need to expose this) |
+| Licence | MIT or Apache-2.0 (see ruling below) | MPL-2.0 | BSD-3-Clause | MIT |
+| Last release | Within 12 months of 2026-08-16 | 2026-08-14 (2 days ago) — passes | 2026-06-19 (58 days ago) — passes | **2025-07-02 (410 days ago) — FAILS, 45 days past the 12-month window** |
+| Distribution | JavaScript, not wasm | Pure TS/JS — passes | Pure TS/JS (tsup-built) — passes | Pure TS/JS — passes |
+| Bundle | Tree-shakeable ESM | `type: module`, `exports["."].import` — passes | `type: module`, `exports["."].import` — passes | `exports.import` — passes |
+| Capability | MP4 demux → encoded chunks AND MP4 mux ← encoded chunks | Both, single package — passes (details below) | Demux only | Mux only |
+| Framerate | Sample count or per-sample timestamps | Yes — purpose-built API, see below | Yes: `onSamples` → `dts`/`cts`/`duration`; `nb_samples` on track info | N/A (mux-only) |
 
-## The conflict
+## Ruling: the MIT/Apache-2.0 criterion is overridden — record this explicitly
 
-Neither candidate cleanly satisfies every hard requirement:
+The first pass of this task (see git history on this branch, commit `d4d4519`) picked
+`mp4box` + `mp4-muxer` specifically *because* `mediabunny`'s MPL-2.0 licence failed the
+"MIT or Apache-2.0" row in the table above, treating that row as a hard requirement.
 
-- **`mediabunny`** is the modern, actively maintained, purpose-built, single-package answer
-  (demux + mux + WebCodecs glue, tree-shakeable, released 2 days ago) — but its licence is
-  **MPL-2.0**, not MIT or Apache-2.0. This fails the licence requirement outright and was not
-  assumed; confirmed both via `pnpm view mediabunny license` and by fetching the actual
-  `LICENSE` file from the GitHub repo (Mozilla Public License Version 2.0 text).
+**That row was overridden by the controller after independently verifying the same facts.**
+Recorded here so a future reader does not mistake this for an oversight:
 
-- **`mp4box` + `mp4-muxer`** (the fallback pairing) also has two real problems, not one:
-  - `mp4box`'s licence is **BSD-3-Clause**, not literally "MIT or Apache-2.0" either. BSD-3-Clause
-    is OSI-approved, permissive, and carries no copyleft obligation — it is the closest available
-    match to the intent of the constraint (no MPL-style copyleft), but it is not a literal match
-    to the stated allowlist. Flagging this rather than silently treating it as equivalent.
-  - `mp4-muxer` is **explicitly deprecated by its own maintainer**. Its published npm README
-    (fetched directly from the registry, not the current GitHub README) states verbatim:
-    > "mp4-muxer is no longer being maintained and will not receive any new features or bug
-    > fixes." … "mp4-muxer has been deprecated in favor of Mediabunny, which entirely supersedes
-    > it."
-    Its last release (5.2.2) was 2025-07-02 — **410 days before 2026-08-16, i.e. 45 days past
-    the stated 12-month freshness window.** This is a genuine, unambiguous failure of the
-    recency requirement, not a rounding/timezone artifact.
+1. The "MIT or Apache-2.0" line in the original task brief's table was the *plan author's own
+   default*, not a requirement handed down from the project owner or the design spec. The actual
+   concern it was meant to encode is avoiding copyleft that would force this project to change its
+   own licensing posture.
+2. MPL-2.0 is **file-level** copyleft: consuming and bundling it obliges publishing modifications
+   to *mediabunny's own files* if they are changed and redistributed. It does not reach
+   application source code that merely imports it as a dependency. It does not, in other words,
+   put this repo's own code under any new licence obligation.
+3. This repo has no `LICENSE` file and `package.json` declares `"private": true` — there is no
+   declared licensing posture for MPL-2.0 to conflict with in the first place.
+4. The alternative (`mp4box` + `mp4-muxer`) fails a criterion that matters more in practice than
+   the licence string: `mp4-muxer`'s own maintainer publishes, in the package's npm README itself,
+   "mp4-muxer is no longer being maintained and will not receive any new features or bug fixes"
+   and "has been deprecated in favor of Mediabunny, which entirely supersedes it." `pnpm add
+   mp4-muxer` prints this as a `WARN deprecated` line at install time — independent corroboration.
+   `docs/superpowers/specs/2026-07-12-dependency-longevity-design.md` exists specifically to
+   prevent building new feature work on top of a dependency whose own author is actively steering
+   users away from it. Choosing the deprecated predecessor of the very package recommended as its
+   replacement is the worst available outcome on that axis.
+5. `mediabunny` is one dependency instead of two, capability-complete for both demux and mux (see
+   below), and is the most recently published of all three candidates (2 days old vs. 58 and 410).
 
-So: the actively-maintained, capability-complete, single-package option fails on licence: text.
-The licence-compliant fallback pairing is BSD- rather than MIT/Apache-licensed for its demux
-half, and its mux half is a frozen, deprecated library the author is actively steering people
-away from.
+**Ruling: use `mediabunny`.** The licence row is treated as satisfied by inspection of the actual
+obligation (no propagation to this repo's code, no declared licensing posture to conflict with),
+not by literal SPDX-string match.
 
-## Decision
+## Capability confirmation for `mediabunny` (what Task 8 needs)
 
-**Chosen: `mp4box` (demux) + `mp4-muxer` (mux).**
+Confirmed against the actual shipped type definitions in
+`node_modules/.pnpm/mediabunny@1.54.0/node_modules/mediabunny/dist/modules/src/*.d.ts` after
+`pnpm add mediabunny` — not just documentation prose.
 
-Reasoning:
+1. **MP4 demux to encoded chunks.** `EncodedPacketSink` (constructed from an `InputTrack`)
+   exposes `.packets()` for async iteration over raw `EncodedPacket`s without decoding. Each
+   `EncodedPacket` (`packet.d.ts`) has `.timestamp`, `.duration`, and `.toEncodedVideoChunk()` /
+   `.toEncodedAudioChunk()` methods that convert directly to WebCodecs `EncodedVideoChunk` /
+   `EncodedAudioChunk`. Confirmed via `mediabunny.dev/guide/reading-media-files` and by reading
+   `packet.d.ts` directly.
 
-1. Licence is the constraint the brief was most explicit and non-negotiable about — it's called
-   out twice (global constraints and the table) and `ffmpeg.wasm` is rejected in the brief for a
-   *different* reason (COOP/COEP), showing licence and distribution format were each considered
-   independently and deliberately. `mediabunny`'s MPL-2.0 is a copyleft-bearing licence family
-   distinct from MIT/Apache-2.0/BSD; excluding it on licence grounds is the conservative, correct
-   read of a deliberately narrow allowlist. It is not being second-guessed here.
-2. Between the two remaining failures, `mp4box`'s BSD-3-Clause is the lower-risk deviation: it is
-   in the same permissive, non-copyleft licence family as MIT/Apache-2.0, and most licence
-   allowlists that name "MIT or Apache-2.0" as their working shorthand (rather than an exhaustive
-   SPDX enumeration) treat BSD-2/3-Clause the same way. This is a documented judgment call, not a
-   silent substitution.
-3. `mp4-muxer`'s staleness/deprecation is real and is **not** waved away here: it will not get
-   security or bug fixes, and its own author recommends `mediabunny` instead. It is being chosen
-   anyway because (a) muxing EncodedVideoChunk/EncodedAudioChunk into MP4 is a narrow, stable,
-   already-solved problem with a small, frozen API surface — the kind of dependency that ages
-   better than most despite being unmaintained; (b) it is the only MIT-licensed option that
-   performs this half of the job without pulling in `mediabunny`; and (c) this task only gates
-   Task 8 — if the render engine work in Task 8 hits a real gap or bug in `mp4-muxer`, swapping
-   the mux half alone (behind whatever abstraction Task 8 defines) is a contained, later decision,
-   not a rework of this one.
+2. **MP4 mux from encoded chunks.** `media-source.d.ts` declares `EncodedVideoPacketSource extends
+   VideoSource` and `EncodedAudioPacketSource extends AudioSource`, described in the source as
+   "the most basic video source; can be used to directly pipe encoded packets into the output
+   file." Its `add(packet: EncodedPacket, meta?: EncodedVideoChunkMetadata): Promise<void>` method
+   takes packets in decode order with presentation timestamps — i.e., accepts pre-encoded
+   WebCodecs chunks directly, no re-encoding required. `output-format.d.ts` declares
+   `Mp4OutputFormat extends IsobmffOutputFormat`, confirming MP4 is a first-class output target for
+   these sources via `Output`.
 
-**This recommendation should be treated as provisional pending explicit sign-off from whoever
-owns the licence policy.** If MPL-2.0 is in fact acceptable for this project (many companies do
-accept it for unmodified dependency use), `mediabunny` is the objectively stronger engineering
-choice — one package instead of two, actively maintained, purpose-built for exactly this
-WebCodecs demux/mux use case — and swapping to it later is a reasonable path if the licence
-constraint turns out to be softer than the brief's literal wording suggests.
+3. **Sample counts / per-sample timestamps for framerate derivation.** This is better covered than
+   the bare requirement: `input-track.d.ts` declares `InputVideoTrack.computeFrameRateMetrics
+   (options?: FrameRateMetricsOptions): Promise<FrameRateMetrics>`, purpose-built for exactly this.
+   `FrameRateMetrics` returns `underlyingFrameRate` (heuristically fitted true frame rate, `null`
+   for VFR video), `bestGuessFrameRate`, and `minFrameRate`. There is also a general
+   `computePacketStats(targetPacketCount?, options?): Promise<PacketStats>` returning
+   `{ packetCount, averagePacketRate, averageBitrate }`, plus raw per-packet `.timestamp` /
+   `.duration` on every `EncodedPacket` from `EncodedPacketSink`. Any one of these alone would
+   satisfy the requirement; mediabunny ships all three.
+
+All three requirements are met. No BLOCKED condition applies.
+
+## Cost if this ruling turns out to be wrong
+
+If MPL-2.0 later proves unacceptable (e.g. the project gains a declared licensing posture that
+conflicts with it, or a stricter policy is adopted), the swap-back cost is contained: it means
+rewriting one file that does not yet exist as of this task — `lib/timeline/render/webcodecs.ts`
+(Task 8's WebCodecs render engine) — to call `mp4box` + `mp4-muxer` instead of `mediabunny`. No
+other file in this repo depends on the demux/mux library as of this task.
 
 ## Verification commands run
 
@@ -104,23 +120,55 @@ time.modified = '2025-07-02T20:18:57.880Z'
 $ curl -sL https://raw.githubusercontent.com/Vanilagy/mediabunny/main/LICENSE | head -3
 Mozilla Public License Version 2.0
 ==================================
-(confirms npm registry licence field, not just metadata)
 
-$ curl -sL https://raw.githubusercontent.com/gpac/mp4box.js/master/LICENSE | head -3
-Copyright (c) 2012. Telecom ParisTech/TSI/MM/GPAC Cyril Concolato
-All rights reserved.
-Redistribution and use in source and binary forms... (standard BSD-3-Clause text)
+$ curl -s https://registry.npmjs.org/mp4-muxer | jq -r .readme | head -8
+# ⚠️ This library is deprecated ⚠️
+mp4-muxer has been deprecated in favor of Mediabunny...
+mp4-muxer is no longer being maintained and will not receive any new features or bug fixes.
 
-$ curl -s https://registry.npmjs.org/mp4-muxer | jq -r .readme | head
-# Deprecation notice, published with the 5.2.2 release itself:
-"mp4-muxer is no longer being maintained and will not receive any new features or bug fixes."
+# Fix round: switch to mediabunny
+$ pnpm remove mp4box mp4-muxer
+dependencies:
+- mp4-muxer 5.2.2
+- mp4box 2.4.1
+Done in 1.3s using pnpm v10.32.1
 
-$ pnpm view mp4box --json  # exports/type/main
-type: "module", exports["."].import = "./dist/mp4box.all.mjs" — ESM confirmed
+$ pnpm add mediabunny
+dependencies:
++ mediabunny 1.54.0
+Done in 1.3s using pnpm v10.32.1
+(no deprecation warning printed)
 
-$ pnpm view mp4-muxer --json  # exports/type/main
-exports.import = "./build/mp4-muxer.mjs" — ESM confirmed
+$ grep -n "computePacketStats\|PacketStats\|computeFrameRateMetrics\|FrameRateMetrics" \
+    node_modules/.pnpm/mediabunny@1.54.0/node_modules/mediabunny/dist/modules/src/input-track.d.ts
+21:export type PacketStats = {
+23:    packetCount: number;
+25:    averagePacketRate: number;
+287:    computePacketStats(targetPacketCount?: number, options?: PacketRetrievalOptions): Promise<PacketStats>;
+34:export type FrameRateMetrics = {
+447:    computeFrameRateMetrics(options?: FrameRateMetricsOptions): Promise<FrameRateMetrics>;
+
+$ grep -n "class EncodedVideoPacketSource\|class EncodedAudioPacketSource\|add(packet: EncodedPacket" \
+    node_modules/.pnpm/mediabunny@1.54.0/node_modules/mediabunny/dist/modules/src/media-source.d.ts
+39:export declare class EncodedVideoPacketSource extends VideoSource {
+48:    add(packet: EncodedPacket, meta?: EncodedVideoChunkMetadata): Promise<void>;
+179:export declare class EncodedAudioPacketSource extends AudioSource {
+
+$ pnpm install --frozen-lockfile
+Lockfile is up to date, resolution step is skipped
+Already up to date
+Done in 281ms using pnpm v10.32.1
+(no deprecation warning)
+
+$ pnpm build
+✓ Compiled successfully in 1689ms
+  Running TypeScript ...
+  Finished TypeScript in 2.7s ...
+✓ Generating static pages using 13 workers (14/14) in 125ms
+  Finalizing page optimization ...
+(build succeeded; route table printed; same one pre-existing unrelated
+ next.config.ts path.join warning as before, not caused by this change)
 ```
 
-Date math (`2026-08-16` minus each `time.modified`): mediabunny 2 days, mp4box 58 days,
-mp4-muxer 410 days — mp4-muxer is the only candidate over the 365-day line.
+Date math (unchanged from the first pass, `2026-08-16` minus each `time.modified`): mediabunny 2
+days, mp4box 58 days, mp4-muxer 410 days.
