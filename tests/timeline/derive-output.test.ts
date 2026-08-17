@@ -50,4 +50,38 @@ describe('deriveOutputFormat', () => {
     const result = deriveOutputFormat([clip({ fps: 24 }), clip(), clip()]);
     expect(result.fps).toBe(24);
   });
+
+  it('does not crash with a single clip with NaN duration', () => {
+    const result = deriveOutputFormat([clip({ durationSeconds: NaN })]);
+    expect(result.width).toBe(1920);
+    expect(result.height).toBe(1080);
+  });
+
+  it('does not crash with a single clip with negative duration', () => {
+    const result = deriveOutputFormat([clip({ durationSeconds: -5 })]);
+    expect(result.width).toBe(1920);
+    expect(result.height).toBe(1080);
+  });
+
+  it('picks real-duration clip aspect when mixed with NaN-duration clip, no crash', () => {
+    const result = deriveOutputFormat([
+      clip({ width: 1920, height: 1080, durationSeconds: 10 }),
+      clip({ width: 1080, height: 1920, durationSeconds: NaN }),
+    ]);
+    expect(result.width / result.height).toBeCloseTo(16 / 9);
+  });
+
+  it('returns derived resolution for zero-duration clips (Task 5 cached-record case)', () => {
+    // Task 5 resolves gallery records with durationSeconds: record.durationSeconds ?? 0,
+    // so cached clips legitimately have duration 0. Dropping them from usable would make
+    // deriveOutputFormat return 1920x1080 fallback for a timeline of real clips whose
+    // resolutions we actually know — a visible wrong answer. This test guards against
+    // a later "fix" that excludes zero-duration clips.
+    const result = deriveOutputFormat([
+      clip({ width: 1280, height: 720, durationSeconds: 0 }),
+      clip({ width: 3840, height: 2160, durationSeconds: 0 }),
+    ]);
+    expect(result.width).toBe(3840);
+    expect(result.height).toBe(2160);
+  });
 });

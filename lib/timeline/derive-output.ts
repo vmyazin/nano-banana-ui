@@ -21,7 +21,9 @@ function aspectKey(clip: ClipDimensions) {
 function heaviest<T>(items: T[], key: (item: T) => string, weight: (item: T) => number) {
   const totals = new Map<string, number>();
   for (const item of items) {
-    totals.set(key(item), (totals.get(key(item)) ?? 0) + weight(item));
+    const w = weight(item);
+    const clamped = Number.isFinite(w) && w > 0 ? w : 0;
+    totals.set(key(item), (totals.get(key(item)) ?? 0) + clamped);
   }
   let best: string | null = null;
   let bestWeight = -Infinity;
