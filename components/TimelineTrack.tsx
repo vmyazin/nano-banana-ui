@@ -6,6 +6,7 @@ import { AlertTriangle, Crop, Scan, Trash2 } from 'lucide-react';
 
 import type { GalleryRecord } from '@/lib/gallery/storage';
 import { UNDECODABLE_WARNING } from '@/lib/timeline/acquire';
+import { posterImage } from '@/lib/timeline/poster';
 import { useTimelineStore, type TimelineClip } from '@/store/useTimelineStore';
 import type { ClipState } from '@/components/TimelineWorkspace';
 import RecoverMediaDropZone from '@/components/RecoverMediaDropZone';
@@ -30,6 +31,15 @@ const MIN_GROW = 1;
  * above. `flexGrow` only distributes space once there's room to distribute —
  * this is what keeps a block clickable when the track is crowded.
  */
+/**
+ * One height for every poster, with the image free to take its own width.
+ * A block is already as wide as its clip is long, so letting the box take the
+ * clip's aspect ratio as well would let one tall portrait clip set the height
+ * of the whole row. Pinning the height and leaving the width to the image
+ * keeps the row level while still showing each clip's real shape.
+ */
+const PREVIEW_HEIGHT = 'h-24';
+
 const MIN_BLOCK_WIDTH = 108;
 
 function titleOf(record: GalleryRecord | undefined) {
@@ -82,7 +92,7 @@ function TrackBlock({
   onRepaired: (recordId: string) => void;
 }) {
   const [draggedOver, setDraggedOver] = useState(false);
-  const poster = record?.posterBlob ?? (state?.status === 'ready' ? state.blob : record?.blob);
+  const poster = posterImage(record?.posterBlob);
   const previewUrl = usePreviewUrl(poster);
 
   const isUnavailable = state?.status === 'unavailable';
@@ -133,7 +143,7 @@ function TrackBlock({
       </button>
 
       {isUnavailable ? (
-        <div className="flex aspect-video w-full flex-col items-center justify-center gap-1 rounded-md bg-black/30 p-1.5 text-center">
+        <div className={`flex w-full flex-col items-center justify-center gap-1 rounded-md bg-black/30 p-1.5 text-center ${PREVIEW_HEIGHT}`}>
           <AlertTriangle size={16} className="shrink-0 text-red-400" />
           <p className="text-[0.65rem] leading-tight text-red-300">{state.message}</p>
           {/* `missing` means the record is gone from the library entirely, so
@@ -147,10 +157,10 @@ function TrackBlock({
           )}
         </div>
       ) : (
-        <div className="flex aspect-video w-full cursor-grab items-center justify-center overflow-hidden rounded-md bg-black/40 active:cursor-grabbing">
+        <div className={`flex w-full cursor-grab items-center justify-center overflow-hidden rounded-md bg-black/40 active:cursor-grabbing ${PREVIEW_HEIGHT}`}>
           {previewUrl ? (
             /* eslint-disable-next-line @next/next/no-img-element */
-            <img src={previewUrl} alt="" className="h-full w-full object-cover" />
+            <img src={previewUrl} alt="" className="h-full w-auto max-w-full object-contain" />
           ) : (
             <span className="text-[0.65rem] text-[var(--foreground-subtle)]">
               {state?.status === 'loading' ? 'Loading…' : 'No preview'}

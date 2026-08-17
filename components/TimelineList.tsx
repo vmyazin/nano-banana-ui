@@ -6,6 +6,7 @@ import { AlertTriangle, Crop, GripVertical, Scan, Trash2 } from 'lucide-react';
 
 import type { GalleryRecord } from '@/lib/gallery/storage';
 import { UNDECODABLE_WARNING } from '@/lib/timeline/acquire';
+import { posterImage } from '@/lib/timeline/poster';
 import { useTimelineStore, type TimelineClip } from '@/store/useTimelineStore';
 import type { ClipState } from '@/components/TimelineWorkspace';
 import RecoverMediaDropZone from '@/components/RecoverMediaDropZone';
@@ -64,7 +65,7 @@ function ClipRow({
   onRepaired: (recordId: string) => void;
 }) {
   const [draggedOver, setDraggedOver] = useState(false);
-  const poster = record?.posterBlob ?? (state?.status === 'ready' ? state.blob : record?.blob);
+  const poster = posterImage(record?.posterBlob);
   const previewUrl = usePreviewUrl(poster);
 
   const handleDrop = (event: DragEvent<HTMLLIElement>) => {
@@ -106,10 +107,13 @@ function ClipRow({
         aria-hidden="true"
       />
 
+      {/* The thumb keeps a 16:9 footprint so every row's text starts on the
+          same line, but the poster inside is never cropped — a vertical clip
+          shows as vertical, letterboxed. */}
       <div className="flex aspect-video w-20 shrink-0 items-center justify-center overflow-hidden rounded-md bg-black/40">
         {previewUrl ? (
           /* eslint-disable-next-line @next/next/no-img-element */
-          <img src={previewUrl} alt="" className="h-full w-full object-cover" />
+          <img src={previewUrl} alt="" className="h-full w-full object-contain" />
         ) : (
           <span className="text-[0.65rem] text-[var(--foreground-subtle)]">No preview</span>
         )}

@@ -6,6 +6,7 @@ import { Loader2, Plus, Video } from 'lucide-react';
 import { useFileDrop } from '@/lib/drop/use-file-drop';
 import type { GalleryRecord } from '@/lib/gallery/storage';
 import { importLocalVideos } from '@/lib/timeline/import-local';
+import { posterImage } from '@/lib/timeline/poster';
 
 interface TimelineClipDrawerProps {
   records: GalleryRecord[];
@@ -26,7 +27,7 @@ function usePreviewUrls(records: GalleryRecord[]) {
   const previews = useMemo(() => {
     const entries = new Map<string, string>();
     for (const record of records) {
-      const blob = record.posterBlob ?? record.blob;
+      const blob = posterImage(record.posterBlob);
       if (blob) entries.set(record.id, URL.createObjectURL(blob));
     }
     return entries;
