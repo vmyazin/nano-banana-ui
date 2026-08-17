@@ -96,7 +96,7 @@ function ImportTile() {
         ) : (
           <Plus size={13} className="shrink-0" />
         )}
-        {busy ? 'Importing…' : 'Add files from your computer'}
+        {busy ? 'Importing…' : 'Add files from your device'}
       </label>
 
       <input
@@ -153,7 +153,7 @@ export default function TimelineClipDrawer({ records, onAdd }: TimelineClipDrawe
       {clips.length === 0 ? (
         <p className="text-[0.8125rem] leading-relaxed text-[var(--foreground-muted)]">
           Generated videos are kept here automatically. Nothing yet — make one, or add a file
-          from your computer above.
+          from your device above.
         </p>
       ) : (
         <ul className="space-y-2">

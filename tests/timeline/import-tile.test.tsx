@@ -36,7 +36,7 @@ describe('adding local files to Your clips', () => {
   it('offers the import affordance even when the library is empty', () => {
     renderWorkspace();
     expect(screen.getByTestId('import-clips')).toBeInTheDocument();
-    expect(screen.getByText(/add files from your computer/i)).toBeInTheDocument();
+    expect(screen.getByText(/add files from your device/i)).toBeInTheDocument();
   });
 
   it('turns a picked file into a clip that can be added to the timeline', async () => {
