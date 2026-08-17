@@ -84,4 +84,31 @@ describe('deriveOutputFormat', () => {
     expect(result.width).toBe(3840);
     expect(result.height).toBe(2160);
   });
+
+  it('rounds odd width down to even (H.264/yuv420p requires even dimensions)', () => {
+    // Both render engines encode H.264 in yuv420p, which requires even width and height.
+    // VP9/WebM permits odd dimensions, so this app accepts WebM clips with odd dimensions.
+    // A 1919x1080 source must yield 1918 to stay within codec constraints.
+    const result = deriveOutputFormat([clip({ width: 1919, height: 1080 })]);
+    expect(result.width).toBe(1918);
+    expect(result.height).toBe(1080);
+  });
+
+  it('rounds odd height down to even', () => {
+    const result = deriveOutputFormat([clip({ width: 1920, height: 1081 })]);
+    expect(result.width).toBe(1920);
+    expect(result.height).toBe(1080);
+  });
+
+  it('rounds both dimensions down when both are odd', () => {
+    const result = deriveOutputFormat([clip({ width: 1919, height: 1081 })]);
+    expect(result.width).toBe(1918);
+    expect(result.height).toBe(1080);
+  });
+
+  it('leaves already-even dimensions unchanged', () => {
+    const result = deriveOutputFormat([clip({ width: 1920, height: 1080 })]);
+    expect(result.width).toBe(1920);
+    expect(result.height).toBe(1080);
+  });
 });

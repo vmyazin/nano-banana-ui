@@ -12,6 +12,11 @@ export type DerivedOutput = Omit<TimelineOutput, 'auto'>;
 
 const FALLBACK: DerivedOutput = { width: 1920, height: 1080, fps: 30 };
 
+/** Round a dimension down to the nearest even number. Both render engines encode H.264 in yuv420p, which requires even width and height. */
+function makeEven(dim: number): number {
+  return Math.floor(dim / 2) * 2;
+}
+
 /** Two decimals is enough to separate 16:9 from 4:3 without splitting 1918x1080 off. */
 function aspectKey(clip: ClipDimensions) {
   return (clip.width / clip.height).toFixed(2);
@@ -36,9 +41,18 @@ function heaviest<T>(items: T[], key: (item: T) => string, weight: (item: T) => 
   return best;
 }
 
+/**
+ * Derive the export format from clips on the timeline.
+ * Selects aspect ratio by duration-weighted voting, picks the largest resolution
+ * at that aspect, and selects the most common framerate.
+ * Returns dimensions rounded down to even numbers — both render engines encode
+ * H.264 in yuv420p, which requires even width and height.
+ */
 export function deriveOutputFormat(clips: ClipDimensions[]): DerivedOutput {
   const usable = clips.filter((clip) => clip.width > 0 && clip.height > 0);
-  if (usable.length === 0) return { ...FALLBACK };
+  if (usable.length === 0) {
+    return { width: makeEven(FALLBACK.width), height: makeEven(FALLBACK.height), fps: FALLBACK.fps };
+  }
 
   const aspect = heaviest(usable, aspectKey, (clip) => clip.durationSeconds);
   const atAspect = usable.filter((clip) => aspectKey(clip) === aspect);
@@ -52,5 +66,5 @@ export function deriveOutputFormat(clips: ClipDimensions[]): DerivedOutput {
     ? Number(heaviest(rated, (clip) => String(clip.fps), (clip) => clip.durationSeconds))
     : FALLBACK.fps;
 
-  return { width: largest.width, height: largest.height, fps };
+  return { width: makeEven(largest.width), height: makeEven(largest.height), fps };
 }
