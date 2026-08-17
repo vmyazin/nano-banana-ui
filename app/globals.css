@@ -2,16 +2,23 @@
 @import "tailwindcss";
 
 :root {
-  /* Base surfaces — near-black with subtle, precise elevation (Linear/Vercel) */
-  --background: #08080b;
-  --background-elevated: #0e0e13;
-  --surface: rgba(255, 255, 255, 0.02);
-  --surface-hover: rgba(255, 255, 255, 0.045);
-  --foreground: #f2f2f6;
+  /* Base surfaces — near-black, tinted toward the cyan the accents already use
+     instead of the blue-violet black it was. Every neutral in the theme mixes
+     from --tint, so the cast stays one decision: change the hue here and the
+     surfaces, borders, grid, and scrollbars follow — --tint-hue is the single
+     knob for the whole cast. Kept at a few percent effective saturation: past
+     that a dark UI stops reading as black and starts reading as a teal app. */
+  --tint-hue: 190;
+  --tint: var(--tint-hue) 60% 85%;
+  --background: hsl(var(--tint-hue) 38% 5%);
+  --background-elevated: hsl(var(--tint-hue) 32% 8%);
+  --surface: hsl(var(--tint) / 0.02);
+  --surface-hover: hsl(var(--tint) / 0.045);
+  --foreground: #ecf5f5;
   /* Secondary text carries most of the reading load in this UI, so it is held
      near 6.5:1 on the elevated surface rather than the usual dim grey. */
-  --foreground-muted: #9797a6;
-  --foreground-subtle: #7b7b87;
+  --foreground-muted: #8fa5a7;
+  --foreground-subtle: #7a8d8f;
 
   /* Neon accents — unchanged palette, spent sparingly */
   --neon-cyan: #00fff9;
@@ -22,17 +29,17 @@
 
   /* Hairline borders. Grouping outlines stay quiet; inputs override this with
      a stronger edge below, since a field has to look like a field. */
-  --border: rgba(255, 255, 255, 0.075);
-  --border-hover: rgba(255, 255, 255, 0.17);
-  --border-input: rgba(255, 255, 255, 0.14);
+  --border: hsl(var(--tint) / 0.075);
+  --border-hover: hsl(var(--tint) / 0.17);
+  --border-input: hsl(var(--tint) / 0.14);
 
   /* Gradients (kept for accents) */
   --gradient-primary: linear-gradient(135deg, var(--neon-cyan) 0%, var(--neon-purple) 50%, var(--neon-pink) 100%);
   --gradient-accent: linear-gradient(135deg, var(--brand-accent) 0%, #ff8c42 100%);
 
   /* Restrained shadows + a single subtle accent glow */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
-  --shadow-md: 0 8px 30px -12px rgba(0, 0, 0, 0.7);
+  --shadow-sm: 0 1px 2px rgba(0, 8, 9, 0.4);
+  --shadow-md: 0 8px 30px -12px rgba(0, 8, 9, 0.7);
   --glow-cyan: 0 0 0 1px rgba(0, 255, 249, 0.35), 0 0 28px -6px rgba(0, 255, 249, 0.45);
 
   --radius: 11px;
@@ -54,7 +61,7 @@
   --control-h-sm: 2rem;
 
   /* Back-compat aliases so older components map onto the refined system */
-  --background-glass: rgba(255, 255, 255, 0.03);
+  --background-glass: hsl(var(--tint) / 0.03);
   --border-glass: 1px solid var(--border);
   --border-neon: 1px solid var(--neon-cyan);
   --gradient-secondary: linear-gradient(135deg, var(--electric-blue), var(--neon-cyan));
@@ -100,8 +107,8 @@ body::before {
   z-index: 0;
   pointer-events: none;
   background-image:
-    linear-gradient(rgba(255, 255, 255, 0.022) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.022) 1px, transparent 1px);
+    linear-gradient(hsl(var(--tint) / 0.022) 1px, transparent 1px),
+    linear-gradient(90deg, hsl(var(--tint) / 0.022) 1px, transparent 1px);
   background-size: 56px 56px;
   -webkit-mask-image: radial-gradient(ellipse 90% 60% at 50% 0%, #000 30%, transparent 75%);
   mask-image: radial-gradient(ellipse 90% 60% at 50% 0%, #000 30%, transparent 75%);
@@ -114,8 +121,12 @@ body::after {
   z-index: 0;
   pointer-events: none;
   background:
-    radial-gradient(60% 50% at 50% -8%, rgba(0, 255, 249, 0.10), transparent 60%),
-    radial-gradient(50% 45% at 85% 5%, rgba(189, 0, 255, 0.08), transparent 60%);
+    radial-gradient(60% 50% at 50% -8%, rgba(0, 255, 249, 0.12), transparent 60%),
+    radial-gradient(50% 45% at 85% 5%, rgba(189, 0, 255, 0.08), transparent 60%),
+    /* A warm floor under the cyan cast, so the tint reads as lit rather than
+       icy. Half the alpha of the accents above it — it should register as
+       temperature, not as a visible orange corner. */
+    radial-gradient(55% 40% at 8% 100%, rgba(255, 168, 84, 0.07), transparent 65%);
 }
 
 /* Surface card — hairline border, calm fill, gradient hairline at the top edge.
@@ -139,7 +150,7 @@ body::after {
   background: var(--background-elevated);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  box-shadow: 0 30px 70px -25px rgba(0, 0, 0, 0.85);
+  box-shadow: 0 30px 70px -25px rgba(0, 8, 9, 0.85);
 }
 
 /* Labels inside dialogs and forms. The mono eyebrow is too tracked-out to
@@ -310,14 +321,14 @@ textarea::placeholder {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.12);
+  background: hsl(var(--tint) / 0.12);
   border-radius: 999px;
   border: 2px solid transparent;
   background-clip: padding-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.22);
+  background: hsl(var(--tint) / 0.22);
   background-clip: padding-box;
 }
 
@@ -366,7 +377,7 @@ textarea::placeholder {
   position: fixed;
   inset: 0;
   z-index: 70;
-  background: rgba(0, 0, 0, 0.6);
+  background: rgba(2, 9, 10, 0.6);
   backdrop-filter: blur(4px);
 }
 

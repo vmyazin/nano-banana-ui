@@ -79,7 +79,7 @@ function Studio() {
   return (
     <div className="min-h-screen relative w-full overflow-x-hidden">
       {/* Header — sticky, hairline border, backdrop blur (Linear/Vercel nav) */}
-      <header className="sticky top-0 z-50 border-b border-[var(--border)] bg-[rgba(8,8,11,0.72)] backdrop-blur-xl">
+      <header className="sticky top-0 z-50 border-b border-[var(--border)] bg-[hsl(var(--tint-hue)_38%_5%/0.72)] backdrop-blur-xl">
         <div className="w-full max-w-7xl mx-auto px-6 sm:px-8 md:px-12 lg:px-16 py-3.5 md:py-4">
           <div className="flex items-center justify-between gap-4">
             <Link
@@ -295,7 +295,7 @@ function Studio() {
       </main>
 
       {/* Footer */}
-      <footer className="site-footer relative z-10 border-t border-white/10 mt-8 sm:mt-10">
+      <footer className="site-footer relative z-10 border-t border-[var(--border)] mt-8 sm:mt-10">
         <div className="w-full max-w-7xl mx-auto px-6 sm:px-8 md:px-12 lg:px-16 py-6 sm:py-7">
           <div className="flex flex-col items-center justify-center gap-4 sm:gap-5 text-center">
             <div className="text-center space-y-1.5">
@@ -328,7 +328,7 @@ function Studio() {
                 href="https://aistudio.google.com/apikey"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-xs font-medium px-3 py-1.5 rounded-lg bg-[var(--background-glass)] border border-white/10 hover:border-[var(--neon-pink)] text-[var(--foreground-muted)] hover:text-[var(--neon-pink)] transition-all hover:shadow-[0_0_20px_rgba(255,0,110,0.3)]"
+                className="text-xs font-medium px-3 py-1.5 rounded-lg bg-[var(--background-glass)] border border-[var(--border)] hover:border-[var(--neon-pink)] text-[var(--foreground-muted)] hover:text-[var(--neon-pink)] transition-all hover:shadow-[0_0_20px_rgba(255,0,110,0.3)]"
               >
                 🔑 API Keys &amp; Billing
               </a>
@@ -336,7 +336,7 @@ function Studio() {
                 href={brand.githubUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-xs font-medium px-3 py-1.5 rounded-lg bg-[var(--background-glass)] border border-white/10 hover:border-[var(--neon-purple)] text-[var(--foreground-muted)] hover:text-[var(--neon-purple)] transition-all hover:shadow-[var(--glow-purple)]"
+                className="text-xs font-medium px-3 py-1.5 rounded-lg bg-[var(--background-glass)] border border-[var(--border)] hover:border-[var(--neon-purple)] text-[var(--foreground-muted)] hover:text-[var(--neon-purple)] transition-all hover:shadow-[var(--glow-purple)]"
               >
                 💻 GitHub
               </a>
@@ -345,7 +345,7 @@ function Studio() {
 
           {/* Engines available — capability context, not product identity.
               Each one links to the docs you'd need to work with it directly. */}
-          <div className="mt-6 pt-5 border-t border-white/5 text-center">
+          <div className="mt-6 pt-5 border-t border-[hsl(var(--tint)/0.05)] text-center">
             <p className="eyebrow mb-2">Engine docs</p>
             <ul className="flex flex-wrap items-center justify-center gap-1.5 text-xs">
               {ENGINE_DOCS.map(({ id, label, href, accentClass }) => (
@@ -354,7 +354,7 @@ function Studio() {
                     href={href}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className={`inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-[var(--background-glass)] px-2.5 py-1 font-medium text-[var(--foreground-muted)] transition-colors hover:border-current ${accentClass}`}
+                    className={`inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--background-glass)] px-2.5 py-1 font-medium text-[var(--foreground-muted)] transition-colors hover:border-current ${accentClass}`}
                   >
                     <ProviderLogo provider={id} size={13} />
                     {label}

@@ -15,12 +15,12 @@
     while the cyan loses 1.5 on every side to the seam. Both land on a visible
     box of about 15, inset 4 from the tile.
   -->
-  <rect width="32" height="32" rx="7" fill="#08080b"/>
+  <rect width="32" height="32" rx="7" fill="#081012"/>
 
   <rect x="5" y="5" width="14" height="14" rx="3"
         fill="none" stroke="#bd00ff" stroke-width="2"/>
 
   <!-- The background-coloured stroke carves the seam out of the frame behind. -->
   <rect x="12.5" y="12.5" width="17" height="17" rx="3.5"
-        fill="#00fff9" stroke="#08080b" stroke-width="3"/>
+        fill="#00fff9" stroke="#081012" stroke-width="3"/>
 </svg>
