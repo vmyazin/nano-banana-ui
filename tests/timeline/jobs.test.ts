@@ -138,6 +138,49 @@ describe('jobs registry — concurrency', () => {
   });
 });
 
+describe('capacity is derived, not counted', () => {
+  it('refuses to queue the same job twice, so one id is always one slot', () => {
+    // Capacity comes from `active`, a set. Two waiting entries sharing an id
+    // would occupy two queue slots but only one set membership, understating
+    // how busy the box is — so the duplicate is refused outright.
+    const job = createJob({ sessionToken: 'a', tempDir: trackedTempDir() });
+    enqueue(job.id, makeGatedRunner().runner);
+    expect(() => enqueue(job.id, makeGatedRunner().runner)).toThrow(/already queued or running/);
+  });
+
+  it('never reports more room than the queue actually has', async () => {
+    // The failure this replaces always looked the same: capacity reading
+    // higher than reality. Asserted directly rather than via its symptom.
+    const first = createJob({ sessionToken: 'a', tempDir: trackedTempDir() });
+    const gate = makeGatedRunner();
+    enqueue(first.id, gate.runner);
+    await waitUntil(() => gate.calls.length === 1);
+    expect(hasCapacity()).toBe(true);
+
+    const rest = [0, 1].map(() => createJob({ sessionToken: 'a', tempDir: trackedTempDir() }));
+    const gates = rest.map(() => makeGatedRunner());
+    rest.forEach((job, index) => enqueue(job.id, gates[index].runner));
+    expect(hasCapacity()).toBe(false);
+
+    // A completion frees exactly one slot — never more. Proven by refilling
+    // it: the replacement fits, and a second one does not.
+    gate.resolve({ outputPath: '/out/a.mp4' });
+    await waitUntil(() => getJob(first.id, 'a')?.phase === 'done');
+    expect(hasCapacity()).toBe(true);
+
+    const replacement = createJob({ sessionToken: 'a', tempDir: trackedTempDir() });
+    enqueue(replacement.id, makeGatedRunner().runner);
+    expect(hasCapacity()).toBe(false);
+    const overflow = createJob({ sessionToken: 'a', tempDir: trackedTempDir() });
+    expect(() => enqueue(overflow.id, makeGatedRunner().runner)).toThrow(TooBusyError);
+
+    gates.forEach((g) => g.resolve({ outputPath: '/out/x.mp4' }));
+    await waitUntil(() => getJob(rest[1].id, 'a')?.phase === 'done');
+    await awaitQuiescence();
+    expect(hasCapacity()).toBe(true);
+  });
+});
+
 describe('jobs registry — resetting while a runner is still in flight', () => {
   it('does not let a stale completion drive runningCount negative and invent capacity', async () => {
     // The registry is a process-wide singleton, so a test that leaves a job

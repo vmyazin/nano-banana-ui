@@ -60,6 +60,11 @@ export default function TimelineWorkspace({
   onClipStatesChange,
 }: TimelineWorkspaceProps) {
   const records = useGalleryStore((state) => state.records);
+  // Gates the restore-on-mount effect below. Resolving before the gallery has
+  // hydrated would look up records in an empty store and report every clip as
+  // `missing` — a confident wrong answer, worse than the unresolved state it
+  // is trying to replace.
+  const galleryHydrated = useGalleryStore((state) => state.hydrated);
   const clips = useTimelineStore((state) => state.timeline.clips);
   const output = useTimelineStore((state) => state.timeline.output);
 
@@ -173,6 +178,31 @@ export default function TimelineWorkspace({
    * just the row the user happened to drop the file on. Fixing one twin and
    * leaving the other broken would be the more confusing outcome.
    */
+  /**
+   * Resolve clips that are on the timeline but have no acquisition state.
+   *
+   * The timeline persists to localStorage; `clipStates` does not, and until
+   * now resolution only ever happened inside `addClip`. So every clip on a
+   * reloaded timeline stayed unresolved forever — no duration, no fit
+   * controls, and Export permanently disabled, with removing and re-adding
+   * each clip as the only way out. This is what makes a saved timeline
+   * survive a reload as something you can actually export.
+   *
+   * Gated on gallery hydration: `acquireClipMedia` looks records up in the
+   * store, so running against an un-hydrated (empty) store would report every
+   * clip as `missing`.
+   */
+  useEffect(() => {
+    if (!galleryHydrated) return;
+    for (const clip of clips) {
+      // `resolveClip` writes a `loading` state synchronously, so a clip is
+      // only picked up once even though this effect re-runs on every
+      // clipStates change.
+      if (clipStates[clip.id] || controllersRef.current.has(clip.id)) continue;
+      void resolveClip(clip.id, clip.recordId);
+    }
+  }, [galleryHydrated, clips, clipStates, resolveClip]);
+
   const repairedRecord = useCallback(
     (recordId: string) => {
       useTimelineStore

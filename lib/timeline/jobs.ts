@@ -75,15 +75,31 @@ const controllers = new Map<string, AbortController>();
 const waiting: Array<{ id: string; run: JobRunner }> = [];
 /** Ids currently inside a runner call — distinguishes "running" from "queued" for cancellation. */
 const active = new Set<string>();
-let runningCount = 0;
 /**
- * Bumped by `__resetJobsForTests`. A runner already inside `runOne` when a
- * reset happens would otherwise reach its `finally` afterwards and decrement
- * `runningCount` a second time for work the reset already accounted for,
- * leaving the counter *negative* — at which point `hasCapacity()` reports
- * room that does not exist, and the next test to assert on capacity fails for
- * reasons in a previous one. Comparing the epoch is what lets that stale
- * completion return without touching shared state.
+ * How many renders are in flight, derived from `active` rather than kept in a
+ * parallel counter.
+ *
+ * There used to be a `runningCount` alongside this set, incremented on start
+ * and decremented in `runOne`'s `finally`. It produced an intermittent suite
+ * failure in which `hasCapacity()` reported room that did not exist: the
+ * symptom was always the counter reading *lower* than reality, and a counter
+ * is the only thing here that can. `Set.delete` is idempotent, so no ordering
+ * of starts, completions, cancellations or resets can drive membership below
+ * the truth the way a stray `-= 1` can drive a number below zero. Deriving
+ * removes the variable rather than guarding it.
+ */
+function runningCount(): number {
+  return active.size;
+}
+/**
+ * Bumped by `__resetJobsForTests`, so a runner still inside `runOne` when a
+ * reset happens can tell that the registry it started under is gone.
+ *
+ * It no longer guards a counter — capacity is derived from `active` now, and
+ * a stale `delete` on a set the reset already cleared is harmless. What it
+ * still guards is the rest of that branch: a stale completion must not
+ * `drain()` a queue that now belongs to a different generation of jobs, and
+ * must not delete a controller it no longer owns.
  */
 let epoch = 0;
 
@@ -132,7 +148,7 @@ export function getJob(id: string, sessionToken?: string | null): RenderJob | un
  * cheap early rejection, not a guarantee.
  */
 export function hasCapacity(): boolean {
-  return runningCount + waiting.length < MAX_RUNNING + MAX_QUEUED;
+  return runningCount() + waiting.length < MAX_RUNNING + MAX_QUEUED;
 }
 
 /**
@@ -145,7 +161,16 @@ export function hasCapacity(): boolean {
 export function enqueue(id: string, run: JobRunner): void {
   const job = jobs.get(id);
   if (!job) throw new Error(`enqueue: unknown job ${id}`);
-  if (runningCount + waiting.length >= MAX_RUNNING + MAX_QUEUED) {
+  // Capacity is derived from `active`, a set — so one id must mean one unit of
+  // work. Queueing the same job twice would occupy two slots in `waiting` but
+  // only ever one in `active`, quietly understating how busy the box is. Not
+  // reachable from the render route (it creates a fresh job per request), but
+  // this is the assumption the derivation rests on, so it is enforced rather
+  // than trusted.
+  if (active.has(id) || waiting.some((entry) => entry.id === id)) {
+    throw new Error(`enqueue: job ${id} is already queued or running`);
+  }
+  if (runningCount() + waiting.length >= MAX_RUNNING + MAX_QUEUED) {
     throw new TooBusyError();
   }
 
@@ -155,7 +180,7 @@ export function enqueue(id: string, run: JobRunner): void {
 }
 
 function drain(): void {
-  if (runningCount >= MAX_RUNNING) return;
+  if (runningCount() >= MAX_RUNNING) return;
   const next = waiting.shift();
   if (!next) return;
   void runOne(next);
@@ -170,7 +195,6 @@ async function runOne(entry: { id: string; run: JobRunner }): Promise<void> {
   }
 
   const startedIn = epoch;
-  runningCount += 1;
   active.add(entry.id);
 
   try {
@@ -208,17 +232,16 @@ async function runOne(entry: { id: string; run: JobRunner }): Promise<void> {
       setPhase(job, 'error', job.progress);
     }
   } finally {
-    // The registry was reset out from under this runner. Its slot was already
-    // reclaimed wholesale; decrementing again would take the counter negative.
-    // Its temp dir is still worth removing — that is filesystem state no
-    // reset touches.
+    // The registry was reset out from under this runner, so it must not
+    // drain a queue or delete a controller belonging to the generation that
+    // replaced it. Its temp dir is still worth removing — that is filesystem
+    // state no reset touches.
     if (epoch !== startedIn) {
       await cleanupTempDir(job);
     } else {
       active.delete(entry.id);
       controllers.delete(entry.id);
       await cleanupTempDir(job);
-      runningCount -= 1;
       drain();
     }
   }
@@ -329,5 +352,4 @@ export function __resetJobsForTests(): void {
   controllers.clear();
   waiting.length = 0;
   active.clear();
-  runningCount = 0;
 }
