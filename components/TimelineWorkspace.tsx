@@ -83,8 +83,15 @@ export default function TimelineWorkspace({
   const [engines, setEngines] = useState<RenderEngine[]>([]);
   useEffect(() => {
     let cancelled = false;
-    void import('@/lib/timeline/render/webcodecs').then(({ createWebCodecsEngine }) => {
-      if (!cancelled) setEngines([createWebCodecsEngine()]);
+    // Browser-first order, both loaded lazily: webcodecs pulls in mediabunny
+    // (never a top-level import, per that module's own contract) and the
+    // server engine only ever speaks HTTP, so neither needs to sit in this
+    // component's own bundle before the workspace actually mounts.
+    void Promise.all([
+      import('@/lib/timeline/render/webcodecs'),
+      import('@/lib/timeline/render/server'),
+    ]).then(([{ createWebCodecsEngine }, { createServerEngine }]) => {
+      if (!cancelled) setEngines([createWebCodecsEngine(), createServerEngine()]);
     });
     return () => {
       cancelled = true;
