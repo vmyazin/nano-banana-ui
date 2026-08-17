@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { HardDrive, Settings2 } from 'lucide-react';
+import { HardDrive } from 'lucide-react';
 
 import { DEFAULT_GALLERY_BUDGET } from '@/lib/gallery/eviction';
 import { deriveOutputFormat } from '@/lib/timeline/derive-output';
@@ -12,6 +12,7 @@ import { useTimelineStore } from '@/store/useTimelineStore';
 import TimelineClipDrawer from '@/components/TimelineClipDrawer';
 import TimelineExportPanel from '@/components/TimelineExportPanel';
 import TimelineList from '@/components/TimelineList';
+import TimelineOutputFormat from '@/components/TimelineOutputFormat';
 import TimelinePreview from '@/components/TimelinePreview';
 import TimelineTrack from '@/components/TimelineTrack';
 
@@ -175,6 +176,14 @@ export default function TimelineWorkspace({
   // Tracks the derived format to whatever is ready, as long as the user has
   // not frozen it by editing directly — applyDerivedOutput is a no-op in that
   // case, so this effect does not need to know which state it is in.
+  //
+  // `output.auto` is a dependency because "match clips" changes *only* that
+  // flag: `matchClips` cannot recompute on its own (the store has no access to
+  // clipStates), so without this the button would thaw the format and leave
+  // the user's edited numbers frozen in place, which is not what it says.
+  // It cannot loop: the flag stays `true` across a recompute, and React
+  // compares deps by value, so a re-render caused by applyDerivedOutput does
+  // not re-run this effect.
   useEffect(() => {
     const dimensions = clips
       .map((clip) => clipStates[clip.id])
@@ -182,7 +191,7 @@ export default function TimelineWorkspace({
       .map((state) => state.dimensions);
     if (dimensions.length === 0) return;
     useTimelineStore.getState().applyDerivedOutput(deriveOutputFormat(dimensions));
-  }, [clips, clipStates]);
+  }, [clips, clipStates, output.auto]);
 
   const storedBytes = records.reduce((total, record) => total + record.bytes, 0);
   const budgetBytes = DEFAULT_GALLERY_BUDGET.maxBytes;
@@ -214,21 +223,11 @@ export default function TimelineWorkspace({
           <TimelinePreview clips={clips} clipStates={clipStates} />
 
           <div className="glass-card flex flex-wrap items-center justify-between gap-3 p-3.5">
-            <p className="flex items-center gap-1.5 text-[0.8125rem] text-[var(--foreground-muted)]">
-              <Settings2 size={13} className="text-[var(--foreground-subtle)]" />
-              Output {output.width}×{output.height} @ {output.fps}fps
-              {output.auto ? (
-                <span className="pill">auto</span>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => useTimelineStore.getState().matchClips()}
-                  className="text-[var(--neon-cyan)] underline-offset-2 hover:underline"
-                >
-                  match clips
-                </button>
-              )}
-            </p>
+            <TimelineOutputFormat
+              output={output}
+              onEdit={(patch) => useTimelineStore.getState().setOutput(patch)}
+              onMatchClips={() => useTimelineStore.getState().matchClips()}
+            />
             <p className="flex items-center gap-1.5 text-[0.8125rem] text-[var(--foreground-muted)]">
               <HardDrive size={13} className="text-[var(--foreground-subtle)]" />
               {formatBytes(storedBytes)} of {formatBytes(budgetBytes)} stored
