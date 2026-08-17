@@ -171,6 +171,52 @@ describe('jobs registry — phase transitions', () => {
   });
 });
 
+describe('jobs registry — the tempDir/outputPath contract is enforced, not just documented', () => {
+  it('fails loudly, rather than silently deleting the artifact, when a runner writes its output inside tempDir', async () => {
+    const tempDir = trackedTempDir();
+    const job = createJob({ sessionToken: 'a', tempDir });
+    const insideOutputPath = join(tempDir, 'out.mp4');
+    writeFileSync(insideOutputPath, 'finished video');
+
+    const r = makeGatedRunner();
+    enqueue(job.id, r.runner);
+    await waitUntil(() => r.calls.length === 1);
+    r.resolve({ outputPath: insideOutputPath });
+
+    await waitUntil(() => getJob(job.id, 'a')?.phase === 'error');
+    const finished = getJob(job.id, 'a');
+    // The job must never claim 'done' for a file it's about to delete — that
+    // combination (success + gone) is exactly the silent-data-loss failure
+    // mode this check exists to prevent.
+    expect(finished?.phase).not.toBe('done');
+    expect(finished?.outputPath).toBeNull();
+    expect(finished?.error).toMatch(/temp directory/i);
+
+    // The file is still gone in the end (it physically lived inside the
+    // staging dir every terminal path removes) — but that's now honest,
+    // since the job's own status says 'error', not 'done'.
+    await waitUntil(() => !existsSync(insideOutputPath));
+  });
+
+  it('does not flag a sibling directory that merely shares a string prefix with tempDir', async () => {
+    const tempDir = trackedTempDir();
+    const job = createJob({ sessionToken: 'a', tempDir });
+    // e.g. ".../jobs-test-abc1230/out.mp4" vs. tempDir ".../jobs-test-abc123"
+    // — a naive `outputPath.startsWith(tempDir)` would wrongly treat this as
+    // contained. It is a genuine sibling, not a child.
+    const siblingOutputPath = join(`${tempDir}0`, 'out.mp4');
+
+    const r = makeGatedRunner();
+    enqueue(job.id, r.runner);
+    await waitUntil(() => r.calls.length === 1);
+    r.resolve({ outputPath: siblingOutputPath });
+
+    await waitUntil(() => getJob(job.id, 'a')?.phase === 'done');
+    expect(getJob(job.id, 'a')?.outputPath).toBe(siblingOutputPath);
+    expect(getJob(job.id, 'a')?.error).toBeNull();
+  });
+});
+
 describe('jobs registry — cleanup on every terminal path', () => {
   it('removes the temp dir when the runner succeeds', async () => {
     const tempDir = trackedTempDir();

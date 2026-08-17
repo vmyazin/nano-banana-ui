@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { rm } from 'node:fs/promises';
+import { isAbsolute, relative, resolve, sep } from 'node:path';
 
 import type { RenderProgress } from './render/port';
 
@@ -156,6 +157,20 @@ async function runOne(entry: { id: string; run: JobRunner }): Promise<void> {
       signal: controller.signal,
       onProgress: (progress) => setPhase(job, progress.phase, progress.completed),
     });
+
+    // The terminal-path cleanup below always removes `job.tempDir`. If the
+    // runner wrote its output inside that directory, reporting 'done' would
+    // be a lie: the file is about to be deleted along with the staging dir,
+    // and nothing would surface that until a much later `GET /result` 404s.
+    // Fail loudly here instead of silently losing the artifact.
+    if (isWithinDir(job.tempDir, result.outputPath)) {
+      throw new Error(
+        `Render runner wrote its output inside the job's temp directory ` +
+          `(${result.outputPath} is inside ${job.tempDir}); refusing to report ` +
+          `success since temp-dir cleanup would delete it.`
+      );
+    }
+
     job.outputPath = result.outputPath;
     setPhase(job, 'done', 1);
   } catch (err) {
@@ -233,6 +248,21 @@ export async function sweepAbandoned(now: number = Date.now()): Promise<string[]
   }
 
   return swept;
+}
+
+/**
+ * True when `child` resolves to a path inside (or equal to) `parent`.
+ *
+ * Resolves both paths first — so `..` segments and a merely-a-string-prefix
+ * sibling (`/tmp/job1` vs. `/tmp/job10`) are handled correctly — and compares
+ * by path segment rather than raw string, so a directory that happens to be
+ * literally named `..something` can't produce a false positive either.
+ */
+function isWithinDir(parent: string, child: string): boolean {
+  const rel = relative(resolve(parent), resolve(child));
+  if (rel === '') return true;
+  const firstSegment = rel.split(sep)[0];
+  return firstSegment !== '..' && !isAbsolute(rel);
 }
 
 function setPhase(job: RenderJob, phase: JobPhase, progress: number | null): void {
