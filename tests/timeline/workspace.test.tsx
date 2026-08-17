@@ -1,8 +1,9 @@
-import { screen, waitFor, within } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { mockNextAcquireResult, renderWorkspace, setupTimelineTest } from './helpers';
+import type { ClipState } from '../../components/TimelineWorkspace';
+import { mockNextAcquireResult, mockPendingAcquire, renderWorkspace, setupTimelineTest } from './helpers';
 
 describe('TimelineWorkspace', () => {
   beforeEach(() => setupTimelineTest());
@@ -47,5 +48,71 @@ describe('TimelineWorkspace', () => {
     await waitFor(() =>
       expect(screen.getByText(/out of storage for kept results/i)).toBeInTheDocument()
     );
+  });
+
+  it('drops the placement from clipStates when it is removed while acquisition is in flight, even once the acquisition later resolves', async () => {
+    const pending = mockPendingAcquire();
+    const snapshots: Array<Record<string, ClipState>> = [];
+    renderWorkspace({ onClipStatesChange: (states) => snapshots.push(states) });
+
+    await userEvent.click(screen.getAllByRole('button', { name: /add/i })[0]);
+    await waitFor(() => expect(Object.keys(snapshots.at(-1) ?? {})).toHaveLength(1));
+    const placementId = Object.keys(snapshots.at(-1)!)[0];
+
+    await userEvent.click(screen.getByRole('button', { name: /remove/i }));
+    expect(snapshots.at(-1)).not.toHaveProperty(placementId);
+
+    // The acquisition finally lands, after the clip is already gone.
+    await act(async () => {
+      pending.resolve({
+        status: 'ready',
+        blob: new Blob(['v']),
+        dimensions: { width: 1920, height: 1080, durationSeconds: 4 },
+        durable: true,
+      });
+      await Promise.resolve();
+    });
+
+    expect(snapshots.at(-1)).not.toHaveProperty(placementId);
+  });
+
+  it('does not resurrect a row when an acquisition resolves after its clip was removed', async () => {
+    const pending = mockPendingAcquire();
+    renderWorkspace();
+
+    await userEvent.click(screen.getAllByRole('button', { name: /add/i })[0]);
+    await waitFor(() => expect(pending.signal()).toBeDefined());
+
+    await userEvent.click(screen.getByRole('button', { name: /remove/i }));
+    expect(screen.getByText(/no clips yet/i)).toBeInTheDocument();
+
+    await act(async () => {
+      pending.resolve({
+        status: 'ready',
+        blob: new Blob(['v']),
+        dimensions: { width: 1920, height: 1080, durationSeconds: 4 },
+        durable: true,
+      });
+      await Promise.resolve();
+    });
+
+    // Still empty — the late resolution did not bring the row back. (The
+    // drawer keeps its own "neon tiger" entry regardless, so the assertion
+    // is scoped to the sequence, not the whole page.)
+    expect(screen.getByText(/no clips yet/i)).toBeInTheDocument();
+    expect(within(screen.getByTestId('timeline-list')).queryByText('neon tiger')).not.toBeInTheDocument();
+  });
+
+  it('aborts an in-flight acquisition when the workspace unmounts', async () => {
+    const pending = mockPendingAcquire();
+    const { unmount } = renderWorkspace();
+
+    await userEvent.click(screen.getAllByRole('button', { name: /add/i })[0]);
+    await waitFor(() => expect(pending.signal()).toBeDefined());
+    expect(pending.signal()?.aborted).toBe(false);
+
+    unmount();
+
+    expect(pending.signal()?.aborted).toBe(true);
   });
 });

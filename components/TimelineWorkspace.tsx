@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { HardDrive, Settings2 } from 'lucide-react';
 
 import { DEFAULT_GALLERY_BUDGET } from '@/lib/gallery/eviction';
@@ -26,6 +26,16 @@ export type ClipState = ClipMedia | Unavailable | { status: 'loading' };
 interface TimelineWorkspaceProps {
   onExit: () => void;
   onOpenConnections: () => void;
+  /**
+   * Test seam: fires with the current `clipStates` map whenever it changes.
+   * `app/page.tsx` never passes this — `clipStates` is otherwise private to
+   * this component, and a placement's acquisition can resolve after the clip
+   * that started it was removed (see the abort handling in `addClip`), which
+   * is only observable by inspecting the map itself, not by what ends up
+   * rendered from it — a removed placement never renders regardless of
+   * whether its stale write was guarded away or not.
+   */
+  onClipStatesChange?: (states: Record<string, ClipState>) => void;
 }
 
 function formatBytes(bytes: number) {
@@ -40,7 +50,11 @@ function formatBytes(bytes: number) {
   return `${value < 10 ? value.toFixed(1) : Math.round(value)} ${units[unit]}`;
 }
 
-export default function TimelineWorkspace({ onExit, onOpenConnections }: TimelineWorkspaceProps) {
+export default function TimelineWorkspace({
+  onExit,
+  onOpenConnections,
+  onClipStatesChange,
+}: TimelineWorkspaceProps) {
   const records = useGalleryStore((state) => state.records);
   const clips = useTimelineStore((state) => state.timeline.clips);
   const output = useTimelineStore((state) => state.timeline.output);
@@ -53,6 +67,11 @@ export default function TimelineWorkspace({ onExit, onOpenConnections }: Timelin
   // at every width regardless of this value.
   const [isWide, setIsWide] = useState(() => window.matchMedia('(min-width: 1024px)').matches);
 
+  // One AbortController per in-flight placement id. A ref, not state: it
+  // must survive re-renders without itself causing one, and nothing ever
+  // reads it during render — only inside event handlers and effect cleanup.
+  const controllersRef = useRef(new Map<string, AbortController>());
+
   useEffect(() => {
     void useGalleryStore.getState().hydrate();
   }, []);
@@ -64,16 +83,49 @@ export default function TimelineWorkspace({ onExit, onOpenConnections }: Timelin
     return () => mql.removeEventListener('change', onChange);
   }, []);
 
+  // Fires the test seam after every clipStates change.
+  useEffect(() => {
+    onClipStatesChange?.(clipStates);
+  }, [clipStates, onClipStatesChange]);
+
   // Acquisition runs at add time, not export time, so a clip whose source has
   // expired reports that immediately rather than at the end of a render.
+  // Each placement gets its own AbortController so removing the clip — or
+  // closing the workspace — can cancel the fetch/decode in flight instead of
+  // letting it land under a placement id that no longer exists.
   const addClip = useCallback(async (recordId: string) => {
     const placementId = useTimelineStore.getState().addClip(recordId);
     setClipStates((prev) => ({ ...prev, [placementId]: { status: 'loading' } }));
-    const result = await acquireClipMedia(recordId);
-    setClipStates((prev) => ({ ...prev, [placementId]: result }));
+
+    const controller = new AbortController();
+    controllersRef.current.set(placementId, controller);
+
+    try {
+      const result = await acquireClipMedia(recordId, { signal: controller.signal });
+      // A resolution that was already in flight when the abort fired can
+      // still land here even though the controller was aborted, so the
+      // timeline itself — not this component's own bookkeeping — is what
+      // decides whether the write is still wanted.
+      const stillOnTimeline = useTimelineStore
+        .getState()
+        .timeline.clips.some((clip) => clip.id === placementId);
+      if (!stillOnTimeline) return;
+      setClipStates((prev) => (placementId in prev ? { ...prev, [placementId]: result } : prev));
+    } catch (error) {
+      // acquireClipMedia rethrows only AbortError (every other failure is
+      // already converted to an Unavailable result) — an aborted acquisition
+      // is not a failure to display, so it is dropped silently rather than
+      // leaving the row stuck loading or turning it into an error row.
+      if (error instanceof DOMException && error.name === 'AbortError') return;
+      throw error;
+    } finally {
+      controllersRef.current.delete(placementId);
+    }
   }, []);
 
   const removeClip = useCallback((clipId: string) => {
+    controllersRef.current.get(clipId)?.abort();
+    controllersRef.current.delete(clipId);
     useTimelineStore.getState().removeClip(clipId);
     setClipStates((prev) => {
       if (!(clipId in prev)) return prev;
@@ -81,6 +133,17 @@ export default function TimelineWorkspace({ onExit, onOpenConnections }: Timelin
       delete next[clipId];
       return next;
     });
+  }, []);
+
+  // Aborts whatever is still in flight when the workspace itself closes —
+  // the other half of "in-flight fetches abort when the clip is removed or
+  // the workspace closes" (design spec §3).
+  useEffect(() => {
+    const controllers = controllersRef.current;
+    return () => {
+      for (const controller of controllers.values()) controller.abort();
+      controllers.clear();
+    };
   }, []);
 
   // Tracks the derived format to whatever is ready, as long as the user has

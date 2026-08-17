@@ -49,6 +49,34 @@ export function mockNextAcquireResult(result: ClipState) {
   vi.mocked(acquireClipMedia).mockResolvedValueOnce(result as Awaited<ReturnType<typeof acquireClipMedia>>);
 }
 
+/**
+ * Overrides the next `acquireClipMedia` call to return a promise the test
+ * settles by hand, and captures the `AbortSignal` that call was made with.
+ * Exists for the abort-handling tests: they need to control exactly when an
+ * acquisition resolves relative to a remove/unmount, and to assert on the
+ * signal `TimelineWorkspace` passed in — neither is possible with the
+ * fire-and-forget default mock. Kept here (not inlined per test) so Task 7's
+ * track tests can reuse it the same way they reuse `mockNextAcquireResult`.
+ */
+export function mockPendingAcquire() {
+  let settle: ((value: Awaited<ReturnType<typeof acquireClipMedia>>) => void) | undefined;
+  let signal: AbortSignal | undefined;
+  const pending = new Promise<Awaited<ReturnType<typeof acquireClipMedia>>>((resolve) => {
+    settle = resolve;
+  });
+
+  vi.mocked(acquireClipMedia).mockImplementationOnce(async (_recordId, options) => {
+    signal = options?.signal;
+    return pending;
+  });
+
+  return {
+    resolve: (result: ClipState) => settle?.(result as Awaited<ReturnType<typeof acquireClipMedia>>),
+    /** The signal the call was actually made with, once it has happened. */
+    signal: () => signal,
+  };
+}
+
 export function video(overrides: Partial<GalleryRecord> = {}): GalleryRecord {
   return {
     id: 'clip',
@@ -92,6 +120,8 @@ export function setupTimelineTest({ wide = false }: { wide?: boolean } = {}) {
   stubMatchMedia(wide);
 }
 
-export function renderWorkspace() {
-  return render(<TimelineWorkspace onExit={() => {}} onOpenConnections={() => {}} />);
+export function renderWorkspace(props: { onClipStatesChange?: (states: Record<string, ClipState>) => void } = {}) {
+  return render(
+    <TimelineWorkspace onExit={() => {}} onOpenConnections={() => {}} {...props} />
+  );
 }
