@@ -202,7 +202,38 @@ describe('POST /api/timeline/render — upload ceiling', () => {
     expect(response.status).toBe(413);
     const body = await response.json();
     expect(body.error).toMatch(/too large/i);
+    // The ceiling is reported as a field, not only inside the prose: the
+    // client cannot know MAX_UPLOAD_BYTES and the spec asks its message to
+    // carry the byte count *and* the limit.
+    expect(body.limit).toBe(MAX_UPLOAD_BYTES);
     expect(spawnMock).not.toHaveBeenCalled();
+  });
+
+  it('accepts a fractional framerate, which is what a real all-Veo timeline derives', async () => {
+    // deriveOutputFormat snaps probed rates onto the common list, which
+    // includes 23.976 — an integer-only check here would 400 the single most
+    // common timeline this feature exists to render.
+    const response = await POST(
+      postRequest(multipartBody({ output: { width: 1920, height: 1080, fps: 23.976, auto: true } }))
+    );
+
+    expect(response.status).toBe(202);
+  });
+
+  it('still rejects a framerate outside the usable range', async () => {
+    const response = await POST(
+      postRequest(multipartBody({ output: { width: 1920, height: 1080, fps: 1000, auto: true } }))
+    );
+
+    expect(response.status).toBe(400);
+  });
+
+  it('still requires whole-pixel dimensions', async () => {
+    const response = await POST(
+      postRequest(multipartBody({ output: { width: 1920.5, height: 1080, fps: 30, auto: true } }))
+    );
+
+    expect(response.status).toBe(400);
   });
 });
 

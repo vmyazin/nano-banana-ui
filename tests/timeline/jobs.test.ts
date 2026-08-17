@@ -10,6 +10,7 @@ import {
   createJob,
   enqueue,
   getJob,
+  hasCapacity,
   sweepAbandoned,
   TooBusyError,
   type JobRunner,
@@ -113,6 +114,40 @@ describe('jobs registry — concurrency', () => {
     await waitUntil(() => r3.calls.length === 1);
     r3.resolve({ outputPath: '/out/3.mp4' });
     await waitUntil(() => getJob(job3.id, 'a')?.phase === 'done');
+  });
+});
+
+describe('jobs registry — resetting while a runner is still in flight', () => {
+  it('does not let a stale completion drive runningCount negative and invent capacity', async () => {
+    // The registry is a process-wide singleton, so a test that leaves a job
+    // running hands its `runOne` to whatever runs next. Before the epoch
+    // guard, that runner's `finally` decremented a counter the reset had
+    // already zeroed — leaving it at -1, so `hasCapacity()` reported room
+    // that did not exist and a *later* test failed for reasons in an earlier
+    // one. That is the shape of an intermittent suite failure, so it is
+    // pinned here rather than left to be rediscovered.
+    const job = createJob({ sessionToken: 'a', tempDir: trackedTempDir() });
+    const r = makeGatedRunner();
+    enqueue(job.id, r.runner);
+    await waitUntil(() => r.calls.length === 1);
+
+    __resetJobsForTests();
+
+    // The abandoned runner settles afterwards, as it would across a test
+    // boundary.
+    r.resolve({ outputPath: '/out/stale.mp4' });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    // Three fresh jobs must still exhaust the queue exactly.
+    const fresh = [0, 1, 2].map(() => createJob({ sessionToken: 'b', tempDir: trackedTempDir() }));
+    const runners = fresh.map(() => makeGatedRunner());
+    fresh.forEach((created, index) => enqueue(created.id, runners[index].runner));
+
+    expect(hasCapacity()).toBe(false);
+    const fourth = createJob({ sessionToken: 'b', tempDir: trackedTempDir() });
+    expect(() => enqueue(fourth.id, makeGatedRunner().runner)).toThrow(TooBusyError);
+
+    runners.forEach((runner) => runner.resolve({ outputPath: '/out/x.mp4' }));
   });
 });
 

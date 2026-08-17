@@ -76,6 +76,16 @@ const waiting: Array<{ id: string; run: JobRunner }> = [];
 /** Ids currently inside a runner call — distinguishes "running" from "queued" for cancellation. */
 const active = new Set<string>();
 let runningCount = 0;
+/**
+ * Bumped by `__resetJobsForTests`. A runner already inside `runOne` when a
+ * reset happens would otherwise reach its `finally` afterwards and decrement
+ * `runningCount` a second time for work the reset already accounted for,
+ * leaving the counter *negative* — at which point `hasCapacity()` reports
+ * room that does not exist, and the next test to assert on capacity fails for
+ * reasons in a previous one. Comparing the epoch is what lets that stale
+ * completion return without touching shared state.
+ */
+let epoch = 0;
 
 export function createJob(opts: { sessionToken: string | null; tempDir: string }): RenderJob {
   const now = Date.now();
@@ -159,6 +169,7 @@ async function runOne(entry: { id: string; run: JobRunner }): Promise<void> {
     return;
   }
 
+  const startedIn = epoch;
   runningCount += 1;
   active.add(entry.id);
 
@@ -197,11 +208,19 @@ async function runOne(entry: { id: string; run: JobRunner }): Promise<void> {
       setPhase(job, 'error', job.progress);
     }
   } finally {
-    active.delete(entry.id);
-    controllers.delete(entry.id);
-    await cleanupTempDir(job);
-    runningCount -= 1;
-    drain();
+    // The registry was reset out from under this runner. Its slot was already
+    // reclaimed wholesale; decrementing again would take the counter negative.
+    // Its temp dir is still worth removing — that is filesystem state no
+    // reset touches.
+    if (epoch !== startedIn) {
+      await cleanupTempDir(job);
+    } else {
+      active.delete(entry.id);
+      controllers.delete(entry.id);
+      await cleanupTempDir(job);
+      runningCount -= 1;
+      drain();
+    }
   }
 }
 
@@ -302,6 +321,10 @@ async function cleanupTempDir(job: RenderJob): Promise<void> {
  * reset it explicitly rather than relying on fresh imports.
  */
 export function __resetJobsForTests(): void {
+  // Abort anything still running first, so a test's leftover runner actually
+  // stops rather than continuing to spawn work against the next test's state.
+  for (const controller of controllers.values()) controller.abort();
+  epoch += 1;
   jobs.clear();
   controllers.clear();
   waiting.length = 0;

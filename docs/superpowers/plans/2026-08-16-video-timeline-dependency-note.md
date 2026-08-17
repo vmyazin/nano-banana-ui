@@ -94,9 +94,38 @@ All three requirements are met. No BLOCKED condition applies.
 
 If MPL-2.0 later proves unacceptable (e.g. the project gains a declared licensing posture that
 conflicts with it, or a stricter policy is adopted), the swap-back cost is contained: it means
-rewriting one file that does not yet exist as of this task — `lib/timeline/render/webcodecs.ts`
-(Task 8's WebCodecs render engine) — to call `mp4box` + `mp4-muxer` instead of `mediabunny`. No
-other file in this repo depends on the demux/mux library as of this task.
+rewriting the files that call it to use `mp4box` + `mp4-muxer` instead.
+
+**Correction (recorded at final review).** When this ruling was written, that was *one* file —
+`lib/timeline/render/webcodecs.ts`, which did not yet exist. It is now **two**:
+
+| File | What it uses mediabunny for |
+| --- | --- |
+| `lib/timeline/render/webcodecs.ts` | Demux to encoded packets, mux from encoded packets (`EncodedPacketSink`, `EncodedVideoPacketSource`, `Mp4OutputFormat`, `Output`) |
+| `lib/timeline/probe.ts` | Framerate (`computeFrameRateMetrics`) and the add-time decoder config the decode probe asks `VideoDecoder.isConfigSupported` about (`getDecoderConfig`) |
+
+The decision stands — nothing about the second call site changes the licensing reasoning, and
+`probe.ts`'s use is the smaller of the two. The record is corrected because the stated cost was
+no longer true, not because the conclusion moved.
+
+## Known divergences between the two render engines
+
+Both recorded rather than fixed: neither is reachable with fal or Kie output, and both are the
+kind of thing that gets rediscovered as a mystery bug by eye rather than by a test.
+
+- **Rotation** (Ruling 12). The browser engine paints the decoded frame unrotated; ffmpeg
+  autorotates by default. If a clip carrying rotation metadata ever arrives, the two engines
+  produce differently-oriented output, and the **browser** is the side that must change — it
+  should read `InputVideoTrack.rotation` and feed the rotated display size to `fitRect`. Do **not**
+  add `-noautorotate` to the ffmpeg graph: upright is the correct output and ffmpeg already
+  produces it.
+- **Non-square pixels.** `fitRect` is fed `frame.displayWidth`/`displayHeight`, which are
+  SAR-corrected, while ffmpeg's `scale` works in coded dimensions (the graph then forces
+  `setsar=1`). A clip with a sample aspect ratio other than 1:1 would therefore be framed
+  differently by the two engines. Unreachable with fal/Kie output, which is square-pixel
+  throughout; recorded so it is not rediscovered as a bug.
+- **Sub-pixel offset** (Ruling 14, accepted). `fitRect` uses `Math.round`; ffmpeg's pad/crop
+  expression evaluator truncates, so the two differ by 1px whenever `(output - scaled)` is odd.
 
 ## Verification commands run
 

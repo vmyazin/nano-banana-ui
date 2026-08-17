@@ -75,6 +75,18 @@ function fail(status: number, error: string) {
   return NextResponse.json({ error }, { status });
 }
 
+/**
+ * 413 carries the ceiling as a machine-readable field, not only inside the
+ * prose. The client has no other way to know it — `MAX_UPLOAD_BYTES` lives on
+ * the server — and the design spec asks that message to name the byte count
+ * *and* the limit, since a 413 is the likely first symptom of a proxy whose
+ * `client_max_body_size` was never raised and the two numbers are what tell
+ * those cases apart.
+ */
+function failTooLarge(error: string) {
+  return NextResponse.json({ error, limit: MAX_UPLOAD_BYTES }, { status: 413 });
+}
+
 class UploadTooLargeError extends Error {
   constructor(public readonly bytes: number) {
     super('Upload exceeded the configured ceiling.');
@@ -206,6 +218,18 @@ function isPositiveFiniteInt(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && Number.isInteger(value) && value > 0;
 }
 
+/**
+ * Framerate, unlike width and height, must NOT be required to be an integer.
+ * `deriveOutputFormat` snaps probed rates onto the common list, which includes
+ * the NTSC rates — 23.976 is exactly what the framerate probe reads off real
+ * Veo output, and an integer-only check here would 400 the single most common
+ * timeline this feature exists to render. ffmpeg's `fps=` filter and `-r` both
+ * take fractional rates, so the value is safe; it is only bounded.
+ */
+function isPositiveFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0;
+}
+
 function parseOutput(raw: FormDataEntryValue | null): TimelineOutput | null {
   if (typeof raw !== 'string') return null;
   let parsed: unknown;
@@ -219,7 +243,7 @@ function parseOutput(raw: FormDataEntryValue | null): TimelineOutput | null {
   if (
     isPositiveFiniteInt(width) &&
     isPositiveFiniteInt(height) &&
-    isPositiveFiniteInt(fps) &&
+    isPositiveFiniteNumber(fps) &&
     width <= 7680 &&
     height <= 7680 &&
     fps <= 240
@@ -345,7 +369,7 @@ export async function POST(request: NextRequest) {
   // actually read, since Content-Length can be absent or wrong.
   const declaredLength = Number(request.headers.get('content-length'));
   if (Number.isFinite(declaredLength) && declaredLength > MAX_UPLOAD_BYTES) {
-    return fail(413, `Upload too large: ${declaredLength} bytes exceeds the ${MAX_UPLOAD_BYTES}-byte limit.`);
+    return failTooLarge(`Upload too large: ${declaredLength} bytes exceeds the ${MAX_UPLOAD_BYTES}-byte limit.`);
   }
 
   let formData: FormData;
@@ -353,7 +377,7 @@ export async function POST(request: NextRequest) {
     formData = await capRequestBody(request, MAX_UPLOAD_BYTES).formData();
   } catch (err) {
     if (err instanceof UploadTooLargeError) {
-      return fail(413, `Upload too large: exceeds the ${MAX_UPLOAD_BYTES}-byte limit.`);
+      return failTooLarge(`Upload too large: exceeds the ${MAX_UPLOAD_BYTES}-byte limit.`);
     }
     return fail(400, 'The upload could not be read as multipart form data.');
   }

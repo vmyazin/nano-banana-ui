@@ -67,12 +67,20 @@ describe('createServerEngine().unavailableReason', () => {
     expect(reason).toBeNull();
   });
 
-  it('reads a status that is neither 404 nor 401 (e.g. pending-approval 403) as available too', async () => {
+  it('reads a 403 (pending or blocked account) as a real reason, not as available', async () => {
+    // Reporting `null` here showed pending users a working server-export
+    // button that failed the instant they pressed it.
     fetchMock.mockResolvedValue(jsonResponse({ error: 'Your account is waiting to be approved.' }, 403));
 
     const reason = await createServerEngine().unavailableReason(request());
 
-    expect(reason).toBeNull();
+    expect(reason).toBe('Your account is not approved for server rendering.');
+  });
+
+  it('still reads an unrecognised status as available, so an unknown failure is not turned into a wrong explanation', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ error: 'teapot' }, 418));
+
+    expect(await createServerEngine().unavailableReason(request())).toBeNull();
   });
 
   it('reads a network failure reaching the route at all as available (null), not as a specific reason', async () => {
@@ -85,8 +93,14 @@ describe('createServerEngine().unavailableReason', () => {
 });
 
 describe('createServerEngine().render — upload failures', () => {
-  it('reports a 413 as "too large to upload" with the byte count, and polls nothing further', async () => {
-    fetchMock.mockResolvedValue(new Response(JSON.stringify({ error: 'Upload too large' }), { status: 413 }));
+  it('reports a 413 with both the byte count and the ceiling, and polls nothing further', async () => {
+    // The route reports its own ceiling; the client has no other way to know
+    // it. Both numbers together are what separate "shorten this timeline"
+    // (8.4 GB of a 512 MB limit) from "the reverse proxy's
+    // client_max_body_size was never raised" (8.4 MB of a 1 MB limit).
+    fetchMock.mockResolvedValue(
+      jsonResponse({ error: 'Upload too large', limit: 512 * 1024 * 1024 }, 413)
+    );
 
     const controller = new AbortController();
     const onProgress = vi.fn();
@@ -96,12 +110,27 @@ describe('createServerEngine().render — upload failures', () => {
 
     await expect(
       createServerEngine().render(req, { signal: controller.signal, onProgress })
-    ).rejects.toThrow('This timeline is too large to upload (2.0 MB). Remove or shorten clips and try again.');
+    ).rejects.toThrow(
+      'This timeline is too large to upload (2.0 MB of a 512 MB limit). Remove or shorten clips and try again.'
+    );
 
     // Only the upload attempt happened — no status poll, no result fetch.
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(init.method).toBe('POST');
+  });
+
+  it('omits the ceiling rather than inventing one when a 413 came from something that is not the route', async () => {
+    // nginx rejecting the body itself answers 413 with an HTML page and no
+    // `limit` field. The byte count is still worth saying.
+    fetchMock.mockResolvedValue(new Response('<html>413 Request Entity Too Large</html>', { status: 413 }));
+
+    await expect(
+      createServerEngine().render(request([1024 * 1024]), {
+        signal: new AbortController().signal,
+        onProgress: vi.fn(),
+      })
+    ).rejects.toThrow('This timeline is too large to upload (1.0 MB). Remove or shorten clips and try again.');
   });
 
   it('surfaces the server-provided message for a non-413 failure (e.g. busy or pending approval)', async () => {

@@ -12,6 +12,13 @@ const POLL_INTERVAL_MS = 1000;
 
 const NOT_CONFIGURED = 'Server rendering is not available here.';
 const SIGN_IN_REQUIRED = 'Sign in to use server rendering.';
+/**
+ * A 403 is an account that exists but is pending or blocked. Reporting `null`
+ * ("available") for it showed those users a working server-export button that
+ * failed the moment they pressed it — a real reason is the whole point of
+ * `unavailableReason`.
+ */
+const NOT_APPROVED = 'Your account is not approved for server rendering.';
 
 function abortError(): DOMException {
   return new DOMException('The export was cancelled.', 'AbortError');
@@ -29,14 +36,18 @@ function formatBytes(bytes: number): string {
   return `${value < 10 ? value.toFixed(1) : Math.round(value)} ${units[unit]}`;
 }
 
-async function safeErrorMessage(response: Response): Promise<string | null> {
+async function safeJson(response: Response): Promise<Record<string, unknown> | null> {
   try {
     const data: unknown = await response.json();
-    const error = data !== null && typeof data === 'object' ? (data as Record<string, unknown>).error : null;
-    return typeof error === 'string' ? error : null;
+    return data !== null && typeof data === 'object' ? (data as Record<string, unknown>) : null;
   } catch {
     return null;
   }
+}
+
+async function safeErrorMessage(response: Response): Promise<string | null> {
+  const error = (await safeJson(response))?.error;
+  return typeof error === 'string' ? error : null;
 }
 
 function sleep(ms: number, signal: AbortSignal): Promise<void> {
@@ -129,6 +140,7 @@ export function createServerEngine(): RenderEngine {
       }
       if (response.status === 404) return NOT_CONFIGURED;
       if (response.status === 401) return SIGN_IN_REQUIRED;
+      if (response.status === 403) return NOT_APPROVED;
       return null;
     },
 
@@ -157,8 +169,17 @@ export function createServerEngine(): RenderEngine {
 
       if (!uploadResponse.ok) {
         if (uploadResponse.status === 413) {
+          // Both numbers, per the design spec: the size sent and the ceiling
+          // it broke. "8.4 GB of a 512 MB limit" is a timeline to shorten;
+          // "8.4 MB of a 1 MB limit" is a reverse proxy whose
+          // `client_max_body_size` was never raised. The ceiling comes from
+          // the route's own response — a proxy that answers 413 itself sends
+          // no such field, and the message simply omits it rather than
+          // inventing a number.
+          const limit = (await safeJson(uploadResponse))?.limit;
+          const ceiling = typeof limit === 'number' && limit > 0 ? ` of a ${formatBytes(limit)} limit` : '';
           throw new Error(
-            `This timeline is too large to upload (${formatBytes(totalBytes)}). Remove or shorten clips and try again.`
+            `This timeline is too large to upload (${formatBytes(totalBytes)}${ceiling}). Remove or shorten clips and try again.`
           );
         }
         const message = await safeErrorMessage(uploadResponse);
