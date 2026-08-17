@@ -15,8 +15,8 @@ vi.mock('node:child_process', () => ({ spawn: spawnMock }));
 
 import { createAccount, createSession, setAccountStatus, SESSION_COOKIE } from '../../lib/auth/accounts';
 import { useAuthDatabase } from '../../lib/auth/db';
-import { __resetJobsForTests, createJob, enqueue, hasCapacity, type JobRunner } from '../../lib/timeline/jobs';
-import { GET, MAX_UPLOAD_BYTES, POST } from '../../app/api/timeline/render/route';
+import { __resetJobsForTests, createJob, enqueue, getJob, hasCapacity, type JobRunner } from '../../lib/timeline/jobs';
+import { DELETE, GET, MAX_UPLOAD_BYTES, POST } from '../../app/api/timeline/render/route';
 
 const PASSWORD = 'correct horse battery staple';
 const RENDER_URL = 'http://localhost/api/timeline/render';
@@ -53,6 +53,32 @@ function getRequest(query: string, cookie?: string): NextRequest {
     method: 'GET',
     headers: cookie ? { cookie: `${SESSION_COOKIE}=${cookie}` } : undefined,
   }) as NextRequest;
+}
+
+function deleteRequest(query: string, cookie?: string): NextRequest {
+  return new Request(`${RENDER_URL}${query}`, {
+    method: 'DELETE',
+    headers: cookie ? { cookie: `${SESSION_COOKIE}=${cookie}` } : undefined,
+  }) as NextRequest;
+}
+
+/** A fake ffmpeg that runs until killed, then closes non-zero the way a real
+ *  one does on SIGTERM. Without the kill→close edge a cancelled job's runner
+ *  promise would never settle, so the registry would never release its slot
+ *  and the "cancelling frees the slot" assertion would test nothing. */
+function fakeSpawnHangsUntilKilled() {
+  spawnMock.mockImplementation(() => {
+    const child = new EventEmitter() as EventEmitter & {
+      stderr: EventEmitter;
+      kill: (signal?: string) => boolean;
+    };
+    child.stderr = new EventEmitter();
+    child.kill = vi.fn(() => {
+      setImmediate(() => child.emit('close', 255));
+      return true;
+    });
+    return child;
+  });
 }
 
 /** A fake ffmpeg that "succeeds" on the next tick, writing a stub file to
@@ -285,5 +311,105 @@ describe('POST/GET /api/timeline/render — success path and ownership', () => {
     const response = await POST(postRequest(multipartBody({ output: { width: -1, height: 0, fps: 0 } }), token));
 
     expect(response.status).toBe(400);
+  });
+});
+
+/**
+ * Without DELETE, the browser's Cancel button ends only the client's interest:
+ * the fetch aborts, the UI returns instantly, and ffmpeg keeps running to
+ * completion holding the one concurrency slot. These cover the two things that
+ * actually matter — the slot really comes back, and a cancel is scoped to the
+ * session that owns the job.
+ */
+describe('DELETE /api/timeline/render — cancellation', () => {
+  beforeEach(() => {
+    process.env.TIMELINE_FFMPEG_PATH = '/usr/bin/ffmpeg';
+    process.env.AUTH_ADMIN_EMAIL = 'owner@example.com';
+    fakeSpawnHangsUntilKilled();
+  });
+
+  it('404s when TIMELINE_FFMPEG_PATH is unset, before the account gate runs', async () => {
+    delete process.env.TIMELINE_FFMPEG_PATH;
+
+    const response = await DELETE(deleteRequest('?id=anything'));
+
+    expect(response.status).toBe(404);
+  });
+
+  it('401s when the account gate is enabled and no session cookie is present', async () => {
+    const response = await DELETE(deleteRequest('?id=anything'));
+
+    expect(response.status).toBe(401);
+  });
+
+  it('frees the concurrency slot, so an enqueue that was at capacity now succeeds', async () => {
+    const token = await approvedSession('owner@example.com');
+
+    // Fill running + queued (1 + 2). Each ffmpeg hangs until killed.
+    const ids: string[] = [];
+    for (let i = 0; i < 3; i += 1) {
+      const response = await POST(postRequest(multipartBody(), token));
+      expect(response.status).toBe(202);
+      ids.push((await response.json()).jobId);
+    }
+    expect(hasCapacity()).toBe(false);
+
+    // At capacity, a fourth upload is refused outright.
+    expect((await POST(postRequest(multipartBody(), token))).status).toBe(503);
+
+    // Cancel the one that is actually running. The registry aborts its
+    // runner, the runner SIGTERMs ffmpeg, and the slot is released once the
+    // child closes — none of which happens without this verb.
+    const cancel = await DELETE(deleteRequest(`?id=${ids[0]}`, token));
+    expect(cancel.status).toBe(200);
+    expect(await cancel.json()).toEqual({ cancelled: true });
+
+    await waitUntil(() => getJob(ids[0])?.phase === 'cancelled');
+    await waitUntil(() => hasCapacity());
+
+    // The same request that was refused a moment ago is now accepted.
+    const retry = await POST(postRequest(multipartBody(), token));
+    expect(retry.status).toBe(202);
+  });
+
+  it('does not let a second session cancel the first session job, and reads as 404 rather than 403', async () => {
+    const ownerToken = await approvedSession('owner@example.com');
+    const otherToken = await approvedSession('friend@example.com');
+
+    const postResponse = await POST(postRequest(multipartBody(), ownerToken));
+    const { jobId } = await postResponse.json();
+    await waitUntil(() => getJob(jobId)?.phase === 'encoding' || getJob(jobId)?.phase === 'preparing');
+
+    const foreign = await DELETE(deleteRequest(`?id=${jobId}`, otherToken));
+
+    expect(foreign.status).toBe(404);
+    // Still running: the foreign cancel was refused, not merely unreported.
+    expect(getJob(jobId)?.phase).not.toBe('cancelled');
+
+    // Sanity: the owner really can.
+    const owned = await DELETE(deleteRequest(`?id=${jobId}`, ownerToken));
+    expect(owned.status).toBe(200);
+    await waitUntil(() => getJob(jobId)?.phase === 'cancelled');
+  });
+
+  it('404s an unknown job id', async () => {
+    const token = await approvedSession('owner@example.com');
+
+    const response = await DELETE(deleteRequest('?id=not-a-real-job', token));
+
+    expect(response.status).toBe(404);
+  });
+
+  it('answers 200 with cancelled:false for a job that already finished', async () => {
+    fakeSpawnSuccess();
+    const token = await approvedSession('owner@example.com');
+
+    const { jobId } = await (await POST(postRequest(multipartBody(), token))).json();
+    await waitUntil(() => getJob(jobId)?.phase === 'done');
+
+    const response = await DELETE(deleteRequest(`?id=${jobId}`, token));
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ cancelled: false });
   });
 });

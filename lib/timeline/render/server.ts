@@ -167,20 +167,53 @@ export function createServerEngine(): RenderEngine {
 
       const { jobId } = (await uploadResponse.json()) as { jobId: string };
 
-      await pollUntilDone(jobId, signal, onProgress);
+      /**
+       * Tells the server to stop. Aborting locally only ends the *client's*
+       * interest in the render — ffmpeg would keep running to completion,
+       * holding the single concurrency slot and its temp directory, so the
+       * next export sits behind a render nobody is waiting for.
+       *
+       * Deliberately made without `signal`: this request exists precisely
+       * because that signal fired, and a fetch issued with an already-aborted
+       * signal never leaves the browser. `keepalive` so it still goes out if
+       * the abort came from the page unloading. Failure is ignored — the
+       * 30-minute sweeper is the backstop, and there is nothing useful to
+       * tell a user who has already cancelled.
+       */
+      const cancelOnServer = () => {
+        void fetch(`${RENDER_ENDPOINT}?id=${encodeURIComponent(jobId)}`, {
+          method: 'DELETE',
+          keepalive: true,
+          cache: 'no-store',
+        }).catch(() => {});
+      };
 
-      if (signal.aborted) throw abortError();
+      try {
+        // An already-aborted signal never fires 'abort' again, so the
+        // listener alone would miss a cancel that landed during the upload.
+        if (signal.aborted) {
+          cancelOnServer();
+          throw abortError();
+        }
+        signal.addEventListener('abort', cancelOnServer);
 
-      const resultResponse = await fetch(`${RENDER_ENDPOINT}?id=${encodeURIComponent(jobId)}&result=1`, {
-        signal,
-        cache: 'no-store',
-      });
-      if (!resultResponse.ok) {
-        const message = await safeErrorMessage(resultResponse);
-        throw new Error(message ?? 'The finished render could not be downloaded.');
+        await pollUntilDone(jobId, signal, onProgress);
+
+        if (signal.aborted) throw abortError();
+
+        const resultResponse = await fetch(`${RENDER_ENDPOINT}?id=${encodeURIComponent(jobId)}&result=1`, {
+          signal,
+          cache: 'no-store',
+        });
+        if (!resultResponse.ok) {
+          const message = await safeErrorMessage(resultResponse);
+          throw new Error(message ?? 'The finished render could not be downloaded.');
+        }
+
+        return await resultResponse.blob();
+      } finally {
+        signal.removeEventListener('abort', cancelOnServer);
       }
-
-      return await resultResponse.blob();
     },
   };
 }

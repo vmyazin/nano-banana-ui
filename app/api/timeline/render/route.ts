@@ -49,8 +49,14 @@ export const runtime = 'nodejs';
  */
 export const MAX_UPLOAD_BYTES = 512 * 1024 * 1024;
 
-/** At most this many clips per render — matches the registry's own sanity
- *  bound rather than trusting a client-supplied array length unbounded. */
+/**
+ * At most this many clips per render, so a client-supplied array length is
+ * never trusted unbounded. This is the route's own bound and nothing else's:
+ * `lib/timeline/jobs.ts` bounds *concurrency* (one running job, two queued),
+ * not the length of any one timeline, so there is no registry limit for this
+ * to agree with. 64 clips at the few seconds each fal/Kie produce is already
+ * several minutes of output — far past anything this slice is for.
+ */
 const MAX_CLIPS = 64;
 
 const JOBS_ROOT = join(tmpdir(), 'scene-assembly-timeline-jobs');
@@ -405,6 +411,49 @@ export async function POST(request: NextRequest) {
   }
 
   return NextResponse.json({ jobId: job.id }, { status: 202 });
+}
+
+/**
+ * Cancels a render the client walked away from. Without this the browser's
+ * Cancel button only ever aborted the *client* — the fetch stopped, the UI
+ * returned instantly, and ffmpeg kept burning the single concurrency slot to
+ * completion, holding its temp directory until the 30-minute sweeper got to
+ * it. Design spec's error-handling section requires cancellation to reach the
+ * server: `cancelJob` aborts the runner (which SIGTERMs ffmpeg) and the
+ * registry's own terminal path removes the temp directory.
+ *
+ * Gated exactly like POST and GET — ffmpeg path first with a bare 404, then
+ * the account gate, then ownership. An unknown *or* foreign job id reads as
+ * 404, the same way a status read does: a caller must not be able to probe
+ * which job ids exist by watching cancel come back "already finished"
+ * instead of "no such job".
+ */
+export async function DELETE(request: NextRequest) {
+  if (!ffmpegPath()) return new NextResponse(null, { status: 404 });
+
+  const gate = requireApprovedAccount(request);
+  if (isGateFailure(gate)) return gate.response;
+
+  const sessionToken = sessionIdentity(request, gate);
+  const id = new URL(request.url).searchParams.get('id');
+  // No id at all is not a capability probe here the way it is on GET — there
+  // is nothing to cancel, and answering 404 keeps every "this job is not
+  // yours to cancel" response identical.
+  if (!id || !getJob(id, sessionToken)) return fail(404, 'No such render job.');
+
+  // False here means the job existed and was owned but had already reached a
+  // terminal phase — cancelling something already finished is not an error,
+  // so it answers 200 with `cancelled: false` rather than a failure status.
+  const cancelled = cancelJob(id, sessionToken);
+
+  // The registry removes `tempDir` (the uploaded inputs) on its own terminal
+  // path but knows nothing about this route's OUTPUT_ROOT/<id> convention.
+  // Safe to remove even while a just-SIGTERMed ffmpeg still holds the file
+  // open: the unlink drops the directory entry, and the process's remaining
+  // writes go to an inode that is freed the moment it exits.
+  await rm(join(OUTPUT_ROOT, id), { recursive: true, force: true }).catch(() => {});
+
+  return NextResponse.json({ cancelled });
 }
 
 export async function GET(request: NextRequest) {

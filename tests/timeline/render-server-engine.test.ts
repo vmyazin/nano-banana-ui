@@ -154,6 +154,68 @@ describe('createServerEngine().render — happy path and job failure', () => {
     expect(form.get('clip-0')).toBeInstanceOf(Blob);
   });
 
+  it('tells the server to cancel the job when the export is aborted mid-poll', async () => {
+    const controller = new AbortController();
+    fetchMock.mockImplementation((url: string, init?: RequestInit) => {
+      if (init?.method === 'POST') return Promise.resolve(jsonResponse({ jobId: 'job-3' }, 202));
+      if (init?.method === 'DELETE') return Promise.resolve(jsonResponse({ cancelled: true }));
+      // Still encoding — and the moment the client sees that, the user
+      // cancels. Without a DELETE, ffmpeg would run to completion holding
+      // the server's one render slot.
+      controller.abort();
+      return Promise.resolve(jsonResponse({ id: 'job-3', phase: 'encoding', progress: 0.4, error: null }));
+    });
+
+    await expect(
+      createServerEngine().render(request(), { signal: controller.signal, onProgress: vi.fn() })
+    ).rejects.toThrow(/cancelled/i);
+
+    const deleteCall = fetchMock.mock.calls.find(([, init]) => (init as RequestInit)?.method === 'DELETE');
+    expect(deleteCall).toBeDefined();
+    expect(deleteCall![0]).toBe('/api/timeline/render?id=job-3');
+    // Made without the aborted signal — a fetch issued with an already-aborted
+    // signal never leaves the browser, so passing it would silently no-op.
+    expect((deleteCall![1] as RequestInit).signal).toBeUndefined();
+  });
+
+  it('cancels a job whose upload finished after the user had already aborted', async () => {
+    // The abort lands between the upload resolving and the poll starting.
+    // `addEventListener('abort')` never fires for a signal that is already
+    // aborted, so the listener alone would leave this job running.
+    const controller = new AbortController();
+    fetchMock.mockImplementation((_url: string, init?: RequestInit) => {
+      if (init?.method === 'POST') {
+        controller.abort();
+        return Promise.resolve(jsonResponse({ jobId: 'job-4' }, 202));
+      }
+      return Promise.resolve(jsonResponse({ cancelled: true }));
+    });
+
+    await expect(
+      createServerEngine().render(request(), { signal: controller.signal, onProgress: vi.fn() })
+    ).rejects.toThrow(/cancelled/i);
+
+    const deleteCall = fetchMock.mock.calls.find(([, init]) => (init as RequestInit)?.method === 'DELETE');
+    expect(deleteCall?.[0]).toBe('/api/timeline/render?id=job-4');
+  });
+
+  it('sends no cancel when the render finishes normally', async () => {
+    fetchMock.mockImplementation((url: string, init?: RequestInit) => {
+      if (init?.method === 'POST') return Promise.resolve(jsonResponse({ jobId: 'job-5' }, 202));
+      if (url.includes('result=1')) {
+        return Promise.resolve(new Response(new Uint8Array([9]) as unknown as BodyInit, { status: 200 }));
+      }
+      return Promise.resolve(jsonResponse({ id: 'job-5', phase: 'done', progress: 1, error: null }));
+    });
+
+    await createServerEngine().render(request(), {
+      signal: new AbortController().signal,
+      onProgress: vi.fn(),
+    });
+
+    expect(fetchMock.mock.calls.some(([, init]) => (init as RequestInit)?.method === 'DELETE')).toBe(false);
+  });
+
   it('throws the job error when the server reports the render failed', async () => {
     fetchMock.mockImplementation((_url: string, init?: RequestInit) => {
       if (init?.method === 'POST') return Promise.resolve(jsonResponse({ jobId: 'job-2' }, 202));
