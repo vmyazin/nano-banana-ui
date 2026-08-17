@@ -7,10 +7,13 @@ import { configureGalleryStorage, useGalleryStore } from '../../store/useGallery
 import { acquireClipMedia } from '../../lib/timeline/acquire';
 
 // jsdom cannot decode video; the probe is a seam the same way SeekableVideo is
-// in tests/video-frame.test.ts.
-vi.mock('../../lib/timeline/probe', () => ({
+// in tests/video-frame.test.ts. Framerate is the second half of that seam — it
+// needs a demuxer rather than a video element, and jsdom has neither.
+const probe = vi.hoisted(() => ({
   probeDimensions: vi.fn(async () => ({ width: 1920, height: 1080, durationSeconds: 5 })),
+  probeFramerate: vi.fn(async (): Promise<number | undefined> => 24),
 }));
+vi.mock('../../lib/timeline/probe', () => probe);
 vi.mock('../../lib/video-frame', () => ({
   extractLastFrameFromBlob: vi.fn(async () => new Blob(['poster'])),
 }));
@@ -25,6 +28,9 @@ describe('acquireClipMedia', () => {
     configureGalleryStorage(createMemoryGalleryStorage());
     useGalleryStore.setState({ records: [], hydrated: true, storageError: null });
     vi.unstubAllGlobals();
+    probe.probeDimensions.mockClear();
+    probe.probeFramerate.mockClear();
+    probe.probeFramerate.mockResolvedValue(24);
   });
 
   it('reports missing for a record that is no longer in the library', async () => {
@@ -86,6 +92,86 @@ describe('acquireClipMedia', () => {
     expect(await acquireClipMedia('clip')).toMatchObject({
       status: 'unavailable', reason: 'no-source',
     });
+  });
+});
+
+/**
+ * Framerate is the one probed field HTMLVideoElement cannot report, so it has
+ * its own probe and its own way of failing. Without these, the whole framerate
+ * feature is dead code: nothing would ever write `record.fps`, so
+ * deriveOutputFormat's framerate vote would always be empty and every export
+ * would fall back to 30fps — which puts all-Veo timelines (24fps) onto a 30fps
+ * grid in an uneven 3:2 cadence, the visible judder the feature exists to avoid.
+ */
+describe('acquireClipMedia caches the clip framerate', () => {
+  beforeEach(() => {
+    configureGalleryStorage(createMemoryGalleryStorage());
+    useGalleryStore.setState({ records: [], hydrated: true, storageError: null });
+    vi.unstubAllGlobals();
+    probe.probeDimensions.mockClear();
+    probe.probeFramerate.mockClear();
+    probe.probeFramerate.mockResolvedValue(24);
+  });
+
+  it('writes the probed framerate onto the record, so the clip can vote on cadence', async () => {
+    useGalleryStore.setState({
+      records: [video({ blob: new Blob(['x']), pinned: true, bytes: 1 })],
+    });
+
+    const result = await acquireClipMedia('clip');
+
+    expect(result).toMatchObject({ status: 'ready', dimensions: { fps: 24 } });
+    // The cache is the point: deriveOutputFormat reads GalleryRecord.fps.
+    expect(useGalleryStore.getState().records[0].fps).toBe(24);
+  });
+
+  it('stays ready when the framerate cannot be read, because cadence is a hint', async () => {
+    // A VFR clip, or one in a container the demuxer cannot open, abstains from
+    // the vote. It must not be downgraded, warned about, or made unavailable.
+    probe.probeFramerate.mockResolvedValue(undefined);
+    useGalleryStore.setState({
+      records: [video({ blob: new Blob(['x']), pinned: true, bytes: 1 })],
+    });
+
+    const result = await acquireClipMedia('clip');
+
+    expect(result).toMatchObject({ status: 'ready', durable: true });
+    expect(result).not.toHaveProperty('warning');
+    if (result.status === 'ready') expect(result.dimensions.fps).toBeUndefined();
+    expect(useGalleryStore.getState().records[0].fps).toBeUndefined();
+    // Still fully usable: the dimensions the export actually needs are there.
+    expect(useGalleryStore.getState().records[0].width).toBe(1920);
+  });
+
+  it('carries the framerate through the download path too', async () => {
+    probe.probeFramerate.mockResolvedValue(23.976);
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(new Blob(['bytes']), {
+      status: 200, headers: { 'Content-Type': 'video/mp4' },
+    })));
+    useGalleryStore.setState({
+      records: [video({ sourceUrl: 'https://cdn.example.com/a.mp4' })],
+    });
+
+    const result = await acquireClipMedia('clip');
+
+    expect(result).toMatchObject({ status: 'ready', dimensions: { fps: 23.976 } });
+    expect(useGalleryStore.getState().records[0].fps).toBe(23.976);
+  });
+
+  it('reuses a cached framerate instead of re-opening the demuxer', async () => {
+    // Re-probing on every visit to the workspace would decode the whole library
+    // again for a number already written down.
+    useGalleryStore.setState({
+      records: [
+        video({ blob: new Blob(['x']), pinned: true, bytes: 1, width: 1280, height: 720, durationSeconds: 8, fps: 30 }),
+      ],
+    });
+
+    const result = await acquireClipMedia('clip');
+
+    expect(result).toMatchObject({ status: 'ready', dimensions: { fps: 30, width: 1280 } });
+    expect(probe.probeFramerate).not.toHaveBeenCalled();
+    expect(probe.probeDimensions).not.toHaveBeenCalled();
   });
 });
 

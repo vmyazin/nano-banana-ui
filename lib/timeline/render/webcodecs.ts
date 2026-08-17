@@ -183,55 +183,14 @@ async function renderInBrowser(
     const totalFrames = prepared.reduce((sum, clip) => sum + clip.frameCount, 0);
     const keyframeInterval = Math.max(1, Math.round(KEYFRAME_INTERVAL_SECONDS * fps));
 
-    // ---- The surface every clip is composited onto, sized to the output once.
-    const canvas = new OffscreenCanvas(width, height);
-    const ctx = canvas.getContext('2d', { alpha: false });
-    if (!ctx) throw new Error('This browser could not open a drawing surface for the export.');
-
-    // ---- The muxer. One video track. No audio track, ever.
-    const target = new BufferTarget();
-    const output = new Output({
-      format: new Mp4OutputFormat({ fastStart: 'in-memory' }),
-      target,
-    });
-    const videoSource = new EncodedVideoPacketSource('avc');
-    output.addVideoTrack(videoSource, { frameRate: fps });
-    await output.start();
-
-    let codecError: Error | null = null;
-    const noteError = (error: unknown) => {
-      codecError ??= error instanceof Error ? error : new Error(String(error));
-    };
-
-    // The encoder's output callback is synchronous but muxing is not. Chaining
-    // the adds keeps them in encode order — which is decode order, which is what
-    // EncodedVideoPacketSource.add requires — without blocking the callback.
-    let muxChain: Promise<void> = Promise.resolve();
-
-    // ---- One encoder for the whole timeline, not one per clip. A fresh encoder
-    // per clip would restart its timestamps at zero, and a muxed file whose
-    // timestamps reset at each boundary plays only the first clip in most
-    // players. One encoder plus one running frame counter makes continuity
-    // structural rather than something to remember.
-    const encoder = new VideoEncoder({
-      output: (chunk, meta) => {
-        muxChain = muxChain
-          .then(() => videoSource.add(EncodedPacket.fromEncodedChunk(chunk), meta))
-          .catch(noteError);
-      },
-      error: noteError,
-    });
-    encoder.configure({
-      codec: H264_CODEC,
-      width,
-      height,
-      framerate: fps,
-      bitrate: targetBitrate(width, height, fps),
-      // AVCC, which is the form the ISOBMFF muxer writes into the avcC box.
-      avc: { format: 'avc' },
-    });
-
+    // ---- Everything below holds a resource the browser will not reclaim on its
+    // own: two codecs and a muxer with an open target. They are declared here and
+    // constructed inside the guard below, so a throw anywhere after the first one
+    // is created still tears all of them down. Constructing before the guard is
+    // the version of this that leaks a VideoEncoder holding a hardware session.
     let decoder: VideoDecoder | null = null;
+    let encoder: VideoEncoder | null = null;
+    let outputFile: InstanceType<typeof Output> | null = null;
     /**
      * The most recent decoded frame: the one that fills the next output slot.
      * A box rather than a bare `let` because it is read and written from inside
@@ -241,6 +200,13 @@ async function renderInBrowser(
     /** Decoded frames awaiting compositing, in presentation order. */
     let pending: VideoFrame[] = [];
     let codecsClosed = false;
+    let codecError: Error | null = null;
+    /** Set only once the finished blob is in hand. */
+    let finished = false;
+
+    const noteError = (error: unknown) => {
+      codecError ??= error instanceof Error ? error : new Error(String(error));
+    };
 
     const closeCodecs = () => {
       if (codecsClosed) return;
@@ -255,7 +221,7 @@ async function renderInBrowser(
         /* already gone */
       }
       try {
-        if (encoder.state !== 'closed') encoder.close();
+        if (encoder && encoder.state !== 'closed') encoder.close();
       } catch {
         /* already gone */
       }
@@ -298,43 +264,86 @@ async function renderInBrowser(
     /** Output frames emitted so far, across all clips: the timeline position. */
     let emittedTotal = 0;
 
-    /**
-     * Composite one source frame into one output slot and hand it to the
-     * encoder. `index` is the slot's position on the *timeline*, not within the
-     * clip — that offset is the whole of timestamp continuity.
-     */
-    const emit = async (frame: VideoFrame, index: number, fit: 'contain' | 'cover') => {
-      // fitRect rather than local letterbox maths, so the server engine frames
-      // the same clip in the same place. Two answers here means one timeline
-      // yields two different videos.
-      const rect = fitRect(
-        { width: frame.displayWidth, height: frame.displayHeight },
-        { width, height },
-        fit
-      );
+    try {
+      // ---- The surface every clip is composited onto, sized to the output once.
+      const canvas = new OffscreenCanvas(width, height);
+      const ctx = canvas.getContext('2d', { alpha: false });
+      if (!ctx) throw new Error('This browser could not open a drawing surface for the export.');
 
-      // Repaint the whole surface: the bars belong to this frame, and a previous
-      // larger frame must not show through around a smaller one.
-      ctx.fillStyle = '#000000';
-      ctx.fillRect(0, 0, width, height);
-      ctx.drawImage(frame, rect.x, rect.y, rect.width, rect.height);
+      // ---- The muxer. One video track. No audio track, ever.
+      const target = new BufferTarget();
+      const mp4 = new Output({ format: new Mp4OutputFormat({ fastStart: 'in-memory' }), target });
+      outputFile = mp4;
+      const videoSource = new EncodedVideoPacketSource('avc');
+      mp4.addVideoTrack(videoSource, { frameRate: fps });
+      await mp4.start();
 
-      const composited = new VideoFrame(canvas, {
-        timestamp: Math.round((index * 1_000_000) / fps),
-        duration: Math.round(1_000_000 / fps),
+      // The encoder's output callback is synchronous but muxing is not. Chaining
+      // the adds keeps them in encode order — which is decode order, which is
+      // what EncodedVideoPacketSource.add requires — without blocking the
+      // callback.
+      let muxChain: Promise<void> = Promise.resolve();
+
+      // ---- One encoder for the whole timeline, not one per clip. A fresh
+      // encoder per clip would restart its timestamps at zero, and a muxed file
+      // whose timestamps reset at each boundary plays only the first clip in most
+      // players. One encoder plus one running frame counter makes continuity
+      // structural rather than something to remember.
+      const videoEncoder = new VideoEncoder({
+        output: (chunk, meta) => {
+          muxChain = muxChain
+            .then(() => videoSource.add(EncodedPacket.fromEncodedChunk(chunk), meta))
+            .catch(noteError);
+        },
+        error: noteError,
+      });
+      encoder = videoEncoder;
+      videoEncoder.configure({
+        codec: H264_CODEC,
+        width,
+        height,
+        framerate: fps,
+        bitrate: targetBitrate(width, height, fps),
+        // AVCC, which is the form the ISOBMFF muxer writes into the avcC box.
+        avc: { format: 'avc' },
       });
 
-      await drainQueue(encoder, () => encoder.encodeQueueSize, ENCODE_QUEUE_LIMIT);
-      try {
-        encoder.encode(composited, { keyFrame: index % keyframeInterval === 0 });
-      } finally {
-        composited.close();
-      }
-    };
+      /**
+       * Composite one source frame into one output slot and hand it to the
+       * encoder. `index` is the slot's position on the *timeline*, not within the
+       * clip — that offset is the whole of timestamp continuity.
+       */
+      const emit = async (frame: VideoFrame, index: number, fit: 'contain' | 'cover') => {
+        // fitRect rather than local letterbox maths, so the server engine frames
+        // the same clip in the same place. Two answers here means one timeline
+        // yields two different videos.
+        const rect = fitRect(
+          { width: frame.displayWidth, height: frame.displayHeight },
+          { width, height },
+          fit
+        );
 
-    let finished = false;
+        // Repaint the whole surface: the bars belong to this frame, and a
+        // previous larger frame must not show through around a smaller one.
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(0, 0, width, height);
+        ctx.drawImage(frame, rect.x, rect.y, rect.width, rect.height);
 
-    try {
+        // Wait for room *before* allocating the frame. Built first, it would be
+        // an orphaned surface whenever the drain throws on abort or codec error.
+        await drainQueue(videoEncoder, () => videoEncoder.encodeQueueSize, ENCODE_QUEUE_LIMIT);
+
+        const composited = new VideoFrame(canvas, {
+          timestamp: Math.round((index * 1_000_000) / fps),
+          duration: Math.round(1_000_000 / fps),
+        });
+        try {
+          videoEncoder.encode(composited, { keyFrame: index % keyframeInterval === 0 });
+        } finally {
+          composited.close();
+        }
+      };
+
       onProgress({ phase: 'encoding', completed: 0 });
 
       for (const clip of prepared) {
@@ -404,27 +413,31 @@ async function renderInBrowser(
       }
 
       throwIfBroken();
-      await encoder.flush();
+      await videoEncoder.flush();
       await muxChain;
       throwIfBroken();
       // Clip durations round, so the running fraction can stop a frame or two
       // short of the estimate. Say it finished rather than leaving it at 98%.
       onProgress({ phase: 'encoding', completed: 1 });
-      finished = true;
-    } finally {
-      // Both codecs close on every path, abort included. Leaving them open holds
-      // hardware surfaces the browser will not reclaim on its own. Any frames
-      // still queued for compositing go with them.
+
+      // Both codecs are done. Release them before finalizing, which is the
+      // memory-hungry step for a fastStart: 'in-memory' file.
       closeCodecs();
-      if (!finished) await output.cancel().catch(() => undefined);
+
+      onProgress({ phase: 'muxing', completed: null });
+      videoSource.close();
+      await mp4.finalize();
+
+      if (!target.buffer) throw new Error('The export finished but produced no file.');
+      const blob = new Blob([target.buffer], { type: 'video/mp4' });
+      finished = true;
+      return blob;
+    } finally {
+      // Every exit path, abort included. closeCodecs is idempotent, so the
+      // success path having already called it costs nothing.
+      closeCodecs();
+      if (!finished) await outputFile?.cancel().catch(() => undefined);
     }
-
-    onProgress({ phase: 'muxing', completed: null });
-    videoSource.close();
-    await output.finalize();
-
-    if (!target.buffer) throw new Error('The export finished but produced no file.');
-    return new Blob([target.buffer], { type: 'video/mp4' });
   } finally {
     for (const clip of prepared) clip.input.dispose();
   }

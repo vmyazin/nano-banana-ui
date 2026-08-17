@@ -1,7 +1,7 @@
 import { fetchResultBlob } from '@/lib/gallery/capture';
 import { isDownloadableMediaUrl } from '@/lib/media-download';
 import { extractLastFrameFromBlob } from '@/lib/video-frame';
-import { probeDimensions } from '@/lib/timeline/probe';
+import { probeDimensions, probeFramerate } from '@/lib/timeline/probe';
 import type { ClipDimensions } from '@/lib/timeline/derive-output';
 import { useGalleryStore } from '@/store/useGalleryStore';
 
@@ -66,6 +66,14 @@ function persistenceWarning(): string {
  * Cached dimensions when we have them, freshly probed otherwise. Old records —
  * anything kept before the timeline existed — have bytes but no dimensions, and
  * without this they would give deriveOutputFormat nothing to vote with.
+ *
+ * Framerate comes from the demuxer rather than the video element, which cannot
+ * report it. It is deliberately the weaker of the two probes: dimensions decide
+ * whether the clip can be used at all, framerate only decides whether it gets a
+ * vote on the output cadence. So a framerate that cannot be read — an unreadable
+ * container, a variable-framerate clip with no fixed rate to report — leaves
+ * `fps` undefined and the clip fully usable. `deriveOutputFormat` already skips
+ * clips without one.
  */
 async function dimensionsFor(recordId: string, blob: Blob): Promise<ClipDimensions> {
   const record = useGalleryStore.getState().records.find((r) => r.id === recordId);
@@ -78,9 +86,13 @@ async function dimensionsFor(recordId: string, blob: Blob): Promise<ClipDimensio
     };
   }
 
-  const probed = await probeDimensions(blob);
-  await useGalleryStore.getState().setDimensions(recordId, probed);
-  return probed;
+  // Both probes read the same bytes and neither depends on the other, so they
+  // run together rather than in series. probeFramerate never rejects.
+  const [probed, fps] = await Promise.all([probeDimensions(blob), probeFramerate(blob)]);
+  const dimensions: ClipDimensions = fps === undefined ? probed : { ...probed, fps };
+
+  await useGalleryStore.getState().setDimensions(recordId, dimensions);
+  return dimensions;
 }
 
 export async function acquireClipMedia(

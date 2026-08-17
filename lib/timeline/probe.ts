@@ -61,12 +61,23 @@ function snapFramerate(raw: number): number {
  *
  * Best-effort on purpose: a clip that cannot answer simply does not vote in
  * `deriveOutputFormat`'s framerate decision, which already falls back to 30 when
- * nobody votes. This never throws and never rejects.
+ * nobody votes. This never throws, never rejects, and never takes longer than
+ * `PROBE_TIMEOUT_MS` — acquisition awaits it, and a cadence hint is not worth
+ * making someone wait on a container the demuxer is struggling with.
  *
  * The demuxer is loaded with a dynamic `import()` so mediabunny stays out of the
  * main bundle — it arrives with the timeline workspace or not at all.
  */
-export async function probeFramerate(blob: Blob): Promise<number | undefined> {
+export function probeFramerate(blob: Blob): Promise<number | undefined> {
+  // The loser of this race keeps running to its own `finally`, so the Input is
+  // disposed even when the timeout has already answered for it.
+  return Promise.race([
+    readFramerate(blob),
+    new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), PROBE_TIMEOUT_MS)),
+  ]);
+}
+
+async function readFramerate(blob: Blob): Promise<number | undefined> {
   try {
     const { ALL_FORMATS, BlobSource, Input } = await import('mediabunny');
     const input = new Input({ formats: ALL_FORMATS, source: new BlobSource(blob) });
@@ -76,19 +87,22 @@ export async function probeFramerate(blob: Blob): Promise<number | undefined> {
       if (!track) return undefined;
 
       // computeFrameRateMetrics is purpose-built for this and handles the cases a
-      // naive samples-over-duration division gets wrong: it excludes outliers,
-      // survives dropped frames, and reports null rather than a fictional average
-      // for variable-framerate sources. `underlyingFrameRate` is the rate it is
-      // confident about; `bestGuessFrameRate` is its snapped fallback.
+      // naive samples-over-duration division gets wrong: it excludes outliers and
+      // survives dropped frames.
+      //
+      // Only `underlyingFrameRate` is used, and only when it is non-null. That is
+      // the field mediabunny sets when it is confident it has found the video's
+      // real rate; it is null precisely for variable-framerate sources. Every
+      // sibling field — `bestGuessFrameRate`, `medianFrameRate`,
+      // `averageFrameRate`, and `computePacketStats().averagePacketRate` — is
+      // non-nullable and answers a VFR clip with a heuristic middle number. That
+      // number would be cast as a real vote in `deriveOutputFormat` and could
+      // decide the whole timeline's output rate. A clip with no fixed rate has no
+      // opinion to offer, so it abstains.
       const metrics = await track.computeFrameRateMetrics();
-      const rate = metrics.underlyingFrameRate ?? metrics.bestGuessFrameRate;
-      if (Number.isFinite(rate) && rate > 0) return snapFramerate(rate);
-
-      // Last resort: packets over seconds, which is the raw form of the same sum.
-      const stats = await track.computePacketStats(256);
-      return Number.isFinite(stats.averagePacketRate) && stats.averagePacketRate > 0
-        ? snapFramerate(stats.averagePacketRate)
-        : undefined;
+      const rate = metrics.underlyingFrameRate;
+      if (rate === null || !Number.isFinite(rate) || rate <= 0) return undefined;
+      return snapFramerate(rate);
     } finally {
       input.dispose();
     }
