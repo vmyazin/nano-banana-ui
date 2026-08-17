@@ -1,0 +1,344 @@
+'use client';
+
+import { useEffect, useMemo, useState } from 'react';
+import { AlertTriangle, Download, Loader2, UploadCloud, X } from 'lucide-react';
+
+import {
+  selectRenderEngine,
+  type EngineSelection,
+  type RenderEngine,
+  type RenderProgress,
+  type RenderRequest,
+} from '@/lib/timeline/render/port';
+import { acquireClipMedia, type ClipMedia } from '@/lib/timeline/acquire';
+import { useGalleryStore } from '@/store/useGalleryStore';
+import type { TimelineClip, TimelineOutput } from '@/store/useTimelineStore';
+import type { ClipState } from '@/components/TimelineWorkspace';
+
+export interface TimelineExportPanelProps {
+  /**
+   * Render engines in preference order — browser first, so
+   * `selectRenderEngine` only reaches for the server when the browser
+   * cannot do the job. The server engine does not exist yet; appending it
+   * here later is the entire integration.
+   */
+  engines: RenderEngine[];
+  clips: TimelineClip[];
+  clipStates: Record<string, ClipState>;
+  output: TimelineOutput;
+}
+
+function formatDuration(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds <= 0) return '0s';
+  if (seconds < 60) return `${Math.round(seconds)}s`;
+  const m = Math.floor(seconds / 60);
+  const s = Math.round(seconds % 60);
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+function formatBytes(bytes: number): string {
+  const units = ['KB', 'MB', 'GB', 'TB'];
+  if (bytes < 1024) return `${bytes} B`;
+  let value = bytes / 1024;
+  let unit = 0;
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit += 1;
+  }
+  return `${value < 10 ? value.toFixed(1) : Math.round(value)} ${units[unit]}`;
+}
+
+function titleOf(record: { slug?: string; prompt?: string } | undefined) {
+  if (!record) return 'Untitled clip';
+  return record.slug?.replace(/-/g, ' ') || record.prompt || 'Untitled clip';
+}
+
+const PHASE_LABEL: Record<RenderProgress['phase'], string> = {
+  preparing: 'Preparing',
+  encoding: 'Encoding',
+  muxing: 'Finalizing',
+  uploading: 'Uploading',
+};
+
+/** Downloads the finished blob via a throwaway anchor. Never written back
+ *  into the gallery — storing it would double the storage cost of every
+ *  export against a budget the pinning rules already strain. */
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}
+
+interface RenderState {
+  progress: RenderProgress;
+  controller: AbortController;
+}
+
+/**
+ * Five states, exactly the ones design spec §7 names: the browser can
+ * render, the browser can't but the server can, neither can, a render is in
+ * flight, or a clip on the timeline can't be exported at all. Exactly one
+ * shows at a time, in that priority order.
+ */
+export default function TimelineExportPanel({ engines, clips, clipStates, output }: TimelineExportPanelProps) {
+  const records = useGalleryStore((state) => state.records);
+  const recordsById = useMemo(() => new Map(records.map((record) => [record.id, record])), [records]);
+
+  const [render, setRender] = useState<RenderState | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [selection, setSelection] = useState<EngineSelection | null>(null);
+
+  const unavailableClips = clips.filter((clip) => clipStates[clip.id]?.status === 'unavailable');
+  const pendingClips = clips.filter((clip) => {
+    const state = clipStates[clip.id];
+    return !state || state.status === 'loading';
+  });
+  const canProbe = clips.length > 0 && unavailableClips.length === 0 && pendingClips.length === 0;
+
+  // A cheap signature so the probe effect only re-runs when something that
+  // could change engine availability actually changed, not on every render.
+  const clipsSignature = clips.map((clip) => `${clip.id}:${clip.fit}:${clipStates[clip.id]?.status}`).join('|');
+
+  // Which engine can run this request is itself async (VideoEncoder.isConfigSupported
+  // is a promise), so it is tracked in state rather than computed inline. When the
+  // timeline is not currently probeable, the effect simply does not run — `selection`
+  // is left as whatever it last was, and `effectiveSelection` below is what decides
+  // whether that stale value is actually shown.
+  useEffect(() => {
+    if (!canProbe) return;
+    let cancelled = false;
+    const request: RenderRequest = {
+      output,
+      clips: clips.map((clip) => {
+        const state = clipStates[clip.id];
+        return { media: state?.status === 'ready' ? state.blob : new Blob(), fit: clip.fit };
+      }),
+    };
+    void selectRenderEngine(engines, request).then((result) => {
+      if (!cancelled) setSelection(result);
+    });
+    return () => {
+      cancelled = true;
+    };
+    // clipsSignature stands in for `clips`/`clipStates`; `engines` and `output`'s
+    // fields are the rest of what the probe actually depends on.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [engines, output.width, output.height, output.fps, clipsSignature, canProbe]);
+
+  // Derived, not stored: when the timeline is not currently probeable the
+  // last computed `selection` may be stale (it answered a question about a
+  // different set of clips), so it must not be shown. The `clips.length ===
+  // 0` and `unavailableClips.length > 0` branches below already return
+  // before this is read, so this only actually matters for the "still
+  // resolving" case just past them.
+  const effectiveSelection = canProbe ? selection : null;
+
+  const totalDuration = clips.reduce((sum, clip) => {
+    const state = clipStates[clip.id];
+    return state?.status === 'ready' ? sum + state.dimensions.durationSeconds : sum;
+  }, 0);
+  const totalUploadBytes = clips.reduce((sum, clip) => {
+    const state = clipStates[clip.id];
+    return state?.status === 'ready' ? sum + state.blob.size : sum;
+  }, 0);
+
+  /**
+   * Export re-resolves every clip through `acquireClipMedia` before building
+   * the `RenderRequest` — `clipStates` is never trusted at this point. A
+   * gallery record can be removed, cleared, or evicted between adding a clip
+   * and pressing Export, and provider URLs expire; a clip already holding
+   * bytes resolves instantly, so this costs the happy path nothing, and
+   * catches anything that vanished in between before a byte is encoded.
+   */
+  const runExport = async (engine: RenderEngine) => {
+    setError(null);
+    const controller = new AbortController();
+    setRender({ progress: { phase: 'preparing', completed: null }, controller });
+
+    try {
+      const resolved = await Promise.all(
+        clips.map(async (clip) => ({
+          clip,
+          result: await acquireClipMedia(clip.recordId, { signal: controller.signal }),
+        }))
+      );
+
+      const failed = resolved.filter((entry) => entry.result.status !== 'ready');
+      if (failed.length > 0) {
+        const names = failed.map((entry) => titleOf(recordsById.get(entry.clip.recordId))).join(', ');
+        throw new Error(
+          `${failed.length} clip${failed.length === 1 ? '' : 's'} could not be exported (${names}). Remove or replace them and try again.`
+        );
+      }
+
+      const request: RenderRequest = {
+        output,
+        clips: resolved.map((entry) => ({
+          media: (entry.result as ClipMedia).blob,
+          fit: entry.clip.fit,
+        })),
+      };
+
+      const blob = await engine.render(request, {
+        signal: controller.signal,
+        onProgress: (progress) => setRender((prev) => (prev ? { ...prev, progress } : prev)),
+      });
+
+      downloadBlob(blob, `timeline-export-${Date.now()}.mp4`);
+      setRender(null);
+    } catch (err) {
+      setRender(null);
+      if (err instanceof DOMException && err.name === 'AbortError') return;
+      setError(err instanceof Error ? err.message : 'The export failed.');
+    }
+  };
+
+  const cancel = () => render?.controller.abort();
+
+  // ---- State: rendering ---------------------------------------------------
+  if (render) {
+    return (
+      <div className="glass-card flex flex-col gap-2 p-3.5" data-testid="export-panel">
+        <p className="flex items-center gap-1.5 text-[0.8125rem] font-medium text-[var(--foreground)]">
+          <Loader2 size={14} className="animate-spin text-[var(--neon-cyan)]" aria-hidden />
+          {PHASE_LABEL[render.progress.phase]}
+          {render.progress.completed !== null && ` · ${Math.round(render.progress.completed * 100)}%`}
+        </p>
+        <p className="text-xs text-[var(--foreground-subtle)]">Exporting silently — the file has no sound.</p>
+        <button type="button" onClick={cancel} className="btn-secondary self-start px-3 py-1.5 text-xs">
+          <X size={13} /> Cancel
+        </button>
+      </div>
+    );
+  }
+
+  // ---- State: clips unavailable -------------------------------------------
+  if (unavailableClips.length > 0) {
+    const names = unavailableClips.map((clip) => titleOf(recordsById.get(clip.recordId))).join(', ');
+    return (
+      <div className="glass-card flex flex-col gap-1.5 p-3.5" data-testid="export-panel">
+        <button
+          type="button"
+          disabled
+          className="btn-primary w-full justify-center disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <Download size={14} aria-hidden />
+          Export
+        </button>
+        <p className="flex items-center gap-1.5 text-xs text-red-300">
+          <AlertTriangle size={12} className="shrink-0" aria-hidden />
+          {unavailableClips.length} clip{unavailableClips.length === 1 ? '' : 's'} can&apos;t be exported: {names}
+        </p>
+      </div>
+    );
+  }
+
+  // ---- Nothing to export yet, or still resolving --------------------------
+  if (clips.length === 0) {
+    return (
+      <div className="glass-card p-3.5" data-testid="export-panel">
+        <button
+          type="button"
+          disabled
+          className="btn-primary w-full justify-center disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <Download size={14} aria-hidden />
+          Export
+        </button>
+        <p className="mt-1.5 text-xs text-[var(--foreground-subtle)]">Add a clip to the timeline to export.</p>
+      </div>
+    );
+  }
+
+  if (pendingClips.length > 0 || effectiveSelection === null) {
+    return (
+      <div className="glass-card p-3.5" data-testid="export-panel">
+        <button
+          type="button"
+          disabled
+          className="btn-primary w-full justify-center disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <Loader2 size={14} className="animate-spin" aria-hidden /> Export
+        </button>
+      </div>
+    );
+  }
+
+  const browserEngine = engines.find((engine) => engine.id === 'webcodecs') ?? null;
+  const serverEngine = engines.find((engine) => engine.id === 'server') ?? null;
+  const browserRejection = effectiveSelection.rejected.find((rejection) => rejection.id === 'webcodecs') ?? null;
+  const serverRejection = effectiveSelection.rejected.find((rejection) => rejection.id === 'server') ?? null;
+
+  // ---- State: browser can render -------------------------------------------
+  if (effectiveSelection.chosen?.id === 'webcodecs') {
+    const engine = effectiveSelection.chosen;
+    return (
+      <div className="glass-card flex flex-col gap-1.5 p-3.5" data-testid="export-panel">
+        <button
+          type="button"
+          onClick={() => void runExport(engine)}
+          className="btn-primary w-full justify-center"
+        >
+          <Download size={14} aria-hidden />
+          Export {formatDuration(totalDuration)} · silent · in your browser
+        </button>
+        {error && <p className="text-xs text-red-300">{error}</p>}
+      </div>
+    );
+  }
+
+  // ---- State: browser cannot, server configured ----------------------------
+  if (effectiveSelection.chosen?.id === 'server') {
+    const engine = effectiveSelection.chosen;
+    const browserReasonText =
+      browserRejection?.reason ??
+      (browserEngine ? 'The browser engine is unavailable.' : 'This browser cannot run the export directly.');
+    return (
+      <div className="glass-card flex flex-col gap-2 p-3.5" data-testid="export-panel">
+        <p className="flex items-center gap-1.5 text-xs text-amber-300">
+          <AlertTriangle size={13} className="shrink-0" aria-hidden /> {browserReasonText}
+        </p>
+        <button
+          type="button"
+          onClick={() => void runExport(engine)}
+          className="btn-primary w-full justify-center"
+        >
+          <UploadCloud size={14} aria-hidden />
+          Export {formatDuration(totalDuration)} · silent · on the server · upload {formatBytes(totalUploadBytes)}
+        </button>
+        <p className="text-xs text-[var(--foreground-subtle)]">
+          Uploaded to render, then deleted from the server once you download it.
+        </p>
+        {error && <p className="text-xs text-red-300">{error}</p>}
+      </div>
+    );
+  }
+
+  // ---- State: neither available ---------------------------------------------
+  const browserReasonText = browserEngine
+    ? browserRejection?.reason ?? 'The browser engine is unavailable.'
+    : 'No browser render engine is loaded.';
+  const serverReasonText = serverEngine
+    ? serverRejection?.reason ?? 'The server engine is unavailable.'
+    : 'No server render is configured.';
+
+  return (
+    <div className="glass-card flex flex-col gap-1.5 p-3.5" data-testid="export-panel">
+      <button
+        type="button"
+        disabled
+        className="btn-primary w-full justify-center disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        <AlertTriangle size={14} aria-hidden />
+        Export unavailable
+      </button>
+      <p className="text-xs text-red-300">Browser: {browserReasonText}</p>
+      <p className="text-xs text-red-300">Server: {serverReasonText}</p>
+    </div>
+  );
+}
