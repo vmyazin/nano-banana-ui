@@ -6,9 +6,11 @@ import { HardDrive, Settings2 } from 'lucide-react';
 import { DEFAULT_GALLERY_BUDGET } from '@/lib/gallery/eviction';
 import { deriveOutputFormat } from '@/lib/timeline/derive-output';
 import { acquireClipMedia, type ClipMedia, type Unavailable } from '@/lib/timeline/acquire';
+import type { RenderEngine } from '@/lib/timeline/render/port';
 import { useGalleryStore } from '@/store/useGalleryStore';
 import { useTimelineStore } from '@/store/useTimelineStore';
 import TimelineClipDrawer from '@/components/TimelineClipDrawer';
+import TimelineExportPanel from '@/components/TimelineExportPanel';
 import TimelineList from '@/components/TimelineList';
 import TimelinePreview from '@/components/TimelinePreview';
 import TimelineTrack from '@/components/TimelineTrack';
@@ -72,6 +74,22 @@ export default function TimelineWorkspace({
   // must survive re-renders without itself causing one, and nothing ever
   // reads it during render — only inside event handlers and effect cleanup.
   const controllersRef = useRef(new Map<string, AbortController>());
+
+  // The render engines available to the export panel. Starts empty — the
+  // browser engine lives behind a dynamic `import()` (it pulls in mediabunny,
+  // which must never sit in a top-level import per lib/timeline/render/
+  // webcodecs.ts's own contract) so it is loaded once, here, the moment the
+  // timeline workspace itself mounts, rather than at module scope.
+  const [engines, setEngines] = useState<RenderEngine[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    void import('@/lib/timeline/render/webcodecs').then(({ createWebCodecsEngine }) => {
+      if (!cancelled) setEngines([createWebCodecsEngine()]);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     void useGalleryStore.getState().hydrate();
@@ -216,10 +234,24 @@ export default function TimelineWorkspace({
             </p>
           </div>
 
+          {/* Design spec §7: Export sits in the track header at lg+ and beneath
+              the list below — different positions per layout, so it is placed
+              inside each branch rather than shared above them. Exactly one of
+              the two branches renders at a time (the same mutual exclusivity
+              TimelineTrack/TimelineList already have), so this never mounts
+              two live instances of the panel, or two copies of its state or
+              engine selection — both branches pass the same `clipStates` and
+              `engines` this component already owns. */}
           {isWide ? (
-            <TimelineTrack clips={clips} records={records} clipStates={clipStates} onRemove={removeClip} />
+            <>
+              <TimelineExportPanel engines={engines} clips={clips} clipStates={clipStates} output={output} />
+              <TimelineTrack clips={clips} records={records} clipStates={clipStates} onRemove={removeClip} />
+            </>
           ) : (
-            <TimelineList clips={clips} records={records} clipStates={clipStates} onRemove={removeClip} />
+            <>
+              <TimelineList clips={clips} records={records} clipStates={clipStates} onRemove={removeClip} />
+              <TimelineExportPanel engines={engines} clips={clips} clipStates={clipStates} output={output} />
+            </>
           )}
         </div>
       </div>
