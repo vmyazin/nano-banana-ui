@@ -8,6 +8,7 @@ import { fetchResultBlob } from '@/lib/gallery/capture';
 import { hasBytes, type GalleryRecord } from '@/lib/gallery/storage';
 import { downloadRemoteMedia, extensionForMedia, fallbackFilenameBase } from '@/lib/media-download';
 import { extractLastFrameFromBlob } from '@/lib/video-frame';
+import { LOCAL_PROVIDER } from '@/lib/timeline/import-local';
 import RecoverMediaDropZone from '@/components/RecoverMediaDropZone';
 import { useDraftStore } from '@/store/useDraftStore';
 import { useGalleryStore } from '@/store/useGalleryStore';
@@ -224,13 +225,18 @@ export default function GalleryGrid({ onUsedReference }: { onUsedReference?: () 
               >
                 <ImageDown size={13} /> Use as reference
               </button>
-              <button
-                type="button"
-                onClick={() => restore(record)}
-                className="btn-secondary flex items-center gap-1.5 px-2 py-1 text-xs"
-              >
-                <Wand2 size={13} /> Restore settings
-              </button>
+              {/* An imported clip was never generated, so it carries no prompt
+                  or settings to replay — offering the action would be a button
+                  that silently does nothing. */}
+              {record.provider !== LOCAL_PROVIDER && (
+                <button
+                  type="button"
+                  onClick={() => restore(record)}
+                  className="btn-secondary flex items-center gap-1.5 px-2 py-1 text-xs"
+                >
+                  <Wand2 size={13} /> Restore settings
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => void download(record)}

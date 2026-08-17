@@ -1,9 +1,11 @@
 'use client';
 
-import { useEffect, useMemo } from 'react';
-import { Plus, Video } from 'lucide-react';
+import { useEffect, useId, useMemo, useState } from 'react';
+import { Loader2, Plus, Video } from 'lucide-react';
 
+import { useFileDrop } from '@/lib/drop/use-file-drop';
 import type { GalleryRecord } from '@/lib/gallery/storage';
+import { importLocalVideos } from '@/lib/timeline/import-local';
 
 interface TimelineClipDrawerProps {
   records: GalleryRecord[];
@@ -40,6 +42,93 @@ function usePreviewUrls(records: GalleryRecord[]) {
 }
 
 /**
+ * Bringing videos the app never generated into the library.
+ *
+ * Both a button and a drop target: a drag is the natural gesture for files
+ * already sitting in a folder, but it is not discoverable on its own and
+ * leaves no path for anyone who would rather browse.
+ */
+function ImportTile() {
+  const inputId = useId();
+  const [busy, setBusy] = useState(false);
+  const [errors, setErrors] = useState<string[]>([]);
+
+  const runImport = async (files: File[]) => {
+    if (files.length === 0) return;
+    setBusy(true);
+    setErrors([]);
+    try {
+      const results = await importLocalVideos(files);
+      // One bad file in a multi-select must not read as a total failure, so
+      // each rejection is named rather than collapsed into a single message.
+      setErrors(
+        results
+          .filter((result) => result.status === 'rejected')
+          .map((result) => `${result.fileName}: ${result.message}`)
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const { isDragging, dropProps } = useFileDrop({
+    onFiles: runImport,
+    onError: (message) => setErrors([message]),
+    disabled: busy,
+  });
+
+  return (
+    <div
+      {...dropProps}
+      data-testid="import-clips"
+      className={`rounded-lg border border-dashed transition-colors ${
+        isDragging
+          ? 'border-[var(--neon-cyan)] bg-[var(--neon-cyan)]/10'
+          : 'border-[var(--border-hover)] bg-[var(--background-elevated)]/40'
+      }`}
+    >
+      <label
+        htmlFor={inputId}
+        className="flex cursor-pointer items-center justify-center gap-1.5 p-2.5 text-xs text-[var(--foreground-muted)] hover:text-[var(--foreground)]"
+      >
+        {busy ? (
+          <Loader2 size={13} className="shrink-0 animate-spin" />
+        ) : (
+          <Plus size={13} className="shrink-0" />
+        )}
+        {busy ? 'Importing…' : 'Add files from your computer'}
+      </label>
+
+      <input
+        id={inputId}
+        type="file"
+        accept="video/*"
+        multiple
+        className="sr-only"
+        disabled={busy}
+        onChange={(event) => {
+          const picked = Array.from(event.target.files ?? []);
+          // Reset first, or picking the same file twice in a row fires no
+          // change event and the retry looks like it silently did nothing.
+          event.target.value = '';
+          void runImport(picked);
+        }}
+      />
+
+      {errors.length > 0 && (
+        <ul role="alert" className="space-y-0.5 px-2.5 pb-2.5">
+          {errors.map((message) => (
+            <li key={message} className="text-[0.7rem] text-red-300">
+              {message}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/**
  * The library rail: every video result, newest first, each with an Add button
  * that places it on the timeline. Copies GalleryGrid's card treatment rather
  * than importing it (that markup is inline there, not extracted) or reaching
@@ -59,10 +148,12 @@ export default function TimelineClipDrawer({ records, onAdd }: TimelineClipDrawe
         <h3 className="display text-sm font-semibold">Your clips</h3>
       </div>
 
+      <ImportTile />
+
       {clips.length === 0 ? (
         <p className="text-[0.8125rem] leading-relaxed text-[var(--foreground-muted)]">
-          Generated videos are kept in your library automatically. Nothing yet — make one, then
-          come back here to build a sequence.
+          Generated videos are kept here automatically. Nothing yet — make one, or add a file
+          from your computer above.
         </p>
       ) : (
         <ul className="space-y-2">
