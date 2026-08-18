@@ -492,6 +492,6 @@ describe('fal API connection', () => {
 
     render(<Home />);
 
-    expect(await screen.findByTitle('Update your API key')).toBeInTheDocument();
+    expect(await screen.findByTitle('Update your API keys')).toBeInTheDocument();
   });
 });

@@ -71,7 +71,10 @@ export default function MediaCard({
       variants={variants}
       onClick={onClick}
       aria-pressed={selected}
-      className={`glass-card group relative cursor-pointer overflow-hidden p-3 text-left sm:p-3.5 ${selected ? tone.selectedCard : ''}`}
+      // flex-col opts out of the native button centering: grid rows stretch
+      // every card to the tallest one, and a plain button vertically centers
+      // its content in the extra space, knocking cards out of alignment.
+      className={`glass-card group relative flex cursor-pointer flex-col overflow-hidden p-3 text-left sm:p-3.5 ${selected ? tone.selectedCard : ''}`}
       whileHover={{ y: -2 }}
       whileTap={{ scale: 0.99 }}
     >
@@ -100,7 +103,7 @@ export default function MediaCard({
         ) : null}
       </div>
 
-      <div className="space-y-1">
+      <div className="flex flex-1 flex-col gap-1">
         <h3 className="display text-[0.9375rem] font-semibold leading-snug text-[var(--foreground)]">{title}</h3>
 
         {/* Two lines, not three: at three cards per row the third line was the
@@ -111,7 +114,9 @@ export default function MediaCard({
           </p>
         )}
 
-        {meta && <div className="flex flex-wrap gap-1.5 pt-1">{meta}</div>}
+        {/* mt-auto pins the pills to the card's bottom edge so they line up
+            across a row even when a sibling's description runs a line short. */}
+        {meta && <div className="mt-auto flex flex-wrap gap-1.5 pt-1">{meta}</div>}
       </div>
 
       {selected && (
