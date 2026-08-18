@@ -283,7 +283,7 @@ export default function TimelineWorkspace({
         <TimelineClipDrawer records={records} onAdd={(recordId) => void addClip(recordId)} />
 
         <div className="min-w-0 space-y-3.5">
-          <TimelinePreview clips={clips} clipStates={clipStates} />
+          <TimelinePreview clips={clips} clipStates={clipStates} output={output} />
 
           <div className="glass-card flex flex-wrap items-center justify-between gap-3 p-3.5">
             <TimelineOutputFormat

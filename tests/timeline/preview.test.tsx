@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import TimelinePreview from '../../components/TimelinePreview';
 import type { ClipState } from '../../components/TimelineWorkspace';
-import type { TimelineClip } from '../../store/useTimelineStore';
+import type { TimelineClip, TimelineOutput } from '../../store/useTimelineStore';
 
 /**
  * The preview holds the one resource jsdom will not reclaim for us: an object
@@ -39,9 +39,12 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function clip(id: string): TimelineClip {
-  return { id, recordId: `record-${id}`, fit: 'contain' };
+function clip(id: string, fit: TimelineClip['fit'] = 'contain'): TimelineClip {
+  return { id, recordId: `record-${id}`, fit };
 }
+
+/** The format the preview frames itself to; 16:9 unless a test says otherwise. */
+const OUTPUT: TimelineOutput = { width: 1920, height: 1080, fps: 30, auto: true };
 
 function ready(): ClipState {
   return {
@@ -73,6 +76,7 @@ describe('TimelinePreview — object URL lifecycle', () => {
           b: { status: 'loading' },
           c: { status: 'unavailable', reason: 'expired', message: 'gone' },
         }}
+        output={OUTPUT}
       />
     );
 
@@ -81,13 +85,13 @@ describe('TimelinePreview — object URL lifecycle', () => {
 
   it('revokes every URL it created when the clip list changes, leaking none', () => {
     const first = [clip('a'), clip('b')];
-    const { rerender } = render(<TimelinePreview clips={first} clipStates={statesFor(first)} />);
+    const { rerender } = render(<TimelinePreview clips={first} clipStates={statesFor(first)} output={OUTPUT} />);
     const firstBatch = [...created];
     expect(firstBatch).toHaveLength(2);
     expect(revoked).toHaveLength(0);
 
     const second = [clip('a'), clip('b'), clip('c')];
-    rerender(<TimelinePreview clips={second} clipStates={statesFor(second)} />);
+    rerender(<TimelinePreview clips={second} clipStates={statesFor(second)} output={OUTPUT} />);
 
     // The previous batch is released as soon as a new one replaces it —
     // otherwise a session of adding and removing clips accumulates a live
@@ -97,7 +101,7 @@ describe('TimelinePreview — object URL lifecycle', () => {
 
   it('revokes everything still outstanding on unmount', () => {
     const clips = [clip('a'), clip('b')];
-    const { unmount } = render(<TimelinePreview clips={clips} clipStates={statesFor(clips)} />);
+    const { unmount } = render(<TimelinePreview clips={clips} clipStates={statesFor(clips)} output={OUTPUT} />);
 
     unmount();
 
@@ -107,7 +111,7 @@ describe('TimelinePreview — object URL lifecycle', () => {
 
   it('points the video at the current clip URL', () => {
     const clips = [clip('a')];
-    render(<TimelinePreview clips={clips} clipStates={statesFor(clips)} />);
+    render(<TimelinePreview clips={clips} clipStates={statesFor(clips)} output={OUTPUT} />);
 
     expect(video()).toHaveAttribute('src', created[0]);
   });
@@ -116,7 +120,7 @@ describe('TimelinePreview — object URL lifecycle', () => {
 describe('TimelinePreview — one continuous transport', () => {
   it('reports the whole sequence, not the current clip', () => {
     const clips = [clip('a'), clip('b'), clip('c')];
-    render(<TimelinePreview clips={clips} clipStates={statesFor(clips)} />);
+    render(<TimelinePreview clips={clips} clipStates={statesFor(clips)} output={OUTPUT} />);
 
     // 3 clips x 4s. The old preview said "Clip 1 of 3"; the point of this one
     // is that the sequence has a single duration.
@@ -126,7 +130,7 @@ describe('TimelinePreview — one continuous transport', () => {
 
   it('keeps both media elements mounted so the next clip stays preloaded', () => {
     const clips = [clip('a'), clip('b')];
-    render(<TimelinePreview clips={clips} clipStates={statesFor(clips)} />);
+    render(<TimelinePreview clips={clips} clipStates={statesFor(clips)} output={OUTPUT} />);
 
     // A cut is a swap between two ready elements. Tearing one down at a
     // boundary — which a changing React key would do — is the stutter this
@@ -138,7 +142,7 @@ describe('TimelinePreview — one continuous transport', () => {
 
   it('hands over to the other element at a cut instead of reloading', () => {
     const clips = [clip('a'), clip('b')];
-    render(<TimelinePreview clips={clips} clipStates={statesFor(clips)} />);
+    render(<TimelinePreview clips={clips} clipStates={statesFor(clips)} output={OUTPUT} />);
 
     fireEvent.ended(screen.getByTestId('preview-slot-0'));
 
@@ -150,7 +154,7 @@ describe('TimelinePreview — one continuous transport', () => {
 
   it('stops at the end of the sequence rather than looping', () => {
     const clips = [clip('a')];
-    render(<TimelinePreview clips={clips} clipStates={statesFor(clips)} />);
+    render(<TimelinePreview clips={clips} clipStates={statesFor(clips)} output={OUTPUT} />);
 
     fireEvent.ended(screen.getByTestId('preview-slot-0'));
 
@@ -160,7 +164,7 @@ describe('TimelinePreview — one continuous transport', () => {
 
   it('scrubs across the whole sequence, not within one clip', () => {
     const clips = [clip('a'), clip('b'), clip('c')];
-    render(<TimelinePreview clips={clips} clipStates={statesFor(clips)} />);
+    render(<TimelinePreview clips={clips} clipStates={statesFor(clips)} output={OUTPUT} />);
 
     fireEvent.change(screen.getByLabelText(/preview position/i), { target: { value: '9' } });
 
@@ -170,7 +174,7 @@ describe('TimelinePreview — one continuous transport', () => {
 
   it('offers play and pause as one control for the sequence', () => {
     const clips = [clip('a')];
-    render(<TimelinePreview clips={clips} clipStates={statesFor(clips)} />);
+    render(<TimelinePreview clips={clips} clipStates={statesFor(clips)} output={OUTPUT} />);
 
     fireEvent.click(screen.getByRole('button', { name: /play preview/i }));
     expect(screen.getByRole('button', { name: /pause preview/i })).toBeInTheDocument();
@@ -183,13 +187,13 @@ describe('TimelinePreview — one continuous transport', () => {
 describe('TimelinePreview — a sequence that changes underneath the playhead', () => {
   it('clamps the playhead when the clip list shrinks', () => {
     const three = [clip('a'), clip('b'), clip('c')];
-    const { rerender } = render(<TimelinePreview clips={three} clipStates={statesFor(three)} />);
+    const { rerender } = render(<TimelinePreview clips={three} clipStates={statesFor(three)} output={OUTPUT} />);
 
     fireEvent.change(screen.getByLabelText(/preview position/i), { target: { value: '11' } });
     expect(screen.getByText('0:11 / 0:12')).toBeInTheDocument();
 
     const one = [clip('a')];
-    rerender(<TimelinePreview clips={one} clipStates={statesFor(one)} />);
+    rerender(<TimelinePreview clips={one} clipStates={statesFor(one)} output={OUTPUT} />);
 
     // 11s no longer exists. The readout must clamp to the new total rather
     // than reading past the end.
@@ -198,10 +202,10 @@ describe('TimelinePreview — a sequence that changes underneath the playhead', 
 
   it('falls back to the empty state when every clip goes away, without crashing', () => {
     const clips = [clip('a'), clip('b')];
-    const { rerender } = render(<TimelinePreview clips={clips} clipStates={statesFor(clips)} />);
+    const { rerender } = render(<TimelinePreview clips={clips} clipStates={statesFor(clips)} output={OUTPUT} />);
     fireEvent.ended(screen.getByTestId('preview-slot-0'));
 
-    rerender(<TimelinePreview clips={[]} clipStates={{}} />);
+    rerender(<TimelinePreview clips={[]} clipStates={{}} output={OUTPUT} />);
 
     expect(screen.getByText(/add a ready clip to preview/i)).toBeInTheDocument();
     // The transport goes away with the sequence; the elements stay mounted so
@@ -212,10 +216,10 @@ describe('TimelinePreview — a sequence that changes underneath the playhead', 
 
   it('recovers when clips come back after the list emptied', () => {
     const clips = [clip('a'), clip('b')];
-    const { rerender } = render(<TimelinePreview clips={clips} clipStates={statesFor(clips)} />);
+    const { rerender } = render(<TimelinePreview clips={clips} clipStates={statesFor(clips)} output={OUTPUT} />);
 
-    rerender(<TimelinePreview clips={[]} clipStates={{}} />);
-    rerender(<TimelinePreview clips={clips} clipStates={statesFor(clips)} />);
+    rerender(<TimelinePreview clips={[]} clipStates={{}} output={OUTPUT} />);
+    rerender(<TimelinePreview clips={clips} clipStates={statesFor(clips)} output={OUTPUT} />);
 
     expect(screen.getByLabelText(/preview position/i)).toBeInTheDocument();
     expect(screen.getByText(/2 clips · 0:08/)).toBeInTheDocument();
@@ -229,6 +233,7 @@ describe('TimelinePreview — a sequence that changes underneath the playhead', 
       <TimelinePreview
         clips={clips}
         clipStates={{ a: ready(), b: { status: 'unavailable', reason: 'expired', message: 'gone' } }}
+        output={OUTPUT}
       />
     );
 
@@ -237,8 +242,10 @@ describe('TimelinePreview — a sequence that changes underneath the playhead', 
 
   it('says it is playback, not a proof of the export', () => {
     const clips = [clip('a')];
-    render(<TimelinePreview clips={clips} clipStates={statesFor(clips)} />);
+    render(<TimelinePreview clips={clips} clipStates={statesFor(clips)} output={OUTPUT} />);
 
-    expect(screen.getByText(/without letterboxing or exact cut timing/i)).toBeInTheDocument();
+    // The caption tracks what the preview actually does: it letterboxes to the
+    // output frame now, so the caveats left are audio and cut timing.
+    expect(screen.getByText(/cuts land on whole clips rather than exact frames/i)).toBeInTheDocument();
   });
 });

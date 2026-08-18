@@ -5,15 +5,20 @@ import { Info, Pause, Play } from 'lucide-react';
 
 import { formatDuration, formatElapsed } from '@/lib/timeline/format';
 import { buildSequence, locate, type PlaybackSequence } from '@/lib/timeline/playback';
-import type { TimelineClip } from '@/store/useTimelineStore';
+import type { TimelineClip, TimelineOutput } from '@/store/useTimelineStore';
 import type { ClipState } from '@/components/TimelineWorkspace';
 
 interface TimelinePreviewProps {
   clips: TimelineClip[];
   clipStates: Record<string, ClipState>;
+  /** The frame being exported — the shape this preview has to be, or fit is a lie. */
+  output: TimelineOutput;
 }
 
 type ReadyEntry = { clip: TimelineClip; state: Extract<ClipState, { status: 'ready' }> };
+
+/** Keeps a 9:16 sequence from pushing the controls off the screen. */
+const PREVIEW_MAX_HEIGHT = '60vh';
 
 /**
  * The sequence played as one piece rather than a stack of separate files.
@@ -25,11 +30,15 @@ type ReadyEntry = { clip: TimelineClip; state: Extract<ClipState, { status: 'rea
  * never be given a React `key` that changes, or React tears the element down
  * and the preload dies with it.
  *
- * Still not a proof of the export: each clip plays at its own framing, with no
- * letterboxing to the output format. Compositing that faithfully means running
+ * The frame is the output frame, and each clip sits in it under its own `fit`
+ * — the two things the render actually does with a clip, so Contain and Cover
+ * can be judged here rather than discovered in a downloaded file.
+ *
+ * Still not a proof of the export: cuts land on whole clips rather than at
+ * exact frame boundaries, and there is no audio. Proving those means running
  * the render pipeline in real time, which is a later slice.
  */
-export default function TimelinePreview({ clips, clipStates }: TimelinePreviewProps) {
+export default function TimelinePreview({ clips, clipStates, output }: TimelinePreviewProps) {
   const ready = useMemo<ReadyEntry[]>(
     () =>
       clips
@@ -77,6 +86,22 @@ export default function TimelinePreview({ clips, clipStates }: TimelinePreviewPr
   const [playing, setPlaying] = useState(false);
 
   const position = locate(sequence, globalTime);
+  /**
+   * `object-fit` per slot: contain letterboxes inside the output frame, cover
+   * fills and crops — the same two things the render does with a clip, so the
+   * choice can be judged here instead of in a downloaded file.
+   *
+   * Derived from what each slot is loaded with rather than from the playhead,
+   * because the idle slot is already holding the *next* clip. Reading it off
+   * the playhead would frame that preloaded clip wrongly until the swap, which
+   * is one visible frame of the wrong crop at every cut.
+   */
+  const fitClassOf = (clipId: string | null | undefined) =>
+    clips.find((clip) => clip.id === clipId)?.fit === 'cover' ? 'object-cover' : 'object-contain';
+  const activeClipId = position?.id ?? null;
+  const nextClipId = position ? (sequence.segments[position.index + 1]?.id ?? null) : null;
+  const fitForSlot = (slot: 0 | 1) =>
+    fitClassOf(slot === activeSlot ? activeClipId : nextClipId);
   /**
    * Clamped for display rather than written back through state: the sequence
    * can shrink underneath the playhead (a clip is removed mid-playback) and
@@ -202,7 +227,21 @@ export default function TimelinePreview({ clips, clipStates }: TimelinePreviewPr
         )}
       </div>
 
-      <div className="relative aspect-video w-full overflow-hidden rounded-lg bg-black">
+      {/* The export frame, not a fixed 16:9 box: a vertical timeline previewed
+          in a landscape box shows framing that no export will produce. */}
+      <div
+        className="relative mx-auto w-full overflow-hidden rounded-lg bg-black"
+        style={{
+          aspectRatio: `${output.width} / ${output.height}`,
+          // The pair matters: a max-height alone caps the height while `w-full`
+          // holds the width, which silently breaks the ratio back into a wide
+          // box. Capping the width to what that height allows keeps the frame
+          // honest and lets a tall format centre itself instead.
+          maxHeight: PREVIEW_MAX_HEIGHT,
+          maxWidth: `calc(${PREVIEW_MAX_HEIGHT} * ${output.width} / ${output.height})`,
+        }}
+        data-testid="preview-frame"
+      >
         <video
           ref={slotARef}
           muted
@@ -210,7 +249,8 @@ export default function TimelinePreview({ clips, clipStates }: TimelinePreviewPr
           preload="auto"
           data-testid="preview-slot-0"
           data-active={activeSlot === 0 ? 'true' : 'false'}
-          className={`absolute inset-0 h-full w-full ${activeSlot === 0 ? '' : 'invisible'}`}
+          data-fit={fitForSlot(0)}
+          className={`absolute inset-0 h-full w-full ${fitForSlot(0)} ${activeSlot === 0 ? '' : 'invisible'}`}
         />
         <video
           ref={slotBRef}
@@ -219,7 +259,8 @@ export default function TimelinePreview({ clips, clipStates }: TimelinePreviewPr
           preload="auto"
           data-testid="preview-slot-1"
           data-active={activeSlot === 1 ? 'true' : 'false'}
-          className={`absolute inset-0 h-full w-full ${activeSlot === 1 ? '' : 'invisible'}`}
+          data-fit={fitForSlot(1)}
+          className={`absolute inset-0 h-full w-full ${fitForSlot(1)} ${activeSlot === 1 ? '' : 'invisible'}`}
         />
         {sequence.segments.length === 0 && (
           <div className="absolute inset-0 flex items-center justify-center">
@@ -275,7 +316,7 @@ export default function TimelinePreview({ clips, clipStates }: TimelinePreviewPr
         <Info size={12} className="mt-0.5 shrink-0" />
         {pending > 0
           ? `Playing ${ready.length} of ${clips.length} clips — the rest are not ready, so this is not the full sequence.`
-          : 'Playback only — silent, and without letterboxing or exact cut timing.'}
+          : 'Playback only — silent, and cuts land on whole clips rather than exact frames.'}
       </p>
     </div>
   );
