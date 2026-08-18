@@ -6,7 +6,16 @@ export interface TimelineClip {
   id: string;
   recordId: string;
   fit: 'contain' | 'cover';
-  // slice 2: trimStart?, trimEnd?   slice 4: gain?, muted?
+  /**
+   * In and out points, as absolute seconds inside the source. Absent means the
+   * whole clip, so an untrimmed placement carries no trim data and timelines
+   * saved before trimming existed keep working. Always read through
+   * `resolveTrim`, never raw: a repaired clip is a different file and can be
+   * shorter than the points stored against it.
+   */
+  trimStart?: number;
+  trimEnd?: number;
+  // slice 4: gain?, muted?
 }
 
 export interface TimelineOutput {
@@ -73,6 +82,8 @@ interface TimelineState {
    */
   moveClip: (clipId: string, toIndex: number) => void;
   setFit: (clipId: string, fit: 'contain' | 'cover') => void;
+  /** In/out points in source seconds; `undefined` on either end restores it. */
+  setTrim: (clipId: string, trim: { start?: number; end?: number }) => void;
   /** Any user edit freezes the derived format. */
   setOutput: (patch: Partial<Omit<TimelineOutput, 'auto'>>) => void;
   /** Applies a derived format without unfreezing; used by the auto recompute. */
@@ -145,6 +156,14 @@ export const useTimelineStore = create<TimelineState>()(
           edit((timeline) => ({
             ...timeline,
             clips: timeline.clips.map((clip) => (clip.id === clipId ? { ...clip, fit } : clip)),
+          })),
+
+        setTrim: (clipId, trim) =>
+          edit((timeline) => ({
+            ...timeline,
+            clips: timeline.clips.map((clip) =>
+              clip.id === clipId ? { ...clip, trimStart: trim.start, trimEnd: trim.end } : clip
+            ),
           })),
 
         setOutput: (patch) =>

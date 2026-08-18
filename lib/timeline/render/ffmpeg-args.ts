@@ -3,6 +3,9 @@ import type { TimelineOutput } from '@/store/useTimelineStore';
 export interface FfmpegInput {
   path: string;
   fit: 'contain' | 'cover';
+  /** In/out points in source seconds; absent means the whole file. */
+  trimStart?: number;
+  trimEnd?: number;
 }
 
 /**
@@ -22,7 +25,19 @@ export function buildFfmpegArgs(args: {
   const { inputs, output, outputPath } = args;
   const { width, height, fps } = output;
 
-  const inputArgs = inputs.flatMap((input) => ['-i', input.path]);
+  /**
+   * `-ss`/`-to` before `-i` so ffmpeg seeks the input rather than decoding the
+   * whole file and discarding frames — and the timestamps each input hands the
+   * concat filter then start at zero, which is what concat requires.
+   */
+  const inputArgs = inputs.flatMap((input) => [
+    ...(typeof input.trimStart === 'number' && input.trimStart > 0
+      ? ['-ss', input.trimStart.toFixed(3)]
+      : []),
+    ...(typeof input.trimEnd === 'number' && input.trimEnd > 0 ? ['-to', input.trimEnd.toFixed(3)] : []),
+    '-i',
+    input.path,
+  ]);
 
   const chains = inputs.map((input, index) =>
     input.fit === 'contain'

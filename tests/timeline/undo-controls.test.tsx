@@ -49,7 +49,13 @@ describe('undo and clear in the header', () => {
     // than coming back as an unusable row.
     const track = screen.getByTestId('timeline-track');
     await waitFor(() => expect(within(track).getByText('neon tiger')).toBeInTheDocument());
-    await waitFor(() => expect(within(track).getByText('0:04')).toBeInTheDocument());
+    // Its controls come back with it, which is what proves the placement was
+    // re-resolved rather than restored as a dead row. (The duration string
+    // itself appears twice now — once as the block's length, once inside the
+    // trim control — so it is the wrong thing to assert on.)
+    await waitFor(() =>
+      expect(within(track).getByLabelText('Trim start, seconds')).toBeInTheDocument()
+    );
   });
 
   it('clears the whole timeline, and offers that back', async () => {

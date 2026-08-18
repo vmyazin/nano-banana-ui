@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Info, Pause, Play } from 'lucide-react';
 
 import { formatDuration, formatElapsed } from '@/lib/timeline/format';
+import { resolveTrim } from '@/lib/timeline/trim';
 import { buildSequence, locate, type PlaybackSequence } from '@/lib/timeline/playback';
 import type { TimelineClip, TimelineOutput } from '@/store/useTimelineStore';
 import type { ClipState } from '@/components/TimelineWorkspace';
@@ -47,17 +48,29 @@ export default function TimelinePreview({ clips, clipStates, output }: TimelineP
     [clips, clipStates]
   );
 
+  /** In/out points per clip, clamped to the source that actually arrived. */
+  const trims = useMemo(() => {
+    const map = new Map<string, { start: number; end: number }>();
+    for (const entry of ready) {
+      map.set(entry.clip.id, resolveTrim(entry.clip, entry.state.dimensions.durationSeconds));
+    }
+    return map;
+  }, [ready]);
+
   const sequence: PlaybackSequence = useMemo(
     () =>
       buildSequence(
-        ready.map((entry) => ({
-          id: entry.clip.id,
-          // The same duration the export panel totals, so the two readouts
-          // cannot disagree about how long the sequence is.
-          durationSeconds: entry.state.dimensions.durationSeconds,
-        }))
+        ready.map((entry) => {
+          const trim = trims.get(entry.clip.id);
+          return {
+            id: entry.clip.id,
+            // The trimmed length, and the same one the export panel totals —
+            // the two readouts cannot disagree about how long this is.
+            durationSeconds: trim ? trim.end - trim.start : entry.state.dimensions.durationSeconds,
+          };
+        })
       ),
-    [ready]
+    [ready, trims]
   );
 
   const urls = useMemo(() => {
@@ -122,6 +135,10 @@ export default function TimelinePreview({ clips, clipStates, output }: TimelineP
       }
       const url = urls.get(clipId);
       if (!url) return;
+      // Local time is time *on the timeline*; the element has to be told where
+      // that is inside the source, which trimming moves.
+      const inPoint = trims.get(clipId)?.start ?? 0;
+      const sourceTime = inPoint + atLocalTime;
       if (loadedRef.current[slot] !== clipId) {
         loadedRef.current[slot] = clipId;
         element.src = url;
@@ -129,12 +146,12 @@ export default function TimelinePreview({ clips, clipStates, output }: TimelineP
       // Seeking before metadata arrives is ignored by the element, so it is
       // repeated once the element knows how long it is.
       const seek = () => {
-        if (Math.abs(element.currentTime - atLocalTime) > 0.05) element.currentTime = atLocalTime;
+        if (Math.abs(element.currentTime - sourceTime) > 0.05) element.currentTime = sourceTime;
       };
       seek();
       element.addEventListener('loadedmetadata', seek, { once: true });
     },
-    [urls]
+    [urls, trims]
   );
 
   // Keep the active element on the clip the playhead is inside, and the idle
@@ -158,12 +175,19 @@ export default function TimelinePreview({ clips, clipStates, output }: TimelineP
     const element = (activeSlot === 0 ? slotARef : slotBRef).current;
     if (!element) return;
     const onTime = () => {
-      const segment = sequence.segments.find((candidate) => candidate.id === loadedRef.current[activeSlot]);
-      if (segment) setGlobalTime(segment.start + element.currentTime);
+      const loadedId = loadedRef.current[activeSlot];
+      const segment = sequence.segments.find((candidate) => candidate.id === loadedId);
+      if (!segment) return;
+      const trim = loadedId ? trims.get(loadedId) : undefined;
+      const inPoint = trim?.start ?? 0;
+      setGlobalTime(segment.start + Math.max(0, element.currentTime - inPoint));
+      // A trimmed clip has to be stopped at its out-point: the element would
+      // otherwise play the source's own tail, which is not on this timeline.
+      if (trim && element.currentTime >= trim.end - 0.02) element.dispatchEvent(new Event('ended'));
     };
     element.addEventListener('timeupdate', onTime);
     return () => element.removeEventListener('timeupdate', onTime);
-  }, [activeSlot, sequence]);
+  }, [activeSlot, sequence, trims]);
 
   // A clip ending is a swap, not a load: the idle element is already holding
   // the next clip at its first frame.

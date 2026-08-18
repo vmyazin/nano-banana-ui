@@ -6,6 +6,14 @@ export interface RenderRequest {
     media: Blob;
     fit: 'contain' | 'cover';
     /**
+     * In and out points in source seconds. Absent means the whole clip. Both
+     * engines must honour these identically or the same timeline yields two
+     * different files — the reason they are on the request rather than being
+     * applied by whoever assembles the media.
+     */
+    trimStart?: number;
+    trimEnd?: number;
+    /**
      * Human name for this clip, used only when an engine has to say which one
      * failed. Optional because a render is perfectly well-defined without it —
      * an engine falls back to the clip's position. "Clip 3" is a poor answer

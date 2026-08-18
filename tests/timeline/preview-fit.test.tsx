@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import TimelinePreview from '../../components/TimelinePreview';
 import type { ClipState } from '../../components/TimelineWorkspace';
@@ -13,6 +13,10 @@ import type { TimelineClip, TimelineOutput } from '../../store/useTimelineStore'
 beforeEach(() => {
   vi.stubGlobal('URL', { ...URL, createObjectURL: () => 'blob:x', revokeObjectURL: () => {} });
 });
+
+// Restored, or the stub leaks into every later suite sharing this worker —
+// object URLs are how half the app previews anything.
+afterEach(() => vi.unstubAllGlobals());
 
 function clip(id: string, fit: TimelineClip['fit']): TimelineClip {
   return { id, recordId: `record-${id}`, fit };

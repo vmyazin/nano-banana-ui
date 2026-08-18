@@ -8,10 +8,12 @@ import type { GalleryRecord } from '@/lib/gallery/storage';
 import { UNDECODABLE_WARNING } from '@/lib/timeline/acquire';
 import { formatDuration } from '@/lib/timeline/format';
 import { reorderHint, reorderIntent } from '@/lib/timeline/reorder';
+import { trimmedDuration } from '@/lib/timeline/trim';
 import { posterImage } from '@/lib/timeline/poster';
 import { useTimelineStore, type TimelineClip } from '@/store/useTimelineStore';
 import type { ClipState } from '@/components/TimelineWorkspace';
 import RecoverMediaDropZone from '@/components/RecoverMediaDropZone';
+import TimelineTrimControl from '@/components/TimelineTrimControl';
 
 interface TimelineListProps {
   clips: TimelineClip[];
@@ -155,7 +157,7 @@ function ClipRow({
         {state?.status === 'ready' && (
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <p className="text-xs text-[var(--foreground-muted)]">
-              {formatDuration(state.dimensions.durationSeconds)}
+              {formatDuration(trimmedDuration(clip, state.dimensions.durationSeconds))}
             </p>
             <div role="group" aria-label="Fit" className="flex overflow-hidden rounded-md border border-[var(--border)]">
               {(['contain', 'cover'] as const).map((fit) => (
@@ -174,6 +176,9 @@ function ClipRow({
                   {fit}
                 </button>
               ))}
+            </div>
+            <div className="w-full">
+              <TimelineTrimControl clip={clip} sourceDuration={state.dimensions.durationSeconds} />
             </div>
             {!state.durable && (
               <p className="flex w-full items-center gap-1.5 text-xs text-amber-300">

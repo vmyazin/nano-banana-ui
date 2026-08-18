@@ -257,6 +257,18 @@ function parseOutput(raw: FormDataEntryValue | null): TimelineOutput | null {
 
 interface ClipMeta {
   fit: 'contain' | 'cover';
+  trimStart?: number;
+  trimEnd?: number;
+}
+
+/**
+ * A trim point from the network: a finite, non-negative number of seconds, or
+ * nothing. Anything else is dropped rather than rejected — a bad point means
+ * the whole clip, which is the safe reading, and refusing the render over it
+ * would fail an export for a value ffmpeg would have ignored anyway.
+ */
+function parseTrimPoint(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined;
 }
 
 function parseClipsMeta(raw: FormDataEntryValue | null): ClipMeta[] | null {
@@ -273,7 +285,13 @@ function parseClipsMeta(raw: FormDataEntryValue | null): ClipMeta[] | null {
   for (const entry of parsed) {
     const fit = entry && typeof entry === 'object' ? (entry as Record<string, unknown>).fit : null;
     if (fit !== 'contain' && fit !== 'cover') return null;
-    result.push({ fit });
+    const record = entry as Record<string, unknown>;
+    const trimStart = parseTrimPoint(record.trimStart);
+    const trimEnd = parseTrimPoint(record.trimEnd);
+    // An out-point at or before the in-point would make ffmpeg produce nothing
+    // for this input and hang the concat; treat the pair as absent.
+    const usable = trimEnd === undefined || trimStart === undefined || trimEnd > trimStart;
+    result.push({ fit, ...(usable ? { trimStart, trimEnd } : {}) });
   }
   return result;
 }
@@ -409,7 +427,12 @@ export async function POST(request: NextRequest) {
       const path = join(tempDir, `clip-${index}.input`);
       const bytes = new Uint8Array(await file.arrayBuffer());
       await writeFile(path, bytes);
-      inputs.push({ path, fit: clipsMeta[index].fit });
+      inputs.push({
+        path,
+        fit: clipsMeta[index].fit,
+        trimStart: clipsMeta[index].trimStart,
+        trimEnd: clipsMeta[index].trimEnd,
+      });
     }
   } catch {
     await rm(tempDir, { recursive: true, force: true }).catch(() => {});

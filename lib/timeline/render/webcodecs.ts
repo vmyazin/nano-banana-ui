@@ -168,8 +168,30 @@ async function renderInBrowser(
           throw new Error(`"${name}" is in a format this browser cannot decode.`);
         }
 
-        startTimestamp = await track.getFirstTimestamp();
-        endTimestamp = await track.computeDuration();
+        const firstTimestamp = await track.getFirstTimestamp();
+        const trackEnd = await track.computeDuration();
+
+        // Trimming moves the clip's origin and shortens its span. Everything
+        // below is already written against exactly those two numbers, so this
+        // is a matter of stating them rather than of new decode logic: frames
+        // before the in-point still arrive and still become the held frame,
+        // they simply fill no slot, because `outputFramesBefore` of a negative
+        // source time clamps to the clip's first slot. Frames past the
+        // out-point are likewise decoded and dropped, since `settled` is
+        // already clamped to the clip's last slot.
+        const inPoint =
+          typeof clip.trimStart === 'number' && clip.trimStart > 0
+            ? Math.min(firstTimestamp + clip.trimStart, trackEnd)
+            : firstTimestamp;
+        const outPoint =
+          typeof clip.trimEnd === 'number' && clip.trimEnd > 0
+            ? Math.min(firstTimestamp + clip.trimEnd, trackEnd)
+            : trackEnd;
+
+        startTimestamp = inPoint;
+        // A collapsed range would ask for a clip of no length; clipFrameCount
+        // floors at one frame, so this stays a clip rather than a hole.
+        endTimestamp = outPoint > inPoint ? outPoint : trackEnd;
       } catch (error) {
         input.dispose();
         throw error;

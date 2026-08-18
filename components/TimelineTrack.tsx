@@ -8,10 +8,12 @@ import type { GalleryRecord } from '@/lib/gallery/storage';
 import { UNDECODABLE_WARNING } from '@/lib/timeline/acquire';
 import { formatDuration } from '@/lib/timeline/format';
 import { reorderHint, reorderIntent } from '@/lib/timeline/reorder';
+import { trimmedDuration } from '@/lib/timeline/trim';
 import { posterImage } from '@/lib/timeline/poster';
 import { useTimelineStore, type TimelineClip } from '@/store/useTimelineStore';
 import type { ClipState } from '@/components/TimelineWorkspace';
 import RecoverMediaDropZone from '@/components/RecoverMediaDropZone';
+import TimelineTrimControl from '@/components/TimelineTrimControl';
 
 interface TimelineTrackProps {
   clips: TimelineClip[];
@@ -189,7 +191,7 @@ function TrackBlock({
         {state?.status === 'ready' && (
           <div className="flex flex-wrap items-center gap-1">
             <p className="text-[0.65rem] text-[var(--foreground-muted)]">
-              {formatDuration(state.dimensions.durationSeconds)}
+              {formatDuration(trimmedDuration(clip, state.dimensions.durationSeconds))}
             </p>
             <div
               role="group"
@@ -214,6 +216,10 @@ function TrackBlock({
               ))}
             </div>
           </div>
+        )}
+
+        {state?.status === 'ready' && (
+          <TimelineTrimControl clip={clip} sourceDuration={state.dimensions.durationSeconds} compact />
         )}
       </div>
 

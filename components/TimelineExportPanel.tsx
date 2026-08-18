@@ -12,6 +12,7 @@ import {
 } from '@/lib/timeline/render/port';
 import { acquireAll, type ClipMedia } from '@/lib/timeline/acquire';
 import { formatCompactDuration } from '@/lib/timeline/format';
+import { resolveTrim, trimmedDuration } from '@/lib/timeline/trim';
 import { useGalleryStore } from '@/store/useGalleryStore';
 import type { TimelineClip, TimelineOutput } from '@/store/useTimelineStore';
 import type { ClipState } from '@/components/TimelineWorkspace';
@@ -136,7 +137,13 @@ export default function TimelineExportPanel({ engines, clips, clipStates, output
       output,
       clips: clips.map((clip) => {
         const state = clipStates[clip.id];
-        return { media: state?.status === 'ready' ? state.blob : new Blob(), fit: clip.fit };
+        const trim =
+          state?.status === 'ready' ? resolveTrim(clip, state.dimensions.durationSeconds) : null;
+        return {
+          media: state?.status === 'ready' ? state.blob : new Blob(),
+          fit: clip.fit,
+          ...(trim ? { trimStart: trim.start, trimEnd: trim.end } : {}),
+        };
       }),
     };
     void selectRenderEngine(availableEngines, request).then((result) => {
@@ -160,7 +167,11 @@ export default function TimelineExportPanel({ engines, clips, clipStates, output
 
   const totalDuration = clips.reduce((sum, clip) => {
     const state = clipStates[clip.id];
-    return state?.status === 'ready' ? sum + state.dimensions.durationSeconds : sum;
+    // Trimmed, so "Export 14s" is the length of the file this produces rather
+    // than the length of the footage it was cut from.
+    return state?.status === 'ready'
+      ? sum + trimmedDuration(clip, state.dimensions.durationSeconds)
+      : sum;
   }, 0);
   const totalUploadBytes = clips.reduce((sum, clip) => {
     const state = clipStates[clip.id];
@@ -203,13 +214,19 @@ export default function TimelineExportPanel({ engines, clips, clipStates, output
 
       request = {
         output,
-        clips: resolved.map((entry) => ({
-          media: (entry.result as ClipMedia).blob,
+        clips: resolved.map((entry) => {
+          const media = entry.result as ClipMedia;
+          const trim = resolveTrim(entry.clip, media.dimensions.durationSeconds);
+          return {
+          media: media.blob,
           fit: entry.clip.fit,
+          trimStart: trim.start,
+          trimEnd: trim.end,
           // So an engine that fails on one clip can name it, rather than
           // pointing at a position the user has to count out.
           label: titleOf(recordsById.get(entry.clip.recordId)),
-        })),
+          };
+        }),
       };
 
       const blob = await engine.render(request, {

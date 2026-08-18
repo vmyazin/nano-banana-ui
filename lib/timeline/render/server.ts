@@ -154,7 +154,19 @@ export function createServerEngine(): RenderEngine {
 
       const form = new FormData();
       form.append('output', JSON.stringify(request.output));
-      form.append('clips', JSON.stringify(request.clips.map((clip) => ({ fit: clip.fit }))));
+      form.append(
+        'clips',
+        JSON.stringify(
+          request.clips.map((clip) => ({
+            fit: clip.fit,
+            // Sent rather than pre-cut client-side: the whole clip is uploaded
+            // either way, and letting ffmpeg seek keeps both engines honouring
+            // exactly the same numbers.
+            ...(typeof clip.trimStart === 'number' ? { trimStart: clip.trimStart } : {}),
+            ...(typeof clip.trimEnd === 'number' ? { trimEnd: clip.trimEnd } : {}),
+          }))
+        )
+      );
       request.clips.forEach((clip, index) => {
         form.append(`clip-${index}`, clip.media, `clip-${index}`);
       });
