@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 
 import type { DraftValue } from '@/lib/draft/carry-over';
+import { measureImageUrl } from '@/lib/draft/reference-dimensions';
 
 export interface DraftReference {
   /** Stable across provider switches, so React keys and removal survive a remount. */
@@ -9,6 +10,13 @@ export interface DraftReference {
   previewUrl: string;
   /** Present when the still was taken from a video rather than uploaded as-is. */
   sourceLabel?: string;
+  /**
+   * Natural pixel size, measured asynchronously after the reference is added.
+   * Absent until the image decodes, and stays absent if it never does — the
+   * size-matching effects treat that as "nothing to match against".
+   */
+  width?: number;
+  height?: number;
 }
 
 export interface DraftReferenceInput {
@@ -65,6 +73,17 @@ export const useDraftStore = create<DraftState>((set, get) => ({
 
   addReferences: (entries, limit) => {
     const created = entries.map(createReference);
+    for (const reference of created) {
+      void measureImageUrl(reference.previewUrl).then((dimensions) => {
+        if (!dimensions) return;
+        // The reference may have been dropped or trimmed while decoding.
+        set((state) => ({
+          references: state.references.map((candidate) =>
+            candidate.id === reference.id ? { ...candidate, ...dimensions } : candidate
+          ),
+        }));
+      });
+    }
     const combined = [...get().references, ...created];
     if (combined.length <= limit) {
       set({ references: combined });

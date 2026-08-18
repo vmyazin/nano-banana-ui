@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import LastFrameActions from '@/components/LastFrameActions';
 import ModelControls, { type ModelControlField } from '@/components/ModelControls';
 import ProviderLogo from '@/components/ProviderLogo';
+import { candidatesFromSizes, useAutoAspect } from '@/lib/draft/aspect-match';
 import { carryOverValues } from '@/lib/draft/carry-over';
 import { useFileDrop } from '@/lib/drop/use-file-drop';
 import { recordFinishedJob } from '@/lib/gallery/record-job';
@@ -227,6 +228,16 @@ export default function ProviderVideoWorkspace({
     // Remembered globally so the next model inherits whatever it can express.
     useDraftStore.getState().rememberControlValues({ [key]: value });
   };
+
+  // Adding a reference (or the first frame) snaps "Output size" to the entry
+  // in this model's whitelist closest to that image's shape.
+  const sizeCandidates = useMemo(
+    () => candidatesFromSizes(selectedModel?.sizes ?? []),
+    [selectedModel]
+  );
+  useAutoAspect(references[0], sizeCandidates, (value) => {
+    if (value !== values.size) updateValues('size', value);
+  });
 
   const addReferences = async (files: File[]) => {
     const usable = files.filter((file) => file.type.startsWith('image/') || isVideoFile(file));

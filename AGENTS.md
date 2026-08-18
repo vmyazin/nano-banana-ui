@@ -37,7 +37,14 @@ must stay clean — never accumulate uncommitted work there.
 
 If a fresh worktree lacks `node_modules` (hoisted deps) or gitignored dev vars,
 document the exact symlink/copy commands to wire it up — an agent should not have to
-rediscover them.
+rediscover them. For this repo, from inside the new worktree:
+
+```sh
+ln -s ../../../node_modules node_modules   # deps are installed only in the main checkout
+cp ../../../.env.local .env.local          # gitignored dev keys
+cp ../../../next-env.d.ts .                # gitignored; without it tsc can't type image imports
+cp ../../../public/thumbnails/*.jpg public/thumbnails/ 2>/dev/null || true  # gitignored local assets
+```
 
 ## Local development must be full-fidelity and credential-free
 

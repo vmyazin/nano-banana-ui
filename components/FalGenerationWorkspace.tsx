@@ -29,6 +29,7 @@ import { useSeedFrameStore } from '@/store/useSeedFrameStore';
 import { frameSlotLabel } from '@/lib/providers/frames';
 import { useDraftStore } from '@/store/useDraftStore';
 import { usePromptLibraryStore } from '@/store/usePromptLibraryStore';
+import { candidatesFromValues, useAutoAspect } from '@/lib/draft/aspect-match';
 import { carryOverValues } from '@/lib/draft/carry-over';
 import { FRAME_EXTRACTION_ERROR, isVideoFile, lastFrameAsImageFile } from '@/lib/video-frame';
 
@@ -351,6 +352,19 @@ function FalGenerationWorkspaceSession({
     // Remembered globally so the next model inherits whatever it can express.
     useDraftStore.getState().rememberControlValues({ [key]: value });
   };
+
+  // Adding a reference (or the first frame) snaps the aspect ratio to the
+  // closest one this variant publishes.
+  const aspectField = variant.fields.find(
+    (field) => field.key === 'aspect_ratio' && field.type === 'select'
+  );
+  const aspectCandidates = useMemo(
+    () => candidatesFromValues((aspectField?.options ?? []).map((option) => option.value)),
+    [aspectField]
+  );
+  useAutoAspect(references[0], aspectCandidates, (value) => {
+    if (value !== values.aspect_ratio) updateValue('aspect_ratio', value);
+  });
 
   const setModel = (modelId: string) => {
     abortSubmission();

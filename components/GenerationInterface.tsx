@@ -26,6 +26,7 @@ import { useDraftStore } from '@/store/useDraftStore';
 import { usePromptLibraryStore } from '@/store/usePromptLibraryStore';
 import { useGalleryStore } from '@/store/useGalleryStore';
 import { resultBlob } from '@/lib/gallery/capture';
+import { candidatesFromValues, useAutoAspect } from '@/lib/draft/aspect-match';
 import { isValueCompatible, type CarryOverField } from '@/lib/draft/carry-over';
 import {
   enginesForFeature,
@@ -80,6 +81,10 @@ const ASPECT_RATIO_OPTIONS = [
   { value: '3:2', label: '3:2 (Classic Photo)' },
   { value: '4:3', label: '4:3 (Standard)' },
 ];
+
+const ASPECT_RATIO_CANDIDATES = candidatesFromValues(
+  ASPECT_RATIO_OPTIONS.map((option) => option.value)
+);
 
 // Named with the catalogue's keys so a choice made here reaches the video
 // workspaces, and vice versa, through the same carry-over rule.
@@ -194,6 +199,12 @@ export default function GenerationInterface({ feature, apiKey, onBack, onOpenCon
       resolution: next.imageSize ?? '1K',
     });
   };
+
+  // Adding a reference snaps the aspect ratio to that image's shape.
+  useAutoAspect(references[0], ASPECT_RATIO_CANDIDATES, (value) => {
+    if (value === config.aspectRatio) return;
+    applyConfig({ ...config, aspectRatio: value as NonNullable<GenerationConfig['aspectRatio']> });
+  });
 
   // Engines that can run this feature; fall back to the first (Gemini) if the
   // persisted choice can't (e.g. picked Pollinations then opened an editing mode).
