@@ -19,7 +19,7 @@ import {
 import { requestExamplePrompt, requestPromptSlug } from '@/lib/micro-ai/browser';
 import { getProviderVideoStatus, pollDelayMs, submitProviderVideo } from '@/lib/providers/browser';
 import { modelsFor } from '@/lib/providers/catalog';
-import type { ProviderId, ProviderModel } from '@/lib/providers/types';
+import type { ProviderId, ProviderMode, ProviderModel } from '@/lib/providers/types';
 import { FRAME_EXTRACTION_ERROR, isVideoFile, lastFrameAsImageFile } from '@/lib/video-frame';
 import { useAppStore } from '@/store/useAppStore';
 import { useDraftStore } from '@/store/useDraftStore';
@@ -38,8 +38,12 @@ import { useSeedFrameStore } from '@/store/useSeedFrameStore';
 interface ProviderVideoWorkspaceProps {
   provider: ProviderId;
   label: string;
-  /** 'text' or 'image' — 'frames' has no equivalent on these three providers. */
-  inputMode: 'text' | 'image';
+  /**
+   * 'frames' is first-and-last: two images, in order. Runware's models that
+   * accept two `frameImages` document exactly that reading for a pair, so it
+   * needs no positioning beyond the order they are sent in.
+   */
+  inputMode: ProviderMode;
   onBack: () => void;
   onOpenConnections: () => void;
   /** Switch this workspace to image-to-video, for continuing from a last frame. */
@@ -157,7 +161,10 @@ export default function ProviderVideoWorkspace({
   // Latest addReferences, so the paste listener attaches once instead of per render.
   const addReferencesRef = useRef<(files: File[]) => Promise<void>>(async () => {});
   const mountedRef = useRef(true);
-  const maxInputImages = selectedModel?.maxInputImages ?? 1;
+  const isFrames = inputMode === 'frames';
+  // First and last: exactly two, in order. Every other mode takes what the
+  // model says it takes.
+  const maxInputImages = isFrames ? 2 : (selectedModel?.maxInputImages ?? 1);
   const matchingModels = models.filter((model) =>
     `${model.label} ${model.id}`.toLowerCase().includes(modelSearch.toLowerCase())
   );
@@ -172,7 +179,7 @@ export default function ProviderVideoWorkspace({
 
   // Claim a frame handed over by "Continue from last frame".
   useEffect(() => {
-    if (inputMode !== 'image') return;
+    if (inputMode === 'text') return;
     const seed = useSeedFrameStore.getState().takeSeedFrame();
     if (!seed) return;
     const draft = useDraftStore.getState();
@@ -199,7 +206,7 @@ export default function ProviderVideoWorkspace({
   }, [maxInputImages]);
 
   useEffect(() => {
-    if (inputMode !== 'image') return;
+    if (inputMode === 'text') return;
 
     const onPaste = (event: ClipboardEvent) => {
       const pastedFiles = Array.from(event.clipboardData?.files ?? []).filter(
@@ -275,7 +282,12 @@ export default function ProviderVideoWorkspace({
     setIsGeneratingExample(true);
     setError(null);
     try {
-      setPrompt(await requestExamplePrompt(`${inputMode}-to-video`, geminiApiKey));
+      setPrompt(
+        await requestExamplePrompt(
+          `${inputMode === 'frames' ? 'image' : inputMode}-to-video`,
+          geminiApiKey
+        )
+      );
     } catch (exampleError) {
       const message =
         exampleError instanceof Error ? exampleError.message : 'Could not generate an example prompt.';
@@ -387,6 +399,10 @@ export default function ProviderVideoWorkspace({
       setError('Add the image this clip should start from.');
       return;
     }
+    if (isFrames && references.length < 2) {
+      setError('Add both frames — the first, then the last.');
+      return;
+    }
 
     setError(null);
     setIsSubmitting(true);
@@ -443,7 +459,7 @@ export default function ProviderVideoWorkspace({
                 <ProviderLogo provider={provider} size={13} /> {label}
               </div>
               <h2 className="display text-lg font-semibold text-[var(--foreground)] sm:text-xl">
-                {inputMode === 'text' ? 'Text' : 'Image'} to video
+                {isFrames ? 'First & last frame' : inputMode === 'text' ? 'Text' : 'Image'} to video
               </h2>
             </div>
           </div>
@@ -536,15 +552,16 @@ export default function ProviderVideoWorkspace({
             />
           </section>
 
-          {inputMode === 'image' && (
+          {inputMode !== 'text' && (
             <section className="glass-card space-y-3 p-3.5 md:p-4">
               <div>
                 <h3 className="display text-base font-semibold">
-                  Reference image{maxInputImages === 1 ? '' : 's'}
+                  {isFrames ? 'First and last frame' : `Reference image${maxInputImages === 1 ? '' : 's'}`}
                 </h3>
                 <p className="mt-0.5 text-xs text-[var(--foreground-muted)]">
-                  Upload up to {maxInputImages}; files are forwarded to {label} only for this task. Pick
-                  a saved clip and its last frame is used.
+                  {isFrames
+                    ? 'Two images, in order: the frame the clip opens on, then the one it ends on. The model builds the motion between them.'
+                    : `Upload up to ${maxInputImages}; files are forwarded to ${label} only for this task. Pick a saved clip and its last frame is used.`}
                 </p>
               </div>
               <input
@@ -597,6 +614,11 @@ export default function ProviderVideoWorkspace({
                           <Trash2 size={14} />
                         </button>
                       </div>
+                      {isFrames && (
+                        <p className="text-[0.65rem] font-medium text-[var(--neon-purple)]">
+                          {index === 0 ? 'First frame' : 'Last frame'}
+                        </p>
+                      )}
                       {reference.sourceLabel && (
                         <p
                           title={reference.sourceLabel}

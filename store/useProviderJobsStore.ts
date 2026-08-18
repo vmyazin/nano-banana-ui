@@ -1,7 +1,7 @@
 // store/useProviderJobsStore.ts
 import { create } from 'zustand';
 
-import type { ProviderId, TaskState } from '@/lib/providers/types';
+import type { ProviderId, ProviderMode, TaskState } from '@/lib/providers/types';
 
 export interface ProviderJob {
   /** Local id, so a job is addressable before the provider answers. */
@@ -10,7 +10,8 @@ export interface ProviderJob {
   taskId?: string;
   modelId: string;
   prompt: string;
-  inputMode: 'text' | 'image';
+  /** Which shape of input produced it: prompt, one image, or first-and-last. */
+  inputMode: ProviderMode;
   state: TaskState;
   progress?: number;
   urls: string[];

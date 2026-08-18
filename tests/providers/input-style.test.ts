@@ -94,7 +94,7 @@ describe('per-model image input shape', () => {
 
     expect(portrait('bytedance:seedance@2.0-mini')).toBe(true);
     expect(portrait('pixverse:1@5-fast')).toBe(true);
-    // LTX-2 Fast's own table is 16:9 only; claiming otherwise would fail at the vendor.
-    expect(portrait('lightricks:2@1')).toBe(false);
+    // LTX-2.5 Fast publishes 9:16 at every tier, unlike the model it replaced.
+    expect(portrait('lightricks:ltx@2.5-fast')).toBe(true);
   });
 });

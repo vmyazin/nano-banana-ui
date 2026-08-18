@@ -7,6 +7,7 @@ import KieGenerationWorkspace from '@/components/KieGenerationWorkspace';
 import MediaCard from '@/components/MediaCard';
 import ProviderSelector, { type VideoProvider } from '@/components/ProviderSelector';
 import ProviderVideoWorkspace from '@/components/ProviderVideoWorkspace';
+import { modelsFor } from '@/lib/providers/catalog';
 import type { ProviderId } from '@/lib/providers/types';
 
 /** Display names for the aggregator providers in the video workspace header. */
@@ -45,7 +46,8 @@ const MODES: ReadonlyArray<{
   requires: string;
   icon: typeof Type;
   thumbnail?: StaticImageData;
-  falOnly?: boolean;
+  /** Not every provider can bookend a clip between two stills. */
+  needsFramesSupport?: boolean;
 }> = [
   {
     id: 'text',
@@ -70,7 +72,7 @@ const MODES: ReadonlyArray<{
     requires: 'Needs two images',
     icon: MoveRight,
     thumbnail: bookendThumbnail,
-    falOnly: true,
+    needsFramesSupport: true,
   },
 ];
 
@@ -87,10 +89,19 @@ export default function VideoWorkspace({
     videoEngine === 'runware' || videoEngine === 'atlas' || videoEngine === 'comet'
       ? videoEngine
       : null;
-  const modes = MODES.filter((mode) => !mode.falOnly || isFal);
-  // Kie has no first-and-last-frame models, so a ?videoMode=frames deep link
-  // lands on the closest flow it does have until fal is selected.
-  const activeMode: FalInputMode = !isFal && inputMode === 'frames' ? 'image' : inputMode;
+  /**
+   * Who can bookend a clip between two stills: fal, and the Runware models
+   * whose `frameImages` takes two — the vendor reads a pair as first and last.
+   * Kie has no such model, so the card stays hidden there rather than offering
+   * a mode that would fail at submit.
+   */
+  const framesProviders = activeProvider
+    ? modelsFor(activeProvider, 'video').some((model) => model.modes.includes('frames'))
+    : isFal;
+  const modes = MODES.filter((mode) => !mode.needsFramesSupport || framesProviders);
+  // A ?videoMode=frames deep link lands on the closest flow the current
+  // provider does have, rather than on a mode it cannot run.
+  const activeMode: FalInputMode = !framesProviders && inputMode === 'frames' ? 'image' : inputMode;
 
   const selectEngine = (engine: VideoProvider) => {
     if (engine !== 'fal' && inputMode === 'frames') onInputModeChange('image');
@@ -147,9 +158,9 @@ export default function VideoWorkspace({
                     {mode.requires}
                   </span>
 
-                  {mode.falOnly && (
+                  {mode.needsFramesSupport && (
                     <span className="whitespace-nowrap inline-flex items-center rounded-full border border-[var(--border)] px-2.5 py-1 text-[0.7rem] font-medium text-[var(--foreground-muted)]">
-                      fal.ai only
+                      Not on every provider
                     </span>
                   )}
                 </>
@@ -170,7 +181,7 @@ export default function VideoWorkspace({
           label={PROVIDER_LABELS[activeProvider]}
           // These three have no first-and-last-frame models, so a ?videoMode=frames
           // deep link lands on image-to-video the way Kie already does.
-          inputMode={activeMode === 'text' ? 'text' : 'image'}
+          inputMode={activeMode}
           onBack={onExit}
           onOpenConnections={onOpenConnections}
           onContinueFromFrame={() => onInputModeChange('image')}

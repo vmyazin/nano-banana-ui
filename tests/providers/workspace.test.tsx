@@ -27,7 +27,7 @@ describe('ProviderVideoWorkspace', () => {
   beforeEach(() => {
     useProviderJobsStore.getState().clearJobs();
     useDraftStore.setState({ prompt: '', references: [], controlValues: {} });
-    useAppStore.setState({ runwareApiKey: '', runwareVideoModel: 'lightricks:2@1' });
+    useAppStore.setState({ runwareApiKey: '', runwareVideoModel: 'lightricks:ltx@2.5-fast' });
   });
 
   it('carries the header, model, prompt and result panels the other workspaces have', () => {
@@ -45,11 +45,11 @@ describe('ProviderVideoWorkspace', () => {
   it('offers only the controls the selected model publishes', () => {
     renderWorkspace();
 
-    // LTX-2 Fast: three lengths, three landscape sizes.
+    // LTX-2.5 Fast: eight lengths, and every tier in both orientations.
     expect([...screen.getByRole('combobox', { name: 'Duration' }).querySelectorAll('option')].map((o) => o.textContent))
-      .toEqual(['6 seconds', '8 seconds', '10 seconds']);
+      .toEqual(['6 seconds', '8 seconds', '10 seconds', '12 seconds', '14 seconds', '16 seconds', '18 seconds', '20 seconds']);
     expect([...screen.getByRole('combobox', { name: /Output size/ }).querySelectorAll('option')].map((o) => o.textContent))
-      .toEqual(['1080p · 16:9', '1440p · 16:9', '4K · 16:9']);
+      .toEqual(['720p · 16:9', '720p · 9:16', '1080p · 16:9', '1080p · 9:16', '2K · 16:9', '2K · 9:16', '4K · 16:9', '4K · 9:16']);
   });
 
   it('sends you to connections instead of spending a request without a key', () => {

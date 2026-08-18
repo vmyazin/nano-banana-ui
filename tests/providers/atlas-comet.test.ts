@@ -174,7 +174,7 @@ describe('model resolution', () => {
     expect(resolveModel('runware', 'image', 'gpt-image-2')).toBe('runware:z-image@turbo');
     expect(resolveModel('atlas', 'video', undefined)).toBe('ltx-2.3-quality/text-to-video');
     // A model of the wrong kind is as wrong as one that does not exist.
-    expect(resolveModel('runware', 'image', 'lightricks:2@1')).toBe('runware:z-image@turbo');
+    expect(resolveModel('runware', 'image', 'lightricks:ltx@2.5-fast')).toBe('runware:z-image@turbo');
     expect(resolveModel('comet', 'image', 'qwen-image')).toBe('qwen-image');
   });
 });

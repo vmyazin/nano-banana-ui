@@ -51,7 +51,7 @@ describe('POST /api/providers/video', () => {
     });
 
     const [task] = JSON.parse(fetchMock.mock.calls[0][1].body as string);
-    expect(task.model).toBe('lightricks:2@1');
+    expect(task.model).toBe('lightricks:ltx@2.5-fast');
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({ success: true });
   });
@@ -63,7 +63,7 @@ describe('POST /api/providers/video', () => {
       provider: 'runware',
       apiKey: 'rw',
       prompt: 'a slow pan',
-      model: 'lightricks:2@1',
+      model: 'lightricks:ltx@2.5-fast',
       durationSeconds: 5,
     });
 

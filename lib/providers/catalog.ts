@@ -46,27 +46,30 @@ const RUNWARE_MODELS: ProviderModel[] = [
     note: 'Editing only — it needs at least one reference image.',
   },
   {
-    id: 'lightricks:2@1',
-    label: 'LTX-2 Fast',
+    id: 'lightricks:ltx@2.5-fast',
+    label: 'LTX-2.5 Fast',
     kind: 'video',
-    modes: ['text', 'image'],
-    price: '$0.24 / 6s @ 1080p',
-    maxInputImages: 1,
-    // The vendor lists exactly these three and rejects anything else.
-    durations: [6, 8, 10],
-    // 16:9 only — the model's dimension table has no other ratio.
+    // frameImages takes two, and the vendor's rule for two is first and last.
+    modes: ['text', 'image', 'frames'],
+    price: '$0.09 / s @ 720p · $0.13 @ 1080p',
+    maxInputImages: 2,
+    durations: [6, 8, 10, 12, 14, 16, 18, 20],
     sizes: [
+      { label: '720p · 16:9', width: 1280, height: 720 },
+      { label: '720p · 9:16', width: 720, height: 1280 },
       { label: '1080p · 16:9', width: 1920, height: 1080 },
-      { label: '1440p · 16:9', width: 2560, height: 1440 },
+      { label: '1080p · 9:16', width: 1080, height: 1920 },
+      { label: '2K · 16:9', width: 2560, height: 1440 },
+      { label: '2K · 9:16', width: 1440, height: 2560 },
       { label: '4K · 16:9', width: 3840, height: 2160 },
+      { label: '4K · 9:16', width: 2160, height: 3840 },
     ],
-    note: 'Landscape only — the model publishes no portrait or square sizes. Use Seedance 2.0 Mini or PixVerse V5 Fast for vertical.',
   },
   {
     id: 'bytedance:seedance@2.0-mini',
     label: 'Seedance 2.0 Mini',
     kind: 'video',
-    modes: ['text', 'image'],
+    modes: ['text', 'image', 'frames'],
     price: '$0.036 / s @ 480p · $0.081 / s @ 720p',
     maxInputImages: 2,
     durations: [4, 5, 6, 8, 10, 15],
@@ -86,6 +89,7 @@ const RUNWARE_MODELS: ProviderModel[] = [
     id: 'pixverse:1@5-fast',
     label: 'PixVerse V5 Fast',
     kind: 'video',
+    // One frame image only, so no first-and-last here.
     modes: ['text', 'image'],
     price: '$0.094 / 5s @ 360p · $0.248 / 5s @ 1080p',
     maxInputImages: 1,
@@ -393,7 +397,7 @@ export const PROVIDER_MODELS: Record<ProviderId, ProviderModel[]> = {
 
 /** Default per provider and media kind — the cheapest entry that covers both modes. */
 export const DEFAULT_MODELS: Record<ProviderId, Record<MediaKind, string>> = {
-  runware: { image: 'runware:z-image@turbo', video: 'lightricks:2@1' },
+  runware: { image: 'runware:z-image@turbo', video: 'lightricks:ltx@2.5-fast' },
   atlas: { image: 'black-forest-labs/flux-schnell', video: 'ltx-2.3-quality/text-to-video' },
   comet: { image: 'gpt-image-2', video: 'seedance-2-5' },
 };

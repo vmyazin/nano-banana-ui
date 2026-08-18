@@ -134,7 +134,7 @@ Comet's catalog is public too: `GET https://api.cometapi.com/api/models`.
 | Runware | `runware:z-image@turbo` | text→image | ~$0.0032 / 1024² |
 | Runware | `runware:400@1` | text→image, image→image (FLUX.2 dev) | $0.0077 / 1024² |
 | Runware | `runware:108@22` | image→image (Qwen-Image-Edit-Plus) | $0.0166 / 1024² |
-| Runware | `lightricks:2@1` | text→video, image→video | $0.24 / 6s @1080p |
+| Runware | `lightricks:ltx@2.5-fast` | text→video, image→video, first+last frame | $0.09 / s @720p |
 | Runware | `bytedance:seedance@2.0-mini` | text→video, image→video | $0.036/s @480p, $0.081/s @720p |
 | Runware | `pixverse:1@5-fast` | text→video, image→video | $0.094 / 5s @360p |
 | Runware | `alibaba:wan@2.6-flash` | image→video | $0.025 / s @720p |
@@ -160,6 +160,16 @@ first appears only on Runware's marketing pages — the FLUX.2 [dev] model page
 quotes `runware:400@1`, which is what the API takes. The second appeared only in
 a docs example with no model page to confirm what it is. Model pages are the
 authority; a summary page is not.
+
+**2026-08-17 correction:** `lightricks:2@1` was dropped — its model page now
+404s and today's LTX pages quote different identifiers, so it can no longer be
+verified. Replaced by `lightricks:ltx@2.5-fast`, read the same day. Runware
+retires and renames AIRs, so a checked-in catalog needs re-reading, not trust.
+
+First-and-last-frame is a per-model capability: `inputs.frameImages` taking two
+entries, which the vendor documents as "2 images: first and last frames".
+LTX-2.5 Fast and Seedance 2.0 Mini take two; PixVerse V5 Fast and Wan 2.6 Flash
+take one.
 
 Per-model constraints that failed in production and are now catalog data:
 clip lengths (LTX-2 Fast takes 6/8/10 only), output sizes (LTX-2 Fast is 16:9

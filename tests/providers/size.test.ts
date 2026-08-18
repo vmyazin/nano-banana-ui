@@ -28,14 +28,14 @@ afterEach(() => vi.unstubAllGlobals());
  */
 describe('per-model output sizes', () => {
   it('defaults to the model’s first documented size', () => {
-    expect(resolveSize('runware', 'lightricks:2@1')).toMatchObject({ width: 1920, height: 1080 });
+    expect(resolveSize('runware', 'lightricks:ltx@2.5-fast')).toMatchObject({ width: 1280, height: 720 });
   });
 
   it('ignores a label the model does not publish', () => {
-    // "720p · 16:9" belongs to Wan 2.6 Flash, not to LTX-2 Fast.
-    expect(resolveSize('runware', 'lightricks:2@1', '720p · 16:9')).toMatchObject({
-      width: 1920,
-      height: 1080,
+    // "480p · 16:9" belongs to Seedance 2.0 Mini, not to LTX-2.5 Fast.
+    expect(resolveSize('runware', 'lightricks:ltx@2.5-fast', '480p · 16:9')).toMatchObject({
+      width: 1280,
+      height: 720,
     });
   });
 
@@ -46,7 +46,7 @@ describe('per-model output sizes', () => {
       provider: 'runware',
       apiKey: 'rw',
       prompt: 'a misty forest',
-      model: 'lightricks:2@1',
+      model: 'lightricks:ltx@2.5-fast',
       size: '4K · 16:9',
     });
 
@@ -73,7 +73,7 @@ describe('per-model output sizes', () => {
 
   it('every Runware size is a pair the vendor table lists', () => {
     // Both video models publish exact pixels; a preset there would be a bug.
-    for (const modelId of ['lightricks:2@1', 'alibaba:wan@2.6-flash']) {
+    for (const modelId of ['lightricks:ltx@2.5-fast', 'alibaba:wan@2.6-flash']) {
       const size = resolveSize('runware', modelId);
       expect(size?.width).toBeTypeOf('number');
       expect(size?.height).toBeTypeOf('number');
