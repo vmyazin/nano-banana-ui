@@ -356,17 +356,6 @@ function Studio() {
                 {brand.description}
               </p>
             </div>
-
-            <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3">
-              <a
-                href={brand.githubUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs font-medium px-3 py-1.5 rounded-lg bg-[var(--background-glass)] border border-[var(--border)] hover:border-[var(--neon-purple)] text-[var(--foreground-muted)] hover:text-[var(--neon-purple)] transition-all hover:shadow-[var(--glow-purple)]"
-              >
-                💻 GitHub
-              </a>
-            </div>
           </div>
 
           {/* Engines available — capability context, not product identity.
