@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { HardDrive } from 'lucide-react';
+import { HardDrive, RotateCcw, Trash2 } from 'lucide-react';
 
 import { DEFAULT_GALLERY_BUDGET } from '@/lib/gallery/eviction';
 import { deriveOutputFormat } from '@/lib/timeline/derive-output';
@@ -67,6 +67,7 @@ export default function TimelineWorkspace({
   const galleryHydrated = useGalleryStore((state) => state.hydrated);
   const clips = useTimelineStore((state) => state.timeline.clips);
   const output = useTimelineStore((state) => state.timeline.output);
+  const undoLabel = useTimelineStore((state) => state.undoLabel);
 
   const [clipStates, setClipStates] = useState<Record<string, ClipState>>({});
   // Read synchronously on mount via the lazy initializer (never on the
@@ -273,9 +274,33 @@ export default function TimelineWorkspace({
               <h2 className="display text-lg font-semibold sm:text-xl">Assemble your clips</h2>
             </div>
           </div>
-          <button type="button" onClick={onOpenConnections} className="btn-secondary shrink-0 px-3 py-2 text-xs">
-            Connections
-          </button>
+          <div className="flex shrink-0 items-center gap-2">
+            {/* Undo first, and only when there is something to undo — the
+                affordance that makes Clear safe to offer at all. Removing a
+                clip is otherwise unrecoverable: an imported clip is pinned
+                with no source URL to fetch it back from. */}
+            {undoLabel && (
+              <button
+                type="button"
+                onClick={() => useTimelineStore.getState().undo()}
+                className="btn-secondary shrink-0 px-3 py-2 text-xs"
+              >
+                <RotateCcw size={13} /> Undo {undoLabel}
+              </button>
+            )}
+            {clips.length > 0 && (
+              <button
+                type="button"
+                onClick={() => useTimelineStore.getState().clear()}
+                className="btn-secondary shrink-0 px-3 py-2 text-xs"
+              >
+                <Trash2 size={13} /> Clear
+              </button>
+            )}
+            <button type="button" onClick={onOpenConnections} className="btn-secondary shrink-0 px-3 py-2 text-xs">
+              Connections
+            </button>
+          </div>
         </div>
       </section>
 

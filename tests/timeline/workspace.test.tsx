@@ -78,7 +78,7 @@ describe('TimelineWorkspace', () => {
     await waitFor(() => expect(Object.keys(snapshots.at(-1) ?? {})).toHaveLength(1));
     const placementId = Object.keys(snapshots.at(-1)!)[0];
 
-    await userEvent.click(screen.getByRole('button', { name: /remove/i }));
+    await userEvent.click(screen.getByRole('button', { name: /remove .* from the timeline/i }));
     expect(snapshots.at(-1)).not.toHaveProperty(placementId);
 
     // The acquisition finally lands, after the clip is already gone.
@@ -102,7 +102,7 @@ describe('TimelineWorkspace', () => {
     await userEvent.click(screen.getAllByRole('button', { name: /add/i })[0]);
     await waitFor(() => expect(pending.signal()).toBeDefined());
 
-    await userEvent.click(screen.getByRole('button', { name: /remove/i }));
+    await userEvent.click(screen.getByRole('button', { name: /remove .* from the timeline/i }));
     expect(screen.getByText(/no clips yet/i)).toBeInTheDocument();
 
     await act(async () => {
