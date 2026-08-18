@@ -11,6 +11,7 @@ import {
   type RenderRequest,
 } from '@/lib/timeline/render/port';
 import { acquireAll, type ClipMedia } from '@/lib/timeline/acquire';
+import { formatCompactDuration } from '@/lib/timeline/format';
 import { useGalleryStore } from '@/store/useGalleryStore';
 import type { TimelineClip, TimelineOutput } from '@/store/useTimelineStore';
 import type { ClipState } from '@/components/TimelineWorkspace';
@@ -26,14 +27,6 @@ export interface TimelineExportPanelProps {
   clips: TimelineClip[];
   clipStates: Record<string, ClipState>;
   output: TimelineOutput;
-}
-
-function formatDuration(seconds: number): string {
-  if (!Number.isFinite(seconds) || seconds <= 0) return '0s';
-  if (seconds < 60) return `${Math.round(seconds)}s`;
-  const m = Math.floor(seconds / 60);
-  const s = Math.round(seconds % 60);
-  return `${m}:${String(s).padStart(2, '0')}`;
 }
 
 function formatBytes(bytes: number): string {
@@ -331,7 +324,7 @@ export default function TimelineExportPanel({ engines, clips, clipStates, output
           className="btn-primary w-full justify-center"
         >
           <Download size={14} aria-hidden />
-          Export {formatDuration(totalDuration)} · silent · in your browser
+          Export {formatCompactDuration(totalDuration)} · silent · in your browser
         </button>
         {error && <p className="text-xs text-red-300">{error}</p>}
         {/* Design spec error handling: a browser decode failure names which
@@ -370,7 +363,7 @@ export default function TimelineExportPanel({ engines, clips, clipStates, output
           className="btn-primary w-full justify-center"
         >
           <UploadCloud size={14} aria-hidden />
-          Export {formatDuration(totalDuration)} · silent · on the server · upload {formatBytes(totalUploadBytes)}
+          Export {formatCompactDuration(totalDuration)} · silent · on the server · upload {formatBytes(totalUploadBytes)}
         </button>
         <p className="text-xs text-[var(--foreground-subtle)]">
           Uploaded to render, then deleted from the server once you download it.

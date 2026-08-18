@@ -6,6 +6,7 @@ import { AlertTriangle, Crop, GripVertical, Scan, Trash2 } from 'lucide-react';
 
 import type { GalleryRecord } from '@/lib/gallery/storage';
 import { UNDECODABLE_WARNING } from '@/lib/timeline/acquire';
+import { formatDuration } from '@/lib/timeline/format';
 import { posterImage } from '@/lib/timeline/poster';
 import { useTimelineStore, type TimelineClip } from '@/store/useTimelineStore';
 import type { ClipState } from '@/components/TimelineWorkspace';
@@ -23,13 +24,6 @@ interface TimelineListProps {
 function titleOf(record: GalleryRecord | undefined) {
   if (!record) return 'Untitled clip';
   return record.slug?.replace(/-/g, ' ') || record.prompt || 'Untitled clip';
-}
-
-function formatDuration(seconds: number | undefined) {
-  if (typeof seconds !== 'number' || !Number.isFinite(seconds) || seconds <= 0) return '—';
-  const m = Math.floor(seconds / 60);
-  const s = Math.round(seconds % 60);
-  return `${m}:${String(s).padStart(2, '0')}`;
 }
 
 /**

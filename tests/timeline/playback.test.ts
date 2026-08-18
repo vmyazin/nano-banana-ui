@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 
 import {
   buildSequence,
-  formatClock,
   globalTimeOf,
   locate,
   type PlaybackClip,
@@ -104,15 +103,3 @@ describe('globalTimeOf', () => {
   });
 });
 
-describe('formatClock', () => {
-  it('reads as minutes and seconds', () => {
-    expect(formatClock(7)).toBe('0:07');
-    expect(formatClock(64)).toBe('1:04');
-    expect(formatClock(600)).toBe('10:00');
-  });
-
-  it('never shows a broken value for a broken input', () => {
-    expect(formatClock(Number.NaN)).toBe('0:00');
-    expect(formatClock(-5)).toBe('0:00');
-  });
-});

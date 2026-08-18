@@ -109,9 +109,3 @@ export function globalTimeOf(sequence: PlaybackSequence, clipId: string, localTi
   return segment.start + offset;
 }
 
-/** `0:07`, `1:04` — the readout beside the scrubber and on its total. */
-export function formatClock(seconds: number): string {
-  if (!Number.isFinite(seconds) || seconds < 0) return '0:00';
-  const whole = Math.floor(seconds);
-  return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, '0')}`;
-}

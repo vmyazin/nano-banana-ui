@@ -3,12 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Info, Pause, Play } from 'lucide-react';
 
-import {
-  buildSequence,
-  formatClock,
-  locate,
-  type PlaybackSequence,
-} from '@/lib/timeline/playback';
+import { formatDuration, formatElapsed } from '@/lib/timeline/format';
+import { buildSequence, locate, type PlaybackSequence } from '@/lib/timeline/playback';
 import type { TimelineClip } from '@/store/useTimelineStore';
 import type { ClipState } from '@/components/TimelineWorkspace';
 
@@ -201,7 +197,7 @@ export default function TimelinePreview({ clips, clipStates }: TimelinePreviewPr
         {sequence.segments.length > 0 && (
           <p className="text-xs text-[var(--foreground-subtle)]">
             {sequence.segments.length} {sequence.segments.length === 1 ? 'clip' : 'clips'} ·{' '}
-            {formatClock(sequence.total)}
+            {formatDuration(sequence.total)}
           </p>
         )}
       </div>
@@ -270,7 +266,7 @@ export default function TimelinePreview({ clips, clipStates }: TimelinePreviewPr
           </div>
 
           <p className="shrink-0 tabular-nums text-xs text-[var(--foreground-muted)]">
-            {formatClock(shownTime)} / {formatClock(sequence.total)}
+            {formatElapsed(shownTime)} / {formatDuration(sequence.total)}
           </p>
         </div>
       )}
