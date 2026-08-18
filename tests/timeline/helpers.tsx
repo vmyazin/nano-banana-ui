@@ -137,6 +137,6 @@ export function setupTimelineTest({ wide = false }: { wide?: boolean } = {}) {
 
 export function renderWorkspace(props: { onClipStatesChange?: (states: Record<string, ClipState>) => void } = {}) {
   return render(
-    <TimelineWorkspace onExit={() => {}} onOpenConnections={() => {}} {...props} />
+    <TimelineWorkspace onExit={() => {}} {...props} />
   );
 }

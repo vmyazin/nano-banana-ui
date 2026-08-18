@@ -170,7 +170,7 @@ function Studio() {
               <button
                 onClick={() => setKeyDialogOpen(true)}
                 className={`${hasKey ? 'btn-secondary' : 'btn-primary'} text-sm`}
-                title={hasKey ? 'Update your API key' : 'Add your Gemini API key'}
+                title={hasKey ? 'Update your API keys' : 'Add your API keys'}
               >
                 {hasKey ? (
                   <>
@@ -181,8 +181,8 @@ function Studio() {
                 ) : (
                   <>
                     <Key size={15} />
-                    <span className="hidden sm:inline">Add&nbsp;API&nbsp;Key</span>
-                    <span className="sm:hidden">Add&nbsp;Key</span>
+                    <span className="hidden sm:inline">Add&nbsp;API&nbsp;Keys</span>
+                    <span className="sm:hidden">Add&nbsp;Keys</span>
                   </>
                 )}
               </button>
@@ -241,10 +241,7 @@ function Studio() {
               exit={{ opacity: 0, y: -8 }}
               transition={{ duration: 0.18 }}
             >
-              <TimelineWorkspace
-                onExit={() => selectWorkspace('image')}
-                onOpenConnections={() => setKeyDialogOpen(true)}
-              />
+              <TimelineWorkspace onExit={() => selectWorkspace('image')} />
             </motion.div>
           ) : !selectedFeature ? (
             <motion.div

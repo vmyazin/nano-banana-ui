@@ -29,7 +29,6 @@ export type ClipState = ClipMedia | Unavailable | { status: 'loading' };
 
 interface TimelineWorkspaceProps {
   onExit: () => void;
-  onOpenConnections: () => void;
   /**
    * Test seam: fires with the current `clipStates` map whenever it changes.
    * `app/page.tsx` never passes this — `clipStates` is otherwise private to
@@ -56,7 +55,6 @@ function formatBytes(bytes: number) {
 
 export default function TimelineWorkspace({
   onExit,
-  onOpenConnections,
   onClipStatesChange,
 }: TimelineWorkspaceProps) {
   const records = useGalleryStore((state) => state.records);
@@ -297,9 +295,6 @@ export default function TimelineWorkspace({
                 <Trash2 size={13} /> Clear
               </button>
             )}
-            <button type="button" onClick={onOpenConnections} className="btn-secondary shrink-0 px-3 py-2 text-xs">
-              Connections
-            </button>
           </div>
         </div>
       </section>
