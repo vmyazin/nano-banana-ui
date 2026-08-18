@@ -26,6 +26,7 @@ import {
 import { useAppStore } from '@/store/useAppStore';
 import { useFalJobsStore } from '@/store/useFalJobsStore';
 import { useSeedFrameStore } from '@/store/useSeedFrameStore';
+import { frameSlotLabel } from '@/lib/providers/frames';
 import { useDraftStore } from '@/store/useDraftStore';
 import { usePromptLibraryStore } from '@/store/usePromptLibraryStore';
 import { carryOverValues } from '@/lib/draft/carry-over';
@@ -61,9 +62,6 @@ const modeTitles: Record<FalInputMode, string> = {
   image: 'Image to video',
   frames: 'First & last frame to video',
 };
-
-/** Frames runs are ordered: slot one opens the clip, slot two closes it. */
-const frameSlotLabel = (index: number) => (index === 0 ? 'First frame' : 'Last frame');
 
 const submissionError = 'fal could not start this job. Please try again.';
 const cancellationError = 'fal could not cancel this job. Please try again.';

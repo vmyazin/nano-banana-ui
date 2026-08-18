@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Download, ImagePlus, Loader2, Search, Sparkles, Trash2, Video } from 'lucide-react';
+import { ArrowUpDown, Download, ImagePlus, Loader2, Search, Sparkles, Trash2, Video } from 'lucide-react';
 import { toast } from 'sonner';
 
 import LastFrameActions from '@/components/LastFrameActions';
@@ -19,6 +19,7 @@ import {
 import { requestExamplePrompt, requestPromptSlug } from '@/lib/micro-ai/browser';
 import { getProviderVideoStatus, pollDelayMs, submitProviderVideo } from '@/lib/providers/browser';
 import { modelsFor } from '@/lib/providers/catalog';
+import { frameSlotLabel } from '@/lib/providers/frames';
 import type { ProviderId, ProviderMode, ProviderModel } from '@/lib/providers/types';
 import { FRAME_EXTRACTION_ERROR, isVideoFile, lastFrameAsImageFile } from '@/lib/video-frame';
 import { useAppStore } from '@/store/useAppStore';
@@ -598,27 +599,31 @@ export default function ProviderVideoWorkspace({
                 <div className="grid grid-cols-2 gap-3">
                   {references.map((reference, index) => (
                     <div key={reference.id} className="space-y-1">
+                      {isFrames && (
+                        <p className="text-[0.65rem] font-medium text-[var(--neon-purple)]">
+                          {frameSlotLabel(index)}
+                        </p>
+                      )}
                       <div className="group relative overflow-hidden rounded-lg border border-[var(--border)]">
                         {/* eslint-disable-next-line @next/next/no-img-element -- a local object URL, never a remote asset */}
                         <img
                           src={reference.previewUrl}
-                          alt={`Reference ${index + 1}`}
+                          alt={isFrames ? frameSlotLabel(index) : `Reference ${index + 1}`}
                           className="aspect-square w-full object-cover"
                         />
                         <button
                           type="button"
                           onClick={() => removeReference(index)}
-                          aria-label={`Remove reference ${index + 1}`}
+                          aria-label={
+                            isFrames
+                              ? `Remove ${frameSlotLabel(index).toLowerCase()}`
+                              : `Remove reference ${index + 1}`
+                          }
                           className="absolute right-2 top-2 rounded-md border border-white/10 bg-black/70 p-1.5 text-white opacity-0 transition-opacity group-hover:opacity-100"
                         >
                           <Trash2 size={14} />
                         </button>
                       </div>
-                      {isFrames && (
-                        <p className="text-[0.65rem] font-medium text-[var(--neon-purple)]">
-                          {index === 0 ? 'First frame' : 'Last frame'}
-                        </p>
-                      )}
                       {reference.sourceLabel && (
                         <p
                           title={reference.sourceLabel}
@@ -630,6 +635,18 @@ export default function ProviderVideoWorkspace({
                     </div>
                   ))}
                 </div>
+              )}
+              {/* Which image opens the clip and which closes it is the whole of
+                  this mode, and picking them in the wrong order is a two-file
+                  re-upload without this. */}
+              {isFrames && references.length === 2 && (
+                <button
+                  type="button"
+                  onClick={() => useDraftStore.getState().reorderReference(0, 1)}
+                  className="btn-secondary flex w-full items-center justify-center gap-2 text-sm"
+                >
+                  <ArrowUpDown size={15} /> Swap first and last
+                </button>
               )}
             </section>
           )}

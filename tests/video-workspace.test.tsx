@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import VideoWorkspace from '../components/VideoWorkspace';
@@ -56,6 +57,43 @@ describe('VideoWorkspace provider selection', () => {
       falVideoModel: 'veo-3-1-fast',
     });
     useFalJobsStore.getState().clearJobs();
+  });
+
+  it('keeps first-and-last selected when moving to a provider that can run it', async () => {
+    // The downgrade used to fire for "anything but fal", so choosing Runware —
+    // whose LTX-2.5 Fast and Seedance 2.0 Mini both take two frame images —
+    // silently dropped the user back to image-to-video.
+    const onInputModeChange = vi.fn();
+    useAppStore.setState({ videoEngine: 'fal' });
+    render(
+      <VideoWorkspace
+        inputMode="frames"
+        onInputModeChange={onInputModeChange}
+        onExit={() => undefined}
+        onOpenConnections={() => undefined}
+      />
+    );
+
+    await userEvent.click(screen.getByRole('radio', { name: /Runware/i }));
+    expect(onInputModeChange).not.toHaveBeenCalled();
+    expect(useAppStore.getState().videoEngine).toBe('runware');
+  });
+
+  it('drops out of first-and-last for a provider that cannot run it', async () => {
+    const onInputModeChange = vi.fn();
+    useAppStore.setState({ videoEngine: 'fal' });
+    render(
+      <VideoWorkspace
+        inputMode="frames"
+        onInputModeChange={onInputModeChange}
+        onExit={() => undefined}
+        onOpenConnections={() => undefined}
+      />
+    );
+
+    // Kie has no first-and-last model at all.
+    await userEvent.click(screen.getByRole('radio', { name: /Kie\.ai/i }));
+    expect(onInputModeChange).toHaveBeenCalledWith('image');
   });
 
   it('keeps Kie as the persisted default and lists every video provider', () => {

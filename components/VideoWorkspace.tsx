@@ -8,6 +8,7 @@ import MediaCard from '@/components/MediaCard';
 import ProviderSelector, { type VideoProvider } from '@/components/ProviderSelector';
 import ProviderVideoWorkspace from '@/components/ProviderVideoWorkspace';
 import { modelsFor } from '@/lib/providers/catalog';
+import { isProviderId } from '@/lib/providers';
 import type { ProviderId } from '@/lib/providers/types';
 
 /** Display names for the aggregator providers in the video workspace header. */
@@ -95,16 +96,21 @@ export default function VideoWorkspace({
    * Kie has no such model, so the card stays hidden there rather than offering
    * a mode that would fail at submit.
    */
-  const framesProviders = activeProvider
-    ? modelsFor(activeProvider, 'video').some((model) => model.modes.includes('frames'))
-    : isFal;
+  const supportsFrames = (engine: VideoProvider) =>
+    engine === 'fal' ||
+    (isProviderId(engine) && modelsFor(engine, 'video').some((model) => model.modes.includes('frames')));
+
+  const framesProviders = supportsFrames(videoEngine);
   const modes = MODES.filter((mode) => !mode.needsFramesSupport || framesProviders);
   // A ?videoMode=frames deep link lands on the closest flow the current
   // provider does have, rather than on a mode it cannot run.
   const activeMode: FalInputMode = !framesProviders && inputMode === 'frames' ? 'image' : inputMode;
 
   const selectEngine = (engine: VideoProvider) => {
-    if (engine !== 'fal' && inputMode === 'frames') onInputModeChange('image');
+    // Only drop out of frames for a provider that genuinely cannot run it —
+    // this used to be "anything but fal", which silently downgraded the mode
+    // when switching to a provider that can.
+    if (!supportsFrames(engine) && inputMode === 'frames') onInputModeChange('image');
     setVideoEngine(engine);
   };
 
