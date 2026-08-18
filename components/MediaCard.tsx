@@ -30,9 +30,9 @@ interface MediaCardProps {
   title: string;
   description?: string;
   /**
-   * A static import goes through next/image. A plain string is a remote URL —
-   * the feature art is hosted on the vendors' doc sites, which would each need
-   * a next.config `remotePatterns` entry to optimize, so those stay bare imgs.
+   * A static import goes through next/image. A plain string is a URL served
+   * as-is through a bare img — the feature art lives under /public/thumbnails
+   * and has no static import to hang next/image optimization on.
    */
   thumbnail?: StaticImageData | string;
   thumbnailAlt?: string;
@@ -84,7 +84,7 @@ export default function MediaCard({
         className={`relative mb-2.5 aspect-video overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--background-elevated)] ${badges ? 'mt-2.5' : ''}`}
       >
         {typeof thumbnail === 'string' ? (
-          // eslint-disable-next-line @next/next/no-img-element -- remote vendor art, see thumbnail prop
+          // eslint-disable-next-line @next/next/no-img-element -- string URLs stay bare imgs, see thumbnail prop
           <img
             src={thumbnail}
             alt={thumbnailAlt}
