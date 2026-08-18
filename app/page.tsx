@@ -359,14 +359,6 @@ function Studio() {
 
             <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3">
               <a
-                href="https://aistudio.google.com/apikey"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs font-medium px-3 py-1.5 rounded-lg bg-[var(--background-glass)] border border-[var(--border)] hover:border-[var(--neon-pink)] text-[var(--foreground-muted)] hover:text-[var(--neon-pink)] transition-all hover:shadow-[0_0_20px_rgba(255,0,110,0.3)]"
-              >
-                🔑 API Keys &amp; Billing
-              </a>
-              <a
                 href={brand.githubUrl}
                 target="_blank"
                 rel="noopener noreferrer"
