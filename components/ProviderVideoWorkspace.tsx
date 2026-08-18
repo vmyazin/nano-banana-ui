@@ -267,9 +267,11 @@ export default function ProviderVideoWorkspace({
     addReferencesRef.current = addReferences;
   });
 
+  const isPickerFull = isFrames && references.length >= maxInputImages;
   const { isDragging, isFetching, dropProps } = useFileDrop({
     onFiles: (files) => addReferencesRef.current(files),
     onError: setError,
+    disabled: isPickerFull,
   });
 
   const removeReference = (index: number) => {
@@ -576,25 +578,27 @@ export default function ProviderVideoWorkspace({
                   event.target.value = '';
                 }}
               />
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                {...dropProps}
-                className={`flex w-full flex-col items-center gap-2 rounded-xl border-2 border-dashed py-3.5 text-sm transition-colors ${isDragging ? 'border-[var(--neon-purple)] bg-[var(--neon-purple)]/10 text-[var(--neon-purple)]' : 'border-[var(--neon-purple)]/30 text-[var(--foreground-muted)] hover:border-[var(--neon-purple)] hover:bg-[var(--neon-purple)]/5 hover:text-[var(--neon-purple)]'}`}
-              >
-                {isReadingFrame || isFetching ? (
-                  <Loader2 className="animate-spin" size={28} />
-                ) : (
-                  <ImagePlus size={28} />
-                )}
-                {isReadingFrame
-                  ? 'Reading last frame…'
-                  : isFetching
-                    ? 'Fetching dropped image…'
-                    : isDragging
-                      ? 'Drop to use as a source'
-                      : 'Drop, upload, or paste an image or video'}
-              </button>
+              {!isPickerFull && (
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  {...dropProps}
+                  className={`flex w-full flex-col items-center gap-2 rounded-xl border-2 border-dashed py-3.5 text-sm transition-colors ${isDragging ? 'border-[var(--neon-purple)] bg-[var(--neon-purple)]/10 text-[var(--neon-purple)]' : 'border-[var(--neon-purple)]/30 text-[var(--foreground-muted)] hover:border-[var(--neon-purple)] hover:bg-[var(--neon-purple)]/5 hover:text-[var(--neon-purple)]'}`}
+                >
+                  {isReadingFrame || isFetching ? (
+                    <Loader2 className="animate-spin" size={28} />
+                  ) : (
+                    <ImagePlus size={28} />
+                  )}
+                  {isReadingFrame
+                    ? 'Reading last frame…'
+                    : isFetching
+                      ? 'Fetching dropped image…'
+                      : isDragging
+                        ? 'Drop to use as a source'
+                        : 'Drop, upload, or paste an image or video'}
+                </button>
+              )}
               {references.length > 0 && (
                 <div className="grid grid-cols-2 gap-3">
                   {references.map((reference, index) => (

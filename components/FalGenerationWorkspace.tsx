@@ -686,22 +686,23 @@ function FalGenerationWorkspaceSession({
                   event.target.value = '';
                 }}
               />
-              <button
-                type="button"
-                disabled={isPickerFull}
-                onClick={() => fileInputRef.current?.click()}
-                {...dropProps}
-                className={`flex w-full flex-col items-center gap-2 rounded-xl border-2 border-dashed py-3.5 text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${isDragging ? 'border-[var(--neon-cyan)] bg-[var(--neon-cyan)]/10 text-[var(--neon-cyan)]' : 'border-[var(--neon-cyan)]/30 text-[var(--foreground-muted)]'}`}
-              >
-                {isReadingFrame || isFetching ? <Loader2 className="animate-spin" size={28} /> : <ImagePlus size={28} />}
-                {isReadingFrame
-                  ? 'Reading last frame…'
-                  : isFetching
-                    ? 'Fetching dropped image…'
-                    : isDragging
-                      ? 'Drop to use as a source'
-                      : pickerLabel}
-              </button>
+              {!isPickerFull && (
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  {...dropProps}
+                  className={`flex w-full flex-col items-center gap-2 rounded-xl border-2 border-dashed py-3.5 text-sm transition-colors ${isDragging ? 'border-[var(--neon-cyan)] bg-[var(--neon-cyan)]/10 text-[var(--neon-cyan)]' : 'border-[var(--neon-cyan)]/30 text-[var(--foreground-muted)]'}`}
+                >
+                  {isReadingFrame || isFetching ? <Loader2 className="animate-spin" size={28} /> : <ImagePlus size={28} />}
+                  {isReadingFrame
+                    ? 'Reading last frame…'
+                    : isFetching
+                      ? 'Fetching dropped image…'
+                      : isDragging
+                        ? 'Drop to use as a source'
+                        : pickerLabel}
+                </button>
+              )}
               {references.map((reference, index) => (
                 <div key={reference.id} className="space-y-1">
                   {isFramesMode && (
