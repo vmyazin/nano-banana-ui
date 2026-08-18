@@ -7,6 +7,7 @@ import { AlertTriangle, Crop, Scan, Trash2 } from 'lucide-react';
 import type { GalleryRecord } from '@/lib/gallery/storage';
 import { UNDECODABLE_WARNING } from '@/lib/timeline/acquire';
 import { formatDuration } from '@/lib/timeline/format';
+import { reorderHint, reorderIntent } from '@/lib/timeline/reorder';
 import { posterImage } from '@/lib/timeline/poster';
 import { useTimelineStore, type TimelineClip } from '@/store/useTimelineStore';
 import type { ClipState } from '@/components/TimelineWorkspace';
@@ -75,6 +76,7 @@ function TrackBlock({
   record,
   state,
   index,
+  total,
   onRemove,
   onRepaired,
 }: {
@@ -82,6 +84,7 @@ function TrackBlock({
   record: GalleryRecord | undefined;
   state: ClipState | undefined;
   index: number;
+  total: number;
   onRemove: (clipId: string) => void;
   onRepaired: (recordId: string) => void;
 }) {
@@ -108,10 +111,26 @@ function TrackBlock({
       : isUndurable
         ? 'border-amber-500/30 bg-amber-500/5'
         : 'border-[var(--border)] bg-[var(--background-elevated)]/60') +
-    (draggedOver ? ' border-[var(--neon-cyan)]/60' : '');
+    (draggedOver ? ' border-[var(--neon-cyan)]/60' : '') +
+    ' focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--neon-cyan)]';
 
   return (
     <div
+      // Focusable and self-describing: dragging is a pointer gesture, and the
+      // timeline's main verb cannot be pointer-only.
+      tabIndex={0}
+      role="listitem"
+      aria-label={reorderHint(index + 1, total, titleOf(record))}
+      onKeyDown={(event) => {
+        const intent = reorderIntent(event.key, event, index, total);
+        if (!intent) return;
+        event.preventDefault();
+        useTimelineStore.getState().moveClip(clip.id, intent.toIndex);
+        // Focus rides with the block: it has moved in the DOM, and a keyboard
+        // user who lost focus after one move could not make a second.
+        const element = event.currentTarget;
+        requestAnimationFrame(() => element.focus());
+      }}
       draggable
       onDragStart={(event) => {
         event.dataTransfer.setData('text/plain', clip.id);
@@ -243,7 +262,7 @@ export default function TimelineTrack({
 
   return (
     <div data-testid="timeline-track" className="glass-card min-w-0 overflow-x-auto p-3.5">
-      <div className="flex gap-2">
+      <div role="list" aria-label="Timeline clips" className="flex gap-2">
         {clips.map((clip, index) => (
           <TrackBlock
             key={clip.id}
@@ -251,6 +270,7 @@ export default function TimelineTrack({
             record={byId.get(clip.recordId)}
             state={clipStates[clip.id]}
             index={index}
+            total={clips.length}
             onRemove={onRemove}
             onRepaired={onRepaired}
           />

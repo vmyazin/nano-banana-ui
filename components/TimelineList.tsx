@@ -7,6 +7,7 @@ import { AlertTriangle, Crop, GripVertical, Scan, Trash2 } from 'lucide-react';
 import type { GalleryRecord } from '@/lib/gallery/storage';
 import { UNDECODABLE_WARNING } from '@/lib/timeline/acquire';
 import { formatDuration } from '@/lib/timeline/format';
+import { reorderHint, reorderIntent } from '@/lib/timeline/reorder';
 import { posterImage } from '@/lib/timeline/poster';
 import { useTimelineStore, type TimelineClip } from '@/store/useTimelineStore';
 import type { ClipState } from '@/components/TimelineWorkspace';
@@ -48,6 +49,7 @@ function ClipRow({
   record,
   state,
   index,
+  total,
   onRemove,
   onRepaired,
 }: {
@@ -55,6 +57,7 @@ function ClipRow({
   record: GalleryRecord | undefined;
   state: ClipState | undefined;
   index: number;
+  total: number;
   onRemove: (clipId: string) => void;
   onRepaired: (recordId: string) => void;
 }) {
@@ -78,10 +81,22 @@ function ClipRow({
       : state?.status === 'ready' && !state.durable
         ? 'border-amber-500/30 bg-amber-500/5'
         : 'border-[var(--border)] bg-[var(--background-elevated)]/60') +
-    (draggedOver ? ' border-[var(--neon-cyan)]/60' : '');
+    (draggedOver ? ' border-[var(--neon-cyan)]/60' : '') +
+    ' focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--neon-cyan)]';
 
   return (
     <li
+      // The same Alt+arrow move as the track: one policy, two layouts.
+      tabIndex={0}
+      aria-label={reorderHint(index + 1, total, titleOf(record))}
+      onKeyDown={(event) => {
+        const intent = reorderIntent(event.key, event, index, total);
+        if (!intent) return;
+        event.preventDefault();
+        useTimelineStore.getState().moveClip(clip.id, intent.toIndex);
+        const element = event.currentTarget;
+        requestAnimationFrame(() => element.focus());
+      }}
       draggable
       onDragStart={(event) => {
         event.dataTransfer.setData('text/plain', clip.id);
@@ -221,6 +236,7 @@ export default function TimelineList({
           record={byId.get(clip.recordId)}
           state={clipStates[clip.id]}
           index={index}
+          total={clips.length}
           onRemove={onRemove}
           onRepaired={onRepaired}
         />
