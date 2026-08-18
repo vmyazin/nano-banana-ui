@@ -42,7 +42,11 @@ export default function FeatureSelector({ selectedFeature, onFeatureSelect }: Fe
         {FEATURES.map((feature) => {
           const isSelected = selectedFeature?.id === feature.id;
           const isSpecial = feature.category === 'special';
-          const hasFreeEngine = enginesForFeature(feature).some((e) => e.free);
+          const engines = enginesForFeature(feature);
+          const hasFreeEngine = engines.some((e) => e.free);
+          // Providers beyond Gemini that can also run this mode, surfaced as a
+          // "+N" on the model badge.
+          const extraEngineCount = engines.filter((e) => e.id !== 'gemini').length;
 
           return (
             <MediaCard
@@ -66,6 +70,14 @@ export default function FeatureSelector({ selectedFeature, onFeatureSelect }: Fe
                     >
                       <Zap size={12} />
                       {feature.modelType === 'pro' ? 'Gemini 3 Pro' : 'Flash 2.5'}
+                      {extraEngineCount > 0 && (
+                        <span
+                          className="opacity-70"
+                          title={`${extraEngineCount} more ${extraEngineCount === 1 ? 'provider supports' : 'providers support'} this mode`}
+                        >
+                          +{extraEngineCount}
+                        </span>
+                      )}
                     </span>
 
                     {hasFreeEngine && (
