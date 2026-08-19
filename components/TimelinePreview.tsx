@@ -74,6 +74,15 @@ export default function TimelinePreview({ clips, clipStates, output }: TimelineP
     [ready, trims]
   );
 
+  // The clock outlives the clips now that it is a store: clearing the
+  // timeline (or removing its tail) leaves the old position behind, and the
+  // next clip to load would seek straight to that stale instant. Clamping at
+  // the source — not just in the readout — keeps every consumer honest.
+  useEffect(() => {
+    const store = usePlayheadStore.getState();
+    if (store.time > sequence.total) store.setTime(sequence.total);
+  }, [sequence.total]);
+
   const urls = useMemo(() => {
     const map = new Map<string, string>();
     for (const entry of ready) map.set(entry.clip.id, URL.createObjectURL(entry.state.blob));

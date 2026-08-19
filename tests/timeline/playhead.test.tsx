@@ -71,6 +71,29 @@ describe('the shared playhead', () => {
     expect(screen.getByTestId('track-playhead').style.left).toBe(`${4 * PPS}px`);
   });
 
+  it('pulls the clock back when the timeline is cleared, so the next clip starts at zero', async () => {
+    await addEightSecondClip();
+    act(() => usePlayheadStore.getState().seek(6));
+
+    // Exact: "Undo the cleared timeline" also matches a loose /clear/.
+    await userEvent.click(screen.getByRole('button', { name: /^clear$/i }));
+    expect(usePlayheadStore.getState().time).toBe(0);
+
+    // The clock lives in a store now, so a stale position would survive the
+    // clear and the next clip to load would seek straight to it — this is the
+    // regression that shipped the playhead six seconds into a fresh timeline.
+    mockNextAcquireResult({
+      status: 'ready',
+      blob: new Blob(['v']),
+      dimensions: { width: 1920, height: 1080, durationSeconds: 8 },
+      durable: true,
+    });
+    await userEvent.click(screen.getAllByRole('button', { name: /add/i })[0]);
+    await waitFor(() => expect(screen.getByTestId('track-ruler')).toBeInTheDocument());
+
+    expect(usePlayheadStore.getState().time).toBe(0);
+  });
+
   it('scrubbing past the sequence clamps to its end', async () => {
     await addEightSecondClip();
     const track = screen.getByTestId('timeline-track');
