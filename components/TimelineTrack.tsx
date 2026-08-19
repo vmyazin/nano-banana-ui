@@ -84,11 +84,14 @@ function TrimHandle({
   side,
   sourceDuration,
   pps,
+  onDragActive,
 }: {
   clip: TimelineClip;
   side: 'in' | 'out';
   sourceDuration: number;
   pps: number;
+  /** Fires true while the pointer holds this handle, so the block can stop being draggable. */
+  onDragActive: (active: boolean) => void;
 }) {
   const { start, end } = resolveTrim(clip, sourceDuration);
   const value = side === 'in' ? start : end;
@@ -127,7 +130,14 @@ function TrimHandle({
       aria-orientation="horizontal"
       draggable={false}
       onPointerDown={(event) => {
+        // preventDefault is what actually wins the gesture: the block above is
+        // `draggable`, and an uncancelled pointerdown lets the browser start a
+        // native drag, which fires pointercancel and kills the trim mid-grab.
+        // It also swallows the focus click, so focus is restored by hand.
+        event.preventDefault();
         event.stopPropagation();
+        event.currentTarget.focus();
+        onDragActive(true);
         baselineRef.current = { pointerX: event.clientX, start, end, pps };
         capturePointer(event.currentTarget, event.pointerId);
       }}
@@ -139,9 +149,11 @@ function TrimHandle({
       }}
       onPointerUp={() => {
         baselineRef.current = null;
+        onDragActive(false);
       }}
       onPointerCancel={() => {
         baselineRef.current = null;
+        onDragActive(false);
       }}
       onKeyDown={(event) => {
         // Alt belongs to reorder on the block underneath; Meta/Ctrl to the OS.
@@ -163,7 +175,10 @@ function TrimHandle({
     >
       <span
         aria-hidden
-        className={`absolute inset-y-0 w-1 bg-[var(--neon-cyan)] opacity-0 transition-opacity group-hover/handle:opacity-80 group-focus-visible/handle:opacity-100 ${
+        // Discoverable at the block, committed at the handle: hovering the
+        // clip shows both edges faintly, and the one under the pointer (or
+        // holding focus, or mid-drag) goes solid.
+        className={`absolute inset-y-0 w-1 bg-[var(--neon-cyan)] opacity-0 transition-opacity group-hover:opacity-40 group-hover/handle:opacity-100 group-active/handle:opacity-100 group-focus-visible/handle:opacity-100 ${
           side === 'in' ? 'left-0 rounded-r-sm' : 'right-0 rounded-l-sm'
         }`}
       />
@@ -193,6 +208,10 @@ function TrackBlock({
   onRepaired: (recordId: string) => void;
 }) {
   const [draggedOver, setDraggedOver] = useState(false);
+  // While a trim handle is held, the block must not be draggable at all —
+  // the dragstart guard below is only a fallback, because by the time
+  // dragstart fires the pointer stream is already being torn down.
+  const [trimming, setTrimming] = useState(false);
   const poster = posterImage(record?.posterBlob);
   const previewUrl = usePreviewUrl(poster);
 
@@ -240,7 +259,7 @@ function TrackBlock({
       role="listitem"
       aria-label={reorderHint(index + 1, total, titleOf(record))}
       onKeyDown={handleReorderKeys}
-      draggable
+      draggable={!trimming}
       onDragStart={(event) => {
         // A drag that began on a trim handle is a trim, not a reorder.
         if ((event.target as HTMLElement).closest?.('[data-trim-handle]')) {
@@ -367,8 +386,8 @@ function TrackBlock({
 
       {isReady && (
         <>
-          <TrimHandle clip={clip} side="in" sourceDuration={sourceDuration} pps={pps} />
-          <TrimHandle clip={clip} side="out" sourceDuration={sourceDuration} pps={pps} />
+          <TrimHandle clip={clip} side="in" sourceDuration={sourceDuration} pps={pps} onDragActive={setTrimming} />
+          <TrimHandle clip={clip} side="out" sourceDuration={sourceDuration} pps={pps} onDragActive={setTrimming} />
         </>
       )}
     </div>
