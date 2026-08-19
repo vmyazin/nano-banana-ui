@@ -94,6 +94,34 @@ describe('the shared playhead', () => {
     expect(usePlayheadStore.getState().time).toBe(0);
   });
 
+  it('toggles playback with the space bar', async () => {
+    await addEightSecondClip();
+    // Clicking "Add" left that button focused, and a focused control keeps
+    // its own space key — blur to stand in for "focus is nowhere special".
+    act(() => (document.activeElement as HTMLElement | null)?.blur?.());
+
+    await userEvent.keyboard(' ');
+    expect(usePlayheadStore.getState().playing).toBe(true);
+
+    await userEvent.keyboard(' ');
+    expect(usePlayheadStore.getState().playing).toBe(false);
+  });
+
+  it('leaves space alone while a field or control owns it', async () => {
+    await addEightSecondClip();
+
+    // Typing in the output format must stay typing.
+    screen.getByLabelText('Output width').focus();
+    await userEvent.keyboard(' ');
+    expect(usePlayheadStore.getState().playing).toBe(false);
+
+    // A focused button is activated by space natively; the transport ignoring
+    // it is what keeps that from becoming an instant play-pause double toggle.
+    screen.getByRole('button', { name: /play preview/i }).focus();
+    await userEvent.keyboard(' ');
+    expect(usePlayheadStore.getState().playing).toBe(true);
+  });
+
   it('scrubbing past the sequence clamps to its end', async () => {
     await addEightSecondClip();
     const track = screen.getByTestId('timeline-track');

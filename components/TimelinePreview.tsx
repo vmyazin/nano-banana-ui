@@ -250,6 +250,39 @@ export default function TimelinePreview({ clips, clipStates, output }: TimelineP
     usePlayheadStore.getState().setPlaying(true);
   };
 
+  // Space is the editor's transport key, so it works anywhere in the
+  // workspace — not only with the play button focused. Kept behind refs
+  // because the listener is attached once while `toggle` closes over fresh
+  // state every render.
+  const toggleRef = useRef<() => void>(() => {});
+  const hasSequenceRef = useRef(false);
+  useEffect(() => {
+    toggleRef.current = toggle;
+    hasSequenceRef.current = sequence.segments.length > 0;
+  });
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.code !== 'Space' || event.repeat) return;
+      if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
+      // Typing a space, or activating a focused control, must stay what it
+      // is — the transport only claims the key when nothing else owns it.
+      const target = event.target as HTMLElement | null;
+      if (
+        target?.closest?.(
+          'input, textarea, select, button, a[href], [contenteditable="true"], [role="slider"]'
+        )
+      ) {
+        return;
+      }
+      // With nothing to play, space stays the browser's (page scroll).
+      if (!hasSequenceRef.current) return;
+      event.preventDefault();
+      toggleRef.current();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   // Scrubs arrive through the store — from this component's own slider and
   // from the track alike — so both surfaces move playback identically. The
   // effect watches `seekSeq`, never `time`: the engine's own timeupdate
@@ -335,6 +368,7 @@ export default function TimelinePreview({ clips, clipStates, output }: TimelineP
             type="button"
             onClick={toggle}
             aria-label={playing ? 'Pause preview' : 'Play preview'}
+            title={playing ? 'Pause (Space)' : 'Play (Space)'}
             className="shrink-0 rounded-md border border-[var(--border)] p-1.5 text-[var(--foreground-muted)] hover:text-[var(--neon-cyan)]"
           >
             {playing ? <Pause size={14} /> : <Play size={14} />}
