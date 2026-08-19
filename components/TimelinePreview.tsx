@@ -6,6 +6,7 @@ import { Info, Pause, Play } from 'lucide-react';
 import { formatDuration, formatElapsed } from '@/lib/timeline/format';
 import { resolveTrim } from '@/lib/timeline/trim';
 import { buildSequence, locate, type PlaybackSequence } from '@/lib/timeline/playback';
+import { usePlayheadStore } from '@/store/usePlayheadStore';
 import type { TimelineClip, TimelineOutput } from '@/store/useTimelineStore';
 import type { ClipState } from '@/components/TimelineWorkspace';
 
@@ -95,8 +96,19 @@ export default function TimelinePreview({ clips, clipStates, output }: TimelineP
   /** Which clip each element currently holds, so a slot is never reloaded with what it already has. */
   const loadedRef = useRef<[string | null, string | null]>([null, null]);
   const [activeSlot, setActiveSlot] = useState(0);
-  const [globalTime, setGlobalTime] = useState(0);
-  const [playing, setPlaying] = useState(false);
+  // The playhead lives in a shared store rather than component state: the
+  // track renders the same clock and scrubs it, and neither component should
+  // need to know the other exists. This component stays the playback engine —
+  // the only writer of `setTime`/`setPlaying`; everyone else only `seek`s.
+  const globalTime = usePlayheadStore((state) => state.time);
+  const playing = usePlayheadStore((state) => state.playing);
+
+  // A fresh workspace starts at zero — the playhead is a session gesture, and
+  // whatever a previous mount left in the store is not this timeline's state.
+  useEffect(() => {
+    usePlayheadStore.getState().reset();
+    return () => usePlayheadStore.getState().reset();
+  }, []);
 
   const position = locate(sequence, globalTime);
   /**
@@ -180,7 +192,7 @@ export default function TimelinePreview({ clips, clipStates, output }: TimelineP
       if (!segment) return;
       const trim = loadedId ? trims.get(loadedId) : undefined;
       const inPoint = trim?.start ?? 0;
-      setGlobalTime(segment.start + Math.max(0, element.currentTime - inPoint));
+      usePlayheadStore.getState().setTime(segment.start + Math.max(0, element.currentTime - inPoint));
       // A trimmed clip has to be stopped at its out-point: the element would
       // otherwise play the source's own tail, which is not on this timeline.
       if (trim && element.currentTime >= trim.end - 0.02) element.dispatchEvent(new Event('ended'));
@@ -198,13 +210,13 @@ export default function TimelinePreview({ clips, clipStates, output }: TimelineP
       const current = sequence.segments.find((s) => s.id === loadedRef.current[activeSlot]);
       const next = current ? sequence.segments[current.index + 1] : undefined;
       if (!next) {
-        setPlaying(false);
-        setGlobalTime(sequence.total);
+        usePlayheadStore.getState().setPlaying(false);
+        usePlayheadStore.getState().setTime(sequence.total);
         return;
       }
       const idleSlot = activeSlot === 0 ? 1 : 0;
       setActiveSlot(idleSlot);
-      setGlobalTime(next.start);
+      usePlayheadStore.getState().setTime(next.start);
       // `?.` on the RESULT too: jsdom's play() returns undefined, and calling
       // .catch on that throws — the method guard alone is not enough.
       const upcoming = (idleSlot === 0 ? slotARef : slotBRef).current;
@@ -219,23 +231,36 @@ export default function TimelinePreview({ clips, clipStates, output }: TimelineP
     if (!element || !position) return;
     if (playing) {
       element.pause?.();
-      setPlaying(false);
+      usePlayheadStore.getState().setPlaying(false);
       return;
     }
     // Restart from the top once the sequence has run out, rather than
     // refusing to play because the playhead is parked at the end.
-    if (globalTime >= sequence.total) setGlobalTime(0);
+    if (globalTime >= sequence.total) usePlayheadStore.getState().seek(0);
     void element.play?.()?.catch?.(() => {});
-    setPlaying(true);
+    usePlayheadStore.getState().setPlaying(true);
   };
 
-  const scrubTo = (next: number) => {
-    setGlobalTime(next);
-    const target = locate(sequence, next);
+  // Scrubs arrive through the store — from this component's own slider and
+  // from the track alike — so both surfaces move playback identically. The
+  // effect watches `seekSeq`, never `time`: the engine's own timeupdate
+  // writes move `time` too, and re-seeking the element on those would fight
+  // playback frame by frame.
+  const seekSeq = usePlayheadStore((state) => state.seekSeq);
+  const handledSeekRef = useRef(usePlayheadStore.getState().seekSeq);
+  useEffect(() => {
+    if (seekSeq === handledSeekRef.current) return;
+    handledSeekRef.current = seekSeq;
+    const target = locate(sequence, usePlayheadStore.getState().time);
     const element = (activeSlot === 0 ? slotARef : slotBRef).current;
     if (!target || !element) return;
-    if (loadedRef.current[activeSlot] === target.id) element.currentTime = target.localTime;
-  };
+    if (loadedRef.current[activeSlot] === target.id) {
+      // The store's clock is timeline time; the element seeks in source
+      // time, which the clip's in-point offsets.
+      const inPoint = trims.get(target.id)?.start ?? 0;
+      element.currentTime = inPoint + target.localTime;
+    }
+  }, [seekSeq, sequence, activeSlot, trims]);
 
   const pending = clips.length - ready.length;
 
@@ -313,7 +338,7 @@ export default function TimelinePreview({ clips, clipStates, output }: TimelineP
               max={sequence.total}
               step={0.05}
               value={shownTime}
-              onChange={(event) => scrubTo(Number(event.target.value))}
+              onChange={(event) => usePlayheadStore.getState().seek(Number(event.target.value))}
               aria-label="Preview position"
               className="w-full"
             />

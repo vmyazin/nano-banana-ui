@@ -55,15 +55,19 @@ describe('TimelineTrack', () => {
     await waitFor(() => expect(within(track).getByText('neon tiger')).toBeInTheDocument());
     await waitFor(() => expect(within(track).getByText('rooftop')).toBeInTheDocument());
 
-    const shortBlock = within(track).getByText('neon tiger').closest('[style]') as HTMLElement;
-    const longBlock = within(track).getByText('rooftop').closest('[style]') as HTMLElement;
+    const shortBlock = within(track)
+      .getByText('neon tiger')
+      .closest('[role="listitem"]') as HTMLElement;
+    const longBlock = within(track)
+      .getByText('rooftop')
+      .closest('[role="listitem"]') as HTMLElement;
 
-    const shortGrow = Number(shortBlock.style.flexGrow);
-    const longGrow = Number(longBlock.style.flexGrow);
-    expect(shortGrow).toBeGreaterThan(0);
-    // 6s should grow exactly 3x as much as 2s — real proportionality, not
-    // just "some difference".
-    expect(longGrow).toBe(shortGrow * 3);
+    const shortWidth = parseFloat(shortBlock.style.width);
+    const longWidth = parseFloat(longBlock.style.width);
+    expect(shortWidth).toBeGreaterThan(0);
+    // 6s must be exactly 3x as wide as 2s — the track is a time axis now, so
+    // pixel widths are the same multiplication the ruler and playhead use.
+    expect(longWidth).toBe(shortWidth * 3);
   });
 
   it('keeps an unavailable clip in place with its reason as visible text and a Remove action', async () => {

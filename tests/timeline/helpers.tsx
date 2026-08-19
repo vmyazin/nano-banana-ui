@@ -4,6 +4,7 @@ import { vi } from 'vitest';
 import { createMemoryGalleryStorage } from '../../lib/gallery/memory-storage';
 import type { GalleryRecord } from '../../lib/gallery/storage';
 import { configureGalleryStorage, useGalleryStore } from '../../store/useGalleryStore';
+import { usePlayheadStore } from '../../store/usePlayheadStore';
 import { useTimelineStore } from '../../store/useTimelineStore';
 import TimelineWorkspace, { type ClipState } from '../../components/TimelineWorkspace';
 import { acquireClipMedia } from '../../lib/timeline/acquire';
@@ -132,6 +133,7 @@ export function setupTimelineTest({ wide = false }: { wide?: boolean } = {}) {
     storageError: null,
   });
   useTimelineStore.getState().clear();
+  usePlayheadStore.getState().reset();
   stubMatchMedia(wide);
 }
 

@@ -32,7 +32,7 @@ describe('clip posters keep their own proportions', () => {
       durable: true,
     });
 
-  it('never crops the poster in the track', async () => {
+  it('fills the duration-sized block with the poster in the track', async () => {
     seedPoster();
     readyPortraitClip();
     renderWorkspace();
@@ -41,13 +41,13 @@ describe('clip posters keep their own proportions', () => {
     const track = screen.getByTestId('timeline-track');
     await waitFor(() => expect(within(track).getByText('neon tiger')).toBeInTheDocument());
 
+    // The track is a time axis now: a block's width means seconds, never the
+    // source's shape, so the filmstrip crops to fill it — the same trade every
+    // desktop editor makes. The clip's true framing is judged in the preview
+    // under its Fit setting, not in the thumbnail.
     const poster = track.querySelector('img') as HTMLImageElement;
-    expect(poster.className).toContain('object-contain');
-    expect(poster.className).not.toContain('object-cover');
-    // Width follows the clip's shape; only the height is pinned, so one tall
-    // clip cannot stretch the row.
-    expect(poster.className).toContain('w-auto');
-    expect(poster.parentElement?.className).not.toContain('aspect-video');
+    expect(poster.className).toContain('object-cover');
+    expect(poster.className).toContain('w-full');
   });
 
   it('never crops the poster in the list either', async () => {
