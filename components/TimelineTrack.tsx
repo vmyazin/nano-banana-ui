@@ -21,6 +21,7 @@ import { usePlayheadStore } from '@/store/usePlayheadStore';
 import { useTimelineStore, type TimelineClip } from '@/store/useTimelineStore';
 import type { ClipState } from '@/components/TimelineWorkspace';
 import RecoverMediaDropZone from '@/components/RecoverMediaDropZone';
+import TimelineFilmstrip from '@/components/TimelineFilmstrip';
 
 interface TimelineTrackProps {
   clips: TimelineClip[];
@@ -220,6 +221,18 @@ function TrackBlock({
   const isUndurable = isReady && !state.durable;
   const sourceDuration = isReady ? state.dimensions.durationSeconds : 0;
   const trimmed = isReady && isTrimmed(clip, sourceDuration);
+  const trim = resolveTrim(clip, sourceDuration);
+
+  /** The one-image view of the clip: what a block showed before filmstrips, and
+   *  what it still shows while (or instead of) decoding one. */
+  const still = previewUrl ? (
+    /* eslint-disable-next-line @next/next/no-img-element */
+    <img src={previewUrl} alt="" draggable={false} className="h-full w-full select-none object-cover" />
+  ) : (
+    <span className="flex h-full items-center justify-center text-[0.6rem] text-[var(--foreground-subtle)]">
+      {state?.status === 'loading' ? 'Loading…' : 'No preview'}
+    </span>
+  );
 
   const handleDrop = (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();
@@ -304,18 +317,23 @@ function TrackBlock({
         </div>
       ) : (
         <div className="relative h-16 w-full cursor-grab overflow-hidden bg-black/40 active:cursor-grabbing">
-          {previewUrl ? (
-            /* eslint-disable-next-line @next/next/no-img-element */
-            <img
-              src={previewUrl}
-              alt=""
-              draggable={false}
-              className="h-full w-full select-none object-cover"
+          {/* A strip of stills across the block, not one poster stretched over
+              it: the block's width is its trimmed duration, so what belongs
+              there is what happens *during* the clip. The single still stays
+              as its fallback — shown until the first frame decodes, and kept
+              for good on a browser that cannot decode the source at all. */}
+          {isReady ? (
+            <TimelineFilmstrip
+              recordId={clip.recordId}
+              blob={state.blob}
+              dimensions={state.dimensions}
+              trimStart={trim.start}
+              trimEnd={trim.end}
+              blockWidth={width}
+              fallback={still}
             />
           ) : (
-            <span className="flex h-full items-center justify-center text-[0.6rem] text-[var(--foreground-subtle)]">
-              {state?.status === 'loading' ? 'Loading…' : 'No preview'}
-            </span>
+            still
           )}
         </div>
       )}
