@@ -21,7 +21,7 @@ import { DELETE, GET, MAX_UPLOAD_BYTES, POST } from '../../app/api/timeline/rend
 const PASSWORD = 'correct horse battery staple';
 const RENDER_URL = 'http://localhost/api/timeline/render';
 
-const DEFAULT_OUTPUT = { width: 1920, height: 1080, fps: 30, auto: true };
+const DEFAULT_OUTPUT = { width: 1920, height: 1080, fps: 30, auto: true, keepAudio: true };
 
 function clipBlob(bytes = 'fake video bytes'): Blob {
   return new Blob([bytes], { type: 'video/mp4' });
@@ -230,7 +230,7 @@ describe('POST /api/timeline/render — upload ceiling', () => {
 
   it('still requires whole-pixel dimensions', async () => {
     const response = await POST(
-      postRequest(multipartBody({ output: { width: 1920.5, height: 1080, fps: 30, auto: true } }))
+      postRequest(multipartBody({ output: { width: 1920.5, height: 1080, fps: 30, auto: true, keepAudio: true } }))
     );
 
     expect(response.status).toBe(400);

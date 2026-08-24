@@ -38,7 +38,7 @@ describe('resolving in and out points', () => {
 });
 
 describe('the server engine cuts where the browser does', () => {
-  const output = { width: 1920, height: 1080, fps: 30, auto: true };
+  const output = { width: 1920, height: 1080, fps: 30, auto: true, keepAudio: true };
 
   it('seeks the input rather than decoding and discarding', () => {
     const args = buildFfmpegArgs({

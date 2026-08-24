@@ -16,9 +16,15 @@ import type { RenderRequest } from '../../lib/timeline/render/port';
  * the frame-selection rule is built out of. The real render is a manual check.
  */
 
+/** Video only, so these cases answer for the video config and nothing else. */
 const request: RenderRequest = {
-  output: { width: 1920, height: 1080, fps: 30, auto: true },
+  output: { width: 1920, height: 1080, fps: 30, auto: true, keepAudio: false },
   clips: [],
+};
+
+const withAudio: RenderRequest = {
+  ...request,
+  output: { ...request.output, keepAudio: true },
 };
 
 afterEach(() => vi.unstubAllGlobals());
@@ -52,7 +58,7 @@ describe('the browser engine reports why it cannot run', () => {
     });
 
     await createWebCodecsEngine().unavailableReason({
-      output: { width: 720, height: 1280, fps: 24, auto: false },
+      output: { width: 720, height: 1280, fps: 24, auto: false, keepAudio: false },
       clips: [],
     });
 
@@ -69,6 +75,49 @@ describe('the browser engine reports why it cannot run', () => {
       },
     });
     expect(await createWebCodecsEngine().unavailableReason(request)).toMatch(/H\.264/);
+  });
+});
+
+describe('audio only blocks the browser engine when audio was asked for', () => {
+  const videoIsFine = () => {
+    vi.stubGlobal('VideoDecoder', class {});
+    vi.stubGlobal('VideoEncoder', { isConfigSupported: async () => ({ supported: true }) });
+  };
+
+  it('stays available with no AudioEncoder at all when the box is off', async () => {
+    videoIsFine();
+    expect(await createWebCodecsEngine().unavailableReason(request)).toBeNull();
+  });
+
+  it('withdraws when audio is wanted and this browser cannot encode it', async () => {
+    videoIsFine();
+    expect(await createWebCodecsEngine().unavailableReason(withAudio)).toMatch(/cannot encode audio/i);
+  });
+
+  it('asks for AAC at the shared 48 kHz stereo mixdown', async () => {
+    videoIsFine();
+    const seen: AudioEncoderConfig[] = [];
+    vi.stubGlobal('AudioEncoder', {
+      isConfigSupported: async (config: AudioEncoderConfig) => {
+        seen.push(config);
+        return { supported: true };
+      },
+    });
+
+    expect(await createWebCodecsEngine().unavailableReason(withAudio)).toBeNull();
+    expect(seen).toEqual([
+      expect.objectContaining({ codec: 'mp4a.40.2', sampleRate: 48_000, numberOfChannels: 2 }),
+    ]);
+  });
+
+  it('treats a rejected audio capability query as unsupported', async () => {
+    videoIsFine();
+    vi.stubGlobal('AudioEncoder', {
+      isConfigSupported: async () => {
+        throw new TypeError('bad config');
+      },
+    });
+    expect(await createWebCodecsEngine().unavailableReason(withAudio)).toMatch(/cannot encode audio/i);
   });
 });
 

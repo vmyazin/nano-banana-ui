@@ -7,7 +7,7 @@ import {
   type RenderRequest,
 } from '../../lib/timeline/render/port';
 
-const request = { output: { width: 1920, height: 1080, fps: 30, auto: true }, clips: [] };
+const request = { output: { width: 1920, height: 1080, fps: 30, auto: true, keepAudio: true }, clips: [] };
 
 function engine(id: 'webcodecs' | 'server', reason: string | null): RenderEngine {
   return {

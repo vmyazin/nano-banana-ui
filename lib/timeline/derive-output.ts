@@ -8,7 +8,8 @@ export interface ClipDimensions {
   fps?: number;
 }
 
-export type DerivedOutput = Omit<TimelineOutput, 'auto'>;
+/** Only what can actually be read off the clips — never `auto` or `keepAudio`. */
+export type DerivedOutput = Pick<TimelineOutput, 'width' | 'height' | 'fps'>;
 
 const FALLBACK: DerivedOutput = { width: 1920, height: 1080, fps: 30 };
 

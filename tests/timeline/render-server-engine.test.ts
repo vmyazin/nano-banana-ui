@@ -13,7 +13,7 @@ import type { RenderRequest } from '../../lib/timeline/render/port';
  * actually reads in the export panel.
  */
 
-const OUTPUT = { width: 1920, height: 1080, fps: 30, auto: true };
+const OUTPUT = { width: 1920, height: 1080, fps: 30, auto: true, keepAudio: true };
 
 function request(clipSizes: number[] = [1024]): RenderRequest {
   return {

@@ -3,6 +3,31 @@
 Status: Approved design
 Date: 2026-08-16 (revised same day after a stress-test against the codebase)
 
+## Follow-up decision — 2026-08-23: source audio now ships
+
+Overrides the **Audio** non-goal below, and with it the `-an` in §6 and the "says the
+export carries no sound" in §7. The *first* item of that non-goal — source audio already
+inside the clips — is implemented, on by default, behind a `Keep audio` checkbox next to
+the output format (`output.keepAudio`). Everything else it names is still deferred:
+per-clip gain and mute, a music bed, and mixdown control.
+
+What holds the two engines together, since that was the non-goal's whole argument:
+
+- Both mix to **48 kHz stereo AAC at 192 kbps** and both read `output.keepAudio`.
+- A clip with no audio track contributes exact silence of its own length rather than
+  being skipped, so the clips after it stay lined up with their pictures. In ffmpeg that
+  is a `-t`-bounded `anullsrc` input per mute clip (`concat` refuses segments that do not
+  all carry the same streams); in the browser it is an `OfflineAudioContext` rendered to
+  the clip's length, which also does the resampling and channel mixing.
+- The server cannot probe — it has ffmpeg, not ffprobe — so which clips have audio, and
+  how long they are, ride along in the upload as hints from the client's demuxer probe. A
+  mute clip whose length is unknown falls the whole render back to silent rather than
+  building a graph that never finishes.
+- Known divergence, measured: the browser engine's audio sits 44 ms (2112 samples, the
+  AAC priming delay) behind the picture, because neither WebCodecs nor the muxer writes
+  the edit list that skips it. ffmpeg measures 0. See the comment in
+  `lib/timeline/render/webcodecs.ts` for why this is left uncompensated.
+
 ## Context
 
 The app generates video one clip at a time. fal and Kie both cap a single generation at a

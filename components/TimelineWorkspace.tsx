@@ -309,6 +309,7 @@ export default function TimelineWorkspace({
             <TimelineOutputFormat
               output={output}
               onEdit={(patch) => useTimelineStore.getState().setOutput(patch)}
+              onKeepAudioChange={(keepAudio) => useTimelineStore.getState().setKeepAudio(keepAudio)}
               onMatchClips={() => useTimelineStore.getState().matchClips()}
             />
             <p className="flex items-center gap-1.5 text-[0.8125rem] text-[var(--foreground-muted)]">

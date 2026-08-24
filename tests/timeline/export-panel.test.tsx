@@ -23,7 +23,7 @@ beforeEach(() => {
   vi.mocked(acquireAll).mockClear();
 });
 
-const OUTPUT: TimelineOutput = { width: 1920, height: 1080, fps: 30, auto: true };
+const OUTPUT: TimelineOutput = { width: 1920, height: 1080, fps: 30, auto: true, keepAudio: true };
 
 function clip(overrides: Partial<TimelineClip> = {}): TimelineClip {
   return { id: 'p1', recordId: 'clip', fit: 'contain', ...overrides };
@@ -48,17 +48,50 @@ function stubEngine(id: RenderEngine['id'], overrides: Partial<RenderEngine> = {
   };
 }
 
+const SILENT: TimelineOutput = { ...OUTPUT, keepAudio: false };
+
 describe('TimelineExportPanel', () => {
-  it('offers to export in the browser and says the export is silent', async () => {
+  it('offers to export in the browser and says whether it carries sound', async () => {
     const engine = stubEngine('webcodecs');
     render(
       <TimelineExportPanel engines={[engine]} clips={[clip()]} clipStates={{ p1: readyState() }} output={OUTPUT} />
     );
 
     const button = await screen.findByRole('button', { name: /export/i });
-    expect(button).toHaveTextContent(/silent/i);
+    expect(button).toHaveTextContent(/with audio/i);
     expect(button).toHaveTextContent(/in your browser/i);
     expect(button).not.toBeDisabled();
+  });
+
+  it('says silent when the box is off', async () => {
+    render(
+      <TimelineExportPanel
+        engines={[stubEngine('webcodecs')]}
+        clips={[clip()]}
+        clipStates={{ p1: readyState() }}
+        output={SILENT}
+      />
+    );
+
+    expect(await screen.findByRole('button', { name: /export/i })).toHaveTextContent(/silent/i);
+  });
+
+  /**
+   * The box being ticked is a preference, not a promise: a timeline of clips
+   * that were all probed and none of which had an audio track produces a
+   * silent file whatever the box says, and the button has to say so.
+   */
+  it('says silent when every clip is known to have no audio track', async () => {
+    render(
+      <TimelineExportPanel
+        engines={[stubEngine('webcodecs')]}
+        clips={[clip()]}
+        clipStates={{ p1: readyState({ hasAudio: false }) }}
+        output={OUTPUT}
+      />
+    );
+
+    expect(await screen.findByRole('button', { name: /export/i })).toHaveTextContent(/silent/i);
   });
 
   it('shows the browser rejection reason and a separate server export button', async () => {
@@ -80,7 +113,7 @@ describe('TimelineExportPanel', () => {
     );
 
     const serverButton = screen.getByRole('button', { name: /export/i });
-    expect(serverButton).toHaveTextContent(/silent/i);
+    expect(serverButton).toHaveTextContent(/with audio/i);
     expect(serverButton).toHaveTextContent(/server/i);
     expect(screen.getByText(/deleted from the server/i)).toBeInTheDocument();
   });

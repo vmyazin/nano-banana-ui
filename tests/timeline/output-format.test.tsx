@@ -19,7 +19,7 @@ import { useTimelineStore, type TimelineOutput } from '../../store/useTimelineSt
  * would reject it.
  */
 
-const OUTPUT: TimelineOutput = { width: 1920, height: 1080, fps: 30, auto: true };
+const OUTPUT: TimelineOutput = { width: 1920, height: 1080, fps: 30, auto: true, keepAudio: true };
 
 describe('constrainDimension / constrainFps', () => {
   it('rounds an odd dimension down to even, never up', () => {
@@ -55,7 +55,7 @@ describe('TimelineOutputFormat', () => {
   beforeEach(() => setupTimelineTest());
 
   it('shows the derived width, height and fps as editable values', () => {
-    render(<TimelineOutputFormat output={OUTPUT} onEdit={vi.fn()} onMatchClips={vi.fn()} />);
+    render(<TimelineOutputFormat output={OUTPUT} onEdit={vi.fn()} onKeepAudioChange={vi.fn()} onMatchClips={vi.fn()} />);
 
     expect(screen.getByLabelText('Output width')).toHaveValue(1920);
     expect(screen.getByLabelText('Output height')).toHaveValue(1080);
@@ -64,7 +64,7 @@ describe('TimelineOutputFormat', () => {
 
   it('commits an edit on blur, which is what freezes the automatic format', async () => {
     const onEdit = vi.fn();
-    render(<TimelineOutputFormat output={OUTPUT} onEdit={onEdit} onMatchClips={vi.fn()} />);
+    render(<TimelineOutputFormat output={OUTPUT} onEdit={onEdit} onKeepAudioChange={vi.fn()} onMatchClips={vi.fn()} />);
 
     const width = screen.getByLabelText('Output width');
     await userEvent.clear(width);
@@ -76,7 +76,7 @@ describe('TimelineOutputFormat', () => {
 
   it('constrains an odd hand-typed dimension before it can reach the output', async () => {
     const onEdit = vi.fn();
-    render(<TimelineOutputFormat output={OUTPUT} onEdit={onEdit} onMatchClips={vi.fn()} />);
+    render(<TimelineOutputFormat output={OUTPUT} onEdit={onEdit} onKeepAudioChange={vi.fn()} onMatchClips={vi.fn()} />);
 
     const height = screen.getByLabelText('Output height');
     await userEvent.clear(height);
@@ -91,7 +91,7 @@ describe('TimelineOutputFormat', () => {
 
   it('treats an emptied field as a slip: reverts it and does not freeze the format', async () => {
     const onEdit = vi.fn();
-    render(<TimelineOutputFormat output={OUTPUT} onEdit={onEdit} onMatchClips={vi.fn()} />);
+    render(<TimelineOutputFormat output={OUTPUT} onEdit={onEdit} onKeepAudioChange={vi.fn()} onMatchClips={vi.fn()} />);
 
     const width = screen.getByLabelText('Output width');
     await userEvent.clear(width);
@@ -103,7 +103,7 @@ describe('TimelineOutputFormat', () => {
 
   it('does not freeze the format when a field is tabbed through untouched', async () => {
     const onEdit = vi.fn();
-    render(<TimelineOutputFormat output={OUTPUT} onEdit={onEdit} onMatchClips={vi.fn()} />);
+    render(<TimelineOutputFormat output={OUTPUT} onEdit={onEdit} onKeepAudioChange={vi.fn()} onMatchClips={vi.fn()} />);
 
     await userEvent.click(screen.getByLabelText('Output width'));
     await userEvent.tab();
@@ -113,14 +113,44 @@ describe('TimelineOutputFormat', () => {
 
   it('offers "match clips" only once the format is frozen', () => {
     const { rerender } = render(
-      <TimelineOutputFormat output={OUTPUT} onEdit={vi.fn()} onMatchClips={vi.fn()} />
+      <TimelineOutputFormat output={OUTPUT} onEdit={vi.fn()} onKeepAudioChange={vi.fn()} onMatchClips={vi.fn()} />
     );
     expect(screen.queryByRole('button', { name: /match clips/i })).not.toBeInTheDocument();
 
     rerender(
-      <TimelineOutputFormat output={{ ...OUTPUT, auto: false }} onEdit={vi.fn()} onMatchClips={vi.fn()} />
+      <TimelineOutputFormat output={{ ...OUTPUT, auto: false }} onEdit={vi.fn()} onKeepAudioChange={vi.fn()} onMatchClips={vi.fn()} />
     );
     expect(screen.getByRole('button', { name: /match clips/i })).toBeInTheDocument();
+  });
+
+  it('offers keeping the clips own audio, ticked by default', () => {
+    const onKeepAudioChange = vi.fn();
+    render(
+      <TimelineOutputFormat
+        output={OUTPUT}
+        onEdit={vi.fn()}
+        onKeepAudioChange={onKeepAudioChange}
+        onMatchClips={vi.fn()}
+      />
+    );
+
+    const box = screen.getByRole('checkbox', { name: /keep audio/i });
+    expect(box).toBeChecked();
+  });
+
+  it('reports the new value when the box is unticked', async () => {
+    const onKeepAudioChange = vi.fn();
+    render(
+      <TimelineOutputFormat
+        output={OUTPUT}
+        onEdit={vi.fn()}
+        onKeepAudioChange={onKeepAudioChange}
+        onMatchClips={vi.fn()}
+      />
+    );
+
+    await userEvent.click(screen.getByRole('checkbox', { name: /keep audio/i }));
+    expect(onKeepAudioChange).toHaveBeenCalledWith(false);
   });
 });
 
@@ -187,5 +217,26 @@ describe('output format, end to end through the workspace', () => {
     await waitFor(() => expect(output().auto).toBe(false));
     expect(output().height).toBe(720);
     expect(output().height % 2).toBe(0);
+  });
+
+  /**
+   * Sound is not part of the derived format, so it must travel through neither
+   * of the two mechanisms that own the format: unticking must not freeze the
+   * frame size, and the derive effect — which fires again on every clip added
+   * — must not put the tick back.
+   */
+  it('unticking keep audio leaves the automatic format alone', async () => {
+    renderWorkspace();
+    await addAReadyClip();
+
+    await userEvent.click(screen.getByRole('checkbox', { name: /keep audio/i }));
+
+    await waitFor(() => expect(output().keepAudio).toBe(false));
+    expect(output().auto).toBe(true);
+
+    // A second clip re-runs the derive effect over the whole timeline.
+    await userEvent.click(screen.getAllByRole('button', { name: /add/i })[0]);
+    await waitFor(() => expect(useTimelineStore.getState().timeline.clips).toHaveLength(2));
+    expect(output().keepAudio).toBe(false);
   });
 });

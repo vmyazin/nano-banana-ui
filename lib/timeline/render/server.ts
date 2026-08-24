@@ -164,6 +164,16 @@ export function createServerEngine(): RenderEngine {
             // exactly the same numbers.
             ...(typeof clip.trimStart === 'number' ? { trimStart: clip.trimStart } : {}),
             ...(typeof clip.trimEnd === 'number' ? { trimEnd: clip.trimEnd } : {}),
+            // Only meaningful with sound switched on, and only ever a hint:
+            // the server cannot probe (it has ffmpeg, not ffprobe), so this is
+            // how it learns which inputs need silence generated to stand in
+            // for them, and how long that silence has to be.
+            ...(request.output.keepAudio && clip.hasAudio !== undefined
+              ? { hasAudio: clip.hasAudio }
+              : {}),
+            ...(request.output.keepAudio && typeof clip.durationSeconds === 'number'
+              ? { durationSeconds: clip.durationSeconds }
+              : {}),
           }))
         )
       );

@@ -13,7 +13,7 @@ beforeEach(() => {
 // object URLs are how half the app previews anything.
 afterEach(() => vi.unstubAllGlobals());
 
-const OUTPUT: TimelineOutput = { width: 1920, height: 1080, fps: 30, auto: true };
+const OUTPUT: TimelineOutput = { width: 1920, height: 1080, fps: 30, auto: true, keepAudio: true };
 
 function clip(id: string, trim?: { start?: number; end?: number }): TimelineClip {
   return { id, recordId: `record-${id}`, fit: 'contain', trimStart: trim?.start, trimEnd: trim?.end };

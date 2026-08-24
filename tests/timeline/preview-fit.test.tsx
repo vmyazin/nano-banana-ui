@@ -31,8 +31,8 @@ function ready(): ClipState {
   };
 }
 
-const PORTRAIT: TimelineOutput = { width: 1080, height: 1920, fps: 30, auto: true };
-const LANDSCAPE: TimelineOutput = { width: 1920, height: 1080, fps: 30, auto: true };
+const PORTRAIT: TimelineOutput = { width: 1080, height: 1920, fps: 30, auto: true, keepAudio: true };
+const LANDSCAPE: TimelineOutput = { width: 1920, height: 1080, fps: 30, auto: true, keepAudio: true };
 
 describe('the preview frame is the export frame', () => {
   it('takes the output’s shape, not a fixed 16:9 box', () => {

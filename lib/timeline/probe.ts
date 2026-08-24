@@ -80,6 +80,15 @@ export interface DemuxProbe {
    * config, an unopenable container — never "yes by omission".
    */
   decodable?: boolean;
+  /**
+   * Whether the container holds an audio track at all. Absent means the probe
+   * could not answer — never "no by omission". Both engines re-check the real
+   * file at render time; this is what lets the UI say "with audio" or "silent"
+   * before anything is encoded, and what tells the server engine which of its
+   * inputs need silence padded in (ffmpeg's `concat` refuses a timeline that
+   * mixes audio and no-audio segments).
+   */
+  hasAudio?: boolean;
 }
 
 /**
@@ -114,6 +123,14 @@ async function readWithDemuxer(blob: Blob): Promise<DemuxProbe> {
       const track = await input.getPrimaryVideoTrack();
       if (!track) return {};
 
+      // Asked before the early return below can matter, and separately from the
+      // video questions: a clip whose framerate and decodability are both
+      // unreadable can still have perfectly good sound in it.
+      const hasAudio = await input
+        .getPrimaryAudioTrack()
+        .then((audio) => audio !== null)
+        .catch(() => undefined);
+
       // One demuxer open answers both questions. Decodability is asked here
       // rather than at render time because the codec string is already in hand
       // the moment the container is open — surfacing "your browser cannot
@@ -123,6 +140,7 @@ async function readWithDemuxer(blob: Blob): Promise<DemuxProbe> {
       const probe: DemuxProbe = {};
       if (fps !== undefined) probe.fps = fps;
       if (decodable !== undefined) probe.decodable = decodable;
+      if (hasAudio !== undefined) probe.hasAudio = hasAudio;
       return probe;
     } finally {
       input.dispose();

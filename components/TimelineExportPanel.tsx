@@ -116,6 +116,22 @@ export default function TimelineExportPanel({ engines, clips, clipStates, output
       ? `This browser cannot decode ${undecodableNames.join(', ')}.`
       : null;
 
+  /**
+   * What the button promises about sound. "Silent" is only claimed when it is
+   * certain — the box is off, or every clip was probed and none of them had an
+   * audio track. A clip the probe could not answer for is assumed to have
+   * sound: both engines will carry it through if it does, and promising
+   * silence and then delivering audio is the wrong way round to be wrong.
+   */
+  const soundLabel =
+    output.keepAudio &&
+    !clips.every((clip) => {
+      const state = clipStates[clip.id];
+      return state?.status === 'ready' && state.hasAudio === false;
+    })
+      ? 'with audio'
+      : 'silent';
+
   const availableEngines = useMemo(
     () => (decodeBlock ? engines.filter((engine) => engine.id !== 'webcodecs') : engines),
     [engines, decodeBlock]
@@ -155,7 +171,17 @@ export default function TimelineExportPanel({ engines, clips, clipStates, output
     // clipsSignature stands in for `clips`/`clipStates`; `availableEngines` and
     // `output`'s fields are the rest of what the probe actually depends on.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [availableEngines, output.width, output.height, output.fps, clipsSignature, canProbe]);
+  }, [
+    availableEngines,
+    output.width,
+    output.height,
+    output.fps,
+    // Load-bearing: with sound on, the browser engine also has to be able to
+    // encode AAC, so ticking the box can change which engine is chosen.
+    output.keepAudio,
+    clipsSignature,
+    canProbe,
+  ]);
 
   // Derived, not stored: when the timeline is not currently probeable the
   // last computed `selection` may be stale (it answered a question about a
@@ -222,6 +248,10 @@ export default function TimelineExportPanel({ engines, clips, clipStates, output
           fit: entry.clip.fit,
           trimStart: trim.start,
           trimEnd: trim.end,
+          // Both only matter to the server engine, which cannot probe the
+          // files it is sent — see the field docs on `RenderRequest`.
+          ...(media.hasAudio !== undefined ? { hasAudio: media.hasAudio } : {}),
+          durationSeconds: trim.end - trim.start,
           // So an engine that fails on one clip can name it, rather than
           // pointing at a position the user has to count out.
           label: titleOf(recordsById.get(entry.clip.recordId)),
@@ -265,7 +295,11 @@ export default function TimelineExportPanel({ engines, clips, clipStates, output
           {PHASE_LABEL[render.progress.phase]}
           {render.progress.completed !== null && ` · ${Math.round(render.progress.completed * 100)}%`}
         </p>
-        <p className="text-xs text-[var(--foreground-subtle)]">Exporting silently — the file has no sound.</p>
+        <p className="text-xs text-[var(--foreground-subtle)]">
+          {soundLabel === 'with audio'
+            ? "Keeping the clips' own sound."
+            : 'Exporting silently — the file has no sound.'}
+        </p>
         <button type="button" onClick={cancel} className="btn-secondary self-start px-3 py-1.5 text-xs">
           <X size={13} /> Cancel
         </button>
@@ -341,7 +375,7 @@ export default function TimelineExportPanel({ engines, clips, clipStates, output
           className="btn-primary w-full justify-center"
         >
           <Download size={14} aria-hidden />
-          Export {formatCompactDuration(totalDuration)} · silent · in your browser
+          Export {formatCompactDuration(totalDuration)} · {soundLabel} · in your browser
         </button>
         {error && <p className="text-xs text-red-300">{error}</p>}
         {/* Design spec error handling: a browser decode failure names which
@@ -380,7 +414,7 @@ export default function TimelineExportPanel({ engines, clips, clipStates, output
           className="btn-primary w-full justify-center"
         >
           <UploadCloud size={14} aria-hidden />
-          Export {formatCompactDuration(totalDuration)} · silent · on the server · upload {formatBytes(totalUploadBytes)}
+          Export {formatCompactDuration(totalDuration)} · {soundLabel} · on the server · upload {formatBytes(totalUploadBytes)}
         </button>
         <p className="text-xs text-[var(--foreground-subtle)]">
           Uploaded to render, then deleted from the server once you download it.

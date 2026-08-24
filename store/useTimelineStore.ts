@@ -24,6 +24,16 @@ export interface TimelineOutput {
   fps: number;
   /** True while the format tracks the clips; false once the user edits it. */
   auto: boolean;
+  /**
+   * Keep the sound that is already inside the clips. On by default: Veo and
+   * fal clips arrive with audio and people have heard it, so a silent export
+   * is the surprising outcome, not the safe one.
+   *
+   * Deliberately *not* covered by `auto` — `auto` is about the frame format
+   * tracking the clips, and there is nothing to derive here. `setKeepAudio`
+   * therefore leaves `auto` alone where `setOutput` freezes it.
+   */
+  keepAudio: boolean;
 }
 
 export interface Timeline {
@@ -35,7 +45,13 @@ export interface Timeline {
   updatedAt: number;
 }
 
-const DEFAULT_OUTPUT: TimelineOutput = { width: 1920, height: 1080, fps: 30, auto: true };
+const DEFAULT_OUTPUT: TimelineOutput = {
+  width: 1920,
+  height: 1080,
+  fps: 30,
+  auto: true,
+  keepAudio: true,
+};
 
 let placementCounter = 0;
 function placementId() {
@@ -85,9 +101,11 @@ interface TimelineState {
   /** In/out points in source seconds; `undefined` on either end restores it. */
   setTrim: (clipId: string, trim: { start?: number; end?: number }) => void;
   /** Any user edit freezes the derived format. */
-  setOutput: (patch: Partial<Omit<TimelineOutput, 'auto'>>) => void;
+  setOutput: (patch: Partial<Pick<TimelineOutput, 'width' | 'height' | 'fps'>>) => void;
+  /** Keep or drop the clips' own sound. Never freezes the derived format. */
+  setKeepAudio: (keepAudio: boolean) => void;
   /** Applies a derived format without unfreezing; used by the auto recompute. */
-  applyDerivedOutput: (output: Omit<TimelineOutput, 'auto'>) => void;
+  applyDerivedOutput: (output: Pick<TimelineOutput, 'width' | 'height' | 'fps'>) => void;
   /** "I fiddled and want the automatic answer back." */
   matchClips: () => void;
   clear: () => void;
@@ -172,9 +190,17 @@ export const useTimelineStore = create<TimelineState>()(
             output: { ...timeline.output, ...patch, auto: false },
           })),
 
+        setKeepAudio: (keepAudio) =>
+          edit((timeline) => ({ ...timeline, output: { ...timeline.output, keepAudio } })),
+
+        // Spread over the current output rather than replacing it: the derived
+        // format is only ever width/height/fps, and a replace would drop
+        // `keepAudio` every time a clip arrived and retriggered the recompute.
         applyDerivedOutput: (output) =>
           edit((timeline) =>
-            timeline.output.auto ? { ...timeline, output: { ...output, auto: true } } : timeline
+            timeline.output.auto
+              ? { ...timeline, output: { ...timeline.output, ...output, auto: true } }
+              : timeline
           ),
 
         matchClips: () =>
@@ -196,6 +222,25 @@ export const useTimelineStore = create<TimelineState>()(
     {
       name: 'scene-assembly-timeline',
       storage: createJSONStorage(() => localStorage),
+      /**
+       * v1 added `output.keepAudio`. A timeline persisted before it existed
+       * rehydrates with the field missing, and `keepAudio: undefined` is
+       * falsy — every saved timeline would silently come back with sound
+       * turned off. The migration states the default instead of letting the
+       * absence decide.
+       */
+      version: 1,
+      migrate: (persisted, version) => {
+        const state = persisted as { timeline?: Timeline } | undefined;
+        if (version >= 1 || !state?.timeline) return state as { timeline: Timeline };
+        return {
+          ...state,
+          timeline: {
+            ...state.timeline,
+            output: { ...DEFAULT_OUTPUT, ...state.timeline.output, keepAudio: true },
+          },
+        };
+      },
       // Only the timeline itself survives a reload. A restored undo stack
       // would offer to put back clips whose bytes were evicted in the
       // meantime, which is a promise this store cannot keep.

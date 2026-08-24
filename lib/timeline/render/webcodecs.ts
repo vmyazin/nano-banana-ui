@@ -14,19 +14,47 @@ import type { Input, InputVideoTrack } from 'mediabunny';
  * The browser render engine: demux → decode → composite → encode → mux, entirely
  * on this machine, producing one continuous MP4 from an ordered list of clips.
  *
- * Video only. No audio track is decoded, encoded, or muxed — exports are silent
- * by design in this slice, and the server engine passes `-an` to match. Two
- * engines that disagree about sound produce two different files from the same
- * timeline, and that divergence is discovered by ear rather than by a test.
+ * Audio follows `output.keepAudio`, and the server engine's filter graph
+ * (`lib/timeline/render/ffmpeg-args.ts`) must keep answering it the same way:
+ * two engines that disagree about sound produce two different files from the
+ * same timeline, and that divergence is discovered by ear rather than by a test.
  */
 
 /** High Profile, Level 4.2. Widely hardware-encoded and widely playable. */
 const H264_CODEC = 'avc1.640028';
+/** AAC-LC, the only audio codec MP4 is universally played back with. */
+const AAC_CODEC = 'mp4a.40.2';
+
+/**
+ * Everything is resampled onto this before encoding — clips on one timeline
+ * routinely disagree about rate and channel count, and an encoder configured
+ * once cannot be fed two of either. Matches `AUDIO_SAMPLE_RATE`/`AUDIO_CHANNELS`
+ * in ffmpeg-args.ts, so both engines mix down to the same thing.
+ */
+const AUDIO_SAMPLE_RATE = 48_000;
+const AUDIO_CHANNELS = 2;
+const AUDIO_BITRATE = 192_000;
+
+/**
+ * Known and measured: this path lands the sound 2112 samples — 44 ms — behind
+ * the picture, which is the AAC encoder's standard priming delay played as
+ * real audio because neither WebCodecs nor the muxer writes the edit list that
+ * would skip it. (`ffmpeg` does, so the server engine measures at 0.)
+ *
+ * Deliberately not compensated by trimming 2112 samples off the front: the
+ * priming count is the encoder's, not ours, and an encoder that primes with
+ * fewer would end up with the audio *ahead* of the picture. 44 ms of audio lag
+ * sits well under the ~125 ms at which a lag becomes detectable, while a lead
+ * is detectable from ~45 ms — so of the two ways to be wrong, this is the one
+ * nobody hears.
+ */
 
 const NO_WEBCODECS =
   'This browser cannot encode video on its own. Try Chrome or Edge, or export on the server.';
 const NO_H264 =
   'This browser cannot encode H.264 video at this size. Try a smaller export size, or export on the server.';
+const NO_AAC =
+  'This browser cannot encode audio on its own. Turn off "Keep audio", or export on the server.';
 
 /** How many frames may sit in each codec's queue before we stop feeding it. */
 const DECODE_QUEUE_LIMIT = 8;
@@ -96,7 +124,24 @@ export function createWebCodecsEngine(): RenderEngine {
         framerate: request.output.fps,
       }).catch(() => null);
 
-      return support?.supported ? null : NO_H264;
+      if (!support?.supported) return NO_H264;
+
+      // Asked only when it can actually block the render: a browser with no
+      // AudioEncoder can still export this timeline perfectly well with the
+      // checkbox off, and withdrawing the engine outright would send it to the
+      // server for a file it is fully capable of producing.
+      if (request.output.keepAudio) {
+        if (typeof AudioEncoder === 'undefined') return NO_AAC;
+        const audio = await AudioEncoder.isConfigSupported({
+          codec: AAC_CODEC,
+          sampleRate: AUDIO_SAMPLE_RATE,
+          numberOfChannels: AUDIO_CHANNELS,
+          bitrate: AUDIO_BITRATE,
+        }).catch(() => null);
+        if (!audio?.supported) return NO_AAC;
+      }
+
+      return null;
     },
 
     render(request, opts) {
@@ -113,6 +158,47 @@ interface PreparedClip {
   startTimestamp: number;
   frameCount: number;
   fit: 'contain' | 'cover';
+  /** The bytes again, for the audio pass — see `clipAudioBuffer`. */
+  media: Blob;
+  /** In-point in *file* seconds, which is what `decodeAudioData` counts in. */
+  audioOffset: number;
+  hasAudio: boolean;
+}
+
+/**
+ * One clip's audio, decoded, trimmed, resampled and mixed to the output's
+ * format, as exactly `durationSeconds` of samples.
+ *
+ * `OfflineAudioContext` rather than a second WebCodecs pipeline, because it
+ * does the three things that pipeline would have to hand-roll and get subtly
+ * wrong: `decodeAudioData` resamples to the context's rate, the destination's
+ * channel count up/downmixes, and the rendered length is fixed — so a clip
+ * whose sound runs short (or has none at all) comes back padded with silence
+ * rather than pulling everything after it out of sync.
+ */
+async function clipAudioBuffer(
+  media: Blob,
+  options: { offsetSeconds: number; durationSeconds: number; hasAudio: boolean }
+): Promise<AudioBuffer> {
+  const frames = Math.max(1, Math.round(options.durationSeconds * AUDIO_SAMPLE_RATE));
+  const ctx = new OfflineAudioContext(AUDIO_CHANNELS, frames, AUDIO_SAMPLE_RATE);
+
+  // A container the audio decoder cannot read is not a failed export: the clip
+  // simply contributes silence, exactly as a clip with no audio track does —
+  // and one already known to have no audio track skips the decode entirely
+  // rather than paying for it to fail.
+  const decoded = options.hasAudio
+    ? await ctx.decodeAudioData(await media.arrayBuffer()).catch(() => null)
+    : null;
+  if (decoded) {
+    const source = ctx.createBufferSource();
+    source.buffer = decoded;
+    source.connect(ctx.destination);
+    // An offset past the end of the buffer plays nothing, which is the right
+    // answer for a clip trimmed past where its audio stops.
+    source.start(0, options.offsetSeconds, options.durationSeconds);
+  }
+  return ctx.startRendering();
 }
 
 async function renderInBrowser(
@@ -121,6 +207,7 @@ async function renderInBrowser(
 ): Promise<Blob> {
   const {
     ALL_FORMATS,
+    AudioBufferSource,
     BlobSource,
     BufferTarget,
     EncodedPacket,
@@ -131,7 +218,7 @@ async function renderInBrowser(
     Output,
   } = await import('mediabunny');
 
-  const { width, height, fps } = request.output;
+  const { width, height, fps, keepAudio } = request.output;
   if (signal.aborted) throw abortError();
   if (request.clips.length === 0) throw new Error('There is nothing on the timeline to export.');
 
@@ -159,6 +246,7 @@ async function renderInBrowser(
       let decoderConfig: VideoDecoderConfig | null;
       let startTimestamp: number;
       let endTimestamp: number;
+      let hasAudio: boolean;
       try {
         track = await input.getPrimaryVideoTrack();
         if (!track) throw new Error(`"${name}" has no video track.`);
@@ -170,6 +258,11 @@ async function renderInBrowser(
 
         const firstTimestamp = await track.getFirstTimestamp();
         const trackEnd = await track.computeDuration();
+
+        // The container's own answer, not the caller's `hasAudio` hint: the
+        // demuxer is already open here, and a wrong hint would either drop
+        // sound that exists or write a track's worth of silence.
+        hasAudio = keepAudio ? (await input.getPrimaryAudioTrack()) !== null : false;
 
         // Trimming moves the clip's origin and shortens its span. Everything
         // below is already written against exactly those two numbers, so this
@@ -204,6 +297,14 @@ async function renderInBrowser(
         startTimestamp,
         frameCount: clipFrameCount(endTimestamp - startTimestamp, fps),
         fit: clip.fit,
+        media: clip.media,
+        // `decodeAudioData` hands back a buffer that starts at the file's own
+        // zero, so the in-point is the trim value as given — not
+        // `startTimestamp`, which is offset by the video track's first
+        // timestamp. It is also exactly what the server engine passes to
+        // ffmpeg's `-ss`, which is what keeps the two cuts in the same place.
+        audioOffset: typeof clip.trimStart === 'number' && clip.trimStart > 0 ? clip.trimStart : 0,
+        hasAudio,
       });
     }
 
@@ -297,12 +398,30 @@ async function renderInBrowser(
       const ctx = canvas.getContext('2d', { alpha: false });
       if (!ctx) throw new Error('This browser could not open a drawing surface for the export.');
 
-      // ---- The muxer. One video track. No audio track, ever.
+      // ---- The muxer. One video track, and an audio track only when there is
+      // sound to put in it: with the box ticked but nothing on the timeline
+      // carrying audio, a track of pure silence is a bigger file saying
+      // exactly what no track says.
       const target = new BufferTarget();
       const mp4 = new Output({ format: new Mp4OutputFormat({ fastStart: 'in-memory' }), target });
       outputFile = mp4;
       const videoSource = new EncodedVideoPacketSource('avc');
       mp4.addVideoTrack(videoSource, { frameRate: fps });
+
+      const audioSource = prepared.some((clip) => clip.hasAudio)
+        ? new AudioBufferSource({
+            codec: 'aac',
+            // An explicit bitrate rather than a quality level, so the two
+            // engines aim at the same number (ffmpeg-args.ts passes `-b:a`),
+            // and an explicit codec string because that is the one
+            // `unavailableReason` asked this browser about — mediabunny would
+            // otherwise derive it, and derives HE-AAC at low sample rates.
+            bitrate: AUDIO_BITRATE,
+            fullCodecString: AAC_CODEC,
+          })
+        : null;
+      if (audioSource) mp4.addAudioTrack(audioSource);
+
       await mp4.start();
 
       // The encoder's output callback is synchronous but muxing is not. Chaining
@@ -437,6 +556,21 @@ async function renderInBrowser(
         // A clip that decoded nothing simply contributes nothing; `emittedTotal`
         // stays where it was, so the next clip continues from the next real
         // frame and the timeline has no hole in it.
+
+        // ---- This clip's audio, cut to the video that was actually emitted
+        // for it rather than to the length it was predicted to have.
+        // `AudioBufferSource` lays buffers end to end, so every clip must
+        // contribute its exact share — including a mute one, whose silence is
+        // what keeps the clips after it lined up with their own pictures.
+        if (audioSource && emittedTotal > clipBase) {
+          const buffer = await clipAudioBuffer(clip.media, {
+            offsetSeconds: clip.audioOffset,
+            durationSeconds: (emittedTotal - clipBase) / fps,
+            hasAudio: clip.hasAudio,
+          });
+          throwIfBroken();
+          await audioSource.add(buffer);
+        }
       }
 
       throwIfBroken();
@@ -453,6 +587,7 @@ async function renderInBrowser(
 
       onProgress({ phase: 'muxing', completed: null });
       videoSource.close();
+      audioSource?.close();
       await mp4.finalize();
 
       if (!target.buffer) throw new Error('The export finished but produced no file.');

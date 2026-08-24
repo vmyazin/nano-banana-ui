@@ -14,6 +14,22 @@ export interface RenderRequest {
     trimStart?: number;
     trimEnd?: number;
     /**
+     * Whether this clip's file holds an audio track, as far as the probe could
+     * tell; absent means "unknown". Only consulted when `output.keepAudio` is
+     * on, and only by the server engine — the browser engine has the demuxer
+     * open anyway and asks the file itself. ffmpeg's `concat` refuses a
+     * timeline that mixes audio and no-audio segments, so the server has to
+     * know which inputs need silence generated for them before it can build
+     * the graph.
+     */
+    hasAudio?: boolean;
+    /**
+     * The clip's trimmed length in seconds. Absent means "unknown". Same
+     * story: it is the length of the silence the server has to generate for a
+     * clip that has none of its own.
+     */
+    durationSeconds?: number;
+    /**
      * Human name for this clip, used only when an engine has to say which one
      * failed. Optional because a render is perfectly well-defined without it —
      * an engine falls back to the clip's position. "Clip 3" is a poor answer

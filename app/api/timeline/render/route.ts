@@ -239,7 +239,7 @@ function parseOutput(raw: FormDataEntryValue | null): TimelineOutput | null {
     return null;
   }
   if (parsed === null || typeof parsed !== 'object') return null;
-  const { width, height, fps } = parsed as Record<string, unknown>;
+  const { width, height, fps, keepAudio } = parsed as Record<string, unknown>;
   if (
     isPositiveFiniteInt(width) &&
     isPositiveFiniteInt(height) &&
@@ -249,8 +249,11 @@ function parseOutput(raw: FormDataEntryValue | null): TimelineOutput | null {
     fps <= 240
   ) {
     // `auto` is a client-only concept (whether the format still tracks the
-    // clips); the render itself only ever reads width/height/fps.
-    return { width, height, fps, auto: false };
+    // clips); the render itself only ever reads width/height/fps/keepAudio.
+    // `keepAudio` defaults to false rather than to the client default: a body
+    // that never mentions it is one this route cannot pair with per-clip audio
+    // metadata either, and a silent render is the one that always works.
+    return { width, height, fps, auto: false, keepAudio: keepAudio === true };
   }
   return null;
 }
@@ -259,6 +262,8 @@ interface ClipMeta {
   fit: 'contain' | 'cover';
   trimStart?: number;
   trimEnd?: number;
+  hasAudio?: boolean;
+  durationSeconds?: number;
 }
 
 /**
@@ -291,7 +296,24 @@ function parseClipsMeta(raw: FormDataEntryValue | null): ClipMeta[] | null {
     // An out-point at or before the in-point would make ffmpeg produce nothing
     // for this input and hang the concat; treat the pair as absent.
     const usable = trimEnd === undefined || trimStart === undefined || trimEnd > trimStart;
-    result.push({ fit, ...(usable ? { trimStart, trimEnd } : {}) });
+    // Both audio fields are hints from a client that could probe when this
+    // route cannot. Anything malformed is dropped rather than rejected: the
+    // graph builder treats a missing duration on a mute input as "cannot pad
+    // silence safely" and falls back to a silent render, which is a worse
+    // export than intended but never a failed one.
+    const hasAudio = record.hasAudio === true ? true : record.hasAudio === false ? false : undefined;
+    const durationSeconds =
+      typeof record.durationSeconds === 'number' &&
+      Number.isFinite(record.durationSeconds) &&
+      record.durationSeconds > 0
+        ? record.durationSeconds
+        : undefined;
+    result.push({
+      fit,
+      ...(usable ? { trimStart, trimEnd } : {}),
+      ...(hasAudio !== undefined ? { hasAudio } : {}),
+      ...(durationSeconds !== undefined ? { durationSeconds } : {}),
+    });
   }
   return result;
 }
@@ -432,6 +454,8 @@ export async function POST(request: NextRequest) {
         fit: clipsMeta[index].fit,
         trimStart: clipsMeta[index].trimStart,
         trimEnd: clipsMeta[index].trimEnd,
+        hasAudio: clipsMeta[index].hasAudio,
+        durationSeconds: clipsMeta[index].durationSeconds,
       });
     }
   } catch {

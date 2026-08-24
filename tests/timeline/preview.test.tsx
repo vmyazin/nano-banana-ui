@@ -44,7 +44,7 @@ function clip(id: string, fit: TimelineClip['fit'] = 'contain'): TimelineClip {
 }
 
 /** The format the preview frames itself to; 16:9 unless a test says otherwise. */
-const OUTPUT: TimelineOutput = { width: 1920, height: 1080, fps: 30, auto: true };
+const OUTPUT: TimelineOutput = { width: 1920, height: 1080, fps: 30, auto: true, keepAudio: true };
 
 function ready(): ClipState {
   return {

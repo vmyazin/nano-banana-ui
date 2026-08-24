@@ -35,6 +35,13 @@ export interface ClipMedia {
    * step" the design spec's error handling asks for.
    */
   decodable?: boolean;
+  /**
+   * Whether the file holds an audio track. Absent when the probe could not
+   * answer. Drives the "with audio"/"silent" wording on Export and, for the
+   * server engine, which inputs need silence padded in (see
+   * `lib/timeline/render/ffmpeg-args.ts`).
+   */
+  hasAudio?: boolean;
 }
 
 export interface Unavailable {
@@ -85,13 +92,14 @@ export const UNSAVED_WARNING =
 function ready(
   blob: Blob,
   dimensions: ClipDimensions,
-  decodable: boolean | undefined,
+  facts: DemuxFacts,
   durable: boolean,
   unsavedFallback: string
 ): ClipMedia {
   const media: ClipMedia = { status: 'ready', blob, dimensions, durable };
   if (!durable) media.warning = persistenceWarning(unsavedFallback);
-  if (decodable !== undefined) media.decodable = decodable;
+  if (facts.decodable !== undefined) media.decodable = facts.decodable;
+  if (facts.hasAudio !== undefined) media.hasAudio = facts.hasAudio;
   return media;
 }
 
@@ -112,23 +120,28 @@ export function persistenceWarning(fallback: string): string {
   return useGalleryStore.getState().storageError ?? fallback;
 }
 
-/**
- * Whether this browser can decode a given record, remembered for the session.
- *
- * Not a `GalleryRecord` field: the scope boundary permits exactly four optional
- * additions there (width, height, durationSeconds, fps) and this is not one of
- * them — and unlike those, it is a fact about *this browser*, not about the
- * file. A module-level map is the right lifetime: the answer cannot change
- * while the tab is open, and it means the second placement of a clip whose
- * dimensions are already cached still knows what the first placement learned,
- * instead of one row warning and its twin staying silent.
- */
-const decodableByRecord = new Map<string, boolean>();
-
-interface ProbeResult {
-  dimensions: ClipDimensions;
+/** What one demuxer open learned about a record, beyond its dimensions. */
+interface DemuxFacts {
   /** Absent when nothing has been able to answer for this record yet. */
   decodable?: boolean;
+  hasAudio?: boolean;
+}
+
+/**
+ * What the demuxer said about a given record, remembered for the session.
+ *
+ * Not `GalleryRecord` fields: the scope boundary permits exactly four optional
+ * additions there (width, height, durationSeconds, fps) and these are not among
+ * them — and `decodable`, unlike those, is a fact about *this browser*, not
+ * about the file. A module-level map is the right lifetime: neither answer can
+ * change while the tab is open, and it means the second placement of a clip
+ * whose dimensions are already cached still knows what the first placement
+ * learned, instead of one row warning and its twin staying silent.
+ */
+const demuxFactsByRecord = new Map<string, DemuxFacts>();
+
+interface ProbeResult extends DemuxFacts {
+  dimensions: ClipDimensions;
 }
 
 /**
@@ -154,7 +167,7 @@ async function probeFor(recordId: string, blob: Blob): Promise<ProbeResult> {
         durationSeconds: record.durationSeconds ?? 0,
         fps: record.fps,
       },
-      decodable: decodableByRecord.get(recordId),
+      ...demuxFactsByRecord.get(recordId),
     };
   }
 
@@ -169,17 +182,20 @@ async function probeFor(recordId: string, blob: Blob): Promise<ProbeResult> {
   ]);
   const dimensions: ClipDimensions = demuxed.fps === undefined ? probed : { ...probed, fps: demuxed.fps };
 
-  if (demuxed.decodable !== undefined) decodableByRecord.set(recordId, demuxed.decodable);
+  const facts: DemuxFacts = {};
+  if (demuxed.decodable !== undefined) facts.decodable = demuxed.decodable;
+  if (demuxed.hasAudio !== undefined) facts.hasAudio = demuxed.hasAudio;
+  if (Object.keys(facts).length > 0) demuxFactsByRecord.set(recordId, facts);
 
   // Only the four fields the record is allowed to carry are written through the
-  // store; decodability stays in memory (see `decodableByRecord`).
+  // store; the demuxer's other answers stay in memory (see `demuxFactsByRecord`).
   await useGalleryStore.getState().setDimensions(recordId, dimensions);
-  return { dimensions, decodable: demuxed.decodable };
+  return { dimensions, ...facts };
 }
 
-/** Test-only: clears the per-session decode-support memo. */
+/** Test-only: clears the per-session demuxer memo. */
 export function __resetDecodeCacheForTests(): void {
-  decodableByRecord.clear();
+  demuxFactsByRecord.clear();
 }
 
 export async function acquireClipMedia(
@@ -197,11 +213,11 @@ export async function acquireClipMedia(
   if (record.blob) {
     if (!record.pinned) await store.setPinned(recordId, true);
     const durable = isPersisted(recordId);
-    const { dimensions, decodable } = await probeFor(recordId, record.blob);
+    const { dimensions, ...facts } = await probeFor(recordId, record.blob);
     // The bytes are already in IndexedDB here; only the pin can have failed,
     // so "will not survive a reload" would be false. What is actually at risk
     // is eviction reclaiming an unpinned record.
-    return ready(record.blob, dimensions, decodable, durable, UNPINNED_WARNING);
+    return ready(record.blob, dimensions, facts, durable, UNPINNED_WARNING);
   }
 
   // 3. A URL that may or may not still resolve.
@@ -226,10 +242,10 @@ export async function acquireClipMedia(
     const poster = await extractLastFrameFromBlob(blob).catch(() => undefined);
     await store.keep(recordId, blob, poster);
     const durable = isPersisted(recordId);
-    const { dimensions, decodable } = await probeFor(recordId, blob);
+    const { dimensions, ...facts } = await probeFor(recordId, blob);
     // Nothing was written to IndexedDB on this path, so the bytes really do
     // exist only in this tab's memory.
-    return ready(blob, dimensions, decodable, durable, UNSAVED_WARNING);
+    return ready(blob, dimensions, facts, durable, UNSAVED_WARNING);
   }
 
   return unavailable('no-source');

@@ -1,7 +1,7 @@
 'use client';
 
 import type { FocusEvent, KeyboardEvent } from 'react';
-import { Settings2 } from 'lucide-react';
+import { Settings2, Volume2, VolumeX } from 'lucide-react';
 
 import type { TimelineOutput } from '@/store/useTimelineStore';
 
@@ -54,7 +54,10 @@ export function constrainFps(value: number): number {
 interface TimelineOutputFormatProps {
   output: TimelineOutput;
   /** Any committed edit; the store freezes `auto` in response. */
-  onEdit: (patch: Partial<Omit<TimelineOutput, 'auto'>>) => void;
+  onEdit: (patch: Partial<Pick<TimelineOutput, 'width' | 'height' | 'fps'>>) => void;
+  /** Separate from `onEdit` because sound is not part of the derived format:
+   *  ticking the box must not freeze the frame size the way editing one does. */
+  onKeepAudioChange: (keepAudio: boolean) => void;
   onMatchClips: () => void;
 }
 
@@ -65,7 +68,12 @@ const INPUT_CLASS =
   'text-right text-[0.8125rem] tabular-nums text-[var(--foreground)] outline-none ' +
   'focus:border-[var(--neon-cyan)]/60';
 
-export default function TimelineOutputFormat({ output, onEdit, onMatchClips }: TimelineOutputFormatProps) {
+export default function TimelineOutputFormat({
+  output,
+  onEdit,
+  onKeepAudioChange,
+  onMatchClips,
+}: TimelineOutputFormatProps) {
   /**
    * The inputs are uncontrolled, and the whole control is keyed on the
    * committed format.
@@ -148,6 +156,23 @@ export default function TimelineOutputFormat({ output, onEdit, onMatchClips }: T
           match clips
         </button>
       )}
+      {/* A real checkbox, not a styled button: it is a two-state setting, and
+          the native control is what gives it Space-to-toggle and a label that
+          is already announced as "checkbox, checked". */}
+      <label className="flex cursor-pointer select-none items-center gap-1.5 whitespace-nowrap">
+        <input
+          type="checkbox"
+          checked={output.keepAudio}
+          onChange={(event) => onKeepAudioChange(event.currentTarget.checked)}
+          className="h-3.5 w-3.5 shrink-0 cursor-pointer accent-[var(--neon-cyan)]"
+        />
+        {output.keepAudio ? (
+          <Volume2 size={13} className="text-[var(--foreground-subtle)]" aria-hidden />
+        ) : (
+          <VolumeX size={13} className="text-[var(--foreground-subtle)]" aria-hidden />
+        )}
+        Keep audio
+      </label>
     </div>
   );
 }
