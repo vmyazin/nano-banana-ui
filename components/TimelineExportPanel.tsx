@@ -1,5 +1,6 @@
 'use client';
 
+// components/TimelineExportPanel.tsx
 import { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, Download, Loader2, UploadCloud, X } from 'lucide-react';
 
@@ -375,7 +376,7 @@ export default function TimelineExportPanel({ engines, clips, clipStates, output
           className="btn-primary w-full justify-center"
         >
           <Download size={14} aria-hidden />
-          Export {formatCompactDuration(totalDuration)} · {soundLabel} · in your browser
+          Export {formatCompactDuration(totalDuration)} · {soundLabel}
         </button>
         {error && <p className="text-xs text-red-300">{error}</p>}
         {/* Design spec error handling: a browser decode failure names which

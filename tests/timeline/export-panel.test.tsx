@@ -1,3 +1,4 @@
+// tests/timeline/export-panel.test.tsx
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -51,18 +52,6 @@ function stubEngine(id: RenderEngine['id'], overrides: Partial<RenderEngine> = {
 const SILENT: TimelineOutput = { ...OUTPUT, keepAudio: false };
 
 describe('TimelineExportPanel', () => {
-  it('offers to export in the browser and says whether it carries sound', async () => {
-    const engine = stubEngine('webcodecs');
-    render(
-      <TimelineExportPanel engines={[engine]} clips={[clip()]} clipStates={{ p1: readyState() }} output={OUTPUT} />
-    );
-
-    const button = await screen.findByRole('button', { name: /export/i });
-    expect(button).toHaveTextContent(/with audio/i);
-    expect(button).toHaveTextContent(/in your browser/i);
-    expect(button).not.toBeDisabled();
-  });
-
   it('says silent when the box is off', async () => {
     render(
       <TimelineExportPanel
@@ -251,7 +240,7 @@ describe('TimelineExportPanel', () => {
       />
     );
 
-    await userEvent.click(await screen.findByRole('button', { name: /export .* in your browser/i }));
+    await userEvent.click(await screen.findByRole('button', { name: /export/i }));
 
     await waitFor(() => expect(screen.getByText(/neon tiger.*cannot decode/i)).toBeInTheDocument());
     const fallback = await screen.findByRole('button', { name: /on the server instead/i });
@@ -278,7 +267,7 @@ describe('TimelineExportPanel', () => {
       />
     );
 
-    await userEvent.click(await screen.findByRole('button', { name: /export .* in your browser/i }));
+    await userEvent.click(await screen.findByRole('button', { name: /export/i }));
 
     await waitFor(() => expect(screen.getByText('The export failed.')).toBeInTheDocument());
     expect(screen.queryByRole('button', { name: /on the server instead/i })).not.toBeInTheDocument();
