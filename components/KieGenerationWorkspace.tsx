@@ -177,9 +177,8 @@ export default function KieGenerationWorkspace({
   const aspectField = variant.fields.find(
     (field) => field.key === 'aspect_ratio' && field.type === 'select'
   );
-  const aspectCandidates = useMemo(
-    () => candidatesFromValues((aspectField?.options ?? []).map((option) => option.value)),
-    [aspectField]
+  const aspectCandidates = candidatesFromValues(
+    (aspectField?.options ?? []).map((option) => option.value)
   );
   useAutoAspect(references[0], aspectCandidates, (value) => {
     if (value !== values.aspect_ratio) updateValues('aspect_ratio', value);

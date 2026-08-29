@@ -90,17 +90,19 @@ export function useAutoAspect(
   apply: (value: string) => void
 ) {
   const applyRef = useRef(apply);
-  applyRef.current = apply;
   // Identity-stable key: candidates are rebuilt every render.
   const candidatesKey = candidates.map((candidate) => candidate.value).join('|');
   const candidatesRef = useRef(candidates);
-  candidatesRef.current = candidates;
+
+  useEffect(() => {
+    applyRef.current = apply;
+    candidatesRef.current = candidates;
+  });
 
   const { id, width, height } = reference ?? {};
   useEffect(() => {
     if (!id || !width || !height) return;
     const matched = closestAspectCandidate(width, height, candidatesRef.current);
     if (matched) applyRef.current(matched.value);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- candidatesKey stands in for the candidates array
   }, [id, width, height, candidatesKey]);
 }
