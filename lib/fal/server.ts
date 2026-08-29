@@ -6,6 +6,9 @@ import type { FalInputMode, FalMediaType, FalTask, FalValue } from './types';
 const FAL_PRICING_URL =
   'https://api.fal.ai/v1/models/pricing?endpoint_id=fal-ai%2Fnano-banana-2';
 const FAL_REQUEST_ID_PATTERN = /^[A-Za-z0-9_-]{8,128}$/;
+const MAX_PUBLIC_FAL_ERROR_LENGTH = 480;
+const MAX_PROVIDER_DETAIL_LENGTH = 320;
+const MAX_PROVIDER_DETAILS = 3;
 
 export class FalApiError extends Error {
   constructor(
@@ -40,19 +43,96 @@ function errorStatus(error: unknown, fallbackStatus: number): number {
     : fallbackStatus;
 }
 
+function safeProviderRequestId(error: unknown): string | undefined {
+  const requestId = asRecord(error).requestId;
+  return typeof requestId === 'string' && FAL_REQUEST_ID_PATTERN.test(requestId)
+    ? requestId
+    : undefined;
+}
+
+function providerDetailMessages(value: unknown): string[] {
+  if (typeof value === 'string') return value.trim() ? [value] : [];
+  if (!Array.isArray(value)) return [];
+
+  return value.flatMap((entry) => {
+    const record = asRecord(entry);
+    if (typeof record.msg !== 'string' || !record.msg.trim()) return [];
+    const location = Array.isArray(record.loc)
+      ? record.loc
+          .flatMap((part) =>
+            typeof part === 'string' || typeof part === 'number' ? [String(part)] : []
+          )
+          .filter((part) => part !== 'body')
+          .join('.')
+      : '';
+    return [location ? `${location}: ${record.msg}` : record.msg];
+  });
+}
+
+function safeProviderDetail(error: unknown, apiKey: string): string | undefined {
+  const body = asRecord(asRecord(error).body);
+  const details = providerDetailMessages(body.detail);
+  const nestedError = asRecord(body.error);
+  const rawDetail = details.length > 0
+    ? details.slice(0, MAX_PROVIDER_DETAILS).join('; ')
+    : [body.message, body.error, nestedError.message].find(
+        (value): value is string => typeof value === 'string' && Boolean(value.trim())
+      );
+  if (!rawDetail) return undefined;
+
+  const normalized = rawDetail
+    .replace(/[\u0000-\u001f\u007f]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!normalized) return undefined;
+
+  let encodedKey = '';
+  try {
+    encodedKey = encodeURIComponent(apiKey);
+  } catch {
+    encodedKey = '';
+  }
+  const jsonKey = apiKey ? JSON.stringify(apiKey) : '';
+  const credentialVariants = [apiKey, encodedKey, jsonKey, jsonKey.slice(1, -1)].filter(Boolean);
+  const lowerDetail = normalized.toLowerCase();
+  if (credentialVariants.some((variant) => lowerDetail.includes(variant.toLowerCase()))) {
+    return undefined;
+  }
+
+  return normalized.length > MAX_PROVIDER_DETAIL_LENGTH
+    ? `${normalized.slice(0, MAX_PROVIDER_DETAIL_LENGTH - 1).trimEnd()}…`
+    : normalized;
+}
+
 function safeError(status: number): FalApiError {
   return new FalApiError(publicMessage(status), status);
 }
 
+function safeProviderError(error: unknown, apiKey: string, fallbackStatus: number): FalApiError {
+  const status = errorStatus(error, fallbackStatus);
+  const detail = safeProviderDetail(error, apiKey);
+  const requestId = safeProviderRequestId(error);
+  if (!detail && !requestId) return safeError(status);
+
+  const context = [`HTTP ${status}`, ...(requestId ? [`request ${requestId}`] : [])].join(', ');
+  const suffix = detail ? `: ${detail}` : '.';
+  const message = `${publicMessage(status)} fal response (${context})${suffix}`;
+  const boundedMessage = message.length > MAX_PUBLIC_FAL_ERROR_LENGTH
+    ? `${message.slice(0, MAX_PUBLIC_FAL_ERROR_LENGTH - 1).trimEnd()}…`
+    : message;
+  return new FalApiError(boundedMessage, status);
+}
+
 async function withSafeFalErrors<T>(
   operation: () => Promise<T>,
+  apiKey: string,
   fallbackStatus = 502
 ): Promise<T> {
   try {
     return await operation();
   } catch (error) {
     if (error instanceof FalApiError) throw error;
-    throw safeError(errorStatus(error, fallbackStatus));
+    throw safeProviderError(error, apiKey, fallbackStatus);
   }
 }
 
@@ -112,7 +192,7 @@ export async function validateFalApiKey(apiKey: string): Promise<void> {
       headers: { Authorization: `Key ${apiKey}` },
     });
     if (!response.ok) throw safeError(response.status);
-  });
+  }, apiKey);
 }
 
 export async function uploadFalFile(args: { apiKey: string; file: File }): Promise<string> {
@@ -121,7 +201,7 @@ export async function uploadFalFile(args: { apiKey: string; file: File }): Promi
     const url = await client.storage.upload(args.file, { lifecycle: { expiresIn: '1d' } });
     if (typeof url !== 'string' || !url.trim()) throw safeError(502);
     return url;
-  });
+  }, args.apiKey);
 }
 
 export async function submitFalTask(args: {
@@ -154,8 +234,8 @@ export async function submitFalTask(args: {
       const record = asRecord(response);
       const requestId = requireRequestId(record.request_id ?? record.requestId, 502);
       return { requestId };
-    });
-  }, 400);
+    }, args.apiKey);
+  }, args.apiKey, 400);
 }
 
 export async function getFalTask(args: {
@@ -199,8 +279,8 @@ export async function getFalTask(args: {
         resultUrl,
         ...(media.mimeType ? { mimeType: media.mimeType } : {}),
       };
-    });
-  }, 400);
+    }, args.apiKey);
+  }, args.apiKey, 400);
 }
 
 export async function cancelFalTask(args: {
@@ -217,6 +297,6 @@ export async function cancelFalTask(args: {
     await withSafeFalErrors(async () => {
       const client = createFalClient({ credentials: args.apiKey });
       await client.queue.cancel(variant.endpointId, { requestId });
-    });
-  }, 400);
+    }, args.apiKey);
+  }, args.apiKey, 400);
 }

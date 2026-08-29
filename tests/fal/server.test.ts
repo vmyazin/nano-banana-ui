@@ -150,6 +150,75 @@ describe('fal server adapter', () => {
     }
   );
 
+  it('includes bounded fal validation details and the provider request ID', async () => {
+    const submit = vi.fn().mockRejectedValue(
+      Object.assign(new Error('Unprocessable Entity'), {
+        status: 422,
+        requestId: 'req_validation_123',
+        body: {
+          detail: [
+            { loc: ['body', 'image_url'], msg: 'Image must be at least 300 px', type: 'value_error' },
+            { loc: ['body', 'duration'], msg: 'Input should be 8', type: 'value_error' },
+          ],
+        },
+      })
+    );
+    createFalClient.mockReturnValue({ queue: { submit } });
+
+    const error = await submitFalTask(validSubmitArgs).catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(FalApiError);
+    expect(error).toMatchObject({
+      status: 422,
+      message:
+        'fal rejected one or more model settings. Review the controls and try again. '
+        + 'fal response (HTTP 422, request req_validation_123): '
+        + 'image_url: Image must be at least 300 px; duration: Input should be 8',
+    });
+  });
+
+  it('keeps the safe status fallback when fal details echo credentials', async () => {
+    const submit = vi.fn().mockRejectedValue(
+      Object.assign(new Error('Unprocessable Entity'), {
+        status: 422,
+        requestId: 'req_validation_123',
+        body: { detail: `Invalid authorization ${apiKey}` },
+      })
+    );
+    createFalClient.mockReturnValue({ queue: { submit } });
+
+    const error = await submitFalTask(validSubmitArgs).catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(FalApiError);
+    expect(error).toMatchObject({
+      status: 422,
+      message:
+        'fal rejected one or more model settings. Review the controls and try again. '
+        + 'fal response (HTTP 422, request req_validation_123).',
+    });
+    expect(String(error)).not.toContain(apiKey);
+  });
+
+  it('surfaces a safe fal message and bounds the complete public diagnostic', async () => {
+    const submit = vi.fn().mockRejectedValue(
+      Object.assign(new Error('Bad Request'), {
+        status: 400,
+        requestId: `req_${'r'.repeat(120)}`,
+        body: { message: `The source image URL expired. ${'x'.repeat(1_000)}` },
+      })
+    );
+    createFalClient.mockReturnValue({ queue: { submit } });
+
+    const error = await submitFalTask(validSubmitArgs).catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(FalApiError);
+    const message = (error as Error).message;
+    expect(message).toContain('fal response (HTTP 400, request req_');
+    expect(message).toContain('The source image URL expired.');
+    expect(message).toHaveLength(480);
+    expect(message.endsWith('…')).toBe(true);
+  });
+
   it('validates the key with the non-billable pricing endpoint', async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response('{}', { status: 200 }));
     vi.stubGlobal('fetch', fetchMock);

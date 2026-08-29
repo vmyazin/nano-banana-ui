@@ -444,6 +444,24 @@ describe('FalGenerationWorkspace', () => {
     expect(alert).not.toHaveTextContent('fal-key-secret');
   });
 
+  it('shows the specific fal response returned by the server adapter', async () => {
+    submitFalJobMock.mockRejectedValue(
+      new Error(
+        'fal rejected one or more model settings. Review the controls and try again. '
+        + 'fal response (HTTP 422, request req_validation_123): '
+        + 'image_url: Image must be at least 300 px'
+      )
+    );
+    renderWorkspace();
+    fireEvent.change(screen.getByLabelText('Prompt'), { target: { value: 'A moonlit ocean' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Generate video' }));
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('HTTP 422');
+    expect(alert).toHaveTextContent('request req_validation_123');
+    expect(alert).toHaveTextContent('image_url: Image must be at least 300 px');
+  });
+
   it('disables duplicate submission and reconciles a stale completion after unmount', async () => {
     const pending = deferred<{ requestId: string }>();
     submitFalJobMock.mockReturnValue(pending.promise);
