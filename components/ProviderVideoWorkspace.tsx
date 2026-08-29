@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import LastFrameActions from '@/components/LastFrameActions';
 import ModelControls, { type ModelControlField } from '@/components/ModelControls';
 import ProviderLogo from '@/components/ProviderLogo';
+import StoredImagePicker from '@/components/StoredImagePicker';
 import { candidatesFromSizes, useAutoAspect } from '@/lib/draft/aspect-match';
 import { carryOverValues } from '@/lib/draft/carry-over';
 import { useFileDrop } from '@/lib/drop/use-file-drop';
@@ -590,25 +591,30 @@ export default function ProviderVideoWorkspace({
                 }}
               />
               {!isPickerFull && (
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  {...dropProps}
-                  className={`flex w-full flex-col items-center gap-2 rounded-xl border-2 border-dashed py-3.5 text-sm transition-colors ${isDragging ? 'border-[var(--neon-purple)] bg-[var(--neon-purple)]/10 text-[var(--neon-purple)]' : 'border-[var(--neon-purple)]/30 text-[var(--foreground-muted)] hover:border-[var(--neon-purple)] hover:bg-[var(--neon-purple)]/5 hover:text-[var(--neon-purple)]'}`}
-                >
-                  {isReadingFrame || isFetching ? (
-                    <Loader2 className="animate-spin" size={28} />
-                  ) : (
-                    <ImagePlus size={28} />
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-stretch">
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    {...dropProps}
+                    className={`flex w-full flex-col items-center gap-2 rounded-xl border-2 border-dashed py-3.5 text-sm transition-colors sm:flex-1 ${isDragging ? 'border-[var(--neon-purple)] bg-[var(--neon-purple)]/10 text-[var(--neon-purple)]' : 'border-[var(--neon-purple)]/30 text-[var(--foreground-muted)] hover:border-[var(--neon-purple)] hover:bg-[var(--neon-purple)]/5 hover:text-[var(--neon-purple)]'}`}
+                  >
+                    {isReadingFrame || isFetching ? (
+                      <Loader2 className="animate-spin" size={28} />
+                    ) : (
+                      <ImagePlus size={28} />
+                    )}
+                    {isReadingFrame
+                      ? 'Reading last frame…'
+                      : isFetching
+                        ? 'Fetching dropped image…'
+                        : isDragging
+                          ? 'Drop to use as a source'
+                          : 'Drop, upload, or paste an image or video'}
+                  </button>
+                  {references.length < maxInputImages && (
+                    <StoredImagePicker referenceLimit={maxInputImages} />
                   )}
-                  {isReadingFrame
-                    ? 'Reading last frame…'
-                    : isFetching
-                      ? 'Fetching dropped image…'
-                      : isDragging
-                        ? 'Drop to use as a source'
-                        : 'Drop, upload, or paste an image or video'}
-                </button>
+                </div>
               )}
               {references.length > 0 && (
                 <div className="grid grid-cols-2 gap-3">

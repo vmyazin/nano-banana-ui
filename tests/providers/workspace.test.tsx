@@ -42,6 +42,12 @@ describe('ProviderVideoWorkspace', () => {
     expect(screen.getByText('Your generated video will appear here.')).toBeInTheDocument();
   });
 
+  it('offers the shared stored-image picker in image-input modes', () => {
+    renderWorkspace({ inputMode: 'image' });
+
+    expect(screen.getByRole('button', { name: 'From library' })).toBeInTheDocument();
+  });
+
   it('offers only the controls the selected model publishes', () => {
     renderWorkspace();
 

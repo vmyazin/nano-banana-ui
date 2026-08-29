@@ -207,6 +207,14 @@ describe('GenerationInterface engine selection', () => {
     );
   });
 
+  it('offers the shared stored-image picker for image-reference features', () => {
+    useAppStore.setState({ engine: 'gemini' });
+
+    renderInterface(multiImageCompose);
+
+    expect(screen.getByRole('button', { name: 'From library' })).toBeInTheDocument();
+  });
+
   it('renders Gemini resolution choices as concise horizontal toggles', () => {
     useAppStore.setState({ engine: 'gemini' });
     const queryClient = new QueryClient({

@@ -26,6 +26,7 @@ import { carryOverValues } from '@/lib/draft/carry-over';
 import { FRAME_EXTRACTION_ERROR, isVideoFile, lastFrameAsImageFile } from '@/lib/video-frame';
 import LastFrameActions from '@/components/LastFrameActions';
 import ModelControls, { type ModelControlField } from '@/components/ModelControls';
+import StoredImagePicker from '@/components/StoredImagePicker';
 
 interface KieGenerationWorkspaceProps {
   mediaType: MediaType;
@@ -449,21 +450,26 @@ export default function KieGenerationWorkspace({
                   event.target.value = '';
                 }}
               />
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                {...dropProps}
-                className={`flex w-full flex-col items-center gap-2 rounded-xl border-2 border-dashed py-3.5 text-sm transition-colors ${isDragging ? 'border-[var(--neon-cyan)] bg-[var(--neon-cyan)]/10 text-[var(--neon-cyan)]' : 'border-[var(--neon-cyan)]/30 text-[var(--foreground-muted)] hover:border-[var(--neon-cyan)] hover:bg-[var(--neon-cyan)]/5 hover:text-[var(--neon-cyan)]'}`}
-              >
-                {isReadingFrame || isFetching ? <Loader2 className="animate-spin" size={28} /> : <ImagePlus size={28} />}
-                {isReadingFrame
-                  ? 'Reading last frame…'
-                  : isFetching
-                    ? 'Fetching dropped image…'
-                    : isDragging
-                      ? 'Drop to use as a source'
-                      : 'Drop, upload, or paste an image or video'}
-              </button>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-stretch">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  {...dropProps}
+                  className={`flex w-full flex-col items-center gap-2 rounded-xl border-2 border-dashed py-3.5 text-sm transition-colors sm:flex-1 ${isDragging ? 'border-[var(--neon-cyan)] bg-[var(--neon-cyan)]/10 text-[var(--neon-cyan)]' : 'border-[var(--neon-cyan)]/30 text-[var(--foreground-muted)] hover:border-[var(--neon-cyan)] hover:bg-[var(--neon-cyan)]/5 hover:text-[var(--neon-cyan)]'}`}
+                >
+                  {isReadingFrame || isFetching ? <Loader2 className="animate-spin" size={28} /> : <ImagePlus size={28} />}
+                  {isReadingFrame
+                    ? 'Reading last frame…'
+                    : isFetching
+                      ? 'Fetching dropped image…'
+                      : isDragging
+                        ? 'Drop to use as a source'
+                        : 'Drop, upload, or paste an image or video'}
+                </button>
+                {references.length < maxInputImages && (
+                  <StoredImagePicker referenceLimit={maxInputImages} />
+                )}
+              </div>
               {references.length > 0 && (
                 <div className="grid grid-cols-2 gap-3">
                   {references.map((reference, index) => (

@@ -54,6 +54,19 @@ describe('Kie generation workspace', () => {
     expect(screen.getByText(/including first and last frame/i).className).not.toContain('border');
   });
 
+  it('offers the shared stored-image picker in image-input modes', () => {
+    render(
+      <KieGenerationWorkspace
+        mediaType="video"
+        inputMode="image"
+        onBack={() => undefined}
+        onOpenConnections={() => undefined}
+      />
+    );
+
+    expect(screen.getByRole('button', { name: 'From library' })).toBeInTheDocument();
+  });
+
   it('renders a completed video as a native preview with an immediate download action', () => {
     useKieJobsStore.getState().upsertJob({
       id: 'video_task_1',

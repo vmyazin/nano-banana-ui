@@ -312,6 +312,12 @@ describe('FalGenerationWorkspace', () => {
     expect(screen.queryByRole('button', { name: 'From library' })).toBeNull();
   });
 
+  it('offers the shared stored-image picker in image-to-video mode', () => {
+    renderWorkspace('image');
+
+    expect(screen.getByRole('button', { name: 'From library' })).toBeInTheDocument();
+  });
+
   it('accepts a saved clip and uploads its last frame as the reference', async () => {
     const { container } = renderWorkspace('image');
     const clip = new File(['video'], 'previous-take.mp4', { type: 'video/mp4' });

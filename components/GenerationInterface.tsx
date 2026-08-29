@@ -35,6 +35,7 @@ import {
 } from '@/lib/engines/registry';
 import KieGenerationWorkspace from '@/components/KieGenerationWorkspace';
 import SegmentedToggleGroup from '@/components/SegmentedToggleGroup';
+import StoredImagePicker from '@/components/StoredImagePicker';
 import {
   X,
   Wand2,
@@ -826,24 +827,29 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
                 className="hidden"
               />
 
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                {...dropProps}
-                className={`w-full py-3 border-2 border-dashed rounded-xl transition-all flex flex-col items-center gap-2 ${isDragging ? 'border-[var(--neon-cyan)] bg-[var(--neon-cyan)]/10 text-[var(--neon-cyan)]' : 'border-[var(--neon-cyan)]/30 text-[var(--foreground-muted)] hover:border-[var(--neon-cyan)] hover:bg-[var(--neon-cyan)]/5 hover:text-[var(--neon-cyan)]'}`}
-              >
-                {isFetching ? <Loader2 size={32} className="animate-spin" /> : <ImagePlus size={32} />}
-                <span className="font-medium">
-                  {isFetching
-                    ? 'Fetching dropped image…'
-                    : isDragging
-                      ? 'Drop to use as a source'
-                      : `Drop or click to upload${feature.requiresMultipleImages ? ` (max ${feature.maxImages})` : ''}`}
-                </span>
-                <span className="text-xs text-[var(--foreground-subtle)]">
-                  or paste with ⌘V / Ctrl+V
-                </span>
-              </button>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-stretch">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  {...dropProps}
+                  className={`flex w-full flex-col items-center gap-2 rounded-xl border-2 border-dashed py-3 transition-all sm:flex-1 ${isDragging ? 'border-[var(--neon-cyan)] bg-[var(--neon-cyan)]/10 text-[var(--neon-cyan)]' : 'border-[var(--neon-cyan)]/30 text-[var(--foreground-muted)] hover:border-[var(--neon-cyan)] hover:bg-[var(--neon-cyan)]/5 hover:text-[var(--neon-cyan)]'}`}
+                >
+                  {isFetching ? <Loader2 size={32} className="animate-spin" /> : <ImagePlus size={32} />}
+                  <span className="font-medium">
+                    {isFetching
+                      ? 'Fetching dropped image…'
+                      : isDragging
+                        ? 'Drop to use as a source'
+                        : `Drop or click to upload${feature.requiresMultipleImages ? ` (max ${feature.maxImages})` : ''}`}
+                  </span>
+                  <span className="text-xs text-[var(--foreground-subtle)]">
+                    or paste with ⌘V / Ctrl+V
+                  </span>
+                </button>
+                {references.length < (feature.maxImages || 1) && (
+                  <StoredImagePicker referenceLimit={feature.maxImages || 1} />
+                )}
+              </div>
 
               {images.length > 0 && (
                 <div className="grid grid-cols-2 gap-3">
