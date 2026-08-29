@@ -137,6 +137,37 @@ describe('FalGenerationWorkspace', () => {
     expect(screen.getByText('Inputs and outputs use public, temporary URLs.')).toBeInTheDocument();
   });
 
+  it('places the prompt card in the jobs column immediately before jobs', () => {
+    renderWorkspace();
+
+    const promptSection = screen.getByRole('textbox', { name: 'Prompt' }).closest('section');
+    const jobsSection = screen.getByRole('heading', { name: 'Jobs' }).closest('section');
+
+    expect(promptSection).not.toBeNull();
+    expect(jobsSection).not.toBeNull();
+    expect(promptSection?.parentElement).toBe(jobsSection?.parentElement);
+    expect(
+      promptSection!.compareDocumentPosition(jobsSection!)
+      & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+
+  it('starts the prompt at two lines and grows until the twelve-line cap', () => {
+    renderWorkspace();
+    const prompt = screen.getByRole('textbox', { name: 'Prompt' }) as HTMLTextAreaElement;
+
+    expect(prompt.rows).toBe(2);
+    expect(prompt).toHaveClass('max-h-[16.25rem]', 'overflow-y-auto', 'resize-none');
+
+    Object.defineProperty(prompt, 'scrollHeight', { configurable: true, value: 96 });
+    fireEvent.change(prompt, { target: { value: 'First line\nSecond line\nThird line' } });
+    expect(prompt.style.height).toBe('96px');
+
+    Object.defineProperty(prompt, 'scrollHeight', { configurable: true, value: 420 });
+    fireEvent.change(prompt, { target: { value: Array.from({ length: 16 }, (_, index) => `Line ${index + 1}`).join('\n') } });
+    expect(prompt.style.height).toBe('420px');
+  });
+
   it('lists exactly nine curated models and searches label, provider, and description', () => {
     renderWorkspace();
     const model = screen.getByRole('combobox', { name: 'Model' });

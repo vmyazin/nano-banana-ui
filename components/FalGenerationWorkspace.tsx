@@ -69,6 +69,11 @@ const submissionError = 'fal could not start this job. Please try again.';
 const cancellationError = 'fal could not cancel this job. Please try again.';
 const allowedImageMimeTypes = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/avif']);
 
+function resizePromptTextarea(textarea: HTMLTextAreaElement) {
+  textarea.style.height = 'auto';
+  textarea.style.height = `${textarea.scrollHeight}px`;
+}
+
 function isSafeFalVideoUrl(value: string | undefined, mimeType: string | undefined): value is string {
   const hasInvalidMimeType = mimeType !== undefined
     && !/^video\/[a-z0-9][a-z0-9!#$&^_.+-]*$/i.test(mimeType);
@@ -266,6 +271,7 @@ function FalGenerationWorkspaceSession({
   const [cancellingIds, setCancellingIds] = useState<Set<string>>(() => new Set());
   const [cancelErrors, setCancelErrors] = useState<Record<string, string>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const promptTextareaRef = useRef<HTMLTextAreaElement>(null);
   const submissionRef = useRef<SubmissionOperation | null>(null);
   const cancellingRef = useRef(new Set<string>());
   const mountedRef = useRef(true);
@@ -330,6 +336,10 @@ function FalGenerationWorkspaceSession({
   useEffect(() => {
     useDraftStore.getState().limitReferences(maxInputImages);
   }, [maxInputImages]);
+
+  useEffect(() => {
+    if (promptTextareaRef.current) resizePromptTextarea(promptTextareaRef.current);
+  }, [prompt]);
 
   const abortSubmission = () => {
     const operation = submissionRef.current;
@@ -653,31 +663,6 @@ function FalGenerationWorkspaceSession({
             )}
           </section>
 
-          <section className="glass-card space-y-3 p-3.5 md:p-4">
-            <div className="flex items-center justify-between gap-3">
-              <label htmlFor="fal-video-prompt" className="display block text-base font-semibold">Prompt</label>
-              <button
-                type="button"
-                onClick={() => void generateExample()}
-                disabled={isGeneratingExample}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--brand-accent)]/30 bg-[var(--brand-accent)]/10 px-2.5 py-1.5 text-xs font-medium text-[var(--brand-accent)] transition-colors hover:text-[var(--neon-cyan)] disabled:cursor-not-allowed disabled:opacity-60"
-                title="Generate an example prompt with the shared fast model, or your own Gemini key"
-              >
-                {isGeneratingExample ? <Loader2 className="animate-spin" size={14} /> : <Sparkles size={14} />}
-                {isGeneratingExample ? 'Thinking…' : 'Gen Example'}
-              </button>
-            </div>
-            <textarea
-              id="fal-video-prompt"
-              aria-required="true"
-              required
-              value={prompt}
-              onChange={(event) => setPrompt(event.target.value)}
-              placeholder="Describe the motion, camera, mood, and scene…"
-              className="min-h-[150px] w-full resize-none"
-            />
-          </section>
-
           {inputMode !== 'text' && (
             <section className="glass-card space-y-3 p-3.5 md:p-4">
               <div>
@@ -799,33 +784,62 @@ function FalGenerationWorkspaceSession({
           {error && <p role="alert" className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">{error}</p>}
         </div>
 
-        <section className="glass-card min-h-[420px] space-y-3 p-3.5 md:p-4">
-          <div>
-            <h3 className="display text-base font-semibold">Jobs</h3>
-            <p className="mt-0.5 text-xs text-[var(--foreground-muted)]">Recent jobs remain visible while you change models and providers.</p>
-          </div>
-          {videoJobs.length === 0 ? (
-            <div className="rounded-xl border border-[var(--border)] p-5 text-center text-[var(--foreground-muted)]">
-              <Video className="mx-auto mb-3 opacity-35" size={46} />
-              <p>Your jobs will appear here.</p>
+        <div className="space-y-3.5">
+          <section className="glass-card space-y-3 p-3.5 md:p-4">
+            <div className="flex items-center justify-between gap-3">
+              <label htmlFor="fal-video-prompt" className="display block text-base font-semibold">Prompt</label>
+              <button
+                type="button"
+                onClick={() => void generateExample()}
+                disabled={isGeneratingExample}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--brand-accent)]/30 bg-[var(--brand-accent)]/10 px-2.5 py-1.5 text-xs font-medium text-[var(--brand-accent)] transition-colors hover:text-[var(--neon-cyan)] disabled:cursor-not-allowed disabled:opacity-60"
+                title="Generate an example prompt with the shared fast model, or your own Gemini key"
+              >
+                {isGeneratingExample ? <Loader2 className="animate-spin" size={14} /> : <Sparkles size={14} />}
+                {isGeneratingExample ? 'Thinking…' : 'Gen Example'}
+              </button>
             </div>
-          ) : (
-            <div className="space-y-3">
-              {videoJobs.map((job) => (
-                <JobCard
-                  key={job.id}
-                  job={job}
-                  apiKey={apiKey}
-                  cancelling={cancellingIds.has(job.id)}
-                  cancelError={cancelErrors[job.id]}
-                  onCancel={(activeJob) => void cancel(activeJob)}
-                  onContinueFromFrame={onContinueFromFrame}
-                />
-              ))}
+            <textarea
+              ref={promptTextareaRef}
+              id="fal-video-prompt"
+              aria-required="true"
+              required
+              rows={2}
+              value={prompt}
+              onChange={(event) => setPrompt(event.target.value)}
+              placeholder="Describe the motion, camera, mood, and scene…"
+              className="max-h-[16.25rem] w-full resize-none overflow-y-auto"
+            />
+          </section>
+
+          <section className="glass-card min-h-[420px] space-y-3 p-3.5 md:p-4">
+            <div>
+              <h3 className="display text-base font-semibold">Jobs</h3>
+              <p className="mt-0.5 text-xs text-[var(--foreground-muted)]">Recent jobs remain visible while you change models and providers.</p>
             </div>
-          )}
-          <p className="text-center text-xs text-[var(--foreground-subtle)]">Inputs and outputs use public, temporary URLs.</p>
-        </section>
+            {videoJobs.length === 0 ? (
+              <div className="rounded-xl border border-[var(--border)] p-5 text-center text-[var(--foreground-muted)]">
+                <Video className="mx-auto mb-3 opacity-35" size={46} />
+                <p>Your jobs will appear here.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {videoJobs.map((job) => (
+                  <JobCard
+                    key={job.id}
+                    job={job}
+                    apiKey={apiKey}
+                    cancelling={cancellingIds.has(job.id)}
+                    cancelError={cancelErrors[job.id]}
+                    onCancel={(activeJob) => void cancel(activeJob)}
+                    onContinueFromFrame={onContinueFromFrame}
+                  />
+                ))}
+              </div>
+            )}
+            <p className="text-center text-xs text-[var(--foreground-subtle)]">Inputs and outputs use public, temporary URLs.</p>
+          </section>
+        </div>
       </div>
       {isFramesMode && (
         <LibraryOverlay
