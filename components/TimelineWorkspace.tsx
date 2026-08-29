@@ -300,7 +300,11 @@ export default function TimelineWorkspace({
       </section>
 
       <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-[280px_1fr] lg:gap-4">
-        <TimelineClipDrawer records={records} onAdd={(recordId) => void addClip(recordId)} />
+        <TimelineClipDrawer
+          records={records}
+          onAdd={(recordId) => void addClip(recordId)}
+          onDelete={(recordId) => void useGalleryStore.getState().remove(recordId)}
+        />
 
         <div className="min-w-0 space-y-3.5">
           <TimelinePreview clips={clips} clipStates={clipStates} output={output} />

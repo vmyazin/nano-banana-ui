@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useId, useMemo, useState } from 'react';
-import { Loader2, Plus, Video } from 'lucide-react';
+import { Loader2, Plus, Trash2, Video } from 'lucide-react';
 
 import { useFileDrop } from '@/lib/drop/use-file-drop';
 import type { GalleryRecord } from '@/lib/gallery/storage';
@@ -11,6 +11,7 @@ import { posterImage } from '@/lib/timeline/poster';
 interface TimelineClipDrawerProps {
   records: GalleryRecord[];
   onAdd: (recordId: string) => void;
+  onDelete: (recordId: string) => void;
 }
 
 function titleOf(record: GalleryRecord) {
@@ -130,12 +131,17 @@ function ImportTile() {
 }
 
 /**
- * The library rail: every video result, newest first, each with an Add button
- * that places it on the timeline. Copies GalleryGrid's card treatment rather
- * than importing it (that markup is inline there, not extracted) or reaching
- * for MediaCard, which despite its name is the picker card used elsewhere.
+ * The library rail: every video result, newest first, each with compact trash
+ * and plus controls that remove the source from Your clips or add a timeline
+ * placement. Copies GalleryGrid's card treatment rather than importing it
+ * (that markup is inline there, not extracted) or reaching for MediaCard,
+ * which despite its name is the picker card used elsewhere.
  */
-export default function TimelineClipDrawer({ records, onAdd }: TimelineClipDrawerProps) {
+export default function TimelineClipDrawer({
+  records,
+  onAdd,
+  onDelete,
+}: TimelineClipDrawerProps) {
   const clips = useMemo(
     () => records.filter((record) => record.kind === 'video').sort((a, b) => b.createdAt - a.createdAt),
     [records]
@@ -160,6 +166,7 @@ export default function TimelineClipDrawer({ records, onAdd }: TimelineClipDrawe
         <ul className="space-y-2">
           {clips.map((record) => {
             const preview = previews.get(record.id);
+            const title = titleOf(record);
             return (
               <li
                 key={record.id}
@@ -174,19 +181,31 @@ export default function TimelineClipDrawer({ records, onAdd }: TimelineClipDrawe
                   )}
                 </div>
                 <p
-                  className="min-w-0 flex-1 truncate text-[0.8125rem] text-[var(--foreground)]"
+                  className="line-clamp-2 min-w-0 flex-1 text-[0.8125rem] leading-snug text-[var(--foreground)]"
                   title={record.prompt}
                 >
-                  {titleOf(record)}
+                  {title}
                 </p>
-                <button
-                  type="button"
-                  onClick={() => onAdd(record.id)}
-                  aria-label={`Add ${titleOf(record)} to the timeline`}
-                  className="btn-secondary shrink-0 gap-1 px-2 py-1 text-xs"
-                >
-                  <Plus size={13} /> Add
-                </button>
+                <div className="flex shrink-0 items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => onDelete(record.id)}
+                    aria-label={`Delete ${title} from Your clips`}
+                    title={`Delete ${title} from Your clips`}
+                    className="btn-secondary size-10 shrink-0 p-0"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onAdd(record.id)}
+                    aria-label={`Add ${title} to the timeline`}
+                    title={`Add ${title} to the timeline`}
+                    className="btn-secondary size-10 shrink-0 p-0"
+                  >
+                    <Plus size={16} />
+                  </button>
+                </div>
               </li>
             );
           })}

@@ -3,6 +3,8 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import type { ClipState } from '../../components/TimelineWorkspace';
+import { useGalleryStore } from '../../store/useGalleryStore';
+import { useTimelineStore } from '../../store/useTimelineStore';
 import { mockNextAcquireResult, mockPendingAcquire, renderWorkspace, setupTimelineTest } from './helpers';
 
 describe('TimelineWorkspace', () => {
@@ -18,6 +20,33 @@ describe('TimelineWorkspace', () => {
     await userEvent.click(screen.getAllByRole('button', { name: /add/i })[0]);
     const list = screen.getByTestId('timeline-list');
     await waitFor(() => expect(within(list).getByText('neon tiger')).toBeInTheDocument());
+  });
+
+  it('uses icon-only add and trash controls for timeline and library actions', async () => {
+    renderWorkspace();
+    const add = screen.getByRole('button', { name: /add neon tiger to the timeline/i });
+    const trash = screen.getByRole('button', {
+      name: /delete neon tiger from your clips/i,
+    });
+
+    expect(add).not.toHaveTextContent(/add/i);
+    expect(trash).not.toHaveTextContent(/delete/i);
+    expect(add).toHaveClass('size-10');
+    expect(trash).toHaveClass('size-10');
+    expect(add.querySelector('svg')).toHaveAttribute('width', '16');
+    expect(trash.querySelector('svg')).toHaveClass('lucide-trash-2');
+    const clipTitle = screen.getByText('neon tiger');
+    expect(clipTitle).toHaveClass('line-clamp-2');
+    expect(clipTitle).not.toHaveClass('truncate');
+
+    await userEvent.click(add);
+    expect(useTimelineStore.getState().timeline.clips).toHaveLength(1);
+
+    await userEvent.click(trash);
+    await waitFor(() =>
+      expect(useGalleryStore.getState().records.some((record) => record.id === 'clip')).toBe(false)
+    );
+    expect(screen.queryByRole('button', { name: /add neon tiger to the timeline/i })).not.toBeInTheDocument();
   });
 
   it('keeps an expired clip in place and explains why, rather than dropping it', async () => {
@@ -78,7 +107,11 @@ describe('TimelineWorkspace', () => {
     await waitFor(() => expect(Object.keys(snapshots.at(-1) ?? {})).toHaveLength(1));
     const placementId = Object.keys(snapshots.at(-1)!)[0];
 
-    await userEvent.click(screen.getByRole('button', { name: /remove .* from the timeline/i }));
+    await userEvent.click(
+      within(screen.getByTestId('timeline-list')).getByRole('button', {
+        name: /remove .* from the timeline/i,
+      })
+    );
     expect(snapshots.at(-1)).not.toHaveProperty(placementId);
 
     // The acquisition finally lands, after the clip is already gone.
@@ -102,7 +135,11 @@ describe('TimelineWorkspace', () => {
     await userEvent.click(screen.getAllByRole('button', { name: /add/i })[0]);
     await waitFor(() => expect(pending.signal()).toBeDefined());
 
-    await userEvent.click(screen.getByRole('button', { name: /remove .* from the timeline/i }));
+    await userEvent.click(
+      within(screen.getByTestId('timeline-list')).getByRole('button', {
+        name: /remove .* from the timeline/i,
+      })
+    );
     expect(screen.getByText(/no clips yet/i)).toBeInTheDocument();
 
     await act(async () => {
