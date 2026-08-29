@@ -18,7 +18,7 @@ export const brand = {
   /** Footer credit line product label (links to the repo). */
   shortName: 'Scene Assembly',
   githubUrl: 'https://github.com/vmyazin/nano-banana-ui',
-  siteUrl: 'https://nbanana.mzork.com',
+  siteUrl: 'https://sceneassembly.mzork.com',
   /** Document / social card title: "Scene Assembly — Multi-engine image & video studio" */
   metaTitle: 'Scene Assembly — Multi-engine image & video studio',
   /** Search / social description — provider-neutral, engines named as capabilities. */

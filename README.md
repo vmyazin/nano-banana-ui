@@ -2,14 +2,14 @@
 
 # Scene Assembly
 
-[![Live demo](https://img.shields.io/badge/Live-nbanana.mzork.com-00d8d8?style=for-the-badge)](https://nbanana.mzork.com)
+[![Live demo](https://img.shields.io/badge/Live-sceneassembly.mzork.com-00d8d8?style=for-the-badge)](https://sceneassembly.mzork.com)
 ![Multi-engine studio](https://img.shields.io/badge/AI-Multi--engine%20studio-c026d3?style=for-the-badge)
 ![Next.js](https://img.shields.io/badge/Next.js-16-black?style=for-the-badge&logo=next.js)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-blue?style=for-the-badge&logo=typescript)
 
 An open-source, multi-engine studio for generating, editing, and composing images—and creating video—with Google Gemini, fal.ai, Kie.ai, Pollinations FLUX, and Cloudflare Workers AI. Bring your own provider credentials, choose the engine that fits the job, and keep all configuration in your browser.
 
-> **Scene Assembly was formerly called Nano Banana UI.** The repository and live-demo URLs retain the former slug during the transition; the product itself is provider-neutral.
+> **Scene Assembly was formerly called Nano Banana UI.** The repository URL retains the former slug during the transition; the product itself is provider-neutral.
 
 ## ✨ Features
 
@@ -227,6 +227,14 @@ pnpm test
 pnpm lint
 pnpm build
 ```
+
+## 🚢 Deployment
+
+The live demo runs on Vercel and redeploys on every push to `main`. Server-side
+timeline rendering and the account gate are both off there and stay off — see
+[`docs/deployment.md`](docs/deployment.md) for the environment variables, why
+those two are disabled on serverless, and the single-box path that still
+supports them.
 
 ## 🤝 Contributing
 
