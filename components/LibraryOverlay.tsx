@@ -11,6 +11,8 @@ import { useGalleryStore } from '@/store/useGalleryStore';
 interface LibraryOverlayProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  purpose?: 'browse' | 'pick-image';
+  referenceLimit?: number;
   /**
    * Section to land on. Only read on mount — the page remounts this overlay
    * (keyed on the tab) when ⌘K aims at a different section, which is the
@@ -35,12 +37,15 @@ export default function LibraryOverlay({
   open,
   onOpenChange,
   initialTab = 'results',
+  purpose = 'browse',
+  referenceLimit,
 }: LibraryOverlayProps) {
   const records = useGalleryStore((state) => state.records);
   const storageError = useGalleryStore((state) => state.storageError);
   const [quota, setQuota] = useState<{ usage: number; quota: number } | null>(null);
   const [tab, setTab] = useState<'results' | 'prompts'>(initialTab);
   const panelRef = useRef<HTMLDivElement>(null);
+  const isImagePicker = purpose === 'pick-image';
 
   const close = useCallback(() => onOpenChange(false), [onOpenChange]);
 
@@ -66,6 +71,8 @@ export default function LibraryOverlay({
   }, [open, close]);
 
   const stored = records.reduce((total, record) => total + record.bytes, 0);
+  const storedImages = records.filter((record) => record.kind === 'image' && Boolean(record.blob));
+  const dialogTitle = isImagePicker ? 'Choose from library' : 'Library';
 
   return (
     <AnimatePresence>
@@ -82,7 +89,7 @@ export default function LibraryOverlay({
             tabIndex={-1}
             role="dialog"
             aria-modal="true"
-            aria-label="Library"
+            aria-label={dialogTitle}
             initial={{ y: 24, opacity: 0, scale: 0.98 }}
             animate={{ y: 0, opacity: 1, scale: 1 }}
             exit={{ y: 24, opacity: 0, scale: 0.98 }}
@@ -93,9 +100,11 @@ export default function LibraryOverlay({
             <header className="flex items-start gap-3 border-b border-[var(--border)] px-3.5 py-3 sm:px-4">
               <Library className="mt-0.5 shrink-0 text-[var(--neon-cyan)]" size={18} />
               <div className="min-w-0 flex-1">
-                <h2 className="text-base font-semibold text-[var(--foreground)]">Library</h2>
+                <h2 className="text-base font-semibold text-[var(--foreground)]">{dialogTitle}</h2>
                 <p className="text-[0.9375rem] text-[var(--foreground-muted)]">
-                  Results kept in this browser after the provider links expire
+                  {isImagePicker
+                    ? 'Stored images available as a frame for this clip'
+                    : 'Results kept in this browser after the provider links expire'}
                 </p>
               </div>
               <button
@@ -108,23 +117,25 @@ export default function LibraryOverlay({
             </header>
 
             <div className="min-h-0 flex-1 overflow-y-auto px-3.5 py-3.5 sm:px-4">
-            <div role="tablist" aria-label="Library sections" className="mb-4 flex gap-1 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-1">
-              {(['results', 'prompts'] as const).map((name) => (
-                <button
-                  key={name}
-                  role="tab"
-                  aria-selected={tab === name}
-                  onClick={() => setTab(name)}
-                  className={`flex-1 rounded-lg px-3 py-2 text-[0.9375rem] capitalize transition-colors ${
-                    tab === name
-                      ? 'bg-[var(--neon-cyan)]/15 text-[var(--neon-cyan)]'
-                      : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)]'
-                  }`}
-                >
-                  {name}
-                </button>
-              ))}
-            </div>
+            {!isImagePicker && (
+              <div role="tablist" aria-label="Library sections" className="mb-4 flex gap-1 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-1">
+                {(['results', 'prompts'] as const).map((name) => (
+                  <button
+                    key={name}
+                    role="tab"
+                    aria-selected={tab === name}
+                    onClick={() => setTab(name)}
+                    className={`flex-1 rounded-lg px-3 py-2 text-[0.9375rem] capitalize transition-colors ${
+                      tab === name
+                        ? 'bg-[var(--neon-cyan)]/15 text-[var(--neon-cyan)]'
+                        : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)]'
+                    }`}
+                  >
+                    {name}
+                  </button>
+                ))}
+              </div>
+            )}
 
             {storageError && (
               <p role="alert" className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-[0.9375rem] text-red-200">
@@ -132,7 +143,13 @@ export default function LibraryOverlay({
               </p>
             )}
 
-            {tab === 'results' ? (
+            {isImagePicker ? (
+              <GalleryGrid
+                mode="pick-image"
+                onUsedReference={close}
+                referenceLimit={referenceLimit}
+              />
+            ) : tab === 'results' ? (
               <GalleryGrid onUsedReference={close} />
             ) : (
               <PromptLibraryList onInserted={close} />
@@ -141,10 +158,16 @@ export default function LibraryOverlay({
 
             <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--border)] px-3.5 py-3.5 sm:px-4">
               <p className="text-[0.9375rem] text-[var(--foreground-muted)]">
-                {records.length} result{records.length === 1 ? '' : 's'} · {formatBytes(stored)} stored
-                {quota ? ` · ${formatBytes(quota.quota - quota.usage)} free in this browser` : ''}
+                {isImagePicker ? (
+                  <>{storedImages.length} stored image{storedImages.length === 1 ? '' : 's'}</>
+                ) : (
+                  <>
+                    {records.length} result{records.length === 1 ? '' : 's'} · {formatBytes(stored)} stored
+                    {quota ? ` · ${formatBytes(quota.quota - quota.usage)} free in this browser` : ''}
+                  </>
+                )}
               </p>
-              {records.length > 0 && (
+              {!isImagePicker && records.length > 0 && (
                 <button
                   type="button"
                   onClick={() => void useGalleryStore.getState().clear()}

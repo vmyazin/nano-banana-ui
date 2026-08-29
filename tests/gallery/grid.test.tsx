@@ -64,6 +64,75 @@ describe('GalleryGrid', () => {
     expect(reference.sourceLabel).toBe('From brass diving bell');
   });
 
+  it('shows only durable images in image-picker mode', () => {
+    useGalleryStore.setState({
+      records: [
+        record(),
+        record({
+          id: 'video-1',
+          kind: 'video',
+          slug: 'kelp-dive',
+          blob: new Blob(['video'], { type: 'video/mp4' }),
+          posterBlob: new Blob(['poster'], { type: 'image/png' }),
+        }),
+        record({
+          id: 'linked-image',
+          slug: 'expired-image',
+          blob: undefined,
+          bytes: 0,
+          sourceUrl: 'https://example.com/expired.png',
+        }),
+      ],
+    });
+
+    render(<GalleryGrid mode="pick-image" referenceLimit={2} />);
+
+    expect(screen.getByText('brass diving bell')).toBeInTheDocument();
+    expect(screen.queryByText('kelp dive')).toBeNull();
+    expect(screen.queryByText('expired image')).toBeNull();
+    expect(screen.getAllByRole('button', { name: 'Use image' })).toHaveLength(1);
+    expect(screen.queryByRole('button', { name: 'Pin result' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Restore settings/ })).toBeNull();
+  });
+
+  it('has an image-specific empty state when nothing durable can be picked', () => {
+    useGalleryStore.setState({
+      records: [
+        record({
+          kind: 'video',
+          blob: new Blob(['video'], { type: 'video/mp4' }),
+          posterBlob: new Blob(['poster'], { type: 'image/png' }),
+        }),
+      ],
+    });
+
+    render(<GalleryGrid mode="pick-image" referenceLimit={2} />);
+
+    expect(screen.getByText('No stored images yet.')).toBeInTheDocument();
+  });
+
+  it('uses the contextual reference limit before closing the image picker', async () => {
+    useDraftStore.getState().addReferences(
+      [{ file: new File(['old'], 'old-frame.png', { type: 'image/png' }) }],
+      14
+    );
+    useGalleryStore.setState({ records: [record()] });
+    const onUsedReference = vi.fn();
+    render(
+      <GalleryGrid
+        mode="pick-image"
+        referenceLimit={1}
+        onUsedReference={onUsedReference}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Use image' }));
+
+    await waitFor(() => expect(onUsedReference).toHaveBeenCalledOnce());
+    expect(useDraftStore.getState().references).toHaveLength(1);
+    expect(useDraftStore.getState().references[0].file.name).toBe('brass-diving-bell.png');
+  });
+
   it('restores the prompt and controls of a past run', () => {
     useGalleryStore.setState({ records: [record()] });
     render(<GalleryGrid />);

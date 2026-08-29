@@ -1,9 +1,10 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowUpDown, Download, ImagePlus, Loader2, Search, Sparkles, Trash2, Video } from 'lucide-react';
+import { ArrowUpDown, Download, ImagePlus, Library as LibraryIcon, Loader2, Search, Sparkles, Trash2, Video } from 'lucide-react';
 
 import LastFrameActions from '@/components/LastFrameActions';
+import LibraryOverlay from '@/components/LibraryOverlay';
 import ModelControls from '@/components/ModelControls';
 import ProviderLogo from '@/components/ProviderLogo';
 import { requestExamplePrompt, requestPromptSlug } from '@/lib/micro-ai/browser';
@@ -260,6 +261,7 @@ function FalGenerationWorkspaceSession({
   const [error, setError] = useState<string | null>(null);
   const [isGeneratingExample, setIsGeneratingExample] = useState(false);
   const [isReadingFrame, setIsReadingFrame] = useState(false);
+  const [libraryOpen, setLibraryOpen] = useState(false);
   const [submittingVariantId, setSubmittingVariantId] = useState<string | null>(null);
   const [cancellingIds, setCancellingIds] = useState<Set<string>>(() => new Set());
   const [cancelErrors, setCancelErrors] = useState<Record<string, string>>({});
@@ -701,21 +703,35 @@ function FalGenerationWorkspaceSession({
                 }}
               />
               {!isPickerFull && (
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  {...dropProps}
-                  className={`flex w-full flex-col items-center gap-2 rounded-xl border-2 border-dashed py-3.5 text-sm transition-colors ${isDragging ? 'border-[var(--neon-cyan)] bg-[var(--neon-cyan)]/10 text-[var(--neon-cyan)]' : 'border-[var(--neon-cyan)]/30 text-[var(--foreground-muted)]'}`}
-                >
-                  {isReadingFrame || isFetching ? <Loader2 className="animate-spin" size={28} /> : <ImagePlus size={28} />}
-                  {isReadingFrame
-                    ? 'Reading last frame…'
-                    : isFetching
-                      ? 'Fetching dropped image…'
-                      : isDragging
-                        ? 'Drop to use as a source'
-                        : pickerLabel}
-                </button>
+                <div className={isFramesMode ? 'flex flex-col gap-2 sm:flex-row sm:items-stretch' : undefined}>
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    {...dropProps}
+                    className={`flex w-full flex-col items-center gap-2 rounded-xl border-2 border-dashed py-3.5 text-sm transition-colors ${isFramesMode ? 'sm:flex-1' : ''} ${isDragging ? 'border-[var(--neon-cyan)] bg-[var(--neon-cyan)]/10 text-[var(--neon-cyan)]' : 'border-[var(--neon-cyan)]/30 text-[var(--foreground-muted)]'}`}
+                  >
+                    {isReadingFrame || isFetching ? <Loader2 className="animate-spin" size={28} /> : <ImagePlus size={28} />}
+                    {isReadingFrame
+                      ? 'Reading last frame…'
+                      : isFetching
+                        ? 'Fetching dropped image…'
+                        : isDragging
+                          ? 'Drop to use as a source'
+                          : pickerLabel}
+                  </button>
+                  {isFramesMode && (
+                    <button
+                      type="button"
+                      aria-label="From library"
+                      onClick={() => setLibraryOpen(true)}
+                      className="flex w-full flex-col items-center justify-center gap-1.5 rounded-xl border border-[var(--neon-cyan)]/30 bg-[var(--neon-cyan)]/5 px-4 py-3.5 text-[var(--foreground-muted)] transition-colors hover:border-[var(--neon-cyan)]/60 hover:bg-[var(--neon-cyan)]/10 hover:text-[var(--neon-cyan)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--neon-cyan)] sm:w-36 sm:shrink-0"
+                    >
+                      <LibraryIcon aria-hidden="true" size={24} />
+                      <span className="text-sm font-medium">From library</span>
+                      <span className="text-[0.65rem] text-[var(--foreground-subtle)]">Stored images</span>
+                    </button>
+                  )}
+                </div>
               )}
               {references.map((reference, index) => (
                 <div key={reference.id} className="space-y-1">
@@ -811,6 +827,14 @@ function FalGenerationWorkspaceSession({
           <p className="text-center text-xs text-[var(--foreground-subtle)]">Inputs and outputs use public, temporary URLs.</p>
         </section>
       </div>
+      {isFramesMode && (
+        <LibraryOverlay
+          open={libraryOpen}
+          onOpenChange={setLibraryOpen}
+          purpose="pick-image"
+          referenceLimit={maxInputImages}
+        />
+      )}
     </div>
   );
 }

@@ -16,6 +16,12 @@ import { useGalleryStore } from '@/store/useGalleryStore';
 /** Generous ceiling; the workspace trims to its own model's limit on mount. */
 const REFERENCE_LIMIT = 8;
 
+interface GalleryGridProps {
+  mode?: 'browse' | 'pick-image';
+  onUsedReference?: () => void;
+  referenceLimit?: number;
+}
+
 function titleOf(record: GalleryRecord) {
   return record.slug?.replace(/-/g, ' ') || record.prompt || 'Untitled result';
 }
@@ -44,9 +50,21 @@ function usePreviewUrls(records: GalleryRecord[]) {
   return previews;
 }
 
-export default function GalleryGrid({ onUsedReference }: { onUsedReference?: () => void }) {
+export default function GalleryGrid({
+  mode = 'browse',
+  onUsedReference,
+  referenceLimit = REFERENCE_LIMIT,
+}: GalleryGridProps) {
   const records = useGalleryStore((state) => state.records);
-  const previews = usePreviewUrls(records);
+  // Keep the filtered array stable: preview URLs are keyed to this dependency,
+  // so recreating it on every picker render would revoke and rebuild every URL.
+  const visibleRecords = useMemo(
+    () => mode === 'pick-image'
+      ? records.filter((record) => record.kind === 'image' && Boolean(record.blob))
+      : records,
+    [mode, records]
+  );
+  const previews = usePreviewUrls(visibleRecords);
   const [busyId, setBusyId] = useState<string | null>(null);
   /**
    * Video records whose Keep failed because the provider URL is dead. Repair is
@@ -57,10 +75,12 @@ export default function GalleryGrid({ onUsedReference }: { onUsedReference?: () 
    */
   const [expiredIds, setExpiredIds] = useState<Set<string>>(new Set());
 
-  if (records.length === 0) {
+  if (visibleRecords.length === 0) {
     return (
       <p className="py-6 text-center text-sm text-[var(--foreground-muted)]">
-        Generated results are kept here automatically. Nothing yet.
+        {mode === 'pick-image'
+          ? 'No stored images yet.'
+          : 'Generated results are kept here automatically. Nothing yet.'}
       </p>
     );
   }
@@ -103,11 +123,14 @@ export default function GalleryGrid({ onUsedReference }: { onUsedReference?: () 
       return;
     }
     const base = record.slug || fallbackFilenameBase(record.prompt, 'image');
+    const extension = mode === 'pick-image'
+      ? extensionForMedia('image', blob.type || record.mimeType)
+      : 'png';
     useDraftStore
       .getState()
       .addReferences(
-        [{ file: new File([blob], `${base}.png`, { type: blob.type || 'image/png' }), sourceLabel: `From ${titleOf(record)}` }],
-        REFERENCE_LIMIT
+        [{ file: new File([blob], `${base}.${extension}`, { type: blob.type || 'image/png' }), sourceLabel: `From ${titleOf(record)}` }],
+        referenceLimit
       );
     toast.success('Added as a reference');
     onUsedReference?.();
@@ -149,7 +172,7 @@ export default function GalleryGrid({ onUsedReference }: { onUsedReference?: () 
 
   return (
     <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-      {records.map((record) => {
+      {visibleRecords.map((record) => {
         const preview = previews.get(record.id);
         const stored = hasBytes(record);
         const busy = busyId === record.id;
@@ -182,18 +205,20 @@ export default function GalleryGrid({ onUsedReference }: { onUsedReference?: () 
                   {stored ? '' : ' · link only'}
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={() => void useGalleryStore.getState().setPinned(record.id, !record.pinned)}
-                aria-label={record.pinned ? 'Unpin result' : 'Pin result'}
-                title={record.pinned ? 'Unpin' : 'Pin to keep when storage fills'}
-                className="shrink-0 rounded-md border border-[var(--border)] p-1.5 text-[var(--foreground-muted)] hover:text-[var(--neon-cyan)]"
-              >
-                {record.pinned ? <Pin size={13} /> : <PinOff size={13} />}
-              </button>
+              {mode === 'browse' && (
+                <button
+                  type="button"
+                  onClick={() => void useGalleryStore.getState().setPinned(record.id, !record.pinned)}
+                  aria-label={record.pinned ? 'Unpin result' : 'Pin result'}
+                  title={record.pinned ? 'Unpin' : 'Pin to keep when storage fills'}
+                  className="shrink-0 rounded-md border border-[var(--border)] p-1.5 text-[var(--foreground-muted)] hover:text-[var(--neon-cyan)]"
+                >
+                  {record.pinned ? <Pin size={13} /> : <PinOff size={13} />}
+                </button>
+              )}
             </div>
 
-            {expiredIds.has(record.id) && (
+            {mode === 'browse' && expiredIds.has(record.id) && (
               <RecoverMediaDropZone
                 recordId={record.id}
                 onRepaired={() =>
@@ -207,52 +232,64 @@ export default function GalleryGrid({ onUsedReference }: { onUsedReference?: () 
             )}
 
             <div className="flex flex-wrap gap-1.5">
-              {!stored && record.sourceUrl && (
+              {mode === 'pick-image' ? (
                 <button
                   type="button"
-                  onClick={() => void keep(record)}
-                  disabled={busy}
-                  className="btn-secondary flex items-center gap-1.5 px-2 py-1 text-xs disabled:opacity-50"
-                >
-                  {busy ? <Loader2 className="animate-spin" size={13} /> : <ImageDown size={13} />}
-                  {busy ? 'Keeping…' : 'Keep'}
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={() => void sendAsReference(record)}
-                className="btn-secondary flex items-center gap-1.5 px-2 py-1 text-xs"
-              >
-                <ImageDown size={13} /> Use as reference
-              </button>
-              {/* An imported clip was never generated, so it carries no prompt
-                  or settings to replay — offering the action would be a button
-                  that silently does nothing. */}
-              {record.provider !== LOCAL_PROVIDER && (
-                <button
-                  type="button"
-                  onClick={() => restore(record)}
+                  onClick={() => void sendAsReference(record)}
                   className="btn-secondary flex items-center gap-1.5 px-2 py-1 text-xs"
                 >
-                  <Wand2 size={13} /> Restore settings
+                  <ImageDown size={13} /> Use image
                 </button>
+              ) : (
+                <>
+                  {!stored && record.sourceUrl && (
+                    <button
+                      type="button"
+                      onClick={() => void keep(record)}
+                      disabled={busy}
+                      className="btn-secondary flex items-center gap-1.5 px-2 py-1 text-xs disabled:opacity-50"
+                    >
+                      {busy ? <Loader2 className="animate-spin" size={13} /> : <ImageDown size={13} />}
+                      {busy ? 'Keeping…' : 'Keep'}
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => void sendAsReference(record)}
+                    className="btn-secondary flex items-center gap-1.5 px-2 py-1 text-xs"
+                  >
+                    <ImageDown size={13} /> Use as reference
+                  </button>
+                  {/* An imported clip was never generated, so it carries no prompt
+                      or settings to replay — offering the action would be a button
+                      that silently does nothing. */}
+                  {record.provider !== LOCAL_PROVIDER && (
+                    <button
+                      type="button"
+                      onClick={() => restore(record)}
+                      className="btn-secondary flex items-center gap-1.5 px-2 py-1 text-xs"
+                    >
+                      <Wand2 size={13} /> Restore settings
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => void download(record)}
+                    aria-label={`Download ${titleOf(record)}`}
+                    className="btn-secondary px-2 py-1 text-xs"
+                  >
+                    <Download size={13} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void useGalleryStore.getState().remove(record.id)}
+                    aria-label={`Remove ${titleOf(record)}`}
+                    className="btn-secondary px-2 py-1 text-xs"
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                </>
               )}
-              <button
-                type="button"
-                onClick={() => void download(record)}
-                aria-label={`Download ${titleOf(record)}`}
-                className="btn-secondary px-2 py-1 text-xs"
-              >
-                <Download size={13} />
-              </button>
-              <button
-                type="button"
-                onClick={() => void useGalleryStore.getState().remove(record.id)}
-                aria-label={`Remove ${titleOf(record)}`}
-                className="btn-secondary px-2 py-1 text-xs"
-              >
-                <Trash2 size={13} />
-              </button>
             </div>
           </li>
         );

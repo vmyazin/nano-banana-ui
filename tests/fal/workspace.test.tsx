@@ -4,8 +4,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import FalGenerationWorkspace from '../../components/FalGenerationWorkspace';
 import type { FalJob, FalTaskState } from '../../lib/fal/types';
+import type { GalleryRecord } from '../../lib/gallery/storage';
 import { useAppStore } from '../../store/useAppStore';
 import { useFalJobsStore } from '../../store/useFalJobsStore';
+import { useGalleryStore } from '../../store/useGalleryStore';
 import { useSeedFrameStore } from '../../store/useSeedFrameStore';
 import { useDraftStore } from '../../store/useDraftStore';
 
@@ -83,6 +85,21 @@ function makeJob(state: FalTaskState, overrides: Partial<FalJob> = {}): FalJob {
   };
 }
 
+function makeGalleryImage(): GalleryRecord {
+  return {
+    id: 'stored-frame-1',
+    kind: 'image',
+    createdAt: NOW,
+    prompt: 'A tiger waiting in neon rain',
+    slug: 'neon-tiger-frame',
+    provider: 'gemini',
+    controlValues: {},
+    mimeType: 'image/png',
+    blob: new Blob(['frame'], { type: 'image/png' }),
+    bytes: 5,
+  };
+}
+
 describe('FalGenerationWorkspace', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -101,6 +118,7 @@ describe('FalGenerationWorkspace', () => {
       falVideoModel: 'veo-3-1-fast',
     });
     useFalJobsStore.getState().clearJobs();
+    useGalleryStore.setState({ records: [], hydrated: true, storageError: null });
     useSeedFrameStore.getState().clearSeedFrame();
     useDraftStore.getState().reset();
     lastFrameAsImageFileMock.mockImplementation(async (video: File) =>
@@ -240,6 +258,27 @@ describe('FalGenerationWorkspace', () => {
       }),
       { signal: expect.any(AbortSignal) }
     );
+  });
+
+  it('fills each frame from the contextual image library and hides both source controls at capacity', async () => {
+    useGalleryStore.setState({ records: [makeGalleryImage()] });
+    renderWorkspace('frames');
+
+    expect(screen.getByRole('button', { name: /Choose the first frame/ })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'From library' }));
+    expect(screen.getByRole('dialog', { name: 'Choose from library' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Use image' }));
+
+    expect(await screen.findByAltText('First frame')).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Choose from library' })).toBeNull());
+    expect(screen.getByRole('button', { name: /Choose the last frame/ })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'From library' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Use image' }));
+
+    expect(await screen.findByAltText('Last frame')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Choose the (first|last) frame/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'From library' })).toBeNull();
   });
 
   it('accepts a saved clip and uploads its last frame as the reference', async () => {
