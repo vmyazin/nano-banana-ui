@@ -54,6 +54,43 @@ describe('Kie generation workspace', () => {
     expect(screen.getByText(/including first and last frame/i).className).not.toContain('border');
   });
 
+  it('starts the prompt at two rows with the shared expansion cap', () => {
+    render(
+      <KieGenerationWorkspace
+        mediaType="video"
+        inputMode="text"
+        onBack={() => undefined}
+        onOpenConnections={() => undefined}
+      />
+    );
+    const prompt = screen.getByRole('textbox', { name: 'Prompt' }) as HTMLTextAreaElement;
+
+    expect(prompt.rows).toBe(2);
+    expect(prompt).toHaveClass('max-h-[16.25rem]', 'overflow-y-auto', 'resize-none');
+  });
+
+  it('places the prompt card in the result column immediately before result', () => {
+    render(
+      <KieGenerationWorkspace
+        mediaType="video"
+        inputMode="text"
+        onBack={() => undefined}
+        onOpenConnections={() => undefined}
+      />
+    );
+
+    const promptSection = screen.getByRole('textbox', { name: 'Prompt' }).closest('section');
+    const resultSection = screen.getByRole('heading', { name: 'Result' }).closest('section');
+
+    expect(promptSection).not.toBeNull();
+    expect(resultSection).not.toBeNull();
+    expect(promptSection?.parentElement).toBe(resultSection?.parentElement);
+    expect(
+      promptSection!.compareDocumentPosition(resultSection!)
+      & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+
   it('offers the shared stored-image picker in image-input modes', () => {
     render(
       <KieGenerationWorkspace

@@ -121,15 +121,24 @@ export async function runwareCreateVideo(request: VideoRequest): Promise<{ taskI
     taskUUID: uuid,
     model: request.model,
     positivePrompt: request.prompt,
-    width,
-    height,
     deliveryMethod: 'async',
     includeCost: true,
   };
+  // Models with attached reference media can expose a resolution tier instead
+  // of a fixed pixel pair. Runware rejects sending both forms together.
+  if (request.resolution) task.resolution = request.resolution;
+  else {
+    task.width = width;
+    task.height = height;
+  }
   // Only when the caller resolved one: models list the lengths they accept, and
   // a model that counts frames instead has no duration parameter to reject.
   if (request.durationSeconds !== undefined) task.duration = request.durationSeconds;
-  if (frames.length > 0) task.inputs = { frameImages: frames };
+  if (frames.length > 0) {
+    // The route resolves this field from the catalog. Legacy callers omit it
+    // and retain the historical frameImages behavior.
+    task.inputs = { [request.inputField ?? 'frameImages']: frames };
+  }
 
   await runwareFetch(request.apiKey, [task]);
   // The submit acknowledgment carries no separate job id: the taskUUID we

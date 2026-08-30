@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import { getAdapter, isProviderId } from '@/lib/providers';
-import { resolveDuration, resolveModel, resolveSize } from '@/lib/providers/catalog';
-import { ProviderError } from '@/lib/providers/types';
+import {
+  findModel,
+  resolveDuration,
+  resolveModel,
+  resolveSize,
+  resolveVideoInput,
+} from '@/lib/providers/catalog';
+import { ProviderError, type ProviderMode } from '@/lib/providers/types';
 
 /**
  * Video for the aggregator providers — one route for all three, because their
@@ -15,6 +21,10 @@ import { ProviderError } from '@/lib/providers/types';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object';
+}
+
+function isProviderMode(value: unknown): value is ProviderMode {
+  return value === 'text' || value === 'image' || value === 'frames' || value === 'reference';
 }
 
 function failure(error: unknown, fallback: string) {
@@ -67,10 +77,69 @@ export async function POST(request: NextRequest) {
     'video',
     typeof body.model === 'string' ? body.model : undefined
   );
+  const hasExplicitInputMode = body.inputMode !== undefined;
+  const inputMode = hasExplicitInputMode
+    ? body.inputMode
+    : images.length === 0
+      ? 'text'
+      : 'image';
+  if (!isProviderMode(inputMode)) {
+    return NextResponse.json(
+      { success: false, error: 'A supported video input mode is required' },
+      { status: 400 }
+    );
+  }
+  const modelRecord = findModel(body.provider, model);
+  // Old clients did not send a semantic mode; preserve their route behavior.
+  // New clients always send it and receive capability/count validation here.
+  if (hasExplicitInputMode && !modelRecord?.modes.includes(inputMode)) {
+    return NextResponse.json(
+      { success: false, error: `Model ${model} does not support ${inputMode} video input` },
+      { status: 400 }
+    );
+  }
+  if (hasExplicitInputMode && inputMode === 'text' && images.length > 0) {
+    return NextResponse.json(
+      { success: false, error: 'Text video input cannot include images' },
+      { status: 400 }
+    );
+  }
+  const videoInput = resolveVideoInput(body.provider, model, inputMode);
+  if (hasExplicitInputMode && inputMode !== 'text') {
+    if (!videoInput) {
+      return NextResponse.json(
+        { success: false, error: 'This model has no supported video image input' },
+        { status: 400 }
+      );
+    }
+    const required = inputMode === 'frames' ? 2 : 1;
+    if (images.length < required) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            inputMode === 'frames'
+              ? 'Exactly two frame images are required'
+              : 'At least one image is required',
+        },
+        { status: 400 }
+      );
+    }
+    if (images.length > videoInput.maxImages) {
+      return NextResponse.json(
+        { success: false, error: `This model accepts at most ${videoInput.maxImages} images` },
+        { status: 400 }
+      );
+    }
+  }
 
   // Whitelisted per model: Runware answers an unlisted width/height with
   // "Unsupported width/height combination for this model architecture".
-  const size = resolveSize(body.provider, model, typeof body.size === 'string' ? body.size : undefined);
+  const size = resolveSize(
+    body.provider,
+    model,
+    typeof body.size === 'string' ? body.size : undefined
+  );
 
   try {
     const { taskId } = await adapter.createVideo({
@@ -78,6 +147,8 @@ export async function POST(request: NextRequest) {
       model,
       prompt,
       images,
+      inputMode,
+      inputField: videoInput?.field,
       // Snapped to a length this model accepts — vendors reject anything else,
       // and a model that counts frames instead gets no duration at all.
       durationSeconds: resolveDuration(

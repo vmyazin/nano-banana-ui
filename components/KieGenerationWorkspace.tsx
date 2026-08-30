@@ -25,8 +25,10 @@ import { candidatesFromValues, useAutoAspect } from '@/lib/draft/aspect-match';
 import { carryOverValues } from '@/lib/draft/carry-over';
 import { FRAME_EXTRACTION_ERROR, isVideoFile, lastFrameAsImageFile } from '@/lib/video-frame';
 import LastFrameActions from '@/components/LastFrameActions';
+import AutoExpandingPrompt from '@/components/AutoExpandingPrompt';
 import ModelControls, { type ModelControlField } from '@/components/ModelControls';
 import StoredImagePicker from '@/components/StoredImagePicker';
+import GenerationWorkspaceLayout from '@/components/GenerationWorkspaceLayout';
 import ImageLightbox from '@/components/ImageLightbox';
 
 interface KieGenerationWorkspaceProps {
@@ -384,8 +386,9 @@ export default function KieGenerationWorkspace({
 
       {engineSelector}
 
-      <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-2 lg:gap-4">
-        <div className="space-y-3.5">
+      <GenerationWorkspaceLayout
+        setup={
+          <>
           <section className="glass-card space-y-3 p-3.5 md:p-4">
             <div className="flex items-center justify-between gap-3">
               <div>
@@ -419,29 +422,6 @@ export default function KieGenerationWorkspace({
                 <span className="font-medium text-[var(--foreground)]">{selectedModel.label}:</span> {selectedModel.description}
               </p>
             </div>
-          </section>
-
-          <section className="glass-card space-y-3 p-3.5 md:p-4">
-            <div className="flex items-center justify-between gap-3">
-              <label htmlFor="kie-prompt" className="display block text-base font-semibold">Prompt</label>
-              <button
-                type="button"
-                onClick={() => void generateExample()}
-                disabled={isGeneratingExample}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--brand-accent)]/30 bg-[var(--brand-accent)]/10 px-2.5 py-1.5 text-xs font-medium text-[var(--brand-accent)] transition-colors hover:text-[var(--neon-cyan)] disabled:cursor-not-allowed disabled:opacity-60"
-                title="Generate an example prompt with the shared fast model, or your own Gemini key"
-              >
-                {isGeneratingExample ? <Loader2 className="animate-spin" size={14} /> : <Sparkles size={14} />}
-                {isGeneratingExample ? 'Thinking…' : 'Gen Example'}
-              </button>
-            </div>
-            <textarea
-              id="kie-prompt"
-              value={prompt}
-              onChange={(event) => setPrompt(event.target.value)}
-              placeholder={mediaType === 'video' ? 'Describe the motion, camera, mood, and scene…' : 'Describe the image you want to create…'}
-              className="min-h-[150px] w-full resize-none"
-            />
           </section>
 
           {inputMode === 'image' && (
@@ -532,9 +512,33 @@ export default function KieGenerationWorkspace({
             {isSubmitting ? <><Loader2 className="animate-spin" size={21} /> Uploading & starting…</> : <><Sparkles size={21} /> Generate {mediaType}</>}
           </button>
           {error && <p role="alert" className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">{error}</p>}
-        </div>
-
-        <section className="glass-card flex min-h-[420px] flex-col gap-4 p-3.5 md:p-4">
+          </>
+        }
+        prompt={
+          <section className="glass-card space-y-3 p-3.5 md:p-4">
+            <div className="flex items-center justify-between gap-3">
+              <label htmlFor="kie-prompt" className="display block text-base font-semibold">Prompt</label>
+              <button
+                type="button"
+                onClick={() => void generateExample()}
+                disabled={isGeneratingExample}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--brand-accent)]/30 bg-[var(--brand-accent)]/10 px-2.5 py-1.5 text-xs font-medium text-[var(--brand-accent)] transition-colors hover:text-[var(--neon-cyan)] disabled:cursor-not-allowed disabled:opacity-60"
+                title="Generate an example prompt with the shared fast model, or your own Gemini key"
+              >
+                {isGeneratingExample ? <Loader2 className="animate-spin" size={14} /> : <Sparkles size={14} />}
+                {isGeneratingExample ? 'Thinking…' : 'Gen Example'}
+              </button>
+            </div>
+            <AutoExpandingPrompt
+              id="kie-prompt"
+              value={prompt}
+              onChange={(event) => setPrompt(event.target.value)}
+              placeholder={mediaType === 'video' ? 'Describe the motion, camera, mood, and scene…' : 'Describe the image you want to create…'}
+            />
+          </section>
+        }
+        results={
+          <section className="glass-card flex min-h-[420px] flex-col gap-4 p-3.5 md:p-4">
           <div className="flex items-start justify-between gap-3">
             <div>
               <h3 className="display text-base font-semibold">Result</h3>
@@ -616,8 +620,9 @@ export default function KieGenerationWorkspace({
             onDownload={() => void downloadResult()}
             alt="Generated by Kie, full size"
           />
-        </section>
-      </div>
+          </section>
+        }
+      />
     </div>
   );
 }

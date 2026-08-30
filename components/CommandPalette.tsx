@@ -13,6 +13,7 @@ import {
   MoveRight,
   Palette,
   Rocket,
+  ScanFace,
   Search,
   Sparkles,
   Type,
@@ -24,6 +25,8 @@ import { ENGINE_DOCS } from '@/lib/engines/docs';
 import { enginesForFeature } from '@/lib/engines/registry';
 import { brand } from '@/lib/brand';
 import { FEATURES, type Feature } from '@/types';
+import type { ProviderMode } from '@/lib/providers/types';
+import { useAppStore } from '@/store/useAppStore';
 
 type LibraryTab = 'results' | 'prompts';
 
@@ -66,7 +69,7 @@ const FEATURE_KEYWORDS: Record<string, string[]> = {
 
 /** Video modes, mirroring VideoWorkspace's own cards so the two agree. */
 const VIDEO_MODES: ReadonlyArray<{
-  id: 'text' | 'image' | 'frames';
+  id: ProviderMode;
   label: string;
   blurb: string;
   requires: string;
@@ -97,6 +100,14 @@ const VIDEO_MODES: ReadonlyArray<{
     requires: 'Two images',
     icon: MoveRight,
     keywords: ['interpolate', 'bookend', 'fal', 'transition'],
+  },
+  {
+    id: 'reference',
+    label: 'Character references',
+    blurb: 'Carry one character into a new scene',
+    requires: 'Character views',
+    icon: ScanFace,
+    keywords: ['consistent', 'identity', 'character', 'subject', 'runware', 'wan'],
   },
 ];
 
@@ -165,6 +176,7 @@ export function CommandPalette({
   const [, setFeatureId] = useQueryState('feature', { history: 'push' });
   const [, setWorkspace] = useQueryState('workspace', { history: 'push' });
   const [, setVideoMode] = useQueryState('videoMode', { history: 'push' });
+  const setVideoEngine = useAppStore((state) => state.setVideoEngine);
 
   // ⌘K / Ctrl-K toggles the palette.
   useEffect(() => {
@@ -191,9 +203,12 @@ export function CommandPalette({
     void setFeatureId(id);
   };
 
-  const goToVideo = (mode: 'text' | 'image' | 'frames') => {
+  const goToVideo = (mode: ProviderMode) => {
     void setFeatureId(null);
     void setWorkspace('video');
+    // Today reference video is a Runware capability, so this global shortcut
+    // lands on a provider that can actually honor the selected mode.
+    if (mode === 'reference') setVideoEngine('runware');
     void setVideoMode(mode === 'text' ? null : mode);
   };
 

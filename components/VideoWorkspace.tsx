@@ -1,7 +1,7 @@
 'use client';
 
 import { type StaticImageData } from 'next/image';
-import { ImagePlus, MoveRight, Type } from 'lucide-react';
+import { ImagePlus, MoveRight, ScanFace, Type } from 'lucide-react';
 import FalGenerationWorkspace from '@/components/FalGenerationWorkspace';
 import KieGenerationWorkspace from '@/components/KieGenerationWorkspace';
 import MediaCard from '@/components/MediaCard';
@@ -9,7 +9,7 @@ import ProviderSelector, { type VideoProvider } from '@/components/ProviderSelec
 import ProviderVideoWorkspace from '@/components/ProviderVideoWorkspace';
 import { modelsFor } from '@/lib/providers/catalog';
 import { isProviderId } from '@/lib/providers';
-import type { ProviderId } from '@/lib/providers/types';
+import type { ProviderId, ProviderMode } from '@/lib/providers/types';
 
 /** Display names for the aggregator providers in the video workspace header. */
 const PROVIDER_LABELS: Record<ProviderId, string> = {
@@ -22,10 +22,11 @@ import { useAppStore } from '@/store/useAppStore';
 import catalogThumbnail from '@/public/thumbnails/neon-cat-catalog-isometric.jpg';
 import leapThumbnail from '@/public/thumbnails/neon-cat-leap-cyan-magenta.jpg';
 import bookendThumbnail from '@/public/thumbnails/neon-cat-jump-dashboard.jpg';
+import characterThumbnail from '@/public/thumbnails/photorealistic_example.png';
 
 interface VideoWorkspaceProps {
-  inputMode: FalInputMode;
-  onInputModeChange: (mode: FalInputMode) => void;
+  inputMode: ProviderMode;
+  onInputModeChange: (mode: ProviderMode) => void;
   onExit: () => void;
   onOpenConnections: () => void;
 }
@@ -40,15 +41,15 @@ interface VideoWorkspaceProps {
  * with the jump between them left as a ghosted arc.
  */
 const MODES: ReadonlyArray<{
-  id: FalInputMode;
+  id: ProviderMode;
   label: string;
   blurb: string;
   /** What the mode needs before it can run, shown as the card's badge. */
   requires: string;
   icon: typeof Type;
   thumbnail?: StaticImageData;
-  /** Not every provider can bookend a clip between two stills. */
-  needsFramesSupport?: boolean;
+  /** Provider-only modes stay hidden when the selected engine cannot run them. */
+  needsProviderSupport?: boolean;
 }> = [
   {
     id: 'text',
@@ -73,7 +74,16 @@ const MODES: ReadonlyArray<{
     requires: 'Needs two images',
     icon: MoveRight,
     thumbnail: bookendThumbnail,
-    needsFramesSupport: true,
+    needsProviderSupport: true,
+  },
+  {
+    id: 'reference',
+    label: 'Character references',
+    blurb: 'Carry one character into a new scene',
+    requires: 'Needs character views',
+    icon: ScanFace,
+    thumbnail: characterThumbnail,
+    needsProviderSupport: true,
   },
 ];
 
@@ -100,17 +110,26 @@ export default function VideoWorkspace({
     engine === 'fal' ||
     (isProviderId(engine) && modelsFor(engine, 'video').some((model) => model.modes.includes('frames')));
 
+  const supportsReference = (engine: VideoProvider) =>
+    isProviderId(engine) &&
+    modelsFor(engine, 'video').some((model) => model.modes.includes('reference'));
+
+  const supportsMode = (engine: VideoProvider, mode: ProviderMode) =>
+    mode === 'frames' ? supportsFrames(engine) : mode === 'reference' ? supportsReference(engine) : true;
+
   const framesProviders = supportsFrames(videoEngine);
-  const modes = MODES.filter((mode) => !mode.needsFramesSupport || framesProviders);
-  // A ?videoMode=frames deep link lands on the closest flow the current
-  // provider does have, rather than on a mode it cannot run.
-  const activeMode: FalInputMode = !framesProviders && inputMode === 'frames' ? 'image' : inputMode;
+  const referenceProviders = supportsReference(videoEngine);
+  const modes = MODES.filter((mode) => {
+    if (!mode.needsProviderSupport) return true;
+    return mode.id === 'frames' ? framesProviders : referenceProviders;
+  });
+  // A deep link lands on the closest flow the current provider does have,
+  // rather than passing a provider-only mode into fal or Kie.
+  const activeMode: ProviderMode = supportsMode(videoEngine, inputMode) ? inputMode : 'image';
+  const legacyMode: FalInputMode = activeMode === 'reference' ? 'image' : activeMode;
 
   const selectEngine = (engine: VideoProvider) => {
-    // Only drop out of frames for a provider that genuinely cannot run it —
-    // this used to be "anything but fal", which silently downgraded the mode
-    // when switching to a provider that can.
-    if (!supportsFrames(engine) && inputMode === 'frames') onInputModeChange('image');
+    if (!supportsMode(engine, inputMode)) onInputModeChange('image');
     setVideoEngine(engine);
   };
 
@@ -141,11 +160,11 @@ export default function VideoWorkspace({
           a grid so that hiding the fal-only mode leaves the two remaining cards
           centered instead of parked against the left edge.
 
-          The widths track FeatureSelector's grid: 2-up at sm, all three across
-          from md (tablet) up. The subtracted pixels are the row's share of the
-          gap — with three items and a 16px gap, 32px of gap spread over three
-          tracks is ~11px each; two items with a 16px gap is 8px each. */}
-      <div className="flex w-full flex-wrap justify-center gap-3 *:w-full sm:gap-4 sm:*:w-[calc(50%-8px)] md:*:w-[calc(33.333%-11px)]">
+          The widths track FeatureSelector's grid: 2-up at sm, with either
+          three or four equal cards at desktop depending on provider support. */}
+      <div
+        className={`flex w-full flex-wrap justify-center gap-3 *:w-full sm:gap-4 sm:*:w-[calc(50%-8px)] ${modes.length === 4 ? 'lg:*:w-[calc(25%-12px)]' : 'md:*:w-[calc(33.333%-11px)]'}`}
+      >
         {modes.map((mode) => {
           const Icon = mode.icon;
           return (
@@ -164,7 +183,7 @@ export default function VideoWorkspace({
                     {mode.requires}
                   </span>
 
-                  {mode.needsFramesSupport && (
+                  {mode.needsProviderSupport && (
                     <span className="whitespace-nowrap inline-flex items-center rounded-full border border-[var(--border)] px-2.5 py-1 text-[0.7rem] font-medium text-[var(--foreground-muted)]">
                       Not on every provider
                     </span>
@@ -185,8 +204,6 @@ export default function VideoWorkspace({
           key={`${activeProvider}-${activeMode}`}
           provider={activeProvider}
           label={PROVIDER_LABELS[activeProvider]}
-          // These three have no first-and-last-frame models, so a ?videoMode=frames
-          // deep link lands on image-to-video the way Kie already does.
           inputMode={activeMode}
           onBack={onExit}
           onOpenConnections={onOpenConnections}
@@ -194,8 +211,8 @@ export default function VideoWorkspace({
         />
       ) : isFal ? (
         <FalGenerationWorkspace
-          key={`fal-${activeMode}`}
-          inputMode={activeMode}
+          key={`fal-${legacyMode}`}
+          inputMode={legacyMode}
           onBack={onExit}
           onOpenConnections={onOpenConnections}
           onContinueFromFrame={() => onInputModeChange('image')}
@@ -203,8 +220,8 @@ export default function VideoWorkspace({
       ) : (
         <KieGenerationWorkspace
           mediaType="video"
-          inputMode={activeMode === 'text' ? 'text' : 'image'}
-          exampleFeatureId={activeMode === 'text' ? 'text-to-video' : 'image-to-video'}
+          inputMode={legacyMode === 'text' ? 'text' : 'image'}
+          exampleFeatureId={legacyMode === 'text' ? 'text-to-video' : 'image-to-video'}
           onBack={onExit}
           onOpenConnections={onOpenConnections}
           onContinueFromFrame={() => onInputModeChange('image')}

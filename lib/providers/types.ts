@@ -16,7 +16,17 @@ export type ProviderId = 'runware' | 'atlas' | 'comet';
 export type MediaKind = 'image' | 'video';
 
 /** What a model can be fed. Mirrors the video workspace's own mode names. */
-export type ProviderMode = 'text' | 'image' | 'frames';
+export type ProviderMode = 'text' | 'image' | 'frames' | 'reference';
+
+export type VideoInputField = 'frameImages' | 'referenceImages';
+export type VideoPromptSyntax = 'image-index' | 'at-image-index';
+
+export interface ProviderVideoInputCapability {
+  field: VideoInputField;
+  maxImages: number;
+  clientMaxImages?: number;
+  promptSyntax?: VideoPromptSyntax;
+}
 
 /**
  * One output size a video model actually accepts. Vendors express this two
@@ -54,6 +64,8 @@ export interface ProviderModel {
   price?: string;
   /** Max reference images the model accepts, when the vendor documents one. */
   maxInputImages?: number;
+  /** Per-mode video input contracts, when a model has more than the legacy frame input. */
+  videoInputs?: Partial<Record<Exclude<ProviderMode, 'text'>, ProviderVideoInputCapability>>;
   /**
    * How this model takes an input image. Runware splits the two: older
    * checkpoints start from `inputs.seedImage` (with `strength`), while the
@@ -70,6 +82,10 @@ export interface ProviderModel {
    * leave the field off entirely.
    */
   durations?: number[];
+  /** Either a whitelist of options or an integer range for video duration. */
+  duration?:
+    | { type: 'options'; values: number[] }
+    | { type: 'range'; min: number; max: number; default: number };
   /**
    * Output sizes this model accepts, verbatim from the vendor's table. Runware
    * rejects an unlisted width/height with "Unsupported width/height combination
@@ -114,6 +130,10 @@ export interface VideoRequest {
   /** Vendor preset, when the model names its sizes instead. */
   resolution?: string;
   aspectRatio?: string;
+  /** Semantic mode selected by the client; optional for legacy adapter callers. */
+  inputMode?: ProviderMode;
+  /** Trusted field resolved from the provider catalog; never taken from browser JSON. */
+  inputField?: VideoInputField;
 }
 
 export type TaskState = 'queued' | 'running' | 'success' | 'error';

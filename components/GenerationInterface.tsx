@@ -20,6 +20,7 @@ import { runFalImage } from '@/lib/fal/browser';
 import { FAL_IMAGE_MODEL } from '@/lib/fal/catalog';
 import { downloadFilenameBase } from '@/lib/download-name';
 import ProviderLogo from '@/components/ProviderLogo';
+import AutoExpandingPrompt from '@/components/AutoExpandingPrompt';
 import { useAppStore } from '@/store/useAppStore';
 import { modelsFor, resolveModel } from '@/lib/providers/catalog';
 import type { ProviderId } from '@/lib/providers/types';
@@ -922,7 +923,8 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
               </div>
             </div>
 
-            <textarea
+            <AutoExpandingPrompt
+              aria-label="Prompt"
               value={prompt}
               onChange={(e) => {
                 setPrompt(e.target.value);
@@ -933,7 +935,6 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
                   ? 'Describe the subject, emotion, and action'
                   : 'Describe the image'
               }
-              className="w-full min-h-[150px] resize-none"
             />
 
             {feature.id === 'social-media-thumbnail' && (

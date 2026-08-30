@@ -14,6 +14,16 @@
   "Use X because Y fails when Z" survives. Same for config: comment *why* the deploy
   order is app → content → mcp, not just that it is.
 
+## Auto-load routing
+
+- **Video generation workspace layout** → first read
+  `docs/codex/specs/2026-08-30-wan3-reference-video-design.md`, then compose setup,
+  Prompt, and Result/Jobs through `components/GenerationWorkspaceLayout.tsx` because
+  provider-owned column markup previously let Prompt drift between pages.
+- **Image/video generation prompt input** → reuse
+  `components/AutoExpandingPrompt.tsx` because local textarea sizing made prompt
+  height and scroll behavior diverge between providers.
+
 ## Session workflow (worktree → smoke-test → ship → wipe)
 
 Assume several agent sessions run against this repo in parallel. The main checkout

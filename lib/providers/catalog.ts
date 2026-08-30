@@ -1,5 +1,12 @@
 // lib/providers/catalog.ts
-import type { MediaKind, ProviderId, ProviderModel, ProviderSize } from './types';
+import type {
+  MediaKind,
+  ProviderId,
+  ProviderModel,
+  ProviderSize,
+  ProviderMode,
+  ProviderVideoInputCapability,
+} from './types';
 
 /**
  * Curated models per provider.
@@ -47,6 +54,30 @@ const RUNWARE_MODELS: ProviderModel[] = [
     maxInputImages: 3,
     imageInput: 'reference',
     note: 'Editing only — it needs at least one reference image.',
+  },
+  {
+    id: 'alibaba:wan@3.0',
+    label: 'Wan 3.0',
+    fileCode: 'wan-3_0',
+    kind: 'video',
+    modes: ['reference'],
+    price: '$0.05 / s @ 480p · $0.10 @ 720p · $0.20 @ 1080p',
+    maxInputImages: 10,
+    videoInputs: {
+      reference: {
+        field: 'referenceImages',
+        maxImages: 10,
+        clientMaxImages: 5,
+        promptSyntax: 'image-index',
+      },
+    },
+    duration: { type: 'range', min: 2, max: 30, default: 6 },
+    sizes: [
+      { label: '480p', preset: '480p' },
+      { label: '720p', preset: '720p' },
+      { label: '1080p', preset: '1080p' },
+    ],
+    note: 'Identity-only character and product views, with native audio.',
   },
   {
     id: 'lightricks:ltx@2.5-fast',
@@ -436,6 +467,24 @@ export function findModel(provider: ProviderId, id: string): ProviderModel | und
   return PROVIDER_MODELS[provider].find((model) => model.id === id);
 }
 
+/** Resolve only the catalog-advertised video input contract for a model/mode. */
+export function resolveVideoInput(
+  provider: ProviderId,
+  modelId: string,
+  mode: ProviderMode
+): ProviderVideoInputCapability | undefined {
+  if (mode === 'text') return undefined;
+  const model = findModel(provider, modelId);
+  if (!model || model.kind !== 'video' || !model.modes.includes(mode)) return undefined;
+  const declared = model.videoInputs?.[mode];
+  if (declared) return declared;
+  if (model.maxInputImages === undefined) return undefined;
+  return {
+    field: 'frameImages',
+    maxImages: mode === 'frames' ? Math.min(2, model.maxInputImages) : model.maxInputImages,
+  };
+}
+
 /**
  * The clip length to actually send. A model that lists lengths rejects anything
  * outside the list, so a stale or foreign value snaps to the closest one it
@@ -447,7 +496,19 @@ export function resolveDuration(
   modelId: string,
   requested?: number
 ): number | undefined {
-  const allowed = findModel(provider, modelId)?.durations;
+  const metadata = findModel(provider, modelId);
+  const duration = metadata?.duration;
+  if (duration?.type === 'options' && duration.values.length > 0) {
+    if (requested === undefined) return duration.values[0];
+    return duration.values.reduce((best, value) =>
+      Math.abs(value - requested) < Math.abs(best - requested) ? value : best
+    );
+  }
+  if (duration?.type === 'range') {
+    const value = requested === undefined ? duration.default : Math.round(requested);
+    return Math.min(duration.max, Math.max(duration.min, value));
+  }
+  const allowed = metadata?.durations;
   if (!allowed || allowed.length === 0) return undefined;
   if (requested === undefined) return allowed[0];
   return allowed.reduce((best, value) =>

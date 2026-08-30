@@ -65,7 +65,9 @@ function Studio() {
   const activeWorkspace =
     workspace === 'video' ? 'video' : workspace === 'timeline' ? 'timeline' : 'image';
   const activeVideoMode =
-    videoMode === 'image' || videoMode === 'frames' ? videoMode : 'text';
+    videoMode === 'image' || videoMode === 'frames' || videoMode === 'reference'
+      ? videoMode
+      : 'text';
   const selectedFeature: Feature | null =
     FEATURES.find((f) => f.id === featureId) ?? null;
   const selectFeature = (feature: Feature) => setFeatureId(feature.id);

@@ -1,0 +1,11 @@
+{
+  "configurations": [
+    {
+      "name": "WAN 3 reference-video smoke test",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "npm run dev -- --port 3217",
+      "cwd": "${workspaceFolder}"
+    }
+  ]
+}

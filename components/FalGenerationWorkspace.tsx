@@ -4,9 +4,11 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowUpDown, Download, ImagePlus, Loader2, Search, Sparkles, Trash2, Video } from 'lucide-react';
 
 import LastFrameActions from '@/components/LastFrameActions';
+import AutoExpandingPrompt from '@/components/AutoExpandingPrompt';
 import ModelControls from '@/components/ModelControls';
 import ProviderLogo from '@/components/ProviderLogo';
 import StoredImagePicker from '@/components/StoredImagePicker';
+import GenerationWorkspaceLayout from '@/components/GenerationWorkspaceLayout';
 import { requestExamplePrompt, requestPromptSlug } from '@/lib/micro-ai/browser';
 import { cancelFalJob, submitFalJob, uploadFalFiles } from '@/lib/fal/browser';
 import {
@@ -69,11 +71,6 @@ const modeTitles: Record<FalInputMode, string> = {
 const submissionError = 'fal could not start this job. Please try again.';
 const cancellationError = 'fal could not cancel this job. Please try again.';
 const allowedImageMimeTypes = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/avif']);
-
-function resizePromptTextarea(textarea: HTMLTextAreaElement) {
-  textarea.style.height = 'auto';
-  textarea.style.height = `${textarea.scrollHeight}px`;
-}
 
 function isSafeFalVideoUrl(value: string | undefined, mimeType: string | undefined): value is string {
   const hasInvalidMimeType = mimeType !== undefined
@@ -282,7 +279,6 @@ function FalGenerationWorkspaceSession({
   const [cancellingIds, setCancellingIds] = useState<Set<string>>(() => new Set());
   const [cancelErrors, setCancelErrors] = useState<Record<string, string>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const promptTextareaRef = useRef<HTMLTextAreaElement>(null);
   const submissionRef = useRef<SubmissionOperation | null>(null);
   const cancellingRef = useRef(new Set<string>());
   const mountedRef = useRef(true);
@@ -347,10 +343,6 @@ function FalGenerationWorkspaceSession({
   useEffect(() => {
     useDraftStore.getState().limitReferences(maxInputImages);
   }, [maxInputImages]);
-
-  useEffect(() => {
-    if (promptTextareaRef.current) resizePromptTextarea(promptTextareaRef.current);
-  }, [prompt]);
 
   const abortSubmission = () => {
     const operation = submissionRef.current;
@@ -636,8 +628,9 @@ function FalGenerationWorkspaceSession({
         </div>
       </section>
 
-      <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-2 lg:gap-4">
-        <div className="space-y-3.5">
+      <GenerationWorkspaceLayout
+        setup={
+          <>
           <section className="glass-card space-y-3 p-3.5 md:p-4">
             <div className="flex items-center justify-between gap-3">
               <div>
@@ -784,9 +777,9 @@ function FalGenerationWorkspaceSession({
             {isSubmitting ? <><Loader2 className="animate-spin" size={21} /> Uploading & starting…</> : <><Sparkles size={21} /> Generate video</>}
           </button>
           {error && <p role="alert" className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">{error}</p>}
-        </div>
-
-        <div className="space-y-3.5">
+          </>
+        }
+        prompt={
           <section className="glass-card space-y-3 p-3.5 md:p-4">
             <div className="flex items-center justify-between gap-3">
               <label htmlFor="fal-video-prompt" className="display block text-base font-semibold">Prompt</label>
@@ -801,19 +794,17 @@ function FalGenerationWorkspaceSession({
                 {isGeneratingExample ? 'Thinking…' : 'Gen Example'}
               </button>
             </div>
-            <textarea
-              ref={promptTextareaRef}
+            <AutoExpandingPrompt
               id="fal-video-prompt"
               aria-required="true"
               required
-              rows={2}
               value={prompt}
               onChange={(event) => setPrompt(event.target.value)}
               placeholder="Describe the motion, camera, mood, and scene…"
-              className="max-h-[16.25rem] w-full resize-none overflow-y-auto"
             />
           </section>
-
+        }
+        results={
           <section className="glass-card min-h-[420px] space-y-3 p-3.5 md:p-4">
             <div>
               <h3 className="display text-base font-semibold">Jobs</h3>
@@ -841,8 +832,8 @@ function FalGenerationWorkspaceSession({
             )}
             <p className="text-center text-xs text-[var(--foreground-subtle)]">Inputs and outputs use public, temporary URLs.</p>
           </section>
-        </div>
-      </div>
+        }
+      />
     </div>
   );
 }

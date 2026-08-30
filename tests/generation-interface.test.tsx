@@ -215,6 +215,15 @@ describe('GenerationInterface engine selection', () => {
     expect(screen.getByRole('button', { name: 'From library' })).toBeInTheDocument();
   });
 
+  it('starts the image-generation prompt at two rows with the shared expansion cap', () => {
+    useAppStore.setState({ engine: 'gemini' });
+    renderInterface(textToImage);
+    const prompt = screen.getByRole('textbox') as HTMLTextAreaElement;
+
+    expect(prompt.rows).toBe(2);
+    expect(prompt).toHaveClass('max-h-[16.25rem]', 'overflow-y-auto', 'resize-none');
+  });
+
   it('renders Gemini resolution choices as concise horizontal toggles', () => {
     useAppStore.setState({ engine: 'gemini' });
     const queryClient = new QueryClient({

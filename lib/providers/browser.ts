@@ -1,5 +1,5 @@
 // lib/providers/browser.ts
-import type { ProviderId, ProviderTask } from './types';
+import type { ProviderId, ProviderMode, ProviderTask } from './types';
 
 /**
  * Client half of the aggregator video path. Talks only to our own route, so the
@@ -31,6 +31,7 @@ export async function submitProviderVideo(args: {
   apiKey: string;
   model: string;
   prompt: string;
+  inputMode: ProviderMode;
   images?: string[];
   durationSeconds?: number;
   /** Label of the model's documented size, resolved to pixels on the server. */

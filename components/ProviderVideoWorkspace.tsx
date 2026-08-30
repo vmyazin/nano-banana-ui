@@ -5,9 +5,11 @@ import { ArrowUpDown, Download, ImagePlus, Loader2, Search, Sparkles, Trash2, Vi
 import { toast } from 'sonner';
 
 import LastFrameActions from '@/components/LastFrameActions';
+import AutoExpandingPrompt from '@/components/AutoExpandingPrompt';
 import ModelControls, { type ModelControlField } from '@/components/ModelControls';
 import ProviderLogo from '@/components/ProviderLogo';
 import StoredImagePicker from '@/components/StoredImagePicker';
+import GenerationWorkspaceLayout from '@/components/GenerationWorkspaceLayout';
 import { candidatesFromSizes, useAutoAspect } from '@/lib/draft/aspect-match';
 import { carryOverValues } from '@/lib/draft/carry-over';
 import { useFileDrop } from '@/lib/drop/use-file-drop';
@@ -32,8 +34,8 @@ import { useSeedFrameStore } from '@/store/useSeedFrameStore';
 
 /**
  * Video for Runware, Atlas Cloud, and CometAPI, laid out the way the Kie and
- * fal workspaces already are: one header, a left column of inputs (model,
- * prompt, references, controls), and a result panel on the right. The shared
+ * fal workspaces already are: one header, a left column of setup inputs and a
+ * right column with Prompt above Result. The shared
  * pieces are literally shared — the draft store, the drop-and-paste handling,
  * the micro-AI example and slug helpers, ModelControls, LastFrameActions — so a
  * prompt or a reference image survives switching providers.
@@ -68,7 +70,29 @@ function controlFieldsFor(model: ProviderModel | undefined): ModelControlField[]
   if (!model) return [];
   const fields: ModelControlField[] = [];
 
-  if (model.durations?.length) {
+  if (model.duration?.type === 'range') {
+    fields.push({
+      key: 'duration',
+      label: 'Duration',
+      type: 'number',
+      description: `${model.duration.min}–${model.duration.max} whole seconds.`,
+      defaultValue: model.duration.default,
+      min: model.duration.min,
+      max: model.duration.max,
+      step: 1,
+    });
+  } else if (model.duration?.type === 'options') {
+    fields.push({
+      key: 'duration',
+      label: 'Duration',
+      type: 'select',
+      defaultValue: model.duration.values[0],
+      options: model.duration.values.map((seconds) => ({
+        label: `${seconds} seconds`,
+        value: seconds,
+      })),
+    });
+  } else if (model.durations?.length) {
     fields.push({
       key: 'duration',
       label: 'Duration',
@@ -165,9 +189,17 @@ export default function ProviderVideoWorkspace({
   const addReferencesRef = useRef<(files: File[]) => Promise<void>>(async () => {});
   const mountedRef = useRef(true);
   const isFrames = inputMode === 'frames';
-  // First and last: exactly two, in order. Every other mode takes what the
-  // model says it takes.
-  const maxInputImages = isFrames ? 2 : (selectedModel?.maxInputImages ?? 1);
+  const isReference = inputMode === 'reference';
+  const inputCapability = inputMode === 'text' ? undefined : selectedModel?.videoInputs?.[inputMode];
+  // Reference arrays can be larger at the provider, but data-URI requests stay
+  // practical at five views. The server still enforces the documented hard max.
+  const maxInputImages = isFrames
+    ? 2
+    : isReference
+      ? (inputCapability?.clientMaxImages ?? Math.min(inputCapability?.maxImages ?? 5, 5))
+      : (inputCapability?.maxImages ?? selectedModel?.maxInputImages ?? 1);
+  const referenceToken = (index: number) =>
+    inputCapability?.promptSyntax === 'at-image-index' ? `@Image${index + 1}` : `Image ${index + 1}`;
   const matchingModels = models.filter((model) =>
     `${model.label} ${model.id}`.toLowerCase().includes(modelSearch.toLowerCase())
   );
@@ -182,7 +214,7 @@ export default function ProviderVideoWorkspace({
 
   // Claim a frame handed over by "Continue from last frame".
   useEffect(() => {
-    if (inputMode === 'text') return;
+    if (inputMode === 'text' || isReference) return;
     const seed = useSeedFrameStore.getState().takeSeedFrame();
     if (!seed) return;
     const draft = useDraftStore.getState();
@@ -194,7 +226,7 @@ export default function ProviderVideoWorkspace({
     if (!draft.prompt) {
       draft.setPrompt(`Continue the scene from ${seed.sourceLabel.replace(/-/g, ' ')}.`);
     }
-  }, [inputMode]);
+  }, [inputMode, isReference]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -241,14 +273,22 @@ export default function ProviderVideoWorkspace({
   });
 
   const addReferences = async (files: File[]) => {
-    const usable = files.filter((file) => file.type.startsWith('image/') || isVideoFile(file));
+    const usable = files.filter((file) =>
+      isReference ? file.type.startsWith('image/') : file.type.startsWith('image/') || isVideoFile(file)
+    );
     if (usable.length === 0) {
-      setError('Choose an image, or a video to continue from its last frame.');
+      setError(
+        isReference
+          ? 'Choose an image for this character reference.'
+          : 'Choose an image, or a video to continue from its last frame.'
+      );
       return;
     }
     if (references.length + usable.length > maxInputImages) {
       setError(
-        `This model accepts up to ${maxInputImages} reference image${maxInputImages === 1 ? '' : 's'}.`
+        isReference
+          ? `Add up to ${maxInputImages} character views for this generation.`
+          : `This model accepts up to ${maxInputImages} reference image${maxInputImages === 1 ? '' : 's'}.`
       );
       return;
     }
@@ -279,7 +319,7 @@ export default function ProviderVideoWorkspace({
     addReferencesRef.current = addReferences;
   });
 
-  const isPickerFull = isFrames && references.length >= maxInputImages;
+  const isPickerFull = references.length >= maxInputImages;
   const { isDragging, isFetching, dropProps } = useFileDrop({
     onFiles: (files) => addReferencesRef.current(files),
     onError: setError,
@@ -299,7 +339,7 @@ export default function ProviderVideoWorkspace({
     try {
       setPrompt(
         await requestExamplePrompt(
-          `${inputMode === 'frames' ? 'image' : inputMode}-to-video`,
+          inputMode === 'text' ? 'text-to-video' : 'image-to-video',
           geminiApiKey
         )
       );
@@ -424,6 +464,10 @@ export default function ProviderVideoWorkspace({
       setError('Add the image this clip should start from.');
       return;
     }
+    if (isReference && references.length === 0) {
+      setError('Add at least one character view.');
+      return;
+    }
     if (isFrames && references.length < 2) {
       setError('Add both frames — the first, then the last.');
       return;
@@ -439,6 +483,7 @@ export default function ProviderVideoWorkspace({
         apiKey,
         model: selectedModel.id,
         prompt: submittedPrompt,
+        inputMode,
         images,
         durationSeconds: typeof values.duration === 'number' ? values.duration : undefined,
         size: typeof values.size === 'string' ? values.size : undefined,
@@ -484,7 +529,11 @@ export default function ProviderVideoWorkspace({
                 <ProviderLogo provider={provider} size={13} /> {label}
               </div>
               <h2 className="display text-lg font-semibold text-[var(--foreground)] sm:text-xl">
-                {isFrames ? 'First & last frame' : inputMode === 'text' ? 'Text' : 'Image'} to video
+                {isFrames
+                  ? 'First & last frame to video'
+                  : isReference
+                    ? 'Character references'
+                    : `${inputMode === 'text' ? 'Text' : 'Image'} to video`}
               </h2>
             </div>
           </div>
@@ -498,8 +547,9 @@ export default function ProviderVideoWorkspace({
         </div>
       </section>
 
-      <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-2 lg:gap-4">
-        <div className="space-y-3.5">
+      <GenerationWorkspaceLayout
+        setup={
+          <>
           <section className="glass-card space-y-3 p-3.5 md:p-4">
             <div className="flex items-center justify-between gap-3">
               <h3 className="display text-base font-semibold">Model</h3>
@@ -548,51 +598,28 @@ export default function ProviderVideoWorkspace({
             </div>
           </section>
 
-          <section className="glass-card space-y-3 p-3.5 md:p-4">
-            <div className="flex items-center justify-between gap-3">
-              <label htmlFor="provider-video-prompt" className="display block text-base font-semibold">
-                Prompt
-              </label>
-              <button
-                type="button"
-                onClick={() => void generateExample()}
-                disabled={isGeneratingExample}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--brand-accent)]/30 bg-[var(--brand-accent)]/10 px-2.5 py-1.5 text-xs font-medium text-[var(--brand-accent)] transition-colors hover:text-[var(--neon-cyan)] disabled:cursor-not-allowed disabled:opacity-60"
-                title="Generate an example prompt with the shared fast model, or your own Gemini key"
-              >
-                {isGeneratingExample ? (
-                  <Loader2 className="animate-spin" size={14} />
-                ) : (
-                  <Sparkles size={14} />
-                )}
-                {isGeneratingExample ? 'Thinking…' : 'Gen Example'}
-              </button>
-            </div>
-            <textarea
-              id="provider-video-prompt"
-              value={prompt}
-              onChange={(event) => setPrompt(event.target.value)}
-              placeholder="Describe the motion, camera, mood, and scene…"
-              className="min-h-[150px] w-full resize-none"
-            />
-          </section>
-
           {inputMode !== 'text' && (
             <section className="glass-card space-y-3 p-3.5 md:p-4">
               <div>
                 <h3 className="display text-base font-semibold">
-                  {isFrames ? 'First and last frame' : `Reference image${maxInputImages === 1 ? '' : 's'}`}
+                  {isFrames
+                    ? 'First and last frame'
+                    : isReference
+                      ? 'Add character views'
+                      : `Reference image${maxInputImages === 1 ? '' : 's'}`}
                 </h3>
                 <p className="mt-0.5 text-xs text-[var(--foreground-muted)]">
                   {isFrames
                     ? 'Two images, in order: the frame the clip opens on, then the one it ends on. The model builds the motion between them.'
-                    : `Upload up to ${maxInputImages}; files are forwarded to ${label} only for this task. Pick a saved clip and its last frame is used.`}
+                    : isReference
+                      ? `Add up to ${maxInputImages} front, three-quarter, or profile views. Their order becomes ${referenceToken(0)}, ${referenceToken(1)}, and so on in your prompt.`
+                      : `Upload up to ${maxInputImages}; files are forwarded to ${label} only for this task. Pick a saved clip and its last frame is used.`}
                 </p>
               </div>
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/*,video/*"
+                accept={isReference ? 'image/*' : 'image/*,video/*'}
                 multiple={maxInputImages > 1}
                 className="hidden"
                 onChange={(event) => {
@@ -619,7 +646,9 @@ export default function ProviderVideoWorkspace({
                         ? 'Fetching dropped image…'
                         : isDragging
                           ? 'Drop to use as a source'
-                          : 'Drop, upload, or paste an image or video'}
+                          : isReference
+                            ? 'Drop, upload, or paste character views'
+                            : 'Drop, upload, or paste an image or video'}
                   </button>
                   {references.length < maxInputImages && (
                     <StoredImagePicker referenceLimit={maxInputImages} />
@@ -635,11 +664,22 @@ export default function ProviderVideoWorkspace({
                           {frameSlotLabel(index)}
                         </p>
                       )}
+                      {isReference && (
+                        <p className="text-[0.65rem] font-medium text-[var(--neon-purple)]">
+                          {referenceToken(index)}
+                        </p>
+                      )}
                       <div className="group relative overflow-hidden rounded-lg border border-[var(--border)]">
                         {/* eslint-disable-next-line @next/next/no-img-element -- a local object URL, never a remote asset */}
                         <img
                           src={reference.previewUrl}
-                          alt={isFrames ? frameSlotLabel(index) : `Reference ${index + 1}`}
+                          alt={
+                            isFrames
+                              ? frameSlotLabel(index)
+                              : isReference
+                                ? `Image ${index + 1} character reference`
+                                : `Reference ${index + 1}`
+                          }
                           className="aspect-square w-full object-cover"
                         />
                         <button
@@ -648,7 +688,9 @@ export default function ProviderVideoWorkspace({
                           aria-label={
                             isFrames
                               ? `Remove ${frameSlotLabel(index).toLowerCase()}`
-                              : `Remove reference ${index + 1}`
+                              : isReference
+                                ? `Remove Image ${index + 1}`
+                                : `Remove reference ${index + 1}`
                           }
                           className="absolute right-2 top-2 rounded-md border border-white/10 bg-black/70 p-1.5 text-white opacity-0 transition-opacity group-hover:opacity-100"
                         >
@@ -725,9 +767,39 @@ export default function ProviderVideoWorkspace({
               {error}
             </p>
           )}
-        </div>
-
-        <section className="glass-card flex min-h-[420px] flex-col gap-4 p-3.5 md:p-4">
+          </>
+        }
+        prompt={
+          <section className="glass-card space-y-3 p-3.5 md:p-4">
+            <div className="flex items-center justify-between gap-3">
+              <label htmlFor="provider-video-prompt" className="display block text-base font-semibold">
+                Prompt
+              </label>
+              <button
+                type="button"
+                onClick={() => void generateExample()}
+                disabled={isGeneratingExample}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--brand-accent)]/30 bg-[var(--brand-accent)]/10 px-2.5 py-1.5 text-xs font-medium text-[var(--brand-accent)] transition-colors hover:text-[var(--neon-cyan)] disabled:cursor-not-allowed disabled:opacity-60"
+                title="Generate an example prompt with the shared fast model, or your own Gemini key"
+              >
+                {isGeneratingExample ? (
+                  <Loader2 className="animate-spin" size={14} />
+                ) : (
+                  <Sparkles size={14} />
+                )}
+                {isGeneratingExample ? 'Thinking…' : 'Gen Example'}
+              </button>
+            </div>
+            <AutoExpandingPrompt
+              id="provider-video-prompt"
+              value={prompt}
+              onChange={(event) => setPrompt(event.target.value)}
+              placeholder="Describe the motion, camera, mood, and scene…"
+            />
+          </section>
+        }
+        results={
+          <section className="glass-card flex min-h-[420px] flex-col gap-4 p-3.5 md:p-4">
           <div className="flex items-start justify-between gap-3">
             <div>
               <h3 className="display text-base font-semibold">Result</h3>
@@ -808,8 +880,9 @@ export default function ProviderVideoWorkspace({
               onContinue={onContinueFromFrame}
             />
           )}
-        </section>
-      </div>
+          </section>
+        }
+      />
     </div>
   );
 }
