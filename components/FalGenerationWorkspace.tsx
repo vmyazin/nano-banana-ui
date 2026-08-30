@@ -22,8 +22,8 @@ import type { FalFieldDefinition, FalInputMode, FalJob, FalTaskState, FalValue }
 import {
   downloadRemoteMedia,
   extensionForMedia,
-  fallbackFilenameBase,
 } from '@/lib/media-download';
+import { downloadFilenameBase } from '@/lib/download-name';
 import { useAppStore } from '@/store/useAppStore';
 import { useFalJobsStore } from '@/store/useFalJobsStore';
 import { useSeedFrameStore } from '@/store/useSeedFrameStore';
@@ -138,7 +138,13 @@ function JobCard({
   const resultUrl = isSafeFalVideoUrl(job.resultUrl, job.mimeType) ? job.resultUrl : undefined;
   const error = safeProviderText(job.error, apiKey, 'fal could not complete this job.');
   const logs = job.logs.slice(-20).map((log) => safeProviderText(log, apiKey, 'fal reported an update.'));
-  const filenameBase = job.slug || fallbackFilenameBase(job.prompt, 'video');
+  const filenameBase = downloadFilenameBase({
+    prompt: job.prompt,
+    mediaType: 'video',
+    slug: job.slug,
+    provider: 'fal',
+    modelId: job.modelId,
+  });
   const [isDownloading, setIsDownloading] = useState(false);
   const mountedRef = useRef(true);
 

@@ -29,6 +29,13 @@ export interface EngineMeta {
   supportsImageSize: boolean;
   /** Free to use (free tier / no cost). */
   free: boolean;
+  /**
+   * Short code appended to download filenames for engines that run one fixed
+   * model, e.g. `gemini-3-pro-image`. Absent on the aggregators (kie, fal,
+   * runware, atlas, comet), where the code comes from the model the user picked
+   * in that provider's own catalog.
+   */
+  fileCode?: string;
 }
 
 export const ENGINES: EngineMeta[] = [
@@ -42,6 +49,7 @@ export const ENGINES: EngineMeta[] = [
     supportsAspectRatio: true,
     supportsImageSize: true,
     free: false,
+    fileCode: 'gemini-3-pro-image',
   },
   {
     id: 'pollinations',
@@ -53,6 +61,7 @@ export const ENGINES: EngineMeta[] = [
     supportsAspectRatio: true,
     supportsImageSize: false,
     free: true,
+    fileCode: 'flux',
   },
   {
     id: 'cloudflare',
@@ -64,6 +73,7 @@ export const ENGINES: EngineMeta[] = [
     supportsAspectRatio: false,
     supportsImageSize: false,
     free: true,
+    fileCode: 'flux-1-schnell',
   },
   {
     id: 'kie',

@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { fetchResultBlob } from '@/lib/gallery/capture';
 import { hasBytes, type GalleryRecord } from '@/lib/gallery/storage';
 import { downloadRemoteMedia, extensionForMedia, fallbackFilenameBase } from '@/lib/media-download';
+import { downloadFilenameBase } from '@/lib/download-name';
 import { extractLastFrameFromBlob } from '@/lib/video-frame';
 import { LOCAL_PROVIDER } from '@/lib/timeline/import-local';
 import RecoverMediaDropZone from '@/components/RecoverMediaDropZone';
@@ -147,7 +148,13 @@ export default function GalleryGrid({
   };
 
   const download = async (record: GalleryRecord) => {
-    const base = record.slug || fallbackFilenameBase(record.prompt, record.kind);
+    const base = downloadFilenameBase({
+      prompt: record.prompt,
+      mediaType: record.kind,
+      slug: record.slug,
+      provider: record.provider,
+      modelId: record.modelId,
+    });
     if (record.blob) {
       const url = URL.createObjectURL(record.blob);
       try {

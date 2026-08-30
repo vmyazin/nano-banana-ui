@@ -34,6 +34,8 @@ export interface KieModelVariant {
 export interface KieModelDefinition {
   id: string;
   label: string;
+  /** Short code appended to download filenames, e.g. `wan-2_7`. */
+  fileCode: string;
   provider: string;
   description: string;
   mediaType: MediaType;

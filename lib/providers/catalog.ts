@@ -17,6 +17,7 @@ const RUNWARE_MODELS: ProviderModel[] = [
   {
     id: 'runware:z-image@turbo',
     label: 'Z-Image Turbo',
+    fileCode: 'z-image-turbo',
     kind: 'image',
     modes: ['text', 'image'],
     price: '~$0.003 / 1024²',
@@ -29,6 +30,7 @@ const RUNWARE_MODELS: ProviderModel[] = [
     // spelling is not what the API takes.
     id: 'runware:400@1',
     label: 'FLUX.2 [dev]',
+    fileCode: 'flux-2-dev',
     kind: 'image',
     modes: ['text', 'image'],
     price: '$0.0077 / 1024²',
@@ -38,6 +40,7 @@ const RUNWARE_MODELS: ProviderModel[] = [
   {
     id: 'runware:108@22',
     label: 'Qwen-Image-Edit-Plus',
+    fileCode: 'qwen-image-edit-plus',
     kind: 'image',
     modes: ['image'],
     price: '$0.0166 / 1024²',
@@ -48,6 +51,7 @@ const RUNWARE_MODELS: ProviderModel[] = [
   {
     id: 'lightricks:ltx@2.5-fast',
     label: 'LTX-2.5 Fast',
+    fileCode: 'ltx-2_5-fast',
     kind: 'video',
     // frameImages takes two, and the vendor's rule for two is first and last.
     modes: ['text', 'image', 'frames'],
@@ -68,6 +72,7 @@ const RUNWARE_MODELS: ProviderModel[] = [
   {
     id: 'bytedance:seedance@2.0-mini',
     label: 'Seedance 2.0 Mini',
+    fileCode: 'seedance-2_0-mini',
     kind: 'video',
     modes: ['text', 'image', 'frames'],
     price: '$0.036 / s @ 480p · $0.081 / s @ 720p',
@@ -88,6 +93,7 @@ const RUNWARE_MODELS: ProviderModel[] = [
   {
     id: 'pixverse:1@5-fast',
     label: 'PixVerse V5 Fast',
+    fileCode: 'pixverse-v5-fast',
     kind: 'video',
     // One frame image only, so no first-and-last here.
     modes: ['text', 'image'],
@@ -109,6 +115,7 @@ const RUNWARE_MODELS: ProviderModel[] = [
   {
     id: 'alibaba:wan@2.6-flash',
     label: 'Wan 2.6 Flash',
+    fileCode: 'wan-2_6-flash',
     kind: 'video',
     modes: ['image'],
     price: '$0.025 / s @ 720p',
@@ -131,6 +138,7 @@ const ATLAS_MODELS: ProviderModel[] = [
   {
     id: 'black-forest-labs/flux-schnell',
     label: 'FLUX.1 [schnell]',
+    fileCode: 'flux-1-schnell',
     kind: 'image',
     modes: ['text', 'image'],
     price: '$0.003 / image',
@@ -139,6 +147,7 @@ const ATLAS_MODELS: ProviderModel[] = [
   {
     id: 'z-image/turbo',
     label: 'Z-Image Turbo',
+    fileCode: 'z-image-turbo',
     kind: 'image',
     modes: ['text', 'image'],
     price: '$0.005 / image',
@@ -147,6 +156,7 @@ const ATLAS_MODELS: ProviderModel[] = [
   {
     id: 'qwen-image-3.0/text-to-image',
     label: 'Qwen-Image 3.0',
+    fileCode: 'qwen-image-3_0',
     kind: 'image',
     modes: ['text'],
     price: '$0.04 / image',
@@ -154,6 +164,7 @@ const ATLAS_MODELS: ProviderModel[] = [
   {
     id: 'qwen-image-3.0/edit',
     label: 'Qwen-Image 3.0 Edit',
+    fileCode: 'qwen-image-3_0-edit',
     kind: 'image',
     modes: ['image'],
     price: '$0.04 / image',
@@ -162,6 +173,7 @@ const ATLAS_MODELS: ProviderModel[] = [
   {
     id: 'ltx-2.3-quality/text-to-video',
     label: 'LTX 2.3 Quality',
+    fileCode: 'ltx-2_3-quality',
     kind: 'video',
     modes: ['text'],
     price: '$0.002 / s',
@@ -177,6 +189,7 @@ const ATLAS_MODELS: ProviderModel[] = [
   {
     id: 'bytedance/seedance-v1-pro-fast/image-to-video',
     label: 'Seedance v1 Pro Fast',
+    fileCode: 'seedance-v1-pro-fast',
     kind: 'video',
     modes: ['image'],
     price: '$0.009 / s',
@@ -195,6 +208,7 @@ const COMET_MODELS: ProviderModel[] = [
   {
     id: 'gpt-image-2',
     label: 'GPT Image 2',
+    fileCode: 'gpt-image-2',
     kind: 'image',
     modes: ['text'],
     price: 'metered',
@@ -203,6 +217,7 @@ const COMET_MODELS: ProviderModel[] = [
   {
     id: 'qwen-image',
     label: 'Qwen-Image',
+    fileCode: 'qwen-image',
     kind: 'image',
     modes: ['text'],
     price: 'metered',
@@ -211,6 +226,7 @@ const COMET_MODELS: ProviderModel[] = [
   {
     id: 'seedance-2-5',
     label: 'Seedance 2.5',
+    fileCode: 'seedance-2_5',
     kind: 'video',
     modes: ['text', 'image'],
     price: 'metered',
@@ -226,6 +242,7 @@ const COMET_MODELS: ProviderModel[] = [
   {
     id: 'veo3.1-fast',
     label: 'Veo 3.1 Fast',
+    fileCode: 'veo-3_1-fast',
     kind: 'video',
     modes: ['text', 'image'],
     price: 'metered',
@@ -242,6 +259,7 @@ const COMET_MODELS: ProviderModel[] = [
   {
     id: 'veo3.1',
     label: 'Veo 3.1',
+    fileCode: 'veo-3_1',
     kind: 'video',
     modes: ['text', 'image'],
     price: 'metered',
@@ -257,6 +275,7 @@ const COMET_MODELS: ProviderModel[] = [
   {
     id: 'sora-2',
     label: 'Sora 2',
+    fileCode: 'sora-2',
     kind: 'video',
     modes: ['text', 'image'],
     price: 'metered',
@@ -271,6 +290,7 @@ const COMET_MODELS: ProviderModel[] = [
   {
     id: 'sora-2-pro',
     label: 'Sora 2 Pro',
+    fileCode: 'sora-2-pro',
     kind: 'video',
     modes: ['text', 'image'],
     price: 'metered',
@@ -287,6 +307,7 @@ const COMET_MODELS: ProviderModel[] = [
   {
     id: 'wan2.7',
     label: 'Wan 2.7',
+    fileCode: 'wan-2_7',
     kind: 'video',
     modes: ['text', 'image'],
     price: 'metered',
@@ -304,6 +325,7 @@ const COMET_MODELS: ProviderModel[] = [
   {
     id: 'viduq3-turbo',
     label: 'Vidu Q3 Turbo',
+    fileCode: 'vidu-q3-turbo',
     kind: 'video',
     modes: ['text', 'image'],
     price: 'metered',
@@ -320,6 +342,7 @@ const COMET_MODELS: ProviderModel[] = [
   {
     id: 'minimax-h3',
     label: 'MiniMax H3',
+    fileCode: 'minimax-h3',
     kind: 'video',
     modes: ['text', 'image'],
     price: 'metered',
@@ -341,6 +364,7 @@ const COMET_MODELS: ProviderModel[] = [
   {
     id: 'happyhorse-1.1',
     label: 'HappyHorse 1.1',
+    fileCode: 'happyhorse-1_1',
     kind: 'video',
     modes: ['text', 'image'],
     price: 'metered',
@@ -362,6 +386,7 @@ const COMET_MODELS: ProviderModel[] = [
   {
     id: 'flux-3',
     label: 'FLUX 3 Video',
+    fileCode: 'flux-3-video',
     kind: 'video',
     modes: ['text', 'image'],
     price: 'metered',
@@ -376,6 +401,7 @@ const COMET_MODELS: ProviderModel[] = [
   {
     id: 'doubao-seedance-2-0-mini',
     label: 'Seedance 2.0 Mini',
+    fileCode: 'seedance-2_0-mini',
     kind: 'video',
     modes: ['text', 'image'],
     price: 'metered',

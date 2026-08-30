@@ -820,7 +820,7 @@ describe('FalGenerationWorkspace', () => {
       mimeType: 'video/mp4',
     }));
     expect(await screen.findByRole('link', { name: /Download video/ }))
-      .toHaveAttribute('download', 'a-neon-tiger-in-the-rain.mp4');
+      .toHaveAttribute('download', 'a-neon-tiger-in-the-rain-veo-3_1-fast.mp4');
   });
 
   it('downloads a completed fal video as a blob named after its slug', async () => {
@@ -843,14 +843,14 @@ describe('FalGenerationWorkspace', () => {
 
     renderWorkspace();
     const link = screen.getByRole('link', { name: /Download video/ });
-    expect(link).toHaveAttribute('download', 'neon-tiger-in-the-rain.mp4');
+    expect(link).toHaveAttribute('download', 'neon-tiger-in-the-rain-veo-3_1-fast.mp4');
     fireEvent.click(link);
 
     await waitFor(() => expect(clickSpy).toHaveBeenCalledOnce());
     expect(fetchMock).toHaveBeenCalledWith(SAFE_VIDEO_URL, { signal: undefined });
     const downloadLink = clickSpy.mock.instances[0] as HTMLAnchorElement;
     expect(downloadLink.href).toBe('blob:fal-video');
-    expect(downloadLink.download).toBe('neon-tiger-in-the-rain.mp4');
+    expect(downloadLink.download).toBe('neon-tiger-in-the-rain-veo-3_1-fast.mp4');
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:fal-video');
   });
 

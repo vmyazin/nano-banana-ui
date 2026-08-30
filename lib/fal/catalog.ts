@@ -98,6 +98,9 @@ const framesVariant = (
   fields,
 });
 
+/** A model before its download filename code is attached — see withFileCodes. */
+type FalModelBase = Omit<FalModelDefinition, 'fileCode'>;
+
 const videoModel = (
   id: string,
   label: string,
@@ -108,7 +111,7 @@ const videoModel = (
   textFields: FalFieldDefinition[],
   imageFields = textFields,
   imageInputKey: 'image_url' | 'start_image_url' = 'image_url'
-): FalModelDefinition => ({
+): FalModelBase => ({
   id,
   label,
   provider,
@@ -127,14 +130,14 @@ const videoModel = (
  * variant's; Veo 3.1 is the exception and passes all three explicitly.
  */
 const withFrames = (
-  model: FalModelDefinition,
+  model: FalModelBase,
   frames: {
     lastFrameKey: string;
     firstFrameKey?: string;
     endpointId?: string;
     fields?: FalFieldDefinition[];
   }
-): FalModelDefinition => {
+): FalModelBase => {
   const imageVariantOf = model.variants.find((variant) => variant.inputMode === 'image');
   if (!imageVariantOf?.imageInputKey) {
     throw new Error(`Cannot add frames support to ${model.id} without an image variant.`);
@@ -182,6 +185,7 @@ const NANO_FIELDS = [
 export const FAL_IMAGE_MODEL: FalModelDefinition = {
   id: 'nano-banana-2',
   label: 'Nano Banana 2',
+  fileCode: 'nano-banana-2',
   provider: 'Google',
   description: 'Reasoning-guided image generation and multi-image editing with optional web grounding.',
   mediaType: 'image',
@@ -266,7 +270,34 @@ const wanFields = (includeAspectRatio: boolean): FalFieldDefinition[] => [
   booleanField('enable_prompt_expansion', 'Enable prompt expansion', true),
 ];
 
-export const FAL_VIDEO_MODELS: FalModelDefinition[] = [
+/**
+ * Short code each model tags its downloads with, so a saved file says which
+ * model made it: `neon-tiger-in-the-rain-wan-2_7.mp4`. Lowercase and
+ * hyphen-separated, with a version's decimal point written as `_` (`2.7` →
+ * `2_7`) so it reads apart from the word separators. Kept as a map because the
+ * definitions below are assembled by helpers rather than written out as object
+ * literals; `withFileCodes` fails loudly if a model is missing one.
+ */
+const FAL_FILE_CODES: Record<string, string> = {
+  'veo-3-1': 'veo-3_1',
+  'veo-3-1-fast': 'veo-3_1-fast',
+  'seedance-2': 'seedance-2_0',
+  'seedance-2-fast': 'seedance-2_0-fast',
+  'kling-3-standard': 'kling-3-standard',
+  'kling-3-pro': 'kling-3-pro',
+  'hailuo-2-3-standard': 'hailuo-2_3-standard',
+  'hailuo-2-3-pro': 'hailuo-2_3-pro',
+  'wan-2-7': 'wan-2_7',
+};
+
+const withFileCodes = (models: FalModelBase[]): FalModelDefinition[] =>
+  models.map((model) => {
+    const fileCode = FAL_FILE_CODES[model.id];
+    if (!fileCode) throw new Error(`No download filename code defined for fal model ${model.id}.`);
+    return { ...model, fileCode };
+  });
+
+export const FAL_VIDEO_MODELS: FalModelDefinition[] = withFileCodes([
   withFrames(
     videoModel(
       'veo-3-1',
@@ -384,7 +415,7 @@ export const FAL_VIDEO_MODELS: FalModelDefinition[] = [
     ),
     { lastFrameKey: 'end_image_url' }
   ),
-];
+]);
 
 function assertFalMediaType(mediaType: unknown): asserts mediaType is FalMediaType {
   if (mediaType !== 'image' && mediaType !== 'video') {

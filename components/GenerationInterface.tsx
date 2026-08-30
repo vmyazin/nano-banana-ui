@@ -18,6 +18,8 @@ import {
   SUPPORTED_RASTER_MIMES,
 } from '@/lib/media-download';
 import { runFalImage } from '@/lib/fal/browser';
+import { FAL_IMAGE_MODEL } from '@/lib/fal/catalog';
+import { downloadFilenameBase } from '@/lib/download-name';
 import ProviderLogo from '@/components/ProviderLogo';
 import { useAppStore } from '@/store/useAppStore';
 import { modelsFor, resolveModel } from '@/lib/providers/catalog';
@@ -252,6 +254,9 @@ export default function GenerationInterface({ feature, apiKey, onBack, onOpenCon
   const activeProviderModel = activeProvider
     ? resolveModel(activeProvider, 'image', providerImageModels[activeProvider])
     : null;
+  // What the download filename is tagged with. The single-model engines name
+  // themselves from the engine registry, so only the model-picking ones answer here.
+  const activeModelId = activeProviderModel ?? (storeEngine === 'fal' ? FAL_IMAGE_MODEL.id : undefined);
 
   const [error, setError] = useState<string | null>(null);
   const [lightboxOpen, setLightboxOpen] = useState(false);
@@ -499,6 +504,7 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
         prompt,
         slug: filenameSlug ?? undefined,
         provider: activeEngine.id,
+        modelId: activeModelId,
         controlValues: {
           aspect_ratio: config.aspectRatio ?? '16:9',
           resolution: config.imageSize ?? '1K',
@@ -648,8 +654,13 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
     downloadAbortRef.current = null;
     setError(null);
 
-    const base =
-      filenameSlug || slugify(prompt) || `scene-assembly-${feature.id}`;
+    const base = downloadFilenameBase({
+      prompt,
+      mediaType: 'image',
+      slug: filenameSlug || slugify(prompt) || `scene-assembly-${feature.id}`,
+      provider: activeEngine.id,
+      modelId: activeModelId,
+    });
 
     if (generatedImage.startsWith('data:image/')) {
       const link = document.createElement('a');

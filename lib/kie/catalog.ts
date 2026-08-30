@@ -111,6 +111,7 @@ export const KIE_MODELS: KieModelDefinition[] = [
   {
     id: 'nano-banana-pro',
     label: 'Nano Banana Pro',
+    fileCode: 'nano-banana-pro',
     provider: 'Google',
     description: 'Text to image, or editing from up to 8 reference images.',
     mediaType: 'image',
@@ -125,6 +126,7 @@ export const KIE_MODELS: KieModelDefinition[] = [
   {
     id: 'nano-banana-2',
     label: 'Nano Banana 2',
+    fileCode: 'nano-banana-2',
     provider: 'Google',
     description: 'Text to image, or editing from up to 8 reference images. Two output resolutions.',
     mediaType: 'image',
@@ -139,6 +141,7 @@ export const KIE_MODELS: KieModelDefinition[] = [
   {
     id: 'gpt-image-2',
     label: 'GPT Image 2',
+    fileCode: 'gpt-image-2',
     provider: 'OpenAI',
     description: 'Text to image, or editing from up to 16 reference images.',
     mediaType: 'image',
@@ -153,6 +156,7 @@ export const KIE_MODELS: KieModelDefinition[] = [
   {
     id: 'flux-2-pro',
     label: 'FLUX.2 Pro',
+    fileCode: 'flux-2-pro',
     provider: 'Black Forest Labs',
     description: 'Text to image, or editing from up to 4 reference images.',
     mediaType: 'image',
@@ -167,6 +171,7 @@ export const KIE_MODELS: KieModelDefinition[] = [
   {
     id: 'seedream-5-pro',
     label: 'Seedream 5 Pro',
+    fileCode: 'seedream-5-pro',
     provider: 'ByteDance',
     description: 'Text to image, or editing from up to 6 reference images. Takes a negative prompt.',
     mediaType: 'image',
@@ -181,6 +186,7 @@ export const KIE_MODELS: KieModelDefinition[] = [
   {
     id: 'imagen-4-ultra',
     label: 'Imagen 4 Ultra',
+    fileCode: 'imagen-4-ultra',
     provider: 'Google',
     description: 'Text to image only. Takes a negative prompt.',
     mediaType: 'image',
@@ -196,6 +202,7 @@ export const KIE_MODELS: KieModelDefinition[] = [
   {
     id: 'ideogram-v3',
     label: 'Ideogram V3',
+    fileCode: 'ideogram-v3',
     provider: 'Ideogram',
     description: 'Text to image only. Rendering speed and prompt enhancement are adjustable.',
     mediaType: 'image',
@@ -222,6 +229,7 @@ export const KIE_MODELS: KieModelDefinition[] = [
   {
     id: 'z-image',
     label: 'Z-Image',
+    fileCode: 'z-image',
     provider: 'Z.ai',
     description: 'Text to image only. Aspect ratio is the only control.',
     mediaType: 'image',
@@ -237,6 +245,7 @@ export const KIE_MODELS: KieModelDefinition[] = [
   {
     id: 'veo-3-1',
     label: 'Veo 3.1',
+    fileCode: 'veo-3_1',
     provider: 'Google',
     description: 'Text to video, or from up to 2 images, including first and last frame. Comes with audio.',
     mediaType: 'video',
@@ -276,6 +285,7 @@ export const KIE_MODELS: KieModelDefinition[] = [
   {
     id: 'kling-3-0',
     label: 'Kling 3.0',
+    fileCode: 'kling-3_0',
     provider: 'Kling',
     description: 'Text to video, or animates one image. Duration and resolution are adjustable.',
     mediaType: 'video',
@@ -290,6 +300,7 @@ export const KIE_MODELS: KieModelDefinition[] = [
   {
     id: 'seedance-2',
     label: 'Seedance 2',
+    fileCode: 'seedance-2',
     provider: 'ByteDance',
     description: 'Text to video only. Audio optional.',
     mediaType: 'video',
@@ -305,6 +316,7 @@ export const KIE_MODELS: KieModelDefinition[] = [
   {
     id: 'wan-2-7',
     label: 'Wan 2.7',
+    fileCode: 'wan-2_7',
     provider: 'Wan',
     description: 'Text to video, or animates one image. Expands short prompts.',
     mediaType: 'video',
@@ -320,6 +332,7 @@ export const KIE_MODELS: KieModelDefinition[] = [
   {
     id: 'hailuo-2-3-pro',
     label: 'Hailuo 2.3 Pro',
+    fileCode: 'hailuo-2_3-pro',
     provider: 'MiniMax',
     description: 'Animates one image. No text-only mode.',
     mediaType: 'video',
@@ -337,6 +350,7 @@ export const KIE_MODELS: KieModelDefinition[] = [
   {
     id: 'grok-imagine',
     label: 'Grok Imagine',
+    fileCode: 'grok-imagine',
     provider: 'xAI',
     description: 'Text to video, or animates one image.',
     mediaType: 'video',
@@ -351,6 +365,7 @@ export const KIE_MODELS: KieModelDefinition[] = [
   {
     id: 'pixverse-v6',
     label: 'PixVerse V6',
+    fileCode: 'pixverse-v6',
     provider: 'PixVerse',
     description: 'Text to video, or animates one image. Audio and multi-clip optional.',
     mediaType: 'video',

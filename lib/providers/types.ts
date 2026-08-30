@@ -36,6 +36,13 @@ export interface ProviderModel {
   /** The vendor's own identifier, verbatim. Never construct one of these. */
   id: string;
   label: string;
+  /**
+   * Short code appended to download filenames, so a saved file says which model
+   * made it: `neon-tiger-in-the-rain-wan-2_7.mp4`. Lowercase, hyphen-separated,
+   * with a version's decimal point written as `_` (`2.7` → `2_7`) so it reads
+   * apart from the word separators. Unique within a provider.
+   */
+  fileCode: string;
   kind: MediaKind;
   /** Input modes the model accepts. */
   modes: ProviderMode[];

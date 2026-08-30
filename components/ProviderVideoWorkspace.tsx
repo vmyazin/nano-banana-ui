@@ -15,9 +15,9 @@ import { recordFinishedJob } from '@/lib/gallery/record-job';
 import {
   downloadRemoteMedia,
   extensionForMedia,
-  fallbackFilenameBase,
   isDownloadableMediaUrl,
 } from '@/lib/media-download';
+import { downloadFilenameBase } from '@/lib/download-name';
 import { requestExamplePrompt, requestPromptSlug } from '@/lib/micro-ai/browser';
 import { getProviderVideoStatus, pollDelayMs, submitProviderVideo } from '@/lib/providers/browser';
 import { modelsFor } from '@/lib/providers/catalog';
@@ -376,6 +376,16 @@ export default function ProviderVideoWorkspace({
     }
   };
 
+  const filenameBase = latestJob
+    ? downloadFilenameBase({
+        prompt: latestJob.prompt,
+        mediaType: 'video',
+        slug: latestJob.slug,
+        provider,
+        modelId: latestJob.modelId,
+      })
+    : '';
+
   const downloadResult = async () => {
     if (!latestJob || !resultUrl) return;
     if (!isDownloadableMediaUrl(resultUrl)) {
@@ -389,7 +399,7 @@ export default function ProviderVideoWorkspace({
       await downloadRemoteMedia({
         url: resultUrl,
         mediaType: 'video',
-        filenameBase: latestJob.slug || fallbackFilenameBase(latestJob.prompt, 'video'),
+        filenameBase,
       });
     } finally {
       if (mountedRef.current) setIsDownloading(false);
@@ -773,7 +783,7 @@ export default function ProviderVideoWorkspace({
           {resultUrl && latestJob && (
             <a
               href={resultUrl}
-              download={`${latestJob.slug || fallbackFilenameBase(latestJob.prompt, 'video')}.${extensionForMedia('video')}`}
+              download={`${filenameBase}.${extensionForMedia('video')}`}
               onClick={(event) => {
                 // Results are served cross-origin, where the download attribute is
                 // ignored — fetch the bytes so the semantic name survives.
@@ -789,7 +799,7 @@ export default function ProviderVideoWorkspace({
           {resultUrl && latestJob && (
             <LastFrameActions
               videoUrl={resultUrl}
-              filenameBase={latestJob.slug || fallbackFilenameBase(latestJob.prompt, 'video')}
+              filenameBase={filenameBase}
               onContinue={onContinueFromFrame}
             />
           )}

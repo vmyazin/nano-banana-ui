@@ -40,6 +40,8 @@ export interface FalModelVariant {
 export interface FalModelDefinition {
   id: string;
   label: string;
+  /** Short code appended to download filenames — see FAL_FILE_CODES. */
+  fileCode: string;
   provider: string;
   description: string;
   mediaType: FalMediaType;

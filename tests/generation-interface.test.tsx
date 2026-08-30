@@ -471,7 +471,7 @@ describe('GenerationInterface fal image generation', () => {
     }));
     expect(createObjectURL).toHaveBeenCalledWith(expect.any(Blob));
     expect(link.href).toBe('blob:download-image');
-    expect(link.download).toBe(`glowing-canyon.${extension}`);
+    expect(link.download).toBe(`glowing-canyon-nano-banana-2.${extension}`);
     expect(link.download).not.toContain('fal_id:fal_secret');
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:download-image');
   });
@@ -844,7 +844,7 @@ describe('GenerationInterface fal image generation', () => {
 
     await waitFor(() => expect(clickSpy).toHaveBeenCalledTimes(1));
     const link = clickSpy.mock.instances[0] as HTMLAnchorElement;
-    expect(link.download).toBe('verified-mime.webp');
+    expect(link.download).toBe('verified-mime-nano-banana-2.webp');
     expect(createObjectURL).toHaveBeenCalledTimes(1);
     expect(revokeObjectURL).toHaveBeenCalledTimes(1);
   });
@@ -1031,7 +1031,7 @@ describe('GenerationInterface fal image generation', () => {
     expect(clickSpy).toHaveBeenCalledTimes(1);
     const link = clickSpy.mock.instances[0] as HTMLAnchorElement;
     expect(link.href).toBe('data:image/png;base64,cG5n');
-    expect(link.download).toBe('existing-provider-image.png');
+    expect(link.download).toBe('existing-provider-image-gemini-3-pro-image.png');
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock).toHaveBeenCalledWith('/api/generate', expect.anything());
   });

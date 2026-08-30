@@ -163,14 +163,14 @@ describe('Kie generation workspace', () => {
     );
 
     const link = screen.getByRole('link', { name: /Download image/i });
-    expect(link).toHaveAttribute('download', 'quiet-ocean-at-dusk.png');
+    expect(link).toHaveAttribute('download', 'quiet-ocean-at-dusk-nano-banana-pro.png');
     fireEvent.click(link);
 
     await waitFor(() => expect(clickSpy).toHaveBeenCalledOnce());
     expect(fetchMock).toHaveBeenCalledWith('https://temp.kie.ai/result.png', { signal: undefined });
     const downloadLink = clickSpy.mock.instances[0] as HTMLAnchorElement;
     expect(downloadLink.href).toBe('blob:kie-image');
-    expect(downloadLink.download).toBe('quiet-ocean-at-dusk.png');
+    expect(downloadLink.download).toBe('quiet-ocean-at-dusk-nano-banana-pro.png');
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:kie-image');
   });
 
