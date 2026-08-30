@@ -417,6 +417,17 @@ export const FAL_VIDEO_MODELS: FalModelDefinition[] = withFileCodes([
   ),
 ]);
 
+/**
+ * Display name for a model, by id. Jobs outlive the picker — the list keeps
+ * showing a run while the user moves on to another model — so a card names its
+ * own model rather than the selected one. A retired id falls back to itself.
+ */
+export function falModelLabel(modelId: string): string {
+  return (
+    [FAL_IMAGE_MODEL, ...FAL_VIDEO_MODELS].find((model) => model.id === modelId)?.label ?? modelId
+  );
+}
+
 function assertFalMediaType(mediaType: unknown): asserts mediaType is FalMediaType {
   if (mediaType !== 'image' && mediaType !== 'video') {
     throw new Error('Invalid fal media type.');

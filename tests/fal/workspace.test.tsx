@@ -823,6 +823,28 @@ describe('FalGenerationWorkspace', () => {
       .toHaveAttribute('download', 'a-neon-tiger-in-the-rain-veo-3_1-fast.mp4');
   });
 
+  it('names each job by its model rather than by its request ID', async () => {
+    // A job outlives the picker, so the card has to name its own model.
+    useFalJobsStore.getState().upsertJob(makeJob('running', {
+      id: 'request_running_kling',
+      requestId: 'request_running_kling',
+      modelId: 'kling-3-pro',
+    }));
+    useFalJobsStore.getState().upsertJob(makeJob('success', {
+      resultUrl: SAFE_VIDEO_URL,
+      mimeType: 'video/mp4',
+    }));
+
+    renderWorkspace();
+
+    expect(screen.getByText('Kling 3 Pro')).toBeInTheDocument();
+    // The ready clip's own card says what made it.
+    expect(screen.getByText('Veo 3.1 Fast')).toBeInTheDocument();
+    expect(screen.queryByText('request_running_kling')).toBeNull();
+    // Still recoverable for anything that has to be quoted back to fal.
+    expect(screen.getByTitle('request_running_kling')).toBeInTheDocument();
+  });
+
   it('downloads a completed fal video as a blob named after its slug', async () => {
     useFalJobsStore.getState().upsertJob(makeJob('success', {
       resultUrl: SAFE_VIDEO_URL,

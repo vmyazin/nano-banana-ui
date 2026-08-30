@@ -12,6 +12,7 @@ import { cancelFalJob, submitFalJob, uploadFalFiles } from '@/lib/fal/browser';
 import {
   buildFalInput,
   defaultFalValues,
+  falModelLabel,
   modelsForFalMode,
   resolveFalVariant,
   validateFalInput,
@@ -178,7 +179,12 @@ function JobCard({
           {!isFalJobTerminal(job.state) && <Loader2 aria-hidden className="animate-spin" size={12} />}
           {statusCopy[job.state]}
         </span>
-        <code className="text-xs text-[var(--foreground-subtle)]">{job.requestId}</code>
+        {/* The model, not the request ID: it is what tells two jobs apart at a
+            glance, and it stays true after the picker has moved on. The ID is
+            still there on hover for anything that needs quoting to fal. */}
+        <span className="text-xs text-[var(--foreground-muted)]" title={job.requestId}>
+          {falModelLabel(job.modelId)}
+        </span>
       </div>
 
       <p className="line-clamp-3 text-sm text-[var(--foreground-muted)]">{job.prompt}</p>

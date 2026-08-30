@@ -537,6 +537,9 @@ export default function KieGenerationWorkspace({
             <div>
               <h3 className="display text-base font-semibold">Result</h3>
               <p className="mt-0.5 text-xs text-[var(--foreground-muted)]">Results are temporary — download anything you want to keep.</p>
+              {/* The result on screen belongs to this model — the same name the
+                  download is tagged with. */}
+              {latestJob && <p className="mt-0.5 text-xs text-[var(--foreground-subtle)]">{selectedModel.label}</p>}
             </div>
             {latestJob && (
               <span className={`rounded-full border px-2.5 py-1 text-xs ${latestJob.state === 'fail' ? 'border-red-500/30 bg-red-500/10 text-red-300' : latestJob.state === 'success' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' : 'border-amber-500/30 bg-amber-500/10 text-amber-200'}`}>

@@ -734,6 +734,11 @@ export default function ProviderVideoWorkspace({
               <p className="mt-0.5 text-xs text-[var(--foreground-muted)]">
                 Results are temporary — download anything you want to keep.
               </p>
+              {/* The result on screen belongs to this model — the same name the
+                  download is tagged with. */}
+              {latestJob && selectedModel && (
+                <p className="mt-0.5 text-xs text-[var(--foreground-subtle)]">{selectedModel.label}</p>
+              )}
             </div>
             {latestJob && (
               <span
