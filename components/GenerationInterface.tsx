@@ -2,7 +2,6 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useMutation } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -38,6 +37,7 @@ import {
 import KieGenerationWorkspace from '@/components/KieGenerationWorkspace';
 import SegmentedToggleGroup from '@/components/SegmentedToggleGroup';
 import StoredImagePicker from '@/components/StoredImagePicker';
+import ImageLightbox from '@/components/ImageLightbox';
 import {
   X,
   Wand2,
@@ -574,16 +574,6 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
           : activeProviderCatalogModel
             ? `${activeProviderCatalogModel.price ?? 'Usage rates apply'} · ${activeProviderCatalogModel.label}`
             : `Est. ≈ $${estCost.toFixed(2)} / image · Gemini 3 Pro Image`;
-
-  // Close the full-screen lightbox on Escape.
-  useEffect(() => {
-    if (!lightboxOpen) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setLightboxOpen(false);
-    };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [lightboxOpen]);
 
   const handleGenerate = () => {
     const hasFeatureDefaultPrompt =
@@ -1154,51 +1144,12 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
         </motion.div>
       </div>
 
-      {/* Full-screen lightbox — portaled to <body> so it escapes the
-          z-10 stacking context of <main> and covers the header/footer. */}
-      {typeof document !== 'undefined' &&
-        createPortal(
-          <AnimatePresence>
-            {lightboxOpen && generatedImage && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                onClick={() => setLightboxOpen(false)}
-                className="fixed inset-0 z-[80] flex items-center justify-center bg-black/90 backdrop-blur-md p-4 sm:p-5"
-              >
-            <button
-              onClick={() => setLightboxOpen(false)}
-              aria-label="Close preview"
-              className="absolute top-4 right-4 p-2 rounded-lg border border-[var(--border)] text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:border-[var(--border-hover)] transition-colors"
-            >
-              <X size={22} />
-            </button>
-            <motion.img
-              initial={{ scale: 0.96, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.96, opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              src={generatedImage}
-              alt="Generated image, full size"
-              onClick={(e) => e.stopPropagation()}
-              className="max-w-full max-h-full object-contain rounded-xl shadow-2xl"
-            />
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                void downloadImage();
-              }}
-              className="absolute bottom-5 left-1/2 -translate-x-1/2 btn-secondary flex items-center gap-2"
-            >
-              <Download size={18} />
-              Download
-            </button>
-          </motion.div>
-            )}
-          </AnimatePresence>,
-          document.body
-        )}
+      <ImageLightbox
+        src={generatedImage}
+        open={lightboxOpen}
+        onClose={() => setLightboxOpen(false)}
+        onDownload={() => void downloadImage()}
+      />
     </div>
   );
 }

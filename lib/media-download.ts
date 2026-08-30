@@ -19,6 +19,16 @@ const VIDEO_EXTENSIONS: Record<string, string> = {
   'video/x-matroska': 'mkv',
 };
 
+/**
+ * Content types that describe nothing. Object stores hand these back for any
+ * blob, so a result served as `application/octet-stream` is not evidence of
+ * anything — the bytes get sniffed instead of being rejected outright.
+ */
+const OPAQUE_MIMES = new Set(['', 'application/octet-stream', 'binary/octet-stream']);
+
+/** Server-side image fetch, used when the CDN will not answer the browser. */
+const IMAGE_PROXY_ENDPOINT = '/api/fetch-image';
+
 export class RemoteMediaTooLarge extends Error {
   constructor() {
     super('Remote media exceeded the download size limit');
@@ -42,6 +52,34 @@ export function extensionForMimeType(mimeType?: string) {
 export function extensionForMedia(mediaType: DownloadMediaType, mimeType?: string | null) {
   if (mediaType === 'image') return extensionForMimeType(mimeType ?? undefined);
   return VIDEO_EXTENSIONS[normalizedMimeType(mimeType)] ?? 'mp4';
+}
+
+/**
+ * The media type the leading bytes actually say this is.
+ *
+ * A provider that serves its results as `application/octet-stream` used to end
+ * up going through the browser's own navigation — which opens the file in a tab
+ * instead of saving it — so the magic number decides rather than the header's
+ * claim. Unknown bytes return undefined: they are not something to hand back
+ * under an image or video name.
+ */
+export function sniffMediaMime(bytes: Uint8Array): string | undefined {
+  const starts = (...signature: number[]) =>
+    signature.every((byte, index) => bytes[index] === byte);
+  const ascii = (offset: number, text: string) =>
+    [...text].every((char, index) => bytes[offset + index] === char.charCodeAt(0));
+
+  if (starts(0x89, 0x50, 0x4e, 0x47)) return 'image/png';
+  if (starts(0xff, 0xd8, 0xff)) return 'image/jpeg';
+  if (starts(0x47, 0x49, 0x46, 0x38)) return 'image/gif';
+  if (ascii(0, 'RIFF') && ascii(8, 'WEBP')) return 'image/webp';
+  if (starts(0x1a, 0x45, 0xdf, 0xa3)) return 'video/webm';
+  if (ascii(4, 'ftyp')) {
+    if (ascii(8, 'avif') || ascii(8, 'avis')) return 'image/avif';
+    if (ascii(8, 'qt  ')) return 'video/quicktime';
+    return 'video/mp4';
+  }
+  return undefined;
 }
 
 /** Reject anything that is not a credential-free https URL before we fetch it. */
@@ -71,7 +109,10 @@ export async function boundedMediaBlob(
   if (!response.body) {
     const blob = await response.blob();
     if (blob.size > maxBytes) throw new RemoteMediaTooLarge();
-    return new Blob([blob], { type: mimeType });
+    // Re-typed from its bytes rather than by nesting the blob: a Blob from
+    // another realm is not always recognized as a blob part, and gets
+    // stringified into the copy instead of copied.
+    return new Blob([await blob.arrayBuffer()], { type: mimeType });
   }
 
   const reader = response.body.getReader();
@@ -125,12 +166,55 @@ export function fallbackFilenameBase(prompt: string, mediaType: DownloadMediaTyp
 }
 
 /**
+ * Read a response as media of the expected kind, or refuse it.
+ *
+ * The declared type is trusted only when it says something: a store that labels
+ * every object `application/octet-stream` gets its bytes sniffed instead. What
+ * comes back is what the file is actually named and typed after, so a genuine
+ * JPEG served as a generic binary still saves as `.jpg`.
+ */
+async function verifiedMediaBlob(
+  response: Response,
+  mediaType: DownloadMediaType,
+  hintedMime: string | undefined,
+  signal: AbortSignal
+): Promise<Blob> {
+  const declared = normalizedMimeType(response.headers.get('Content-Type'));
+  const claimed = OPAQUE_MIMES.has(declared) ? normalizedMimeType(hintedMime) : declared;
+  const opaque = OPAQUE_MIMES.has(claimed);
+
+  // A concrete claim of the wrong kind is a refusal, not something to sniff past.
+  if (!opaque && mediaType === 'image' && !SUPPORTED_RASTER_MIMES.has(claimed)) {
+    throw new Error('Unsupported image media type');
+  }
+  if (!opaque && mediaType === 'video' && !claimed.startsWith('video/')) {
+    throw new Error('Unsupported video media type');
+  }
+
+  const blob = await boundedMediaBlob(
+    response,
+    claimed,
+    signal,
+    mediaType === 'image' ? MAX_REMOTE_IMAGE_BYTES : MAX_REMOTE_VIDEO_BYTES
+  );
+  if (!opaque) return blob;
+
+  const sniffed = sniffMediaMime(new Uint8Array(await blob.slice(0, 16).arrayBuffer()));
+  if (!sniffed || !sniffed.startsWith(mediaType === 'image' ? 'image/' : 'video/')) {
+    throw new Error(`Unsupported ${mediaType} media type`);
+  }
+  return new Blob([blob], { type: sniffed });
+}
+
+/**
  * Download a provider-hosted result under `${base}.${ext}`.
  *
  * Cross-origin CDNs make the anchor `download` attribute a no-op, so the bytes
- * are pulled into a blob first. If that fetch is blocked (CORS, expired URL)
- * the browser's own navigation is used as a last resort so the user still gets
- * the file — just under the provider's opaque name.
+ * are pulled into a blob first. When the CDN will not answer the browser at all
+ * (no CORS headers, or an opaque content type), an image is retried through our
+ * own origin — the same SSRF-guarded proxy the URL drop zone uses — because the
+ * remaining fallback, the browser's own navigation, opens the file in a tab
+ * instead of saving it under the name we chose.
  */
 export async function downloadRemoteMedia(args: {
   url: string;
@@ -140,37 +224,68 @@ export async function downloadRemoteMedia(args: {
   signal?: AbortSignal;
 }): Promise<boolean> {
   const { url, mediaType, filenameBase, mimeType, signal } = args;
+  const abortSignal = signal ?? new AbortController().signal;
   let objectUrl: string | null = null;
+
+  const save = (blob: Blob) => {
+    objectUrl = URL.createObjectURL(blob);
+    triggerAnchorDownload(objectUrl, `${filenameBase}.${extensionForMedia(mediaType, blob.type)}`);
+  };
 
   try {
     const response = await fetch(url, { signal });
     if (!response.ok) throw new Error('Remote media request failed');
-
-    const responseMime =
-      normalizedMimeType(response.headers.get('Content-Type')) || normalizedMimeType(mimeType);
-    if (mediaType === 'image' && !SUPPORTED_RASTER_MIMES.has(responseMime)) {
-      throw new Error('Unsupported image media type');
-    }
-    if (mediaType === 'video' && !responseMime.startsWith('video/')) {
-      throw new Error('Unsupported video media type');
-    }
-
-    const blob = await boundedMediaBlob(
-      response,
-      responseMime,
-      signal ?? new AbortController().signal,
-      mediaType === 'image' ? MAX_REMOTE_IMAGE_BYTES : MAX_REMOTE_VIDEO_BYTES
-    );
-    objectUrl = URL.createObjectURL(blob);
-    triggerAnchorDownload(objectUrl, `${filenameBase}.${extensionForMedia(mediaType, responseMime)}`);
+    save(await verifiedMediaBlob(response, mediaType, mimeType, abortSignal));
     return true;
   } catch (error) {
-    if (error instanceof DOMException && error.name === 'AbortError') return false;
+    if (isAbort(error)) return false;
+
+    try {
+      const proxied = await proxiedMediaBlob(url, mediaType, mimeType, abortSignal, signal);
+      if (proxied) {
+        save(proxied);
+        return true;
+      }
+    } catch (proxyError) {
+      if (isAbort(proxyError)) return false;
+    }
+
     triggerAnchorDownload(url, `${filenameBase}.${extensionForMedia(mediaType, mimeType)}`);
     return false;
   } finally {
     if (objectUrl) URL.revokeObjectURL(objectUrl);
   }
+}
+
+function isAbort(error: unknown) {
+  return error instanceof DOMException && error.name === 'AbortError';
+}
+
+/**
+ * Second attempt at the bytes, through our own server. Images only: the proxy is
+ * the drop zone's image fetcher, which caps at 20 MB and refuses anything that
+ * is not an image, so a video still falls through to the browser.
+ */
+async function proxiedMediaBlob(
+  url: string,
+  mediaType: DownloadMediaType,
+  mimeType: string | undefined,
+  abortSignal: AbortSignal,
+  signal?: AbortSignal
+): Promise<Blob | undefined> {
+  if (mediaType !== 'image') return undefined;
+
+  const response = await fetch(IMAGE_PROXY_ENDPOINT, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url }),
+    signal,
+  });
+  if (!response.ok) {
+    void response.body?.cancel();
+    return undefined;
+  }
+  return verifiedMediaBlob(response, mediaType, mimeType, abortSignal);
 }
 
 function triggerAnchorDownload(href: string, filename: string) {
