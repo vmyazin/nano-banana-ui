@@ -35,6 +35,19 @@ const EXAMPLE_SYSTEM_RULES = [
   INJECTION_GUARD,
 ].join('\n');
 
+// An image-to-video example is generated without seeing the upload. Its format
+// rules therefore reward useful motion direction while explicitly avoiding the
+// content details that the general image prompt rule asks the model to invent.
+const IMAGE_TO_VIDEO_SYSTEM_RULES = [
+  '',
+  'OUTPUT FORMAT:',
+  '- Exactly ONE prompt on a single line.',
+  '- 20-45 words. Keep every reference to the supplied visual scene-neutral.',
+  '- Describe only lighting, atmosphere, ambient motion, and camera movement that can work with any image.',
+  '- No conversational preamble, no markdown, no quotes, no labels, no numbering.',
+  INJECTION_GUARD,
+].join('\n');
+
 export interface MicroAiTask<T> {
   tier: MicroAiTier;
   system: string;
@@ -60,9 +73,12 @@ export function slugTask(prompt: string): MicroAiTask<string> {
 /** Example prompt generation for a given feature, using that feature's brief. */
 export function examplePromptTask(featureId: string, seed?: string): MicroAiTask<string> {
   const tone = seed ? ` Lean into a ${seed} tone.` : '';
+  const outputRules =
+    featureId === 'image-to-video' ? IMAGE_TO_VIDEO_SYSTEM_RULES : EXAMPLE_SYSTEM_RULES;
+  const media = featureId.endsWith('-video') ? 'video' : 'image';
   return {
     tier: 'micro',
-    system: `You are a prompt engineer for an AI image generator.\n\n${metaForFeature(featureId)}${tone}${EXAMPLE_SYSTEM_RULES}`,
+    system: `You are a prompt engineer for an AI ${media} generator.\n\n${metaForFeature(featureId)}${tone}${outputRules}`,
     user: `Topic: ${featureId.replace(/-/g, ' ')}`,
     temperature: 0.7,
     maxTokens: 250,

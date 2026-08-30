@@ -147,4 +147,27 @@ describe('POST /api/example', () => {
       model: 'gemini-2.5-flash-lite',
     });
   });
+
+  it('sends the universal image-to-video contract to Gemini fallback', async () => {
+    generateContent.mockResolvedValue(
+      geminiText('Use a slow push-in with soft atmospheric motion across the scene')
+    );
+
+    const response = await examplePost(
+      request({ featureId: 'image-to-video', apiKey: 'gemini_key', seed: 'moody' })
+    );
+
+    expect(response.status).toBe(200);
+    expect(generateContent).toHaveBeenCalledTimes(1);
+    const call = generateContent.mock.calls[0][0] as { contents: string };
+    expect(call.contents).toContain(
+      'can be applied unchanged to any supplied image — a landscape, an individual portrait, a group, an object, or artwork'
+    );
+    expect(call.contents).toContain('the scene');
+    expect(call.contents).toContain('the view');
+    expect(call.contents).toContain(
+      'Do not invent or identify subjects, subject counts, objects, settings, clothing, demographics, art styles, or media.'
+    );
+    expect(call.contents).not.toContain('Describe art style, lighting, camera angle, or medium.');
+  });
 });
