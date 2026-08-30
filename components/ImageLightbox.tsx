@@ -2,8 +2,10 @@
 
 import { AnimatePresence, motion } from 'framer-motion';
 import { Download, X } from 'lucide-react';
-import { useEffect } from 'react';
+import { useRef } from 'react';
 import { createPortal } from 'react-dom';
+
+import { useAccessibleDialog } from '@/hooks/useAccessibleDialog';
 
 /**
  * Full-screen view of a single result.
@@ -26,14 +28,8 @@ export default function ImageLightbox({
   onDownload?: () => void;
   alt?: string;
 }) {
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
-    };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useAccessibleDialog({ open: open && Boolean(src), onClose, dialogRef });
 
   if (typeof document === 'undefined') return null;
 
@@ -41,16 +37,22 @@ export default function ImageLightbox({
     <AnimatePresence>
       {open && src && (
         <motion.div
+          ref={dialogRef}
+          tabIndex={-1}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Image preview"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           onClick={onClose}
-          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/90 p-4 backdrop-blur-md sm:p-5"
+          className="dialog-touch-targets image-lightbox-dialog fixed inset-0 z-[80] flex items-center justify-center bg-black/90 p-4 outline-none backdrop-blur-md sm:p-5"
         >
           <button
+            type="button"
             onClick={onClose}
             aria-label="Close preview"
-            className="absolute right-4 top-4 rounded-lg border border-[var(--border)] p-2 text-[var(--foreground-muted)] transition-colors hover:border-[var(--border-hover)] hover:text-[var(--foreground)]"
+            className="image-lightbox-close absolute right-4 top-4 rounded-lg border border-[var(--border)] p-2 text-[var(--foreground-muted)] transition-colors hover:border-[var(--border-hover)] hover:text-[var(--foreground)]"
           >
             <X size={22} />
           </button>
@@ -62,15 +64,16 @@ export default function ImageLightbox({
             src={src}
             alt={alt}
             onClick={(event) => event.stopPropagation()}
-            className="max-h-full max-w-full rounded-xl object-contain shadow-2xl"
+            className="max-h-[calc(100dvh-9rem)] max-w-full rounded-xl object-contain shadow-2xl sm:max-h-full"
           />
           {onDownload && (
             <button
+              type="button"
               onClick={(event) => {
                 event.stopPropagation();
                 onDownload();
               }}
-              className="btn-secondary absolute bottom-5 left-1/2 flex -translate-x-1/2 items-center gap-2"
+              className="btn-secondary image-lightbox-download absolute bottom-5 left-1/2 flex -translate-x-1/2 items-center gap-2"
             >
               <Download size={18} />
               Download

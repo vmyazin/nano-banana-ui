@@ -1,11 +1,12 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Library, X } from 'lucide-react';
 
 import GalleryGrid from '@/components/GalleryGrid';
 import PromptLibraryList from '@/components/PromptLibraryList';
+import { useAccessibleDialog } from '@/hooks/useAccessibleDialog';
 import { useGalleryStore } from '@/store/useGalleryStore';
 
 interface LibraryOverlayProps {
@@ -45,9 +46,12 @@ export default function LibraryOverlay({
   const [quota, setQuota] = useState<{ usage: number; quota: number } | null>(null);
   const [tab, setTab] = useState<'results' | 'prompts'>(initialTab);
   const panelRef = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+  const descriptionId = useId();
   const isImagePicker = purpose === 'pick-image';
 
   const close = useCallback(() => onOpenChange(false), [onOpenChange]);
+  useAccessibleDialog({ open, onClose: close, dialogRef: panelRef });
 
   useEffect(() => {
     if (!open) return;
@@ -58,17 +62,6 @@ export default function LibraryOverlay({
       }
     });
   }, [open]);
-
-  // ApiKeyConfig predates these; a panel this size should not trap you inside it.
-  useEffect(() => {
-    if (!open) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') close();
-    };
-    document.addEventListener('keydown', onKeyDown);
-    panelRef.current?.focus();
-    return () => document.removeEventListener('keydown', onKeyDown);
-  }, [open, close]);
 
   const stored = records.reduce((total, record) => total + record.bytes, 0);
   const storedImages = records.filter((record) => record.kind === 'image' && Boolean(record.blob));
@@ -81,7 +74,7 @@ export default function LibraryOverlay({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-3 backdrop-blur-md sm:p-4"
+          className="fixed inset-0 z-[60] flex items-end justify-center bg-black/70 p-0 backdrop-blur-md sm:items-center sm:p-4"
           onClick={close}
         >
           <motion.div
@@ -89,25 +82,27 @@ export default function LibraryOverlay({
             tabIndex={-1}
             role="dialog"
             aria-modal="true"
-            aria-label={dialogTitle}
+            aria-labelledby={titleId}
+            aria-describedby={descriptionId}
             initial={{ y: 24, opacity: 0, scale: 0.98 }}
             animate={{ y: 0, opacity: 1, scale: 1 }}
             exit={{ y: 24, opacity: 0, scale: 0.98 }}
             transition={{ duration: 0.2 }}
             onClick={(event) => event.stopPropagation()}
-            className="dialog-panel relative flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden outline-none"
+            className="dialog-panel dialog-mobile-sheet dialog-touch-targets relative flex max-h-[90dvh] w-full max-w-4xl flex-col overflow-hidden outline-none sm:max-h-[90vh]"
           >
             <header className="flex items-start gap-3 border-b border-[var(--border)] px-3.5 py-3 sm:px-4">
               <Library className="mt-0.5 shrink-0 text-[var(--neon-cyan)]" size={18} />
               <div className="min-w-0 flex-1">
-                <h2 className="text-base font-semibold text-[var(--foreground)]">{dialogTitle}</h2>
-                <p className="text-[0.9375rem] text-[var(--foreground-muted)]">
+                <h2 id={titleId} className="text-base font-semibold text-[var(--foreground)]">{dialogTitle}</h2>
+                <p id={descriptionId} className="text-[0.9375rem] text-[var(--foreground-muted)]">
                   {isImagePicker
                     ? 'Stored images available as a frame for this clip'
                     : 'Results kept in this browser after the provider links expire'}
                 </p>
               </div>
               <button
+                type="button"
                 onClick={close}
                 aria-label="Close"
                 className="-mr-1 shrink-0 rounded-lg p-1.5 text-[var(--foreground-muted)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)]"
@@ -116,7 +111,7 @@ export default function LibraryOverlay({
               </button>
             </header>
 
-            <div className="min-h-0 flex-1 overflow-y-auto px-3.5 py-3.5 sm:px-4">
+            <div className="dialog-scroll-region min-h-0 flex-1 overflow-y-auto px-3.5 py-3.5 sm:px-4">
             {!isImagePicker && (
               <div role="tablist" aria-label="Library sections" className="mb-4 flex gap-1 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-1">
                 {(['results', 'prompts'] as const).map((name) => (
@@ -156,7 +151,7 @@ export default function LibraryOverlay({
             )}
             </div>
 
-            <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--border)] px-3.5 py-3.5 sm:px-4">
+            <footer className="dialog-safe-footer flex flex-wrap items-center justify-between gap-3 border-t border-[var(--border)] px-3.5 py-3.5 sm:px-4">
               <p className="text-[0.9375rem] text-[var(--foreground-muted)]">
                 {isImagePicker ? (
                   <>{storedImages.length} stored image{storedImages.length === 1 ? '' : 's'}</>

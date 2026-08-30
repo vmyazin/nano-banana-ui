@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useId, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Key, Eye, EyeOff, AlertCircle, X, Loader2, Check } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAppStore } from '@/store/useAppStore';
 import MicroAiUsagePanel from '@/components/MicroAiUsagePanel';
 import ProviderLogo from '@/components/ProviderLogo';
+import { useAccessibleDialog } from '@/hooks/useAccessibleDialog';
 import type { EngineId } from '@/lib/engines/registry';
 import type { ProviderId } from '@/lib/providers/types';
 
@@ -228,6 +229,9 @@ export default function ApiKeyConfig({ open, onOpenChange }: ApiKeyConfigProps) 
   const [kieValidationError, setKieValidationError] = useState('');
   const [falValidationError, setFalValidationError] = useState('');
   const mountedRef = useRef(true);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+  const descriptionId = useId();
   const currentOpenRef = useRef(open);
   const saveOperationRef = useRef(0);
   const savePendingRef = useRef(false);
@@ -460,6 +464,8 @@ export default function ApiKeyConfig({ open, onOpenChange }: ApiKeyConfigProps) 
     onOpenChange(false);
   };
 
+  useAccessibleDialog({ open, onClose: handleClose, dialogRef });
+
   return (
     <AnimatePresence>
       {open && (
@@ -467,10 +473,12 @@ export default function ApiKeyConfig({ open, onOpenChange }: ApiKeyConfigProps) 
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-md p-3 sm:p-4"
+          className="fixed inset-0 z-[60] flex items-end justify-center bg-black/70 p-0 backdrop-blur-md sm:items-center sm:p-4"
           onClick={handleClose}
         >
           <motion.div
+            ref={dialogRef}
+            tabIndex={-1}
             initial={{ y: 24, opacity: 0, scale: 0.98 }}
             animate={{ y: 0, opacity: 1, scale: 1 }}
             exit={{ y: 24, opacity: 0, scale: 0.98 }}
@@ -478,20 +486,22 @@ export default function ApiKeyConfig({ open, onOpenChange }: ApiKeyConfigProps) 
             onClick={(e) => e.stopPropagation()}
             role="dialog"
             aria-modal="true"
-            aria-label="API connections"
-            className="dialog-panel relative flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden"
+            aria-labelledby={titleId}
+            aria-describedby={descriptionId}
+            className="dialog-panel dialog-mobile-sheet dialog-touch-targets relative flex max-h-[90dvh] w-full max-w-4xl flex-col overflow-hidden outline-none sm:max-h-[90vh]"
           >
             <header className="flex items-start gap-3 border-b border-[var(--border)] px-3.5 py-3 sm:px-4">
               <Key className="mt-0.5 shrink-0 text-[var(--neon-cyan)]" size={18} />
               <div className="min-w-0 flex-1">
-                <h2 className="text-base font-semibold text-[var(--foreground)]">
+                <h2 id={titleId} className="text-base font-semibold text-[var(--foreground)]">
                   API connections
                 </h2>
-                <p className="text-[0.9375rem] text-[var(--foreground-muted)]">
+                <p id={descriptionId} className="text-[0.9375rem] text-[var(--foreground-muted)]">
                   Add a key for any engine you want to use.
                 </p>
               </div>
               <button
+                type="button"
                 onClick={handleClose}
                 className="-mr-1 shrink-0 rounded-lg p-1.5 text-[var(--foreground-muted)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)]"
                 aria-label="Close"
@@ -500,7 +510,7 @@ export default function ApiKeyConfig({ open, onOpenChange }: ApiKeyConfigProps) 
               </button>
             </header>
 
-            <div className="min-h-0 flex-1 overflow-y-auto px-3.5 py-3.5 sm:px-4">
+            <div className="dialog-scroll-region min-h-0 flex-1 overflow-y-auto px-3.5 py-3.5 sm:px-4">
               <div className="grid gap-4 sm:grid-cols-2">
                 {/* Google Gemini */}
                 <ProviderCard
@@ -680,7 +690,7 @@ export default function ApiKeyConfig({ open, onOpenChange }: ApiKeyConfigProps) 
               </div>
             </div>
 
-            <footer className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-t border-[var(--border)] px-3.5 py-3 sm:px-4">
+            <footer className="dialog-safe-footer flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-t border-[var(--border)] px-3.5 py-3 sm:px-4">
               <p className="field-hint max-w-md">
                 Credentials live in this browser&apos;s local storage and go straight to each
                 provider — never to our servers beyond proxying the request.

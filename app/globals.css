@@ -153,6 +153,49 @@ body::after {
   box-shadow: 0 30px 70px -25px rgba(0, 8, 9, 0.85);
 }
 
+.dialog-scroll-region {
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 639px) {
+  .dialog-mobile-sheet {
+    max-height: 90dvh;
+    border-bottom: 0;
+    border-bottom-right-radius: 0;
+    border-bottom-left-radius: 0;
+  }
+
+  .dialog-safe-footer {
+    padding-bottom: max(0.875rem, env(safe-area-inset-bottom));
+  }
+
+  .dialog-touch-targets button,
+  .dialog-touch-targets input,
+  .dialog-touch-targets select,
+  .dialog-touch-targets textarea {
+    min-height: 3rem;
+  }
+
+  .dialog-touch-targets button {
+    min-width: 3rem;
+  }
+
+  .image-lightbox-dialog {
+    padding-top: max(4rem, env(safe-area-inset-top));
+    padding-bottom: max(5rem, env(safe-area-inset-bottom));
+  }
+
+  .image-lightbox-close {
+    top: max(1rem, env(safe-area-inset-top));
+    right: max(1rem, env(safe-area-inset-right));
+  }
+
+  .image-lightbox-download {
+    bottom: max(1.25rem, env(safe-area-inset-bottom));
+  }
+}
+
 /* Labels inside dialogs and forms. The mono eyebrow is too tracked-out to
    read at form density, so labels here stay sentence case in the UI face.
    All three sit on the --text-ui ramp: at this density a 17px label read as a
