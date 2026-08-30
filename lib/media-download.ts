@@ -28,6 +28,7 @@ const OPAQUE_MIMES = new Set(['', 'application/octet-stream', 'binary/octet-stre
 
 /** Server-side image fetch, used when the CDN will not answer the browser. */
 const IMAGE_PROXY_ENDPOINT = '/api/fetch-image';
+const VIDEO_DOWNLOAD_ENDPOINT = '/api/download-video';
 
 export class RemoteMediaTooLarge extends Error {
   constructor() {
@@ -210,11 +211,10 @@ async function verifiedMediaBlob(
  * Download a provider-hosted result under `${base}.${ext}`.
  *
  * Cross-origin CDNs make the anchor `download` attribute a no-op, so the bytes
- * are pulled into a blob first. When the CDN will not answer the browser at all
- * (no CORS headers, or an opaque content type), an image is retried through our
- * own origin — the same SSRF-guarded proxy the URL drop zone uses — because the
- * remaining fallback, the browser's own navigation, opens the file in a tab
- * instead of saving it under the name we chose.
+ * are pulled into a blob first. When the CDN will not answer the browser at all,
+ * images retry through the capped image proxy. Videos are handed to a streaming
+ * same-origin attachment route by POST: that preserves the semantic filename,
+ * keeps signed URLs out of query strings, and never replaces the app tab.
  */
 export async function downloadRemoteMedia(args: {
   url: string;
@@ -240,6 +240,13 @@ export async function downloadRemoteMedia(args: {
   } catch (error) {
     if (isAbort(error)) return false;
 
+    if (mediaType === 'video') {
+      submitProxiedVideoDownload({ url, filenameBase, mimeType });
+      // The browser now owns the streamed response; unlike the blob path above,
+      // this handoff cannot synchronously prove that the remote bytes arrived.
+      return false;
+    }
+
     try {
       const proxied = await proxiedMediaBlob(url, mediaType, mimeType, abortSignal, signal);
       if (proxied) {
@@ -257,14 +264,58 @@ export async function downloadRemoteMedia(args: {
   }
 }
 
+/**
+ * Native form submission lets the browser stream a Content-Disposition response
+ * directly to disk instead of buffering a potentially large video in JS. The
+ * hidden frame contains any JSON error response, so a failed proxy cannot take
+ * the user away from their result.
+ */
+function submitProxiedVideoDownload(args: {
+  url: string;
+  filenameBase: string;
+  mimeType?: string;
+}) {
+  const frame = document.createElement('iframe');
+  const frameName = `video-download-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  frame.name = frameName;
+  frame.hidden = true;
+  frame.setAttribute('aria-hidden', 'true');
+
+  const form = document.createElement('form');
+  form.method = 'POST';
+  form.action = VIDEO_DOWNLOAD_ENDPOINT;
+  form.target = frameName;
+  form.hidden = true;
+
+  const fields: Record<string, string | undefined> = {
+    url: args.url,
+    filenameBase: args.filenameBase,
+    mimeType: args.mimeType,
+  };
+  for (const [name, value] of Object.entries(fields)) {
+    if (!value) continue;
+    const input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = name;
+    input.value = value;
+    form.append(input);
+  }
+
+  document.body.append(frame, form);
+  form.submit();
+  form.remove();
+  // Leave the target alive long enough for slow CDN headers; it contains no
+  // visible UI or retained provider URL after the request completes.
+  window.setTimeout(() => frame.remove(), 120_000);
+}
+
 function isAbort(error: unknown) {
   return error instanceof DOMException && error.name === 'AbortError';
 }
 
 /**
- * Second attempt at the bytes, through our own server. Images only: the proxy is
- * the drop zone's image fetcher, which caps at 20 MB and refuses anything that
- * is not an image, so a video still falls through to the browser.
+ * Second attempt at image bytes through the drop zone's existing 20 MB proxy.
+ * Video fallback uses the streaming attachment route above instead.
  */
 async function proxiedMediaBlob(
   url: string,

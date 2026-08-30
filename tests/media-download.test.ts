@@ -25,6 +25,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  document.querySelectorAll('form, iframe').forEach((element) => element.remove());
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
@@ -112,20 +113,39 @@ describe('downloadRemoteMedia', () => {
     expect(savedAs().href).toBe(RESULT_URL);
   });
 
-  it('leaves a video to the browser rather than the image proxy', async () => {
+  it('submits a same-origin form when the provider blocks a video fetch', async () => {
     const fetchMock = vi.fn(async () => {
       throw new TypeError('Failed to fetch');
     });
     vi.stubGlobal('fetch', fetchMock);
+    const submitSpy = vi.spyOn(HTMLFormElement.prototype, 'submit').mockImplementation(() => undefined);
 
     const saved = await downloadRemoteMedia({
       url: RESULT_URL,
       mediaType: 'video',
       filenameBase: 'neon-tiger-wan-2_7',
+      mimeType: 'video/mp4',
     });
 
     expect(saved).toBe(false);
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(savedAs()).toEqual({ href: RESULT_URL, download: 'neon-tiger-wan-2_7.mp4' });
+    expect(submitSpy).toHaveBeenCalledTimes(1);
+    const form = submitSpy.mock.instances[0] as HTMLFormElement;
+    expect(form.method).toBe('post');
+    expect(form.target).toBeTruthy();
+    expect(form.target).not.toBe('_self');
+    const targetFrame = document.querySelector<HTMLIFrameElement>(`iframe[name="${form.target}"]`);
+    expect(targetFrame).not.toBeNull();
+    expect(targetFrame?.hidden || targetFrame?.style.display === 'none').toBe(true);
+    expect(new URL(form.action).pathname).toBe('/api/download-video');
+    expect(new URL(form.action).search).toBe('');
+    const fields = Object.fromEntries(new FormData(form).entries());
+    expect(fields).toEqual({
+      url: RESULT_URL,
+      filenameBase: 'neon-tiger-wan-2_7',
+      mimeType: 'video/mp4',
+    });
+    // A failed cross-origin fetch must not fall back to an anchor navigation.
+    expect(clickSpy).not.toHaveBeenCalled();
   });
 });
