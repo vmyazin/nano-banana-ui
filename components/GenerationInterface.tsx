@@ -40,16 +40,14 @@ import {
 import KieGenerationWorkspace from '@/components/KieGenerationWorkspace';
 import SegmentedToggleGroup from '@/components/SegmentedToggleGroup';
 import StoredImagePicker from '@/components/StoredImagePicker';
-import ImageLightbox from '@/components/ImageLightbox';
 import ImageFormatControl from '@/components/ImageFormatControl';
+import ResultStack, { type ResultStackItem } from '@/components/ResultStack';
 import {
   X,
   Wand2,
   Loader2,
-  Download,
   ImagePlus,
   Info,
-  Maximize2,
   Sparkles,
 } from 'lucide-react';
 
@@ -265,7 +263,13 @@ export default function GenerationInterface({ feature, apiKey, onBack, onOpenCon
   const activeModelId = activeProviderModel ?? (storeEngine === 'fal' ? FAL_IMAGE_MODEL.id : undefined);
 
   const [error, setError] = useState<string | null>(null);
-  const [lightboxOpen, setLightboxOpen] = useState(false);
+  /**
+   * Finished results, newest first. Not cleared anywhere on purpose:
+   * `app/page.tsx` mounts this component with `key={selectedFeature.id}`, so
+   * switching feature remounts it and the stack goes with it.
+   */
+  const [results, setResults] = useState<ResultStackItem[]>([]);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
   // Pre-rendered, AI-summarized download filename for the current prompt.
   const [filenameSlug, setFilenameSlug] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -273,6 +277,8 @@ export default function GenerationInterface({ feature, apiKey, onBack, onOpenCon
   const generationOperationRef = useRef(0);
   const downloadAbortRef = useRef<AbortController | null>(null);
   const downloadOperationRef = useRef(0);
+  /** Monotonic, so a React key survives a newer result being pushed above it. */
+  const resultIdRef = useRef(0);
   const mountedRef = useRef(true);
 
   useEffect(() => {
@@ -500,6 +506,17 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
     },
     onSuccess: (result) => {
       toast.success('Image generated');
+      resultIdRef.current += 1;
+      setResults((current) => [
+        {
+          id: `result-${resultIdRef.current}`,
+          src: result.dataUrl,
+          mimeType: result.mimeType,
+        },
+        // Kept whole rather than sliced here: ResultStack owns the display cap,
+        // and the library holds everything regardless.
+        ...current,
+      ]);
       // Images are small enough to keep every time. The provider URL fal hands
       // back expires in a week, so the bytes are what make this durable.
       void captureImage(result.dataUrl);
@@ -555,12 +572,10 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
 
   // Derived view state from the mutation.
   const isGenerating = generateMutation.isPending;
-  const generatedImage = generateMutation.isSuccess
-    ? generateMutation.data.dataUrl
-    : null;
+  const newestResult = results[0] ?? null;
   // Feeds the format control's "Auto → …" hint, so it names the real outcome
   // for these bytes rather than assuming a PNG source.
-  const generatedMimeType = generateMutation.data?.mimeType ?? 'image/png';
+  const generatedMimeType = newestResult?.mimeType ?? 'image/png';
   const displayError =
     error ||
     (generateMutation.error instanceof Error &&
@@ -651,7 +666,14 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
     onBack();
   };
 
-  const downloadImage = async () => {
+  /**
+   * Saves the card that was clicked, not whatever is newest.
+   *
+   * The abort bookkeeping stays one-at-a-time: a second click supersedes the
+   * first regardless of which card it came from.
+   */
+  const downloadImage = async (item: ResultStackItem | null) => {
+    const generatedImage = item?.src;
     if (!generatedImage) return;
 
     downloadAbortRef.current?.abort();
@@ -659,6 +681,7 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
     downloadOperationRef.current = operationId;
     downloadAbortRef.current = null;
     setError(null);
+    setDownloadingId(item.id);
 
     const base = downloadFilenameBase({
       prompt,
@@ -687,14 +710,17 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
       } catch {
         const link = document.createElement('a');
         link.href = generatedImage;
-        link.download = `${base}.${extensionForMimeType(generatedMimeType)}`;
+        link.download = `${base}.${extensionForMimeType(item.mimeType ?? generatedMimeType)}`;
         link.click();
+      } finally {
+        setDownloadingId(null);
       }
       return;
     }
 
     if (!isSafeFalMediaUrl(generatedImage)) {
       setError(DOWNLOAD_ERROR);
+      setDownloadingId(null);
       return;
     }
 
@@ -748,6 +774,7 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
       ) {
         downloadAbortRef.current = null;
       }
+      if (mountedRef.current) setDownloadingId((current) => (current === item.id ? null : current));
     }
   };
 
@@ -1129,76 +1156,30 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
             Generated Image
           </h3>
 
-          <div className="aspect-video bg-[var(--background-elevated)] rounded-xl flex items-center justify-center relative overflow-hidden">
-            {isGenerating && (
-              <div className="flex flex-col items-center gap-4">
-                <div className="loading-spinner" />
-                <p className="text-[var(--foreground-muted)] animate-pulse">
-                  Creating your masterpiece...
-                </p>
-              </div>
-            )}
+          {newestResult && (
+            <ImageFormatControl
+              value={imageFormat}
+              onChange={setImageFormat}
+              sourceMimeType={generatedMimeType}
+            />
+          )}
 
-            {!isGenerating && !generatedImage && (
-              <div className="text-center p-5 text-[var(--foreground-muted)]">
+          <ResultStack
+            items={results}
+            isGenerating={isGenerating}
+            onDownload={(item) => downloadImage(item)}
+            downloadingId={downloadingId}
+            downloadLabel="Download Image"
+
+            emptyState={
+              <div className="p-5 text-center text-[var(--foreground-muted)]">
                 <Wand2 size={48} className="mx-auto mb-4 opacity-30" />
                 <p>Your generated image will appear here</p>
               </div>
-            )}
-
-            {generatedImage && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="relative w-full h-full group/img"
-              >
-                <img
-                  src={generatedImage}
-                  alt="Generated"
-                  onClick={() => setLightboxOpen(true)}
-                  className="w-full h-full object-contain cursor-zoom-in"
-                />
-                <button
-                  onClick={() => setLightboxOpen(true)}
-                  aria-label="View full screen"
-                  className="absolute top-3 right-3 p-2 rounded-lg bg-black/55 backdrop-blur border border-white/10 text-white/80 hover:text-white opacity-0 group-hover/img:opacity-100 transition-opacity"
-                >
-                  <Maximize2 size={16} />
-                </button>
-              </motion.div>
-            )}
-          </div>
-
-          {generatedImage && (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="flex flex-col gap-3"
-            >
-              <ImageFormatControl
-                value={imageFormat}
-                onChange={setImageFormat}
-                sourceMimeType={generatedMimeType}
-              />
-              <button
-                type="button"
-                onClick={() => void downloadImage()}
-                className="btn-secondary w-full flex items-center justify-center gap-2"
-              >
-                <Download size={20} />
-                Download Image
-              </button>
-            </motion.div>
-          )}
+            }
+          />
         </motion.div>
       </div>
-
-      <ImageLightbox
-        src={generatedImage}
-        open={lightboxOpen}
-        onClose={() => setLightboxOpen(false)}
-        onDownload={() => void downloadImage()}
-      />
     </div>
   );
 }

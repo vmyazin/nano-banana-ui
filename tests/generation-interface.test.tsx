@@ -1057,3 +1057,103 @@ describe('GenerationInterface fal image generation', () => {
     expect(fetchMock).toHaveBeenCalledWith('/api/generate', expect.anything());
   });
 });
+
+describe('GenerationInterface result stack', () => {
+  /** Runs one generation that resolves to a distinct one-pixel data URL. */
+  const generateOnce = async (body: string) => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ success: true, imageData: body, mimeType: 'image/png' }),
+      })
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Generate Image' }));
+    await waitFor(() =>
+      expect(screen.getAllByAltText(/^Generated/).some((el) => el.getAttribute('src')?.endsWith(body))).toBe(true)
+    );
+  };
+
+  beforeEach(() => {
+    useAppStore.setState({ engine: 'gemini' });
+  });
+
+  it('keeps earlier results on screen, newest first', async () => {
+    renderInterface();
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'A quiet ocean' } });
+
+    await generateOnce('Zmlyc3Q=');
+    await generateOnce('c2Vjb25k');
+
+    const shown = screen.getAllByAltText(/^Generated/).map((el) => el.getAttribute('src'));
+    expect(shown).toHaveLength(2);
+    // Newest on top — the second generation must not have replaced the first.
+    expect(shown[0]).toBe('data:image/png;base64,c2Vjb25k');
+    expect(shown[1]).toBe('data:image/png;base64,Zmlyc3Q=');
+  });
+
+  it('drops the oldest once a fifth result arrives', async () => {
+    renderInterface();
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'A quiet ocean' } });
+
+    for (const body of ['YQ==', 'Yg==', 'Yw==', 'ZA==', 'ZQ==']) {
+      await generateOnce(body);
+    }
+
+    // The dropped card stays mounted through its exit animation, so settle first.
+    await waitFor(() => expect(screen.getAllByAltText(/^Generated/)).toHaveLength(4));
+
+    const shown = screen.getAllByAltText(/^Generated/).map((el) => el.getAttribute('src'));
+    // Four on screen; the first is still in the library, which is what makes
+    // discarding it here safe.
+    expect(shown[0]).toBe('data:image/png;base64,ZQ==');
+    expect(shown[3]).toBe('data:image/png;base64,Yg==');
+    expect(shown).not.toContain('data:image/png;base64,YQ==');
+  });
+
+  it('downloads the card that was clicked, not the newest', async () => {
+    const createObjectURL = vi.fn((_blob: Blob) => 'blob:older-card');
+    Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: createObjectURL });
+    Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: vi.fn() });
+    const clickSpy = vi
+      .spyOn(HTMLAnchorElement.prototype, 'click')
+      .mockImplementation(() => undefined);
+
+    renderInterface();
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'A quiet ocean' } });
+    await generateOnce('Zmlyc3Q=');
+    await generateOnce('c2Vjb25k');
+
+    // Every download path here was written against a single ambient result, so
+    // this is the regression that matters most.
+    const downloads = screen.getAllByRole('button', { name: 'Download Image' });
+    fireEvent.click(downloads[1]);
+
+    await waitFor(() => expect(clickSpy).toHaveBeenCalledTimes(1));
+    // The bytes handed to the anchor are the older card's, not the newest.
+    const blob = createObjectURL.mock.calls[0][0];
+    expect(await blob.text()).toBe('first');
+  });
+
+  it('shows the in-progress slot above existing results', async () => {
+    renderInterface();
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'A quiet ocean' } });
+    await generateOnce('Zmlyc3Q=');
+
+    const pending = deferred<{ ok: boolean; json: () => Promise<unknown> }>();
+    vi.stubGlobal('fetch', vi.fn().mockReturnValue(pending.promise));
+    fireEvent.click(screen.getByRole('button', { name: 'Generate Image' }));
+
+    // The earlier result stays visible while the next one runs.
+    await waitFor(() => expect(screen.getByText('Creating your masterpiece...')).toBeTruthy());
+    expect(screen.getAllByAltText(/^Generated/)).toHaveLength(1);
+
+    await act(async () => {
+      pending.resolve({
+        ok: true,
+        json: async () => ({ success: true, imageData: 'c2Vjb25k', mimeType: 'image/png' }),
+      });
+    });
+    await waitFor(() => expect(screen.getAllByAltText(/^Generated/)).toHaveLength(2));
+  });
+});

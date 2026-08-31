@@ -20,8 +20,11 @@ import {
  */
 
 export interface ImageEncoder {
-  /** Whether this browser can genuinely encode the format. */
-  supports(format: ImageFormat): Promise<boolean>;
+  /**
+   * Whether this browser can genuinely encode the format — `undefined` when the
+   * probe could not answer in time, which is not the same as "no".
+   */
+  supports(format: ImageFormat): Promise<boolean | undefined>;
   /** Re-encode, or undefined when the bytes cannot be decoded. */
   encode(blob: Blob, format: ImageFormat, quality: number): Promise<Blob | undefined>;
   /** Whether the source actually uses its alpha channel. */
@@ -102,9 +105,18 @@ function canvasToBlob(
  * prerenders this bundle on the server during `next build`, where
  * `OffscreenCanvas` does not exist, and a top-level probe would fail the build.
  */
-const probes = new Map<ImageFormat, Promise<boolean>>();
+const probes = new Map<ImageFormat, boolean>();
 
-async function probeFormat(format: ImageFormat): Promise<boolean> {
+/**
+ * `true`/`false` are answers; `undefined` means the probe timed out and we still
+ * do not know.
+ *
+ * The distinction matters because the result is cached. A probe that loses its
+ * 250 ms budget to a busy main thread is not evidence the browser lacks the
+ * encoder — caching that as "no" made formats vanish from the format control
+ * for the rest of the session, on a machine that encodes all three in ~2 ms.
+ */
+async function probeFormat(format: ImageFormat): Promise<boolean | undefined> {
   try {
     const canvas = createCanvas(1, 1);
     // The context is not optional: an OffscreenCanvas that has never been given
@@ -117,22 +129,23 @@ async function probeFormat(format: ImageFormat): Promise<boolean> {
       DEFAULT_QUALITY,
       PROBE_TIMEOUT_MS
     );
+    if (encoded === null) return undefined;
     // A browser without this encoder does not fail — `toBlob` quietly answers
     // with a PNG instead. Comparing the type is the only way to tell.
-    return encoded?.type === MIME_BY_FORMAT[format];
+    return encoded.type === MIME_BY_FORMAT[format];
   } catch {
     return false;
   }
 }
 
 export const canvasEncoder: ImageEncoder = {
-  supports(format) {
-    let probe = probes.get(format);
-    if (!probe) {
-      probe = probeFormat(format);
-      probes.set(format, probe);
-    }
-    return probe;
+  async supports(format) {
+    const cached = probes.get(format);
+    if (cached !== undefined) return cached;
+    const answer = await probeFormat(format);
+    // Only a real answer is cached; an indeterminate one is retried next time.
+    if (answer !== undefined) probes.set(format, answer);
+    return answer;
   },
 
   async encode(blob, format, quality) {
@@ -218,7 +231,9 @@ export async function convertImageBlob(
     }
 
     if (formatForMime(blob.type) === target) return blob;
-    if (!(await encoder.supports(target))) return blob;
+    // Only a definitive "no" stops the attempt. An indeterminate probe falls
+    // through to the encode, which validates its own output type anyway.
+    if ((await encoder.supports(target)) === false) return blob;
 
     const encoded = await encoder.encode(blob, target, quality);
     if (!encoded) return blob;

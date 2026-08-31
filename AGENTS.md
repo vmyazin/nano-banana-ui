@@ -23,6 +23,10 @@
 - **Image/video generation prompt input** → reuse
   `components/AutoExpandingPrompt.tsx` because local textarea sizing made prompt
   height and scroll behavior diverge between providers.
+- **An image result panel** → render `components/ResultStack.tsx` rather than
+  laying out cards inline. It owns the 4-item display cap, the per-card download
+  and fullscreen, and the lightbox — a panel that keeps its own `lightboxOpen`
+  boolean cannot say *which* of several results is open.
 - **Anything that re-encodes image bytes** → read
   `docs/superpowers/specs/2026-08-31-image-format-conversion-design.md`, then go
   through `lib/image/convert.ts`. Never call a canvas encoder directly: it must

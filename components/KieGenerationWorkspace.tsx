@@ -9,7 +9,7 @@ import { requestExamplePrompt, requestPromptSlug } from '@/lib/micro-ai/browser'
 import { submitKieJob, uploadKieFiles } from '@/lib/kie/browser';
 import { defaultKieValues, modelsForKieMode, resolveKieVariant, validateKieInput } from '@/lib/kie/catalog';
 import { currentKieTime, isKieJobTerminal } from '@/lib/kie/queue';
-import type { KieFieldDefinition, KieInputMode, MediaType } from '@/lib/kie/types';
+import type { KieFieldDefinition, KieInputMode, KieJob, MediaType } from '@/lib/kie/types';
 import {
   downloadRemoteMedia,
   extensionForMedia,
@@ -26,11 +26,11 @@ import { candidatesFromValues, useAutoAspect } from '@/lib/draft/aspect-match';
 import { carryOverValues } from '@/lib/draft/carry-over';
 import { FRAME_EXTRACTION_ERROR, isVideoFile, lastFrameAsImageFile } from '@/lib/video-frame';
 import LastFrameActions from '@/components/LastFrameActions';
+import ResultStack, { type ResultStackItem } from '@/components/ResultStack';
 import AutoExpandingPrompt from '@/components/AutoExpandingPrompt';
 import ModelControls, { type ModelControlField } from '@/components/ModelControls';
 import StoredImagePicker from '@/components/StoredImagePicker';
 import GenerationWorkspaceLayout from '@/components/GenerationWorkspaceLayout';
-import ImageLightbox from '@/components/ImageLightbox';
 
 interface KieGenerationWorkspaceProps {
   mediaType: MediaType;
@@ -99,10 +99,9 @@ export default function KieGenerationWorkspace({
     carryOverValues(variant.fields, defaultKieValues(variant), controlValues);
   const [modelSearch, setModelSearch] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [lightboxOpen, setLightboxOpen] = useState(false);
   const [isGeneratingExample, setIsGeneratingExample] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isDownloading, setIsDownloading] = useState(false);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [isReadingFrame, setIsReadingFrame] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   // Latest addReferences, so the paste listener attaches once instead of per render.
@@ -112,10 +111,24 @@ export default function KieGenerationWorkspace({
   const matchingModels = models.filter((model) =>
     `${model.label} ${model.provider}`.toLowerCase().includes(modelSearch.toLowerCase())
   );
-  const latestJob = jobs.find(
+  const matchingJobs = jobs.filter(
     (job) => job.modelId === selectedModel.id && job.mediaType === mediaType && job.inputMode === inputMode
   );
+  const latestJob = matchingJobs[0];
   const resultUrl = latestJob?.state === 'success' ? latestJob.resultUrls[0] : undefined;
+  /**
+   * The image stack, straight off the job list this panel already keeps —
+   * no parallel state, so results stay visible for exactly as long as the
+   * store lists them.
+   */
+  const imageResults: ResultStackItem[] =
+    mediaType === 'image'
+      ? matchingJobs.flatMap((job) =>
+          job.state === 'success' && job.resultUrls[0]
+            ? [{ id: job.id, src: job.resultUrls[0] }]
+            : []
+        )
+      : [];
   const resolvedExampleFeatureId =
     exampleFeatureId ?? (mediaType === 'video' ? `${inputMode}-to-video` : 'text-to-image');
 
@@ -275,34 +288,40 @@ export default function KieGenerationWorkspace({
     upsertJob({ ...latest, slug });
   };
 
-  const filenameBase = latestJob
-    ? downloadFilenameBase({
-        prompt: latestJob.prompt,
-        mediaType,
-        slug: latestJob.slug,
-        provider: 'kie',
-        modelId: latestJob.modelId,
-      })
-    : '';
+  const filenameBaseFor = (job: KieJob) =>
+    downloadFilenameBase({
+      prompt: job.prompt,
+      mediaType,
+      slug: job.slug,
+      provider: 'kie',
+      modelId: job.modelId,
+    });
 
-  const downloadResult = async () => {
-    if (!latestJob || !resultUrl) return;
-    if (!isDownloadableMediaUrl(resultUrl)) {
+  const filenameBase = latestJob ? filenameBaseFor(latestJob) : '';
+
+  /** Saves the card that was clicked; defaults to the newest for the video panel. */
+  const downloadResult = async (item?: ResultStackItem) => {
+    const job = item ? matchingJobs.find((candidate) => candidate.id === item.id) : latestJob;
+    const url = item?.src ?? resultUrl;
+    if (!job || !url) return;
+    if (!isDownloadableMediaUrl(url)) {
       setError('This Kie result URL has expired and can no longer be downloaded.');
       return;
     }
 
     setError(null);
-    setIsDownloading(true);
+    setDownloadingId(job.id);
     try {
       await downloadRemoteMedia({
-        url: resultUrl,
+        url,
         mediaType,
-        filenameBase,
+        filenameBase: filenameBaseFor(job),
         imageFormat,
       });
     } finally {
-      if (mountedRef.current) setIsDownloading(false);
+      if (mountedRef.current) {
+        setDownloadingId((current) => (current === job.id ? null : current));
+      }
     }
   };
 
@@ -559,73 +578,80 @@ export default function KieGenerationWorkspace({
               </span>
             )}
           </div>
-          <div className="flex min-h-[300px] flex-1 items-center justify-center overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--background-elevated)]/70">
-            {resultUrl ? (
-              mediaType === 'video' ? (
-                <video src={resultUrl} controls className="h-full w-full max-h-[520px] bg-black" />
-              ) : (
-                <div className="group/img relative h-full w-full">
-                  <img
-                    src={resultUrl}
-                    alt="Generated by Kie"
-                    onClick={() => setLightboxOpen(true)}
-                    className="h-full w-full cursor-zoom-in object-contain"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setLightboxOpen(true)}
-                    aria-label="View full screen"
-                    className="absolute right-3 top-3 rounded-lg border border-white/10 bg-black/55 p-2 text-white/80 opacity-0 backdrop-blur transition-opacity hover:text-white group-hover/img:opacity-100"
-                  >
-                    <Maximize2 size={16} />
-                  </button>
-                </div>
-              )
-            ) : latestJob && !isKieJobTerminal(latestJob.state) ? (
-              <div className="space-y-3 p-5 text-center">
-                <Loader2 className="mx-auto animate-spin text-[var(--neon-cyan)]" size={34} />
-                <p className="text-sm text-[var(--foreground-muted)]">Kie is working on your {mediaType}.</p>
-                {typeof latestJob.progress === 'number' && <p className="font-mono text-xs text-[var(--neon-cyan)]">{Math.round(latestJob.progress * 100)}%</p>}
+          {mediaType === 'video' ? (
+            <>
+              <div className="flex min-h-[300px] flex-1 items-center justify-center overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--background-elevated)]/70">
+                {resultUrl ? (
+                  <video src={resultUrl} controls className="h-full w-full max-h-[520px] bg-black" />
+                ) : latestJob && !isKieJobTerminal(latestJob.state) ? (
+                  <div className="space-y-3 p-5 text-center">
+                    <Loader2 className="mx-auto animate-spin text-[var(--neon-cyan)]" size={34} />
+                    <p className="text-sm text-[var(--foreground-muted)]">Kie is working on your {mediaType}.</p>
+                    {typeof latestJob.progress === 'number' && <p className="font-mono text-xs text-[var(--neon-cyan)]">{Math.round(latestJob.progress * 100)}%</p>}
+                  </div>
+                ) : latestJob?.state === 'fail' ? (
+                  <p className="max-w-sm p-5 text-center text-sm text-red-300">{latestJob.error || 'Kie could not complete this task. It was not resubmitted.'}</p>
+                ) : (
+                  <div className="p-5 text-center text-[var(--foreground-muted)]">
+                    <Video className="mx-auto mb-3 opacity-35" size={46} />
+                    <p>Your generated {mediaType} will appear here.</p>
+                  </div>
+                )}
               </div>
-            ) : latestJob?.state === 'fail' ? (
-              <p className="max-w-sm p-5 text-center text-sm text-red-300">{latestJob.error || 'Kie could not complete this task. It was not resubmitted.'}</p>
-            ) : (
-              <div className="p-5 text-center text-[var(--foreground-muted)]">
-                {mediaType === 'video' ? <Video className="mx-auto mb-3 opacity-35" size={46} /> : <Sparkles className="mx-auto mb-3 opacity-35" size={46} />}
-                <p>Your generated {mediaType} will appear here.</p>
-              </div>
-            )}
-          </div>
-          {resultUrl && latestJob && (
-            <a
-              href={resultUrl}
-              download={`${filenameBase}.${extensionForMedia(mediaType)}`}
-              onClick={(event) => {
-                // Kie serves results cross-origin, where the download attribute is
-                // ignored — fetch the bytes so the semantic name survives.
-                event.preventDefault();
-                void downloadResult();
-              }}
-              className="btn-secondary flex w-full items-center justify-center gap-2"
-            >
-              {isDownloading ? <Loader2 className="animate-spin" size={18} /> : <Download size={18} />}
-              {isDownloading ? 'Preparing download…' : `Download ${mediaType}`}
-            </a>
+              {resultUrl && latestJob && (
+                <a
+                  href={resultUrl}
+                  download={`${filenameBase}.${extensionForMedia(mediaType)}`}
+                  onClick={(event) => {
+                    // Kie serves results cross-origin, where the download attribute is
+                    // ignored — fetch the bytes so the semantic name survives.
+                    event.preventDefault();
+                    void downloadResult();
+                  }}
+                  className="btn-secondary flex w-full items-center justify-center gap-2"
+                >
+                  {downloadingId ? <Loader2 className="animate-spin" size={18} /> : <Download size={18} />}
+                  {downloadingId ? 'Preparing download…' : `Download ${mediaType}`}
+                </a>
+              )}
+              {resultUrl && latestJob && (
+                <LastFrameActions
+                  videoUrl={resultUrl}
+                  filenameBase={filenameBase}
+                  onContinue={onContinueFromFrame}
+                />
+              )}
+            </>
+          ) : (
+            <>
+              {/* A failed run is reported above the stack rather than in place of
+                  it: the earlier results are still worth looking at. */}
+              {latestJob?.state === 'fail' && (
+                <p className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-center text-sm text-red-300">
+                  {latestJob.error || 'Kie could not complete this task. It was not resubmitted.'}
+                </p>
+              )}
+              <ResultStack
+                items={imageResults}
+                isGenerating={Boolean(latestJob && !isKieJobTerminal(latestJob.state))}
+                pendingLabel={`Kie is working on your ${mediaType}.`}
+                pendingDetail={
+                  typeof latestJob?.progress === 'number' ? (
+                    <p className="font-mono text-xs text-[var(--neon-cyan)]">{Math.round(latestJob.progress * 100)}%</p>
+                  ) : undefined
+                }
+                onDownload={(item) => downloadResult(item)}
+                downloadingId={downloadingId}
+                downloadLabel={`Download ${mediaType}`}
+                emptyState={
+                  <div className="p-5 text-center text-[var(--foreground-muted)]">
+                    <Sparkles className="mx-auto mb-3 opacity-35" size={46} />
+                    <p>Your generated {mediaType} will appear here.</p>
+                  </div>
+                }
+              />
+            </>
           )}
-          {resultUrl && latestJob && mediaType === 'video' && (
-            <LastFrameActions
-              videoUrl={resultUrl}
-              filenameBase={filenameBase}
-              onContinue={onContinueFromFrame}
-            />
-          )}
-          <ImageLightbox
-            src={mediaType === 'image' ? resultUrl : undefined}
-            open={lightboxOpen}
-            onClose={() => setLightboxOpen(false)}
-            onDownload={() => void downloadResult()}
-            alt="Generated by Kie, full size"
-          />
           </section>
         }
       />

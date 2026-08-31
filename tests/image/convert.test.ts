@@ -81,6 +81,15 @@ describe('convertImageBlob', () => {
     expect(await convertImageBlob(source, 'webp', 0.92, encoder)).toBe(source);
   });
 
+  it('still attempts the encode when the support probe is indeterminate', async () => {
+    // A probe that loses its budget to a busy main thread is not evidence the
+    // encoder is missing — and the encode validates its own output type anyway.
+    const source = blobOf(1000, 'image/png');
+    const encoder = fakeEncoder({ supports: async () => undefined });
+
+    expect((await convertImageBlob(source, 'webp', 0.92, encoder)).type).toBe('image/webp');
+  });
+
   it('rejects an encoder that answers with a different type than asked for', async () => {
     // canvas.toBlob does not fail on an unsupported format — it quietly hands
     // back a PNG. Trusting it would produce a .webp file holding PNG bytes.

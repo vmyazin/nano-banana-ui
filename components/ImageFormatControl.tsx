@@ -68,7 +68,10 @@ export default function ImageFormatControl({
     // the server at build time, where OffscreenCanvas does not exist.
     void Promise.all(
       (['png', 'jpeg', 'webp'] as const).map(async (format) =>
-        (await canvasEncoder.supports(format)) ? format : undefined
+        // Hidden only on a definitive "no". A probe that merely timed out is
+        // not evidence the browser lacks the encoder, and hiding a format the
+        // browser actually supports is the worse error.
+        (await canvasEncoder.supports(format)) === false ? undefined : format
       )
     ).then((supported) => {
       if (cancelled) return;
