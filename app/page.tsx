@@ -6,12 +6,13 @@ import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useQueryState } from 'nuqs';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Key, Check, Command as CommandIcon, Layers, Library as LibraryIcon, Film } from 'lucide-react';
+import { Key, Check, Command as CommandIcon, Library as LibraryIcon, Film } from 'lucide-react';
 import ApiKeyConfig from '@/components/ApiKeyConfig';
 import LibraryOverlay from '@/components/LibraryOverlay';
 import { usePromptLibraryStore } from '@/store/usePromptLibraryStore';
 import FeatureSelector from '@/components/FeatureSelector';
 import ProviderLogo from '@/components/ProviderLogo';
+import { BrandWordmark } from '@/components/BrandMark';
 import { ENGINE_DOCS } from '@/lib/engines/docs';
 import { CommandPalette } from '@/components/CommandPalette';
 import VideoWorkspace from '@/components/VideoWorkspace';
@@ -106,16 +107,12 @@ function Studio() {
                 animate={{ opacity: 1, y: 0 }}
                 className="brand-mark flex items-center gap-2.5 min-w-0"
               >
-                <div className="brand-mark-icon w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-gradient-to-br from-[var(--neon-cyan)] to-[var(--neon-purple)] flex items-center justify-center flex-shrink-0 shadow-[0_2px_12px_-2px_rgba(0,245,255,0.35)]">
-                  <Layers className="w-4 h-4 sm:w-[18px] sm:h-[18px] text-black" aria-hidden />
-                </div>
-                <div className="min-w-0 flex items-center gap-2.5">
-                  <h1 className="display text-base sm:text-lg font-semibold text-[var(--foreground)] truncate">
-                    {brand.name}
-                  </h1>
-                  <span className="hidden md:inline-block h-3.5 w-px bg-[var(--border-hover)]" />
-                  <span className="hidden md:inline eyebrow">{brand.tagline}</span>
-                </div>
+                <h1 className="flex min-w-0">
+                  <span className="sr-only">{brand.name}</span>
+                  <BrandWordmark className="h-8 w-auto flex-shrink-0 text-[var(--foreground)] sm:h-9" />
+                </h1>
+                <span className="hidden md:inline-block h-3.5 w-px bg-[var(--border-hover)]" />
+                <span className="hidden md:inline eyebrow">{brand.tagline}</span>
               </motion.div>
             </Link>
 
