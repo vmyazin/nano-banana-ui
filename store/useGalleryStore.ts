@@ -4,6 +4,9 @@ import { DEFAULT_GALLERY_BUDGET, selectEvictions, type GalleryBudget } from '@/l
 import { createIndexedDbGalleryStorage, isIndexedDbAvailable } from '@/lib/gallery/idb-storage';
 import { createMemoryGalleryStorage } from '@/lib/gallery/memory-storage';
 import { recordBytes, type GalleryRecord, type GalleryStorage } from '@/lib/gallery/storage';
+import { convertImageBlob } from '@/lib/image/convert';
+import { DEFAULT_QUALITY, targetFormat } from '@/lib/image/policy';
+import { useAppStore } from '@/store/useAppStore';
 
 export interface GalleryDraftRecord extends Omit<GalleryRecord, 'id' | 'createdAt' | 'bytes'> {
   id?: string;
@@ -64,6 +67,33 @@ function isQuotaError(error: unknown) {
 const QUOTA_MESSAGE =
   'This browser is out of storage for kept results. Remove some to keep saving.';
 
+/**
+ * The bytes the library should actually hold.
+ *
+ * `record` and `keep` are the only two points where bytes enter the library, so
+ * converting here covers every caller — automatic image capture and each
+ * provider workspace's Keep — without any of them knowing about it. Video
+ * posters go through the same policy, since a poster becomes a reference image
+ * via `GalleryGrid.sendAsReference`.
+ *
+ * This is the one irreversible conversion in the app, which is why it is
+ * opt-out: once a record holds WebP the original PNG is gone for good.
+ */
+async function storedBlob(blob: Blob): Promise<Blob>;
+async function storedBlob(blob: Blob | undefined): Promise<Blob | undefined>;
+async function storedBlob(blob: Blob | undefined): Promise<Blob | undefined> {
+  if (!blob) return blob;
+  const { convertLibraryImages, imageFormat } = useAppStore.getState();
+  if (!convertLibraryImages) return blob;
+
+  const format = targetFormat({
+    sourceMime: blob.type,
+    destination: 'library',
+    preference: imageFormat,
+  });
+  return format ? convertImageBlob(blob, format, DEFAULT_QUALITY) : blob;
+}
+
 export const useGalleryStore = create<GalleryState>((set, get) => ({
   records: [],
   hydrated: false,
@@ -80,6 +110,18 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
   },
 
   record: async (draft) => {
+    const stored = draft.kind === 'image' ? await storedBlob(draft.blob) : draft.blob;
+    const storedPoster = await storedBlob(draft.posterBlob);
+    if (stored !== draft.blob || storedPoster !== draft.posterBlob) {
+      draft = {
+        ...draft,
+        blob: stored,
+        posterBlob: storedPoster,
+        mimeType: stored?.type || draft.mimeType,
+        bytes: undefined,
+      };
+    }
+
     nextRecordId += 1;
     const record: GalleryRecord = {
       ...draft,
@@ -110,12 +152,16 @@ export const useGalleryStore = create<GalleryState>((set, get) => ({
     const existing = get().records.find((record) => record.id === id);
     if (!existing) return;
 
+    const stored = existing.kind === 'image' ? await storedBlob(blob) : blob;
+    const storedPoster = await storedBlob(posterBlob);
+
     const kept: GalleryRecord = {
       ...existing,
-      blob,
-      posterBlob,
+      blob: stored,
+      posterBlob: storedPoster,
+      mimeType: existing.kind === 'image' ? stored?.type || existing.mimeType : existing.mimeType,
       pinned: true,
-      bytes: recordBytes({ blob, posterBlob }),
+      bytes: recordBytes({ blob: stored, posterBlob: storedPoster }),
     };
     try {
       await galleryStorage().put(kept);

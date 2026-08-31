@@ -19,15 +19,17 @@ import {
 import { runFalImage } from '@/lib/fal/browser';
 import { FAL_IMAGE_MODEL } from '@/lib/fal/catalog';
 import { downloadFilenameBase } from '@/lib/download-name';
+import { convertedForDownload } from '@/lib/image/download-format';
 import ProviderLogo from '@/components/ProviderLogo';
 import AutoExpandingPrompt from '@/components/AutoExpandingPrompt';
 import { useAppStore } from '@/store/useAppStore';
 import { modelsFor, resolveModel } from '@/lib/providers/catalog';
 import type { ProviderId } from '@/lib/providers/types';
+import { prepareReferences } from '@/lib/draft/ingest';
 import { useDraftStore } from '@/store/useDraftStore';
 import { usePromptLibraryStore } from '@/store/usePromptLibraryStore';
 import { useGalleryStore } from '@/store/useGalleryStore';
-import { resultBlob } from '@/lib/gallery/capture';
+import { blobFromDataUrl, resultBlob } from '@/lib/gallery/capture';
 import { candidatesFromValues, useAutoAspect } from '@/lib/draft/aspect-match';
 import { isValueCompatible, type CarryOverField } from '@/lib/draft/carry-over';
 import {
@@ -39,6 +41,7 @@ import KieGenerationWorkspace from '@/components/KieGenerationWorkspace';
 import SegmentedToggleGroup from '@/components/SegmentedToggleGroup';
 import StoredImagePicker from '@/components/StoredImagePicker';
 import ImageLightbox from '@/components/ImageLightbox';
+import ImageFormatControl from '@/components/ImageFormatControl';
 import {
   X,
   Wand2,
@@ -213,6 +216,8 @@ export default function GenerationInterface({ feature, apiKey, onBack, onOpenCon
   // Engines that can run this feature; fall back to the first (Gemini) if the
   // persisted choice can't (e.g. picked Pollinations then opened an editing mode).
   const storeEngine = useAppStore((s) => s.engine);
+  const imageFormat = useAppStore((s) => s.imageFormat);
+  const setImageFormat = useAppStore((s) => s.setImageFormat);
   const setEngine = useAppStore((s) => s.setEngine);
   const cfAccountId = useAppStore((s) => s.cfAccountId);
   const cfToken = useAppStore((s) => s.cfToken);
@@ -318,9 +323,16 @@ export default function GenerationInterface({ feature, apiKey, onBack, onOpenCon
       }
     }
 
-    useDraftStore.getState().addReferences(imageFiles.map((file) => ({ file })), maxImages);
+    // Re-encoded before any provider sees it: nano banana returns PNG, which is
+    // both the largest upload and the format providers handle worst.
+    const prepared = await prepareReferences(
+      imageFiles.map((file) => ({ file })),
+      imageFormat
+    );
+    if (!mountedRef.current) return;
+    useDraftStore.getState().addReferences(prepared, maxImages);
     setError(null);
-  }, [activeEngine.id, feature.maxImages, references.length]);
+  }, [activeEngine.id, feature.maxImages, imageFormat, references.length]);
 
   // Gemini and fal both want data URLs; the draft holds the Files, so they are
   // re-read whenever the reference list changes.
@@ -379,7 +391,7 @@ export default function GenerationInterface({ feature, apiKey, onBack, onOpenCon
   };
 
   const generateMutation = useMutation({
-    mutationFn: async (): Promise<{ dataUrl: string; ext: string }> => {
+    mutationFn: async (): Promise<{ dataUrl: string; ext: string; mimeType: string }> => {
       // Tailor the prompt to the feature.
       let finalPrompt = prompt;
       if (feature.id === 'social-media-thumbnail') {
@@ -434,6 +446,7 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
           return {
             dataUrl: result.url,
             ext: extensionForMimeType(result.mimeType),
+            mimeType: result.mimeType ?? 'image/png',
           };
         } catch (caught) {
           if (
@@ -478,7 +491,7 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
       if (data.success && data.imageData) {
         const mime: string = data.mimeType || 'image/png';
         const ext = mime.includes('jpeg') || mime.includes('jpg') ? 'jpg' : 'png';
-        return { dataUrl: `data:${mime};base64,${data.imageData}`, ext };
+        return { dataUrl: `data:${mime};base64,${data.imageData}`, ext, mimeType: mime };
       }
 
       const debugInfo = data.debug ? ` (${data.debug})` : '';
@@ -545,7 +558,9 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
   const generatedImage = generateMutation.isSuccess
     ? generateMutation.data.dataUrl
     : null;
-  const downloadExt = generateMutation.data?.ext ?? 'png';
+  // Feeds the format control's "Auto → …" hint, so it names the real outcome
+  // for these bytes rather than assuming a PNG source.
+  const generatedMimeType = generateMutation.data?.mimeType ?? 'image/png';
   const displayError =
     error ||
     (generateMutation.error instanceof Error &&
@@ -654,10 +669,27 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
     });
 
     if (generatedImage.startsWith('data:image/')) {
-      const link = document.createElement('a');
-      link.href = generatedImage;
-      link.download = `${base}.${downloadExt}`;
-      link.click();
+      // Decoded rather than handed straight to the anchor, so the chosen format
+      // applies here too — this is the path nano banana's PNG results take.
+      // A decode failure falls back to the original direct-anchor download:
+      // saving the result must not depend on converting it.
+      try {
+        const saved = await convertedForDownload(blobFromDataUrl(generatedImage), imageFormat);
+        const objectUrl = URL.createObjectURL(saved);
+        try {
+          const link = document.createElement('a');
+          link.href = objectUrl;
+          link.download = `${base}.${extensionForMimeType(saved.type)}`;
+          link.click();
+        } finally {
+          URL.revokeObjectURL(objectUrl);
+        }
+      } catch {
+        const link = document.createElement('a');
+        link.href = generatedImage;
+        link.download = `${base}.${extensionForMimeType(generatedMimeType)}`;
+        link.click();
+      }
       return;
     }
 
@@ -692,11 +724,17 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
       );
       if (!isCurrentOperation()) return;
 
-      objectUrl = URL.createObjectURL(blob);
+      const saved = await convertedForDownload(blob, imageFormat);
+      if (!isCurrentOperation()) return;
+
+      objectUrl = URL.createObjectURL(saved);
 
       const link = document.createElement('a');
       link.href = objectUrl;
-      link.download = `${base}.${extensionForMimeType(responseMime)}`;
+      // From the saved blob, never the response header: a browser that cannot
+      // encode the chosen format leaves the original bytes, and the name must
+      // follow the bytes.
+      link.download = `${base}.${extensionForMimeType(saved.type)}`;
       link.click();
     } catch (caught) {
       if (!isCurrentOperation() || isAbortError(caught)) return;
@@ -1132,15 +1170,25 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
           </div>
 
           {generatedImage && (
-            <motion.button
+            <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              onClick={() => void downloadImage()}
-              className="btn-secondary w-full flex items-center justify-center gap-2"
+              className="flex flex-col gap-3"
             >
-              <Download size={20} />
-              Download Image
-            </motion.button>
+              <ImageFormatControl
+                value={imageFormat}
+                onChange={setImageFormat}
+                sourceMimeType={generatedMimeType}
+              />
+              <button
+                type="button"
+                onClick={() => void downloadImage()}
+                className="btn-secondary w-full flex items-center justify-center gap-2"
+              >
+                <Download size={20} />
+                Download Image
+              </button>
+            </motion.div>
           )}
         </motion.div>
       </div>

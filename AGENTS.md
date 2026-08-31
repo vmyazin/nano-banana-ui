@@ -23,6 +23,19 @@
 - **Image/video generation prompt input** → reuse
   `components/AutoExpandingPrompt.tsx` because local textarea sizing made prompt
   height and scroll behavior diverge between providers.
+- **Anything that re-encodes image bytes** → read
+  `docs/superpowers/specs/2026-08-31-image-format-conversion-design.md`, then go
+  through `lib/image/convert.ts`. Never call a canvas encoder directly: it must
+  never grow a file, never re-encode what is already in the target format, never
+  put a transparent source into JPEG, and never name a file after a format the
+  browser silently declined to produce. Conversion is an optimization, so every
+  failure path returns the original bytes rather than throwing.
+- **A new place image bytes enter or leave the app** → hook the existing
+  chokepoints rather than adding a fifth: `prepareReferences`
+  (`lib/draft/ingest.ts`) in front of `useDraftStore.addReferences`,
+  `convertedForDownload` (`lib/image/download-format.ts`) on the way to an
+  anchor, and `useGalleryStore.record`/`keep` for the library. Every provider
+  reads `DraftReference.file`, so the ingest hook covers all of them at once.
 
 ## Session workflow (worktree → smoke-test → ship → wipe)
 

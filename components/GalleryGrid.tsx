@@ -11,6 +11,9 @@ import { downloadFilenameBase } from '@/lib/download-name';
 import { extractLastFrameFromBlob } from '@/lib/video-frame';
 import { LOCAL_PROVIDER } from '@/lib/timeline/import-local';
 import RecoverMediaDropZone from '@/components/RecoverMediaDropZone';
+import { prepareReferences } from '@/lib/draft/ingest';
+import { convertedForDownload } from '@/lib/image/download-format';
+import { useAppStore } from '@/store/useAppStore';
 import { useDraftStore } from '@/store/useDraftStore';
 import { useGalleryStore } from '@/store/useGalleryStore';
 
@@ -127,12 +130,13 @@ export default function GalleryGrid({
     const extension = mode === 'pick-image'
       ? extensionForMedia('image', blob.type || record.mimeType)
       : 'png';
-    useDraftStore
-      .getState()
-      .addReferences(
-        [{ file: new File([blob], `${base}.${extension}`, { type: blob.type || 'image/png' }), sourceLabel: `From ${titleOf(record)}` }],
-        referenceLimit
-      );
+    // Idempotent when the library already stores WebP; this only bites when
+    // library conversion is off and the stored bytes are still PNG.
+    const prepared = await prepareReferences(
+      [{ file: new File([blob], `${base}.${extension}`, { type: blob.type || 'image/png' }), sourceLabel: `From ${titleOf(record)}` }],
+      useAppStore.getState().imageFormat
+    );
+    useDraftStore.getState().addReferences(prepared, referenceLimit);
     toast.success('Added as a reference');
     onUsedReference?.();
   };
@@ -155,12 +159,17 @@ export default function GalleryGrid({
       provider: record.provider,
       modelId: record.modelId,
     });
+    const imageFormat = useAppStore.getState().imageFormat;
     if (record.blob) {
-      const url = URL.createObjectURL(record.blob);
+      const saved =
+        record.kind === 'image'
+          ? await convertedForDownload(record.blob, imageFormat)
+          : record.blob;
+      const url = URL.createObjectURL(saved);
       try {
         const link = document.createElement('a');
         link.href = url;
-        link.download = `${base}.${extensionForMedia(record.kind, record.mimeType)}`;
+        link.download = `${base}.${extensionForMedia(record.kind, saved.type || record.mimeType)}`;
         link.click();
       } finally {
         URL.revokeObjectURL(url);
@@ -173,6 +182,7 @@ export default function GalleryGrid({
         mediaType: record.kind,
         filenameBase: base,
         mimeType: record.mimeType,
+        imageFormat,
       });
     }
   };

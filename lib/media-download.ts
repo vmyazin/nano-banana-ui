@@ -1,4 +1,6 @@
 import { slugify } from '@/lib/example-prompts';
+import { convertedForDownload } from '@/lib/image/download-format';
+import type { ImageFormatPreference } from '@/lib/image/policy';
 
 export type DownloadMediaType = 'image' | 'video';
 
@@ -222,20 +224,32 @@ export async function downloadRemoteMedia(args: {
   filenameBase: string;
   mimeType?: string;
   signal?: AbortSignal;
+  /**
+   * Re-encodes images on the way to disk. Omitted means "save what the provider
+   * sent", which is what the video paths and the existing tests rely on.
+   */
+  imageFormat?: ImageFormatPreference;
 }): Promise<boolean> {
-  const { url, mediaType, filenameBase, mimeType, signal } = args;
+  const { url, mediaType, filenameBase, mimeType, signal, imageFormat } = args;
   const abortSignal = signal ?? new AbortController().signal;
   let objectUrl: string | null = null;
 
-  const save = (blob: Blob) => {
-    objectUrl = URL.createObjectURL(blob);
-    triggerAnchorDownload(objectUrl, `${filenameBase}.${extensionForMedia(mediaType, blob.type)}`);
+  const save = async (blob: Blob) => {
+    // Videos are never re-encoded here; only the raster paths convert.
+    const saved =
+      mediaType === 'image' && imageFormat
+        ? await convertedForDownload(blob, imageFormat)
+        : blob;
+    objectUrl = URL.createObjectURL(saved);
+    // Named after the saved bytes, not the requested format: conversion falls
+    // back to the original whenever the browser cannot encode the target.
+    triggerAnchorDownload(objectUrl, `${filenameBase}.${extensionForMedia(mediaType, saved.type)}`);
   };
 
   try {
     const response = await fetch(url, { signal });
     if (!response.ok) throw new Error('Remote media request failed');
-    save(await verifiedMediaBlob(response, mediaType, mimeType, abortSignal));
+    await save(await verifiedMediaBlob(response, mediaType, mimeType, abortSignal));
     return true;
   } catch (error) {
     if (isAbort(error)) return false;
@@ -250,7 +264,7 @@ export async function downloadRemoteMedia(args: {
     try {
       const proxied = await proxiedMediaBlob(url, mediaType, mimeType, abortSignal, signal);
       if (proxied) {
-        save(proxied);
+        await save(proxied);
         return true;
       }
     } catch (proxyError) {

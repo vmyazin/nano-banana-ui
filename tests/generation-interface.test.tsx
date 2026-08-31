@@ -23,7 +23,10 @@ vi.mock('@/lib/micro-ai/browser', () => ({
 
 // Archiving a result is covered in tests/gallery; here it must not add network
 // traffic to assertions about what generation itself fetches.
-vi.mock('@/lib/gallery/capture', () => ({
+vi.mock('@/lib/gallery/capture', async (importOriginal) => ({
+  // blobFromDataUrl is a pure local decoder with no network of its own, and the
+  // download path depends on it, so it keeps its real implementation.
+  blobFromDataUrl: (await importOriginal<typeof import('@/lib/gallery/capture')>()).blobFromDataUrl,
   resultBlob: vi.fn().mockResolvedValue(new Blob(['png'], { type: 'image/png' })),
 }));
 
@@ -1018,7 +1021,10 @@ describe('GenerationInterface fal image generation', () => {
     expect(document.body.textContent).not.toContain('fal_id:fal_secret');
   });
 
-  it('preserves the direct data-URL download flow for existing providers', async () => {
+  it('downloads a data-URL result without a second network round trip', async () => {
+    // The result now goes through the format conversion, so the anchor gets a
+    // locally-decoded blob rather than the data URL itself. What must not change
+    // is that a data URL is never re-fetched over the network to save it.
     useAppStore.setState({ engine: 'gemini' });
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
@@ -1029,6 +1035,9 @@ describe('GenerationInterface fal image generation', () => {
       }),
     });
     vi.stubGlobal('fetch', fetchMock);
+    const createObjectURL = vi.fn(() => 'blob:data-url-download');
+    Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: createObjectURL });
+    Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: vi.fn() });
     const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
     renderInterface();
 
@@ -1037,9 +1046,12 @@ describe('GenerationInterface fal image generation', () => {
     await waitFor(() => expect(screen.getByAltText('Generated')).toBeTruthy());
     fireEvent.click(screen.getByRole('button', { name: 'Download Image' }));
 
-    expect(clickSpy).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(clickSpy).toHaveBeenCalledTimes(1));
     const link = clickSpy.mock.instances[0] as HTMLAnchorElement;
-    expect(link.href).toBe('data:image/png;base64,cG5n');
+    expect(link.href).toBe('blob:data-url-download');
+    expect(createObjectURL).toHaveBeenCalledWith(expect.any(Blob));
+    // jsdom has no canvas encoder, so conversion falls back to the original PNG
+    // — and the filename follows the bytes that were actually saved.
     expect(link.download).toBe('existing-provider-image-gemini-3-pro-image.png');
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock).toHaveBeenCalledWith('/api/generate', expect.anything());

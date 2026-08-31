@@ -27,6 +27,7 @@ import { frameSlotLabel } from '@/lib/providers/frames';
 import type { ProviderId, ProviderMode, ProviderModel } from '@/lib/providers/types';
 import { FRAME_EXTRACTION_ERROR, isVideoFile, lastFrameAsImageFile } from '@/lib/video-frame';
 import { useAppStore } from '@/store/useAppStore';
+import { prepareReferences } from '@/lib/draft/ingest';
 import { useDraftStore } from '@/store/useDraftStore';
 import { usePromptLibraryStore } from '@/store/usePromptLibraryStore';
 import { useProviderJobsStore, type ProviderJob } from '@/store/useProviderJobsStore';
@@ -141,6 +142,7 @@ export default function ProviderVideoWorkspace({
   onContinueFromFrame,
 }: ProviderVideoWorkspaceProps) {
   const geminiApiKey = useAppStore((state) => state.apiKey);
+  const imageFormat = useAppStore((state) => state.imageFormat);
   const runwareApiKey = useAppStore((state) => state.runwareApiKey);
   const atlasApiKey = useAppStore((state) => state.atlasApiKey);
   const cometApiKey = useAppStore((state) => state.cometApiKey);
@@ -306,8 +308,11 @@ export default function ProviderVideoWorkspace({
             : { file, sourceLabel: undefined }
         )
       );
+      // Re-encoded before any provider sees it: nano banana returns PNG, which
+      // is both the largest upload and the format providers handle worst.
+      const converted = await prepareReferences(prepared, imageFormat);
       if (!mountedRef.current) return;
-      useDraftStore.getState().addReferences(prepared, maxInputImages);
+      useDraftStore.getState().addReferences(converted, maxInputImages);
     } catch {
       if (mountedRef.current) setError(FRAME_EXTRACTION_ERROR);
     } finally {

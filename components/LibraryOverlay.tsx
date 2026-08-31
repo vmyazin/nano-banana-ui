@@ -7,6 +7,7 @@ import { Library, X } from 'lucide-react';
 import GalleryGrid from '@/components/GalleryGrid';
 import PromptLibraryList from '@/components/PromptLibraryList';
 import { useAccessibleDialog } from '@/hooks/useAccessibleDialog';
+import { useAppStore } from '@/store/useAppStore';
 import { useGalleryStore } from '@/store/useGalleryStore';
 
 interface LibraryOverlayProps {
@@ -62,6 +63,9 @@ export default function LibraryOverlay({
       }
     });
   }, [open]);
+
+  const convertLibraryImages = useAppStore((state) => state.convertLibraryImages);
+  const setConvertLibraryImages = useAppStore((state) => state.setConvertLibraryImages);
 
   const stored = records.reduce((total, record) => total + record.bytes, 0);
   const storedImages = records.filter((record) => record.kind === 'image' && Boolean(record.blob));
@@ -162,15 +166,33 @@ export default function LibraryOverlay({
                   </>
                 )}
               </p>
-              {!isImagePicker && records.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => void useGalleryStore.getState().clear()}
-                  className="btn-secondary px-3 py-1.5 text-sm"
-                >
-                  Clear library
-                </button>
-              )}
+              <div className="flex flex-wrap items-center gap-3">
+                {!isImagePicker && (
+                  <label className="flex items-center gap-2 text-[0.8125rem] text-[var(--foreground-muted)]">
+                    <input
+                      type="checkbox"
+                      checked={convertLibraryImages}
+                      onChange={(event) => setConvertLibraryImages(event.target.checked)}
+                      className="h-4 w-4 accent-[var(--neon-cyan)]"
+                    />
+                    {/* Opt-out, not opt-in: this is the one conversion that cannot
+                        be undone — the original bytes are replaced on disk. */}
+                    <span>
+                      Store images compressed
+                      <span className="ml-1 text-[var(--foreground-subtle)]">(re-encodes PNG)</span>
+                    </span>
+                  </label>
+                )}
+                {!isImagePicker && records.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => void useGalleryStore.getState().clear()}
+                    className="btn-secondary px-3 py-1.5 text-sm"
+                  >
+                    Clear library
+                  </button>
+                )}
+              </div>
             </footer>
           </motion.div>
         </motion.div>

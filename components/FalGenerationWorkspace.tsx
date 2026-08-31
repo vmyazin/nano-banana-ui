@@ -31,6 +31,7 @@ import { useAppStore } from '@/store/useAppStore';
 import { useFalJobsStore } from '@/store/useFalJobsStore';
 import { useSeedFrameStore } from '@/store/useSeedFrameStore';
 import { frameSlotLabel } from '@/lib/providers/frames';
+import { prepareReferences } from '@/lib/draft/ingest';
 import { useDraftStore } from '@/store/useDraftStore';
 import { usePromptLibraryStore } from '@/store/usePromptLibraryStore';
 import { candidatesFromValues, useAutoAspect } from '@/lib/draft/aspect-match';
@@ -251,6 +252,7 @@ function FalGenerationWorkspaceSession({
   onContinueFromFrame,
 }: FalGenerationWorkspaceProps) {
   const apiKey = useAppStore((state) => state.falApiKey);
+  const imageFormat = useAppStore((state) => state.imageFormat);
   const geminiApiKey = useAppStore((state) => state.apiKey);
   const falVideoModel = useAppStore((state) => state.falVideoModel);
   const setFalVideoModel = useAppStore((state) => state.setFalVideoModel);
@@ -417,8 +419,11 @@ function FalGenerationWorkspaceSession({
             : { file, sourceLabel: undefined }
         )
       );
+      // Re-encoded before any provider sees it: nano banana returns PNG, which
+      // is both the largest upload and the format providers handle worst.
+      const converted = await prepareReferences(prepared, imageFormat);
       if (!mountedRef.current) return;
-      useDraftStore.getState().addReferences(prepared, maxInputImages);
+      useDraftStore.getState().addReferences(converted, maxInputImages);
     } catch {
       if (mountedRef.current) setError(FRAME_EXTRACTION_ERROR);
     } finally {

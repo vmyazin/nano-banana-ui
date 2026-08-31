@@ -19,6 +19,7 @@ import { downloadFilenameBase } from '@/lib/download-name';
 import { useAppStore } from '@/store/useAppStore';
 import { useKieJobsStore } from '@/store/useKieJobsStore';
 import { useSeedFrameStore } from '@/store/useSeedFrameStore';
+import { prepareReferences } from '@/lib/draft/ingest';
 import { useDraftStore } from '@/store/useDraftStore';
 import { usePromptLibraryStore } from '@/store/usePromptLibraryStore';
 import { candidatesFromValues, useAutoAspect } from '@/lib/draft/aspect-match';
@@ -72,6 +73,7 @@ export default function KieGenerationWorkspace({
   onContinueFromFrame,
 }: KieGenerationWorkspaceProps) {
   const geminiApiKey = useAppStore((state) => state.apiKey);
+  const imageFormat = useAppStore((state) => state.imageFormat);
   const kieApiKey = useAppStore((state) => state.kieApiKey);
   const kieImageModel = useAppStore((state) => state.kieImageModel);
   const kieVideoModel = useAppStore((state) => state.kieVideoModel);
@@ -218,8 +220,11 @@ export default function KieGenerationWorkspace({
             : { file, sourceLabel: undefined }
         )
       );
+      // Re-encoded before any provider sees it: nano banana returns PNG, which
+      // is both the largest upload and the format providers handle worst.
+      const converted = await prepareReferences(prepared, imageFormat);
       if (!mountedRef.current) return;
-      useDraftStore.getState().addReferences(prepared, maxInputImages);
+      useDraftStore.getState().addReferences(converted, maxInputImages);
     } catch {
       if (mountedRef.current) setError(FRAME_EXTRACTION_ERROR);
     } finally {
@@ -294,6 +299,7 @@ export default function KieGenerationWorkspace({
         url: resultUrl,
         mediaType,
         filenameBase,
+        imageFormat,
       });
     } finally {
       if (mountedRef.current) setIsDownloading(false);

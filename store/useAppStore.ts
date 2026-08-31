@@ -2,6 +2,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage, type StateStorage } from 'zustand/middleware';
 import type { EngineId } from '@/lib/engines/registry';
+import type { ImageFormatPreference } from '@/lib/image/policy';
 import { DEFAULT_MODELS } from '@/lib/providers/catalog';
 import type { ProviderId } from '@/lib/providers/types';
 
@@ -55,6 +56,18 @@ interface AppState {
   cometApiKey: string;
   cometImageModel: string;
   cometVideoModel: string;
+  /**
+   * Image format policy. `'auto'` re-encodes PNG to WebP wherever bytes enter
+   * or leave the app; an explicit format forces it. Persisted because it is a
+   * preference about output, not a per-session choice.
+   */
+  imageFormat: ImageFormatPreference;
+  /**
+   * Whether the library re-encodes what it stores. Opt-out because it is the
+   * one irreversible conversion: once a record holds WebP the original PNG is
+   * gone, and a later "download as PNG" can only re-encode a lossy image.
+   */
+  convertLibraryImages: boolean;
   /** True once the persisted state has rehydrated on the client. */
   hasHydrated: boolean;
   setApiKey: (key: string) => void;
@@ -70,6 +83,8 @@ interface AppState {
   setFalVideoModel: (modelId: string) => void;
   setProviderApiKey: (provider: ProviderId, key: string) => void;
   setProviderModel: (provider: ProviderId, kind: 'image' | 'video', modelId: string) => void;
+  setImageFormat: (preference: ImageFormatPreference) => void;
+  setConvertLibraryImages: (convert: boolean) => void;
   setHasHydrated: (v: boolean) => void;
 }
 
@@ -131,6 +146,8 @@ export const useAppStore = create<AppState>()(
       cometApiKey: '',
       cometImageModel: DEFAULT_MODELS.comet.image,
       cometVideoModel: DEFAULT_MODELS.comet.video,
+      imageFormat: 'auto',
+      convertLibraryImages: true,
       hasHydrated: false,
       setApiKey: (key) => set({ apiKey: key }),
       clearApiKey: () => set({ apiKey: '' }),
@@ -146,6 +163,8 @@ export const useAppStore = create<AppState>()(
       setProviderApiKey: (provider, key) => set({ [KEY_FIELDS[provider]]: key } as Partial<AppState>),
       setProviderModel: (provider, kind, modelId) =>
         set({ [MODEL_FIELDS[provider][kind]]: modelId } as Partial<AppState>),
+      setImageFormat: (preference) => set({ imageFormat: preference }),
+      setConvertLibraryImages: (convert) => set({ convertLibraryImages: convert }),
       setHasHydrated: (v) => set({ hasHydrated: v }),
     }),
     {
@@ -171,6 +190,8 @@ export const useAppStore = create<AppState>()(
         cometApiKey: s.cometApiKey,
         cometImageModel: s.cometImageModel,
         cometVideoModel: s.cometVideoModel,
+        imageFormat: s.imageFormat,
+        convertLibraryImages: s.convertLibraryImages,
       }),
       skipHydration: true,
       onRehydrateStorage: () => (state) => {
