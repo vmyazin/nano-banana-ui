@@ -68,6 +68,12 @@ interface AppState {
    * gone, and a later "download as PNG" can only re-encode a lossy image.
    */
   convertLibraryImages: boolean;
+  /**
+   * Whether a finished generation rings the completion chime. On by default:
+   * the jobs it announces run for minutes, and the sound is the point of
+   * being able to look away. Persisted so silencing it survives a reload.
+   */
+  chimeOnComplete: boolean;
   /** True once the persisted state has rehydrated on the client. */
   hasHydrated: boolean;
   setApiKey: (key: string) => void;
@@ -85,6 +91,7 @@ interface AppState {
   setProviderModel: (provider: ProviderId, kind: 'image' | 'video', modelId: string) => void;
   setImageFormat: (preference: ImageFormatPreference) => void;
   setConvertLibraryImages: (convert: boolean) => void;
+  setChimeOnComplete: (chime: boolean) => void;
   setHasHydrated: (v: boolean) => void;
 }
 
@@ -148,6 +155,7 @@ export const useAppStore = create<AppState>()(
       cometVideoModel: DEFAULT_MODELS.comet.video,
       imageFormat: 'auto',
       convertLibraryImages: true,
+      chimeOnComplete: true,
       hasHydrated: false,
       setApiKey: (key) => set({ apiKey: key }),
       clearApiKey: () => set({ apiKey: '' }),
@@ -165,6 +173,7 @@ export const useAppStore = create<AppState>()(
         set({ [MODEL_FIELDS[provider][kind]]: modelId } as Partial<AppState>),
       setImageFormat: (preference) => set({ imageFormat: preference }),
       setConvertLibraryImages: (convert) => set({ convertLibraryImages: convert }),
+      setChimeOnComplete: (chime) => set({ chimeOnComplete: chime }),
       setHasHydrated: (v) => set({ hasHydrated: v }),
     }),
     {
@@ -192,6 +201,7 @@ export const useAppStore = create<AppState>()(
         cometVideoModel: s.cometVideoModel,
         imageFormat: s.imageFormat,
         convertLibraryImages: s.convertLibraryImages,
+        chimeOnComplete: s.chimeOnComplete,
       }),
       skipHydration: true,
       onRehydrateStorage: () => (state) => {

@@ -8,6 +8,7 @@ import type { FalJob, FalTask } from '@/lib/fal/types';
 import { useAppStore } from '@/store/useAppStore';
 import { useFalJobsStore } from '@/store/useFalJobsStore';
 import { recordFinishedJob } from '@/lib/gallery/record-job';
+import { playGenerationChime } from '@/lib/notify/chime';
 
 const FAL_TIMEOUT_MESSAGE =
   'Polling stopped after 15 minutes. The fal job may still complete upstream.';
@@ -130,6 +131,7 @@ export default function FalJobsProvider({ children }: { children: React.ReactNod
         // Poll stops at a terminal state, so this transition happens once.
         if (task.state === 'success') {
           recordFinishedJob('fal', { ...job, mimeType: task.mimeType }, task.resultUrl);
+          playGenerationChime();
         }
         upsertJob(taskSnapshot(job, task, now));
         return;

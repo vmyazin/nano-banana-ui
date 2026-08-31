@@ -2,10 +2,11 @@
 
 import { useState, useEffect, useId, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Key, Eye, EyeOff, AlertCircle, X, Loader2, Check } from 'lucide-react';
+import { Key, Eye, EyeOff, AlertCircle, X, Loader2, Check, Volume2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAppStore } from '@/store/useAppStore';
 import MicroAiUsagePanel from '@/components/MicroAiUsagePanel';
+import { setChimeEnabled } from '@/lib/notify/chime';
 import ProviderLogo from '@/components/ProviderLogo';
 import { useAccessibleDialog } from '@/hooks/useAccessibleDialog';
 import type { EngineId } from '@/lib/engines/registry';
@@ -193,6 +194,7 @@ function safeFalValidationError(value: unknown): string {
 
 export default function ApiKeyConfig({ open, onOpenChange }: ApiKeyConfigProps) {
   const savedKey = useAppStore((s) => s.apiKey);
+  const chimeOnComplete = useAppStore((s) => s.chimeOnComplete);
   const setApiKey = useAppStore((s) => s.setApiKey);
   // Cloudflare creds are saved live to the store (no validation round-trip).
   const cfAccountId = useAppStore((s) => s.cfAccountId);
@@ -686,6 +688,24 @@ export default function ApiKeyConfig({ open, onOpenChange }: ApiKeyConfigProps) 
                     below every field rather than breaking up the run of them. */}
                 <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:order-2 sm:col-span-2">
                   <MicroAiUsagePanel />
+                </div>
+
+                <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:order-3 sm:col-span-2">
+                  <label className="flex items-center gap-2 text-[0.8125rem] text-[var(--foreground-muted)]">
+                    <input
+                      type="checkbox"
+                      checked={chimeOnComplete}
+                      onChange={(event) => setChimeEnabled(event.target.checked)}
+                      className="h-4 w-4 accent-[var(--neon-cyan)]"
+                    />
+                    <Volume2 size={15} className="shrink-0" aria-hidden />
+                    <span>
+                      Chime when a generation finishes
+                      <span className="ml-1 text-[var(--foreground-subtle)]">
+                        (video jobs run for minutes)
+                      </span>
+                    </span>
+                  </label>
                 </div>
               </div>
             </div>

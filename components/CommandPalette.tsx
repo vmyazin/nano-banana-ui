@@ -17,6 +17,8 @@ import {
   Search,
   Sparkles,
   Type,
+  Volume2,
+  VolumeX,
   Wand2,
   type LucideIcon,
 } from 'lucide-react';
@@ -27,6 +29,7 @@ import { brand } from '@/lib/brand';
 import { FEATURES, type Feature } from '@/types';
 import type { ProviderMode } from '@/lib/providers/types';
 import { useAppStore } from '@/store/useAppStore';
+import { setChimeEnabled } from '@/lib/notify/chime';
 
 type LibraryTab = 'results' | 'prompts';
 
@@ -177,6 +180,7 @@ export function CommandPalette({
   const [, setWorkspace] = useQueryState('workspace', { history: 'push' });
   const [, setVideoMode] = useQueryState('videoMode', { history: 'push' });
   const setVideoEngine = useAppStore((state) => state.setVideoEngine);
+  const chimeOnComplete = useAppStore((state) => state.chimeOnComplete);
 
   // ⌘K / Ctrl-K toggles the palette.
   useEffect(() => {
@@ -306,6 +310,23 @@ export function CommandPalette({
             <span className="cmd-item-body">
               <span className="cmd-item-title">Saved prompts</span>
               <span className="cmd-item-desc">Reuse a prompt you kept</span>
+            </span>
+          </Command.Item>
+          <Command.Item
+            value={chimeOnComplete ? 'Mute completion chime' : 'Unmute completion chime'}
+            keywords={['sound', 'audio', 'bell', 'notification', 'silence', 'mute']}
+            onSelect={() => go(() => setChimeEnabled(!chimeOnComplete))}
+          >
+            {chimeOnComplete ? <Volume2 size={15} /> : <VolumeX size={15} />}
+            <span className="cmd-item-body">
+              <span className="cmd-item-title">
+                {chimeOnComplete ? 'Mute completion chime' : 'Unmute completion chime'}
+              </span>
+              <span className="cmd-item-desc">
+                {chimeOnComplete
+                  ? 'Stop the bell when a generation finishes'
+                  : 'Ring a bell when a generation finishes'}
+              </span>
             </span>
           </Command.Item>
           <Command.Item

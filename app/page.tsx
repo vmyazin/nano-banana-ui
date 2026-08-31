@@ -6,13 +6,14 @@ import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useQueryState } from 'nuqs';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Key, Check, Command as CommandIcon, Library as LibraryIcon, Film } from 'lucide-react';
+import { Key, Check, Command as CommandIcon, Library as LibraryIcon, Film, Volume2, VolumeX } from 'lucide-react';
 import ApiKeyConfig from '@/components/ApiKeyConfig';
 import LibraryOverlay from '@/components/LibraryOverlay';
 import { usePromptLibraryStore } from '@/store/usePromptLibraryStore';
 import FeatureSelector from '@/components/FeatureSelector';
 import ProviderLogo from '@/components/ProviderLogo';
 import { BrandWordmark } from '@/components/BrandMark';
+import { setChimeEnabled } from '@/lib/notify/chime';
 import { ENGINE_DOCS } from '@/lib/engines/docs';
 import { CommandPalette } from '@/components/CommandPalette';
 import VideoWorkspace from '@/components/VideoWorkspace';
@@ -51,6 +52,7 @@ function Studio() {
   const kieApiKey = useAppStore((s) => s.kieApiKey);
   const falApiKey = useAppStore((s) => s.falApiKey);
   const hasHydrated = useAppStore((s) => s.hasHydrated);
+  const chimeOnComplete = useAppStore((s) => s.chimeOnComplete);
   useEffect(() => {
     useAppStore.persist.rehydrate();
     // Its own call: each persisted store defers hydration to avoid an SSR mismatch.
@@ -155,6 +157,16 @@ function Studio() {
               >
                 <LibraryIcon size={13} />
                 <span className="hidden sm:inline">Library</span>
+              </button>
+
+              <button
+                onClick={() => setChimeEnabled(!chimeOnComplete)}
+                className="hidden sm:inline-flex items-center rounded-[9px] border border-[var(--border)] px-2.5 py-2 text-[var(--foreground-muted)] transition-colors hover:border-[var(--border-hover)] hover:text-[var(--foreground)]"
+                title={chimeOnComplete ? 'Mute the chime when a generation finishes' : 'Play a chime when a generation finishes'}
+                aria-label={chimeOnComplete ? 'Mute the chime when a generation finishes' : 'Play a chime when a generation finishes'}
+                aria-pressed={chimeOnComplete}
+              >
+                {chimeOnComplete ? <Volume2 size={13} /> : <VolumeX size={13} />}
               </button>
 
               <button

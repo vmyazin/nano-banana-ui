@@ -6,6 +6,7 @@ import { isKieJobTerminal, KIE_JOB_TIMEOUT_MS, nextKiePollDelay } from '@/lib/ki
 import { useAppStore } from '@/store/useAppStore';
 import { useKieJobsStore } from '@/store/useKieJobsStore';
 import { recordFinishedJob } from '@/lib/gallery/record-job';
+import { playGenerationChime } from '@/lib/notify/chime';
 
 export default function KieJobsProvider({ children }: { children: React.ReactNode }) {
   const apiKey = useAppStore((state) => state.kieApiKey);
@@ -35,6 +36,7 @@ export default function KieJobsProvider({ children }: { children: React.ReactNod
               // Poll stops at a terminal state, so this transition happens once.
               if (task.state === 'success') {
                 recordFinishedJob('kie', job, task.resultUrls[0]);
+                playGenerationChime();
               }
               upsertJob({
                 ...job,

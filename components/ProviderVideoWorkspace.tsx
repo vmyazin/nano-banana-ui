@@ -14,6 +14,7 @@ import { candidatesFromSizes, useAutoAspect } from '@/lib/draft/aspect-match';
 import { carryOverValues } from '@/lib/draft/carry-over';
 import { useFileDrop } from '@/lib/drop/use-file-drop';
 import { recordFinishedJob } from '@/lib/gallery/record-job';
+import { playGenerationChime } from '@/lib/notify/chime';
 import {
   downloadRemoteMedia,
   extensionForMedia,
@@ -402,6 +403,7 @@ export default function ProviderVideoWorkspace({
             task.urls[0]
           );
           toast.success('Video ready');
+          playGenerationChime();
           return;
         }
         if (task.state === 'error') {

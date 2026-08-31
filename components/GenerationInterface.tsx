@@ -41,6 +41,7 @@ import KieGenerationWorkspace from '@/components/KieGenerationWorkspace';
 import SegmentedToggleGroup from '@/components/SegmentedToggleGroup';
 import StoredImagePicker from '@/components/StoredImagePicker';
 import ImageFormatControl from '@/components/ImageFormatControl';
+import { playGenerationChime } from '@/lib/notify/chime';
 import ResultStack, { type ResultStackItem } from '@/components/ResultStack';
 import {
   X,
@@ -506,6 +507,7 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
     },
     onSuccess: (result) => {
       toast.success('Image generated');
+      playGenerationChime();
       resultIdRef.current += 1;
       setResults((current) => [
         {
