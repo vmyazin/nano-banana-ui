@@ -13,14 +13,20 @@ const REPEAT_DELAY_MS = 5_000;
 interface PromptPanelProps {
   children: ReactNode;
   className?: string;
+  /**
+   * Suppress the ambient perimeter runner entirely. A workspace that cannot
+   * submit — no provider key yet — dims and disables this panel, and a lap of
+   * cyan running around a disabled control invites an edit that goes nowhere.
+   */
+  paused?: boolean;
 }
 
 function isTextarea(target: EventTarget | null): target is HTMLTextAreaElement {
   return target instanceof HTMLTextAreaElement;
 }
 
-export default function PromptPanel({ children, className = '' }: PromptPanelProps) {
-  const [runnerVisible, setRunnerVisible] = useState(true);
+export default function PromptPanel({ children, className = '', paused = false }: PromptPanelProps) {
+  const [runnerVisible, setRunnerVisible] = useState(!paused);
   const textareaFocusedRef = useRef(false);
   const repeatTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -41,6 +47,18 @@ export default function PromptPanel({ children, className = '' }: PromptPanelPro
   useEffect(() => () => {
     if (repeatTimerRef.current !== null) clearTimeout(repeatTimerRef.current);
   }, []);
+
+
+  // Adjusted during render rather than in an effect: pausing stops the current
+  // lap and any pending repeat, and un-pausing hands the panel one fresh lap, so
+  // connecting a key visibly returns the panel to life.
+  const [wasPaused, setWasPaused] = useState(paused);
+  if (wasPaused !== paused) {
+    setWasPaused(paused);
+    // A repeat timer already in flight needs no cancelling: the runner cannot
+    // render while paused, and un-pausing sets it visible anyway.
+    setRunnerVisible(!paused);
+  }
 
   const handleAnimationEnd = () => {
     setRunnerVisible(false);
@@ -68,7 +86,7 @@ export default function PromptPanel({ children, className = '' }: PromptPanelPro
       onFocusCapture={handleFocusCapture}
       onBlurCapture={handleBlurCapture}
     >
-      {runnerVisible && (
+      {runnerVisible && !paused && (
         <svg
           aria-hidden="true"
           focusable="false"

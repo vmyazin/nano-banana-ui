@@ -28,6 +28,20 @@
   owns the richer surface, decorative perimeter runner, and textarea-focus pause;
   provider pages must not recreate that timer or animation because repeated local
   implementations drift in timing, focus behavior, and reduced-motion handling.
+- **A workspace that cannot run without credentials** → render
+  `components/ConnectKeyCallout.tsx` under the workspace header when the provider's
+  key is empty, and take the vendor's key page from `lib/providers/key-source.ts`.
+  A page of live-looking controls that can't submit reads as broken rather than
+  unconfigured, and a console URL kept in only one surface drifts the moment the
+  vendor moves its keys page. Dim and `inert` the controls the callout gates, but
+  never gate a rail that already holds finished jobs — a key can be cleared after
+  a clip lands, and the download has to stay reachable. Pass `paused` to
+  `PromptPanel` while gated (a lap of cyan on a dead control invites an edit that
+  goes nowhere) and cover the area with an unfocusable click target that opens the
+  key dialog, rather than leaving dead clicks. Open that dialog through
+  `onOpenConnections(<engine id>)`: `ApiKeyConfig`'s `focusProvider` outlines that
+  card and focuses its field, so the one key being asked for is not left to be
+  found among a dozen others.
 - **An image result panel** → render `components/ResultStack.tsx` rather than
   laying out cards inline. It owns the 4-item display cap, the per-card download
   and fullscreen, and the lightbox — a panel that keeps its own `lightboxOpen`

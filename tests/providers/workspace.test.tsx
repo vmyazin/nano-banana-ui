@@ -35,7 +35,9 @@ describe('ProviderVideoWorkspace', () => {
 
     expect(screen.getByRole('button', { name: '← Back' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Text to video' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Connect Runware key' })).toBeInTheDocument();
+    // Unkeyed, the not-connected callout owns the single call to action; the
+    // header carries only the connected-state status button.
+    expect(screen.getByRole('button', { name: 'Connect key' })).toBeInTheDocument();
     expect(screen.getByRole('combobox', { name: 'Model' })).toBeInTheDocument();
     expect(screen.getByLabelText('Search compatible models')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Gen Example/ })).toBeInTheDocument();

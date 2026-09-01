@@ -15,6 +15,7 @@ import ProviderLogo from '@/components/ProviderLogo';
 import { BrandWordmark } from '@/components/BrandMark';
 import { setChimeEnabled } from '@/lib/notify/chime';
 import { ENGINE_DOCS } from '@/lib/engines/docs';
+import type { EngineId } from '@/lib/engines/registry';
 import { CommandPalette } from '@/components/CommandPalette';
 import VideoWorkspace from '@/components/VideoWorkspace';
 import { Feature, FEATURES } from '@/types';
@@ -84,6 +85,16 @@ function Studio() {
     void setWorkspace(nextWorkspace);
   };
   const [keyDialogOpen, setKeyDialogOpen] = useState(false);
+  /**
+   * Which engine the dialog was opened for. A workspace asks for its own key, so
+   * that card opens outlined and focused; the header CTA and ⌘K pass nothing and
+   * get the plain dialog.
+   */
+  const [keyDialogFocus, setKeyDialogFocus] = useState<EngineId | undefined>(undefined);
+  const openConnections = (provider?: EngineId) => {
+    setKeyDialogFocus(provider);
+    setKeyDialogOpen(true);
+  };
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [libraryOpen, setLibraryOpen] = useState(false);
   // ⌘K can aim at either library section; the header button always opens results.
@@ -179,7 +190,7 @@ function Studio() {
               </button>
 
               <button
-                onClick={() => setKeyDialogOpen(true)}
+                onClick={() => openConnections()}
                 className={`${hasKey ? 'btn-secondary' : 'btn-primary'} text-sm`}
                 title={hasKey ? 'Update your API keys' : 'Add your API keys'}
               >
@@ -206,13 +217,14 @@ function Studio() {
       <ApiKeyConfig
         open={keyDialogOpen}
         onOpenChange={setKeyDialogOpen}
+        focusProvider={keyDialogFocus}
       />
 
       {/* ⌘K command palette */}
       <CommandPalette
         open={paletteOpen}
         onOpenChange={setPaletteOpen}
-        onOpenApiKey={() => setKeyDialogOpen(true)}
+        onOpenApiKey={() => openConnections()}
         onOpenLibrary={openLibrary}
       />
 
@@ -241,7 +253,7 @@ function Studio() {
                 inputMode={activeVideoMode}
                 onInputModeChange={(mode) => void setVideoMode(mode === 'text' ? null : mode)}
                 onExit={() => selectWorkspace('image')}
-                onOpenConnections={() => setKeyDialogOpen(true)}
+                onOpenConnections={openConnections}
               />
             </motion.div>
           ) : activeWorkspace === 'timeline' ? (
@@ -329,7 +341,7 @@ function Studio() {
                 feature={selectedFeature}
                 apiKey={apiKey}
                 onBack={clearFeature}
-                onOpenConnections={() => setKeyDialogOpen(true)}
+                onOpenConnections={openConnections}
               />
             </motion.div>
           )}

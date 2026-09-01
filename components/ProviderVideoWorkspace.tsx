@@ -8,6 +8,7 @@ import LastFrameActions from '@/components/LastFrameActions';
 import AutoExpandingPrompt from '@/components/AutoExpandingPrompt';
 import PromptPanel from '@/components/PromptPanel';
 import ModelControls, { type ModelControlField } from '@/components/ModelControls';
+import ConnectKeyCallout from '@/components/ConnectKeyCallout';
 import ProviderLogo from '@/components/ProviderLogo';
 import StoredImagePicker from '@/components/StoredImagePicker';
 import GenerationWorkspaceLayout from '@/components/GenerationWorkspaceLayout';
@@ -27,6 +28,7 @@ import { getProviderVideoStatus, pollDelayMs, submitProviderVideo } from '@/lib/
 import { modelsFor } from '@/lib/providers/catalog';
 import { frameSlotLabel } from '@/lib/providers/frames';
 import type { ProviderId, ProviderMode, ProviderModel } from '@/lib/providers/types';
+import type { EngineId } from '@/lib/engines/registry';
 import { FRAME_EXTRACTION_ERROR, isVideoFile, lastFrameAsImageFile } from '@/lib/video-frame';
 import { useAppStore } from '@/store/useAppStore';
 import { prepareReferences } from '@/lib/draft/ingest';
@@ -53,7 +55,7 @@ interface ProviderVideoWorkspaceProps {
    */
   inputMode: ProviderMode;
   onBack: () => void;
-  onOpenConnections: () => void;
+  onOpenConnections: (provider?: EngineId) => void;
   /** Switch this workspace to image-to-video, for continuing from a last frame. */
   onContinueFromFrame?: () => void;
 }
@@ -209,6 +211,15 @@ export default function ProviderVideoWorkspace({
   );
 
   const allJobs = useProviderJobsStore((state) => state.jobs);
+  const needsKey = !apiKey.trim();
+  /**
+   * Without a key the whole workspace below the callout is scenery — the submit
+   * would be refused — so it is dimmed and made inert rather than left looking
+   * live. The one exception is a workspace that already has jobs for this
+   * provider: a key can be cleared after a clip finishes, and gating the Result
+   * rail would take a downloadable video away from the person who paid for it.
+   */
+  const isGated = needsKey && !allJobs.some((job) => job.provider === provider);
   const patchJob = useProviderJobsStore((state) => state.patchJob);
   const latestJob = allJobs.find(
     (job) =>
@@ -457,7 +468,7 @@ export default function ProviderVideoWorkspace({
   const submit = async () => {
     if (!apiKey.trim()) {
       setError(`Connect your ${label} key before starting a generation.`);
-      onOpenConnections();
+      onOpenConnections(provider);
       return;
     }
     if (!selectedModel) {
@@ -545,16 +556,51 @@ export default function ProviderVideoWorkspace({
               </h2>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onOpenConnections}
-            className="btn-secondary shrink-0 px-3 py-2 text-xs"
-          >
-            {apiKey ? `${label} key connected` : `Connect ${label} key`}
-          </button>
+          {/* One call to action per state: while the key is missing the callout
+              below owns it, so the header keeps only the connected-state status
+              button rather than repeating the same ask two rows apart. */}
+          {!needsKey && (
+            <button
+              type="button"
+              onClick={() => onOpenConnections(provider)}
+              className="btn-secondary shrink-0 px-3 py-2 text-xs"
+            >
+              {label} key connected
+            </button>
+          )}
         </div>
       </section>
 
+      {needsKey && (
+        <ConnectKeyCallout
+          provider={provider}
+          label={label}
+          onConnect={() => onOpenConnections(provider)}
+        />
+      )}
+
+      <div className="relative">
+      {/* The whole dimmed area is the target: someone who reaches for a control
+          that is switched off is asking for the key dialog, so give them that
+          instead of a dead click. It precedes the panels so `peer-hover` can
+          lift them slightly on hover, and paints above them via z-index. */}
+      {isGated && (
+        <button
+          type="button"
+          onClick={() => onOpenConnections(provider)}
+          aria-label={`Connect your ${label} key to use these controls`}
+          /* Not a tab stop and never ringed: it is a mouse convenience over a
+             disabled area, and the callout's own button is the keyboard route.
+             Left focusable it would catch the dialog's focus restore and draw a
+             cyan ring around the whole dimmed workspace on close. */
+          tabIndex={-1}
+          className="peer absolute inset-0 z-10 w-full cursor-pointer rounded-[var(--radius)] outline-none focus:outline-none focus-visible:outline-none"
+        />
+      )}
+      <div
+        inert={isGated}
+        className={`transition-[opacity,filter] duration-300 ${isGated ? 'pointer-events-none opacity-[0.42] saturate-[0.55] peer-hover:opacity-[0.55]' : ''}`}
+      >
       <GenerationWorkspaceLayout
         setup={
           <>
@@ -778,7 +824,7 @@ export default function ProviderVideoWorkspace({
           </>
         }
         prompt={
-          <PromptPanel>
+          <PromptPanel paused={isGated}>
             <div className="flex items-center justify-between gap-3">
               <label htmlFor="provider-video-prompt" className="display block text-base font-semibold">
                 Prompt
@@ -891,6 +937,8 @@ export default function ProviderVideoWorkspace({
           </section>
         }
       />
+      </div>
+      </div>
     </div>
   );
 }

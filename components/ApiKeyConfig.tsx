@@ -10,11 +10,18 @@ import { setChimeEnabled } from '@/lib/notify/chime';
 import ProviderLogo from '@/components/ProviderLogo';
 import { useAccessibleDialog } from '@/hooks/useAccessibleDialog';
 import type { EngineId } from '@/lib/engines/registry';
+import { KEY_SOURCES } from '@/lib/providers/key-source';
 import type { ProviderId } from '@/lib/providers/types';
 
 interface ApiKeyConfigProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /**
+   * The engine the dialog was opened *for* — from a workspace that cannot run
+   * without it. Its card is outlined and its field takes focus, so the one key
+   * being asked for is not left to be found among a dozen others.
+   */
+  focusProvider?: EngineId;
 }
 
 const GENERIC_FAL_VALIDATION_ERROR = 'Unable to validate your fal API key.';
@@ -44,22 +51,19 @@ const AGGREGATORS: ReadonlyArray<{
     id: 'runware',
     name: 'Runware',
     description: 'Image and video across hundreds of models, billed per megapixel or second.',
-    href: 'https://runware.ai/signup',
-    urlLabel: 'runware.ai/signup',
+    ...KEY_SOURCES.runware,
   },
   {
     id: 'atlas',
     name: 'Atlas Cloud',
     description: 'Image, video, and LLMs on one key, with published per-request pricing.',
-    href: 'https://www.atlascloud.ai/console/api-keys',
-    urlLabel: 'atlascloud.ai/console/api-keys',
+    ...KEY_SOURCES.atlas,
   },
   {
     id: 'comet',
     name: 'CometAPI',
     description: 'Commercial models — GPT Image, Seedance, Veo, Kling — behind one OpenAI-shaped API.',
-    href: 'https://api.cometapi.com/console/token',
-    urlLabel: 'api.cometapi.com/console/token',
+    ...KEY_SOURCES.comet,
   },
 ];
 
@@ -79,6 +83,7 @@ function ProviderCard({
   href,
   urlLabel,
   className,
+  highlighted = false,
   children,
 }: {
   provider: EngineId;
@@ -89,11 +94,14 @@ function ProviderCard({
   href: string;
   urlLabel: string;
   className?: string;
+  /** The card the dialog was opened for: a cyan two-pixel edge, not a tint. */
+  highlighted?: boolean;
   children: React.ReactNode;
 }) {
   return (
     <section
-      className={`flex flex-col gap-2.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 ${className ?? ''}`}
+      data-provider={provider}
+      className={`flex flex-col gap-2.5 rounded-xl bg-[var(--surface)] p-4 ${highlighted ? 'border-2 border-[var(--neon-cyan)]' : 'border border-[var(--border)]'} ${className ?? ''}`}
     >
       <h3 className="field-label flex flex-wrap items-center gap-x-2 gap-y-1.5">
         <ProviderLogo provider={provider} size={22} />
@@ -192,7 +200,7 @@ function safeFalValidationError(value: unknown): string {
     : GENERIC_FAL_VALIDATION_ERROR;
 }
 
-export default function ApiKeyConfig({ open, onOpenChange }: ApiKeyConfigProps) {
+export default function ApiKeyConfig({ open, onOpenChange, focusProvider }: ApiKeyConfigProps) {
   const savedKey = useAppStore((s) => s.apiKey);
   const chimeOnComplete = useAppStore((s) => s.chimeOnComplete);
   const setApiKey = useAppStore((s) => s.setApiKey);
@@ -468,6 +476,24 @@ export default function ApiKeyConfig({ open, onOpenChange }: ApiKeyConfigProps) 
 
   useAccessibleDialog({ open, onClose: handleClose, dialogRef });
 
+  /**
+   * Declared after useAccessibleDialog so it runs after the dialog has claimed
+   * focus for itself: the caller named a provider, so scroll that card into the
+   * scroll region and put the cursor in its field, ready to paste.
+   */
+  useEffect(() => {
+    if (!open || !focusProvider) return;
+    const frame = requestAnimationFrame(() => {
+      const card = dialogRef.current?.querySelector(`[data-provider="${focusProvider}"]`);
+      if (!card) return;
+      // Optional call: jsdom (and any host without smooth scrolling) has no
+      // scrollIntoView, and the focus below is the part that matters.
+      card.scrollIntoView?.({ block: 'center' });
+      card.querySelector('input')?.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [open, focusProvider]);
+
   return (
     <AnimatePresence>
       {open && (
@@ -517,6 +543,7 @@ export default function ApiKeyConfig({ open, onOpenChange }: ApiKeyConfigProps) 
                 {/* Google Gemini */}
                 <ProviderCard
                   provider="gemini"
+                  highlighted={focusProvider === 'gemini'}
                   name="Google Gemini"
                   connected={!!savedKey}
                   description="Image and video, billed to your Google account."
@@ -544,6 +571,7 @@ export default function ApiKeyConfig({ open, onOpenChange }: ApiKeyConfigProps) 
                 {/* Kie.ai */}
                 <ProviderCard
                   provider="kie"
+                  highlighted={focusProvider === 'kie'}
                   name="Kie.ai"
                   connected={kieConnected}
                   description="Image and video, billed to your own account. Checked against your Kie credit balance."
@@ -571,6 +599,7 @@ export default function ApiKeyConfig({ open, onOpenChange }: ApiKeyConfigProps) 
                 {/* fal.ai */}
                 <ProviderCard
                   provider="fal"
+                  highlighted={focusProvider === 'fal'}
                   name="fal.ai"
                   connected={falConnected}
                   description="Image and video, billed to your own account. Checked through fal pricing, so nothing billable runs."
@@ -601,6 +630,7 @@ export default function ApiKeyConfig({ open, onOpenChange }: ApiKeyConfigProps) 
                     it and leaves a hole. */}
                 <ProviderCard
                   provider="cloudflare"
+                  highlighted={focusProvider === 'cloudflare'}
                   name="Cloudflare"
                   connected={cfConnected}
                   description="Free text-to-image on Workers AI. Both fields save as you type."
@@ -657,6 +687,7 @@ export default function ApiKeyConfig({ open, onOpenChange }: ApiKeyConfigProps) 
                   <ProviderCard
                     key={aggregator.id}
                     provider={aggregator.id}
+                    highlighted={aggregator.id === focusProvider}
                     name={aggregator.name}
                     connected={!!providerKeys[aggregator.id]}
                     description={aggregator.description}

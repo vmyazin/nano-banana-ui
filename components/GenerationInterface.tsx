@@ -57,7 +57,7 @@ interface GenerationInterfaceProps {
   feature: Feature;
   apiKey: string;
   onBack: () => void;
-  onOpenConnections: () => void;
+  onOpenConnections: (provider?: EngineId) => void;
 }
 
 const readImageAsDataUrl = (file: File): Promise<string> =>
@@ -622,17 +622,17 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
     }
     if (activeEngine.id === 'cloudflare' && !hasCfCreds) {
       setError('Connect your Cloudflare account first — add your Account ID and API token in API connections.');
-      onOpenConnections();
+      onOpenConnections('cloudflare');
       return;
     }
     if (activeEngine.id === 'fal' && !falApiKey.trim()) {
       setError('Connect your fal API key first in API connections.');
-      onOpenConnections();
+      onOpenConnections('fal');
       return;
     }
     if (activeProvider && !providerKeys[activeProvider].trim()) {
       setError(`Connect your ${activeEngine.label} key first in API connections.`);
-      onOpenConnections();
+      onOpenConnections(activeProvider);
       return;
     }
     setError(null);
@@ -1034,7 +1034,7 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
                       </p>
                       <button
                         type="button"
-                        onClick={onOpenConnections}
+                        onClick={() => onOpenConnections(activeEngine.id)}
                         className="btn-secondary text-xs py-1.5 px-3 flex-shrink-0"
                       >
                         Connect →
@@ -1049,7 +1049,7 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
                       </p>
                       <button
                         type="button"
-                        onClick={onOpenConnections}
+                        onClick={() => onOpenConnections(activeEngine.id)}
                         className="btn-secondary text-xs py-1.5 px-3 flex-shrink-0"
                       >
                         Connect →

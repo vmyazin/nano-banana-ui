@@ -32,12 +32,13 @@ import PromptPanel from '@/components/PromptPanel';
 import ModelControls, { type ModelControlField } from '@/components/ModelControls';
 import StoredImagePicker from '@/components/StoredImagePicker';
 import GenerationWorkspaceLayout from '@/components/GenerationWorkspaceLayout';
+import type { EngineId } from '@/lib/engines/registry';
 
 interface KieGenerationWorkspaceProps {
   mediaType: MediaType;
   inputMode: KieInputMode;
   onBack: () => void;
-  onOpenConnections: () => void;
+  onOpenConnections: (provider?: EngineId) => void;
   title?: string;
   description?: string;
   initialPrompt?: string;
@@ -329,7 +330,7 @@ export default function KieGenerationWorkspace({
   const submit = async () => {
     if (!kieApiKey) {
       setError('Connect your Kie API key before starting a generation.');
-      onOpenConnections();
+      onOpenConnections('kie');
       return;
     }
     const inputError = validateKieInput(variant, {
@@ -404,7 +405,7 @@ export default function KieGenerationWorkspace({
               )}
             </div>
           </div>
-          <button type="button" onClick={onOpenConnections} className="btn-secondary shrink-0 px-3 py-2 text-xs">
+          <button type="button" onClick={() => onOpenConnections('kie')} className="btn-secondary shrink-0 px-3 py-2 text-xs">
             {kieApiKey ? 'Kie key connected' : 'Connect Kie key'}
           </button>
         </div>

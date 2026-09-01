@@ -38,11 +38,12 @@ import { usePromptLibraryStore } from '@/store/usePromptLibraryStore';
 import { candidatesFromValues, useAutoAspect } from '@/lib/draft/aspect-match';
 import { carryOverValues } from '@/lib/draft/carry-over';
 import { FRAME_EXTRACTION_ERROR, isVideoFile, lastFrameAsImageFile } from '@/lib/video-frame';
+import type { EngineId } from '@/lib/engines/registry';
 
 interface FalGenerationWorkspaceProps {
   inputMode: FalInputMode;
   onBack: () => void;
-  onOpenConnections: () => void;
+  onOpenConnections: (provider?: EngineId) => void;
   /** Switch this workspace to image-to-video, for continuing from a last frame. */
   onContinueFromFrame?: () => void;
 }
@@ -476,7 +477,7 @@ function FalGenerationWorkspaceSession({
     if (submissionRef.current) return;
     if (!apiKey.trim()) {
       setError('Connect your fal API key before starting a generation.');
-      onOpenConnections();
+      onOpenConnections('fal');
       return;
     }
 
@@ -628,7 +629,7 @@ function FalGenerationWorkspaceSession({
               </h2>
             </div>
           </div>
-          <button type="button" onClick={onOpenConnections} className="btn-secondary shrink-0 px-3 py-2 text-xs">
+          <button type="button" onClick={() => onOpenConnections('fal')} className="btn-secondary shrink-0 px-3 py-2 text-xs">
             {apiKey ? 'fal key connected' : 'Connect fal key'}
           </button>
         </div>

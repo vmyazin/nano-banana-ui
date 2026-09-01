@@ -420,6 +420,30 @@ textarea::placeholder {
   }
 }
 
+/* Not-connected callout. The dot is a status light, not decoration: it breathes
+   slowly so an inert workspace reads as *waiting on you* at a glance, and it is
+   the only motion in the callout so it never competes with the prompt runner. */
+.connect-key-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--brand-accent);
+  box-shadow: 0 0 0 3px rgba(255, 237, 78, 0.14);
+  animation: connect-key-breathe 2.6s ease-in-out infinite;
+}
+
+@keyframes connect-key-breathe {
+  0%, 100% { opacity: 0.45; }
+  50% { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .connect-key-dot {
+    animation: none;
+    opacity: 1;
+  }
+}
+
 /* Animations */
 @keyframes fadeInUp {
   from { opacity: 0; transform: translateY(24px); }

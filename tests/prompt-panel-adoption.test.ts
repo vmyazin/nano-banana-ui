@@ -16,7 +16,9 @@ describe('universal PromptPanel adoption', () => {
       expect(source.match(/<PromptPanel(?:\s|>)/g)).toHaveLength(1);
       expect(source.match(/<\/PromptPanel>/g)).toHaveLength(1);
       if (file !== 'components/GenerationInterface.tsx') {
-        expect(source).toMatch(/prompt=\{\s*<PromptPanel>/);
+        // Props are allowed (a gated workspace passes `paused`); what the guard
+        // fixes is that the prompt slot *is* the shared wrapper.
+        expect(source).toMatch(/prompt=\{\s*<PromptPanel[\s>]/);
       }
     });
   }

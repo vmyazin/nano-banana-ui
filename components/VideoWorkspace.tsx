@@ -7,6 +7,7 @@ import KieGenerationWorkspace from '@/components/KieGenerationWorkspace';
 import MediaCard from '@/components/MediaCard';
 import ProviderSelector, { type VideoProvider } from '@/components/ProviderSelector';
 import ProviderVideoWorkspace from '@/components/ProviderVideoWorkspace';
+import type { EngineId } from '@/lib/engines/registry';
 import { modelsFor } from '@/lib/providers/catalog';
 import { isProviderId } from '@/lib/providers';
 import type { ProviderId, ProviderMode } from '@/lib/providers/types';
@@ -28,7 +29,7 @@ interface VideoWorkspaceProps {
   inputMode: ProviderMode;
   onInputModeChange: (mode: ProviderMode) => void;
   onExit: () => void;
-  onOpenConnections: () => void;
+  onOpenConnections: (provider?: EngineId) => void;
 }
 
 /**
