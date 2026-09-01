@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 
 import LastFrameActions from '@/components/LastFrameActions';
 import AutoExpandingPrompt from '@/components/AutoExpandingPrompt';
+import PromptPanel from '@/components/PromptPanel';
 import ModelControls, { type ModelControlField } from '@/components/ModelControls';
 import ProviderLogo from '@/components/ProviderLogo';
 import StoredImagePicker from '@/components/StoredImagePicker';
@@ -777,7 +778,7 @@ export default function ProviderVideoWorkspace({
           </>
         }
         prompt={
-          <section className="glass-card space-y-3 p-3.5 md:p-4">
+          <PromptPanel>
             <div className="flex items-center justify-between gap-3">
               <label htmlFor="provider-video-prompt" className="display block text-base font-semibold">
                 Prompt
@@ -803,7 +804,7 @@ export default function ProviderVideoWorkspace({
               onChange={(event) => setPrompt(event.target.value)}
               placeholder="Describe the motion, camera, mood, and scene…"
             />
-          </section>
+          </PromptPanel>
         }
         results={
           <section className="glass-card flex min-h-[420px] flex-col gap-4 p-3.5 md:p-4">

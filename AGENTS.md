@@ -23,6 +23,11 @@
 - **Image/video generation prompt input** → reuse
   `components/AutoExpandingPrompt.tsx` because local textarea sizing made prompt
   height and scroll behavior diverge between providers.
+- **Image/video generation prompt section** → wrap the existing prompt header and
+  `components/AutoExpandingPrompt.tsx` in `components/PromptPanel.tsx`. The wrapper
+  owns the richer surface, decorative perimeter runner, and textarea-focus pause;
+  provider pages must not recreate that timer or animation because repeated local
+  implementations drift in timing, focus behavior, and reduced-motion handling.
 - **An image result panel** → render `components/ResultStack.tsx` rather than
   laying out cards inline. It owns the 4-item display cap, the per-card download
   and fullscreen, and the lightbox — a panel that keeps its own `lightboxOpen`

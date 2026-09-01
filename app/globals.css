@@ -12,6 +12,10 @@
   --tint: var(--tint-hue) 60% 85%;
   --background: hsl(var(--tint-hue) 38% 5%);
   --background-elevated: hsl(var(--tint-hue) 32% 8%);
+  /* Prompt is the creative destination, so its shared wrapper carries a little
+     more of the existing teal hue than setup and result panels. The textarea
+     stays on --background-elevated so the section, not both layers, leads. */
+  --prompt-surface: hsl(var(--tint-hue) 42% 8.8%);
   --surface: hsl(var(--tint) / 0.02);
   --surface-hover: hsl(var(--tint) / 0.045);
   --foreground: #ecf5f5;
@@ -373,6 +377,47 @@ textarea::placeholder {
 ::-webkit-scrollbar-thumb:hover {
   background: hsl(var(--tint) / 0.22);
   background-clip: padding-box;
+}
+
+/* Shared Prompt section. The base hairline is always present; the SVG runner
+   is decorative and pointer-transparent, so prompt editing never depends on it. */
+.prompt-panel {
+  background: var(--prompt-surface);
+  border: 1px solid hsl(var(--tint) / 0.11);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-md);
+}
+
+.prompt-panel-border-runner {
+  position: absolute;
+  inset: -1px;
+  width: calc(100% + 2px);
+  height: calc(100% + 2px);
+  overflow: visible;
+  pointer-events: none;
+  filter: drop-shadow(0 0 3px rgba(0, 255, 249, 0.2));
+}
+
+.prompt-panel-border-runner-track {
+  fill: none;
+  stroke: var(--neon-cyan);
+  stroke-width: 1.15;
+  stroke-linecap: round;
+  stroke-dasharray: 12 88;
+  animation: prompt-panel-lap 2s linear 1;
+}
+
+@keyframes prompt-panel-lap {
+  0% { stroke-dashoffset: 0; opacity: 0; }
+  12.5% { stroke-dashoffset: -12.5; opacity: 0.55; }
+  87.5% { stroke-dashoffset: -87.5; opacity: 0.55; }
+  100% { stroke-dashoffset: -100; opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .prompt-panel-border-runner {
+    display: none;
+  }
 }
 
 /* Animations */

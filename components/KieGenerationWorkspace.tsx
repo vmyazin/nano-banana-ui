@@ -28,6 +28,7 @@ import { FRAME_EXTRACTION_ERROR, isVideoFile, lastFrameAsImageFile } from '@/lib
 import LastFrameActions from '@/components/LastFrameActions';
 import ResultStack, { type ResultStackItem } from '@/components/ResultStack';
 import AutoExpandingPrompt from '@/components/AutoExpandingPrompt';
+import PromptPanel from '@/components/PromptPanel';
 import ModelControls, { type ModelControlField } from '@/components/ModelControls';
 import StoredImagePicker from '@/components/StoredImagePicker';
 import GenerationWorkspaceLayout from '@/components/GenerationWorkspaceLayout';
@@ -540,7 +541,7 @@ export default function KieGenerationWorkspace({
           </>
         }
         prompt={
-          <section className="glass-card space-y-3 p-3.5 md:p-4">
+          <PromptPanel>
             <div className="flex items-center justify-between gap-3">
               <label htmlFor="kie-prompt" className="display block text-base font-semibold">Prompt</label>
               <button
@@ -560,7 +561,7 @@ export default function KieGenerationWorkspace({
               onChange={(event) => setPrompt(event.target.value)}
               placeholder={mediaType === 'video' ? 'Describe the motion, camera, mood, and scene…' : 'Describe the image you want to create…'}
             />
-          </section>
+          </PromptPanel>
         }
         results={
           <section className="glass-card flex min-h-[420px] flex-col gap-4 p-3.5 md:p-4">

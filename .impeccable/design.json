@@ -1,0 +1,109 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-01T00:51:59Z",
+  "title": "Design System: Scene Assembly",
+  "extensions": {
+    "colorMeta": {
+      "canvas": { "role": "neutral", "displayName": "Workbench Canvas", "canonical": "#081012", "tonalRamp": ["#030708", "#081012", "#142326", "#2a3c3f", "#526568", "#819295", "#b7c4c6", "#edf3f4"] },
+      "canvas-elevated": { "role": "neutral", "displayName": "Raised Work Surface", "canonical": "#0e191b", "tonalRamp": ["#050a0b", "#0e191b", "#1d3033", "#354a4e", "#5d7174", "#89999c", "#bcc7c9", "#eff4f5"] },
+      "prompt-surface": { "role": "neutral", "displayName": "Illuminated Work Surface", "canonical": "hsl(190 42% 8.8%)", "tonalRamp": ["#071012", "#0d1d20", "#1d3438", "#365055", "#5c7579", "#879da0", "#bac9cb", "#eef4f5"] },
+      "ink": { "role": "neutral", "displayName": "Workbench Ink", "canonical": "#ecf5f5", "tonalRamp": ["#182020", "#2d3838", "#4b5858", "#6c7a7a", "#96a2a2", "#bdc7c7", "#dde5e5", "#f4f8f8"] },
+      "ink-muted": { "role": "neutral", "displayName": "Muted Instrument Label", "canonical": "#8fa5a7", "tonalRamp": ["#111b1c", "#233033", "#3d4d50", "#5b6d70", "#7e9295", "#a5b6b8", "#ccd6d7", "#f0f4f4"] },
+      "ink-subtle": { "role": "neutral", "displayName": "Subtle Instrument Label", "canonical": "#7a8d8f", "tonalRamp": ["#10191a", "#202c2e", "#38474a", "#536467", "#738588", "#9baaad", "#c5cfd1", "#edf2f3"] },
+      "signal-cyan": { "role": "primary", "displayName": "Signal Cyan", "canonical": "#00fff9", "tonalRamp": ["#003d3c", "#006b68", "#009995", "#00c7c2", "#00e8e2", "#4ffffa", "#a1fffc", "#e8fffe"] },
+      "motion-violet": { "role": "secondary", "displayName": "Motion Violet", "canonical": "#bd00ff", "tonalRamp": ["#28003d", "#48006b", "#6b0099", "#8f00c7", "#ad00e8", "#c94fff", "#dfa1ff", "#f7e8ff"] },
+      "output-magenta": { "role": "tertiary", "displayName": "Output Magenta", "canonical": "#ff006e", "tonalRamp": ["#3d001b", "#6b002f", "#990044", "#c70058", "#e80067", "#ff4f92", "#ffa1c4", "#ffe8f1"] },
+      "marker-yellow": { "role": "tertiary", "displayName": "Marker Yellow", "canonical": "#ffed4e", "tonalRamp": ["#3d3600", "#6b6000", "#998b00", "#c7b600", "#e8d817", "#ffed4e", "#fff3a1", "#fffce8"] },
+      "hairline": { "role": "neutral", "displayName": "Quiet Hairline", "canonical": "#c2e8f013", "tonalRamp": ["#0d1719", "#1a292c", "#304246", "#4b6064", "#6e8589", "#98aaad", "#c6d1d3", "#eef4f5"] }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Workspace and major panel titles." },
+      "body": { "displayName": "Body", "purpose": "Controls, descriptions, and instructional copy." },
+      "label": { "displayName": "Label", "purpose": "Compact field and component labels." },
+      "micro": { "displayName": "Micro", "purpose": "Rare provider and section identifiers." }
+    },
+    "shadows": [
+      { "name": "control-edge", "value": "0 1px 2px rgba(0, 8, 9, 0.4)", "purpose": "Compact local separation." },
+      { "name": "ambient-panel", "value": "0 8px 30px -12px rgba(0, 8, 9, 0.7)", "purpose": "Major cards only." },
+      { "name": "dialog-lift", "value": "0 30px 70px -25px rgba(0, 8, 9, 0.85)", "purpose": "Modal separation above the canvas." }
+    ],
+    "motion": [
+      { "name": "state", "value": "200ms ease", "purpose": "Color, border, and background state transitions." },
+      { "name": "press", "value": "100ms ease", "purpose": "Immediate button press feedback." }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "md", "value": "768px" },
+      { "name": "lg", "value": "1024px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The main action in a task surface.",
+      "html": "<button class=\"ds-btn-primary\">Generate image</button>",
+      "css": ".ds-btn-primary{min-height:2.25rem;background:var(--neon-cyan,#00fff9);color:#04141a;border:1px solid transparent;border-radius:8px;padding:.4rem .95rem;font:600 .875rem/1.45 Geist,system-ui,sans-serif;transition:filter .2s ease,box-shadow .2s ease,transform .1s ease}.ds-btn-primary:hover{filter:brightness(1.08);box-shadow:0 0 0 1px rgba(0,255,249,.35),0 0 28px -6px rgba(0,255,249,.45)}.ds-btn-primary:focus-visible{outline:2px solid #00fff9;outline-offset:2px}.ds-btn-primary:active{transform:translateY(1px)}"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "A quiet supporting action.",
+      "html": "<button class=\"ds-btn-secondary\">Open library</button>",
+      "css": ".ds-btn-secondary{min-height:2.25rem;background:rgba(194,232,240,.02);color:#ecf5f5;border:1px solid rgba(194,232,240,.075);border-radius:8px;padding:.4rem .85rem;font:500 .875rem/1.45 Geist,system-ui,sans-serif;transition:border-color .2s ease,background .2s ease}.ds-btn-secondary:hover{background:rgba(194,232,240,.045);border-color:rgba(194,232,240,.17)}.ds-btn-secondary:focus-visible{outline:2px solid #00fff9;outline-offset:2px}"
+    },
+    {
+      "name": "Text Field",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "The default compact field treatment.",
+      "html": "<input class=\"ds-input\" value=\"Cinematic portrait in soft rain\" aria-label=\"Prompt\">",
+      "css": ".ds-input{width:100%;background:#0e191b;border:1px solid rgba(194,232,240,.14);color:#ecf5f5;padding:.4rem .75rem;border-radius:8px;font:400 .875rem/1.45 Geist,system-ui,sans-serif;transition:border-color .2s ease,box-shadow .2s ease}.ds-input::placeholder{color:#7a8d8f}.ds-input:hover{border-color:rgba(194,232,240,.17)}.ds-input:focus{outline:none;border-color:rgba(0,255,249,.6);box-shadow:0 0 0 3px rgba(0,255,249,.12)}"
+    },
+    {
+      "name": "Workbench Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "A major control or result panel.",
+      "html": "<section class=\"ds-card\"><strong>Model controls</strong><p>Only supported options are shown.</p></section>",
+      "css": ".ds-card{background:rgba(194,232,240,.02);color:#ecf5f5;border:1px solid rgba(194,232,240,.075);border-radius:11px;padding:14px;box-shadow:0 8px 30px -12px rgba(0,8,9,.7);font:400 .875rem/1.45 Geist,system-ui,sans-serif;transition:border-color .2s ease,background .2s ease}.ds-card p{margin:.35rem 0 0;color:#8fa5a7}.ds-card:hover{background:rgba(194,232,240,.045);border-color:rgba(194,232,240,.17)}.ds-card:focus-within{outline:2px solid #00fff9;outline-offset:2px}"
+    },
+    {
+      "name": "Workspace Navigation",
+      "kind": "nav",
+      "description": "The compact image, video, and timeline switcher.",
+      "html": "<nav class=\"ds-nav\"><button class=\"ds-nav-item ds-nav-image\">Image</button><button class=\"ds-nav-item\">Video</button><button class=\"ds-nav-item\">Timeline</button></nav>",
+      "css": ".ds-nav{display:flex;align-items:center;width:max-content;padding:4px;background:rgba(14,25,27,.7);border:1px solid rgba(194,232,240,.075);border-radius:11px}.ds-nav-item{background:transparent;border:0;border-radius:8px;padding:.375rem .75rem;color:#8fa5a7;font:500 .8125rem/1.3 Geist,system-ui,sans-serif;transition:color .2s ease,background .2s ease}.ds-nav-item:hover{color:#ecf5f5}.ds-nav-item:focus-visible{outline:2px solid #00fff9;outline-offset:1px}.ds-nav-image{background:rgba(255,237,78,.15);color:#ffed4e}"
+    },
+    {
+      "name": "Prompt Panel",
+      "kind": "custom",
+      "refersTo": "prompt-panel",
+      "description": "The universal generation prompt surface with a focus-aware perimeter runner.",
+      "html": "<section class=\"ds-prompt-panel\"><strong>Prompt</strong><textarea>Describe the scene...</textarea></section>",
+      "css": ".ds-prompt-panel{background:hsl(190 42% 8.8%);color:#ecf5f5;border:1px solid rgba(194,232,240,.11);border-radius:11px;padding:14px;box-shadow:0 8px 30px -12px rgba(0,8,9,.7);font:400 .875rem/1.45 Geist,system-ui,sans-serif}.ds-prompt-panel textarea{box-sizing:border-box;width:100%;margin-top:10px;min-height:80px;background:#0e191b;color:#ecf5f5;border:1px solid rgba(194,232,240,.14);border-radius:8px;padding:.4rem .75rem;font:inherit}.ds-prompt-panel textarea:focus{outline:none;border-color:rgba(0,255,249,.6);box-shadow:0 0 0 3px rgba(0,255,249,.12)}"
+    },
+    {
+      "name": "Status Pill",
+      "kind": "chip",
+      "description": "Compact state or capability metadata.",
+      "html": "<span class=\"ds-pill\">Connected</span>",
+      "css": ".ds-pill{display:inline-flex;align-items:center;gap:.35rem;padding:.2rem .6rem;border:1px solid rgba(16,185,129,.25);border-radius:999px;background:rgba(16,185,129,.1);color:#6ee7b7;font:500 .8125rem/1.3 Geist,system-ui,sans-serif}.ds-pill:focus-visible{outline:2px solid #00fff9;outline-offset:2px}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Illuminated Workbench",
+    "overview": "Scene Assembly is a dark creative workbench where the media stays central and the controls read as precise instruments. Near-black teal canvases keep long sessions calm; small, deliberate signals of cyan, violet, magenta, and yellow provide the moderate energy expected from a creative tool. The system favors compact density, familiar controls, and one consistent vocabulary across providers.",
+    "keyCharacteristics": ["Dark, teal-tinted surfaces with crisp pale ink.", "Compact Geist typography and restrained 8–11px corner radii.", "Bright accent colors reserved for actions, selection, provider identity, and state.", "Ambient depth from quiet tonal layering and low, diffuse shadows.", "Consistent workspace composition across image, video, and timeline tools."],
+    "rules": [
+      { "name": "The Indicator-Light Rule", "body": "Bright accents communicate action, selection, identity, or state. They are forbidden as undirected decoration.", "section": "colors" },
+      { "name": "The One Active Signal Rule", "body": "Within one control group, only the current action or selection receives a saturated accent.", "section": "colors" },
+      { "name": "The Working-Type Rule", "body": "Hierarchy comes from weight and modest size changes. Display scale and ornamental type are prohibited inside task surfaces.", "section": "typography" },
+      { "name": "The Quiet Depth Rule", "body": "Tonal difference establishes elevation first. Shadows reinforce hierarchy; they never make every panel float.", "section": "elevation" }
+    ],
+    "dos": ["Do keep generated media visually dominant over control chrome.", "Do use Signal Cyan for primary action and focus, Motion Violet for video identity, and Marker Yellow for image identity.", "Do use one full-perimeter hairline and tonal layering to separate controls.", "Do keep interactive states fast, familiar, and consistent across providers.", "Do preserve compact control density, 8–11px radii, and Geist typography."],
+    "donts": ["Don't create cyberpunk or gaming interfaces whose glow, ornament, or motion competes with the work.", "Don't use generic AI-product styling built around purple gradients and decorative color.", "Don't turn Scene Assembly into a sterile enterprise dashboard that erases the product's creative energy.", "Don't use bright accents without a clear action, selection, identity, or state meaning.", "Don't add side-stripe accents, gradient text, oversized card radii, or decorative glass effects.", "Don't allow provider-specific pages to drift from the shared prompt, result, and control vocabulary."]
+  }
+}

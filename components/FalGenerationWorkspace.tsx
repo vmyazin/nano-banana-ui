@@ -5,6 +5,7 @@ import { ArrowUpDown, Download, ImagePlus, Loader2, Search, Sparkles, Trash2, Vi
 
 import LastFrameActions from '@/components/LastFrameActions';
 import AutoExpandingPrompt from '@/components/AutoExpandingPrompt';
+import PromptPanel from '@/components/PromptPanel';
 import ModelControls from '@/components/ModelControls';
 import ProviderLogo from '@/components/ProviderLogo';
 import StoredImagePicker from '@/components/StoredImagePicker';
@@ -785,7 +786,7 @@ function FalGenerationWorkspaceSession({
           </>
         }
         prompt={
-          <section className="glass-card space-y-3 p-3.5 md:p-4">
+          <PromptPanel>
             <div className="flex items-center justify-between gap-3">
               <label htmlFor="fal-video-prompt" className="display block text-base font-semibold">Prompt</label>
               <button
@@ -807,7 +808,7 @@ function FalGenerationWorkspaceSession({
               onChange={(event) => setPrompt(event.target.value)}
               placeholder="Describe the motion, camera, mood, and scene…"
             />
-          </section>
+          </PromptPanel>
         }
         results={
           <section className="glass-card min-h-[420px] space-y-3 p-3.5 md:p-4">

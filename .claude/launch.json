@@ -6,6 +6,13 @@
       "request": "launch",
       "command": "npm run dev -- --port 3217",
       "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "Universal prompt panel smoke test",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "npm run dev -- --port 3221",
+      "cwd": "${workspaceFolder}"
     }
   ]
 }

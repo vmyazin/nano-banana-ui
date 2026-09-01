@@ -22,6 +22,7 @@ import { downloadFilenameBase } from '@/lib/download-name';
 import { convertedForDownload } from '@/lib/image/download-format';
 import ProviderLogo from '@/components/ProviderLogo';
 import AutoExpandingPrompt from '@/components/AutoExpandingPrompt';
+import PromptPanel from '@/components/PromptPanel';
 import { useAppStore } from '@/store/useAppStore';
 import { modelsFor, resolveModel } from '@/lib/providers/catalog';
 import type { ProviderId } from '@/lib/providers/types';
@@ -945,7 +946,7 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
           )}
 
           {/* Prompt Input */}
-          <div className="glass-card p-3.5 md:p-4 space-y-3">
+          <PromptPanel>
             <div className="flex items-center justify-between gap-2 flex-wrap">
               <h3 className="display text-base sm:text-lg font-semibold">
                 Prompt
@@ -1013,7 +1014,7 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
                 </p>
               </div>
             )}
-          </div>
+          </PromptPanel>
 
           {/* Settings Panel — always visible */}
           <motion.div
