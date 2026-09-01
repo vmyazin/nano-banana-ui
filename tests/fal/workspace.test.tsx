@@ -537,7 +537,7 @@ describe('FalGenerationWorkspace', () => {
     await waitFor(() => expect(submitFalJobMock).toHaveBeenCalledOnce());
     const signal = submitFalJobMock.mock.calls[0][1].signal as AbortSignal;
 
-    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+    fireEvent.click(screen.getByRole('button', { name: '← Back' }));
     expect(onBack).toHaveBeenCalledOnce();
     expect(signal.aborted).toBe(false);
     await act(async () => {

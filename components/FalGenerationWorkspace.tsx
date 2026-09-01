@@ -10,6 +10,7 @@ import ModelControls from '@/components/ModelControls';
 import ProviderLogo from '@/components/ProviderLogo';
 import StoredImagePicker from '@/components/StoredImagePicker';
 import GenerationWorkspaceLayout from '@/components/GenerationWorkspaceLayout';
+import ConnectionGate, { isGated } from '@/components/ConnectionGate';
 import { requestExamplePrompt, requestPromptSlug } from '@/lib/micro-ai/browser';
 import { cancelFalJob, submitFalJob, uploadFalFiles } from '@/lib/fal/browser';
 import {
@@ -259,6 +260,8 @@ function FalGenerationWorkspaceSession({
   const falVideoModel = useAppStore((state) => state.falVideoModel);
   const setFalVideoModel = useAppStore((state) => state.setFalVideoModel);
   const jobs = useFalJobsStore((state) => state.jobs);
+  const needsKey = !apiKey.trim();
+  const gated = isGated(needsKey, jobs.length > 0);
   const upsertJob = useFalJobsStore((state) => state.upsertJob);
   const models = useMemo(() => modelsForFalMode('video', inputMode), [inputMode]);
   const selectedModel = models.find((model) => model.id === falVideoModel) ?? models[0];
@@ -617,10 +620,14 @@ function FalGenerationWorkspaceSession({
       <section className="glass-card p-3.5 md:p-4">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex min-w-0 items-start gap-3">
-            <button type="button" onClick={() => { abortSubmission(); onBack(); }} className="btn-secondary shrink-0 px-3 py-2 text-sm">
-              Back
+            <button
+              type="button"
+              onClick={() => { abortSubmission(); onBack(); }}
+              className="btn-secondary shrink-0 px-3 py-2 text-sm"
+            >
+              ← Back
             </button>
-            <div>
+            <div className="min-w-0">
               <p className="eyebrow mb-1 flex items-center gap-1.5 text-[var(--neon-cyan)]">
                 <ProviderLogo provider="fal" size={13} /> fal.ai
               </p>
@@ -629,12 +636,28 @@ function FalGenerationWorkspaceSession({
               </h2>
             </div>
           </div>
-          <button type="button" onClick={() => onOpenConnections('fal')} className="btn-secondary shrink-0 px-3 py-2 text-xs">
-            {apiKey ? 'fal key connected' : 'Connect fal key'}
-          </button>
+          {/* One call to action per state: while the key is missing the callout
+              below owns it, so the header keeps only the connected-state status
+              button rather than repeating the same ask two rows apart. */}
+          {!needsKey && (
+            <button
+              type="button"
+              onClick={() => onOpenConnections('fal')}
+              className="btn-secondary shrink-0 px-3 py-2 text-xs"
+            >
+              fal.ai key connected
+            </button>
+          )}
         </div>
       </section>
 
+      <ConnectionGate
+        provider="fal"
+        label="fal.ai"
+        needsKey={needsKey}
+        hasFinishedWork={jobs.length > 0}
+        onConnect={() => onOpenConnections('fal')}
+      >
       <GenerationWorkspaceLayout
         setup={
           <>
@@ -787,7 +810,7 @@ function FalGenerationWorkspaceSession({
           </>
         }
         prompt={
-          <PromptPanel>
+          <PromptPanel paused={gated}>
             <div className="flex items-center justify-between gap-3">
               <label htmlFor="fal-video-prompt" className="display block text-base font-semibold">Prompt</label>
               <button
@@ -841,6 +864,7 @@ function FalGenerationWorkspaceSession({
           </section>
         }
       />
+      </ConnectionGate>
     </div>
   );
 }

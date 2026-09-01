@@ -3,8 +3,8 @@
 import { ArrowUpRight, KeyRound } from 'lucide-react';
 
 import ProviderLogo from '@/components/ProviderLogo';
+import type { EngineId } from '@/lib/engines/registry';
 import { KEY_SOURCES } from '@/lib/providers/key-source';
-import type { ProviderId } from '@/lib/providers/types';
 
 /**
  * The not-connected state for a provider workspace: without a key every control
@@ -23,7 +23,7 @@ export default function ConnectKeyCallout({
   label,
   onConnect,
 }: {
-  provider: ProviderId;
+  provider: EngineId;
   label: string;
   onConnect: () => void;
 }) {

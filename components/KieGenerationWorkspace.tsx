@@ -32,6 +32,7 @@ import PromptPanel from '@/components/PromptPanel';
 import ModelControls, { type ModelControlField } from '@/components/ModelControls';
 import StoredImagePicker from '@/components/StoredImagePicker';
 import GenerationWorkspaceLayout from '@/components/GenerationWorkspaceLayout';
+import ConnectionGate, { isGated } from '@/components/ConnectionGate';
 import type { EngineId } from '@/lib/engines/registry';
 
 interface KieGenerationWorkspaceProps {
@@ -82,6 +83,8 @@ export default function KieGenerationWorkspace({
   const setKieImageModel = useAppStore((state) => state.setKieImageModel);
   const setKieVideoModel = useAppStore((state) => state.setKieVideoModel);
   const jobs = useKieJobsStore((state) => state.jobs);
+  const needsKey = !kieApiKey.trim();
+  const gated = isGated(needsKey, jobs.length > 0);
   const upsertJob = useKieJobsStore((state) => state.upsertJob);
 
   const models = useMemo(() => modelsForKieMode(mediaType, inputMode), [inputMode, mediaType]);
@@ -405,14 +408,30 @@ export default function KieGenerationWorkspace({
               )}
             </div>
           </div>
-          <button type="button" onClick={() => onOpenConnections('kie')} className="btn-secondary shrink-0 px-3 py-2 text-xs">
-            {kieApiKey ? 'Kie key connected' : 'Connect Kie key'}
-          </button>
+          {/* One call to action per state: while the key is missing the callout
+              below owns it, so the header keeps only the connected-state status
+              button rather than repeating the same ask two rows apart. */}
+          {!needsKey && (
+            <button
+              type="button"
+              onClick={() => onOpenConnections('kie')}
+              className="btn-secondary shrink-0 px-3 py-2 text-xs"
+            >
+              Kie.ai key connected
+            </button>
+          )}
         </div>
       </section>
 
       {engineSelector}
 
+      <ConnectionGate
+        provider="kie"
+        label="Kie.ai"
+        needsKey={needsKey}
+        hasFinishedWork={jobs.length > 0}
+        onConnect={() => onOpenConnections('kie')}
+      >
       <GenerationWorkspaceLayout
         setup={
           <>
@@ -542,7 +561,7 @@ export default function KieGenerationWorkspace({
           </>
         }
         prompt={
-          <PromptPanel>
+          <PromptPanel paused={gated}>
             <div className="flex items-center justify-between gap-3">
               <label htmlFor="kie-prompt" className="display block text-base font-semibold">Prompt</label>
               <button
@@ -657,6 +676,7 @@ export default function KieGenerationWorkspace({
           </section>
         }
       />
+      </ConnectionGate>
     </div>
   );
 }

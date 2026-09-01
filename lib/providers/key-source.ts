@@ -1,5 +1,5 @@
 // lib/providers/key-source.ts
-import type { ProviderId } from '@/lib/providers/types';
+import type { EngineId } from '@/lib/engines/registry';
 
 /**
  * Where a provider's API keys actually come from. Two surfaces send people to
@@ -14,7 +14,32 @@ export interface KeySource {
   urlLabel: string;
 }
 
-export const KEY_SOURCES: Record<ProviderId, KeySource> = {
+/**
+ * Keyed by engine, not just the aggregators: Kie and fal show the same
+ * not-connected callout, so their console URLs belong in the same place.
+ * Pollinations needs no key and points at its docs.
+ */
+export const KEY_SOURCES: Record<EngineId, KeySource> = {
+  gemini: {
+    href: 'https://aistudio.google.com/apikey',
+    urlLabel: 'aistudio.google.com/apikey',
+  },
+  pollinations: {
+    href: 'https://pollinations.ai/',
+    urlLabel: 'pollinations.ai',
+  },
+  cloudflare: {
+    href: 'https://dash.cloudflare.com/profile/api-tokens',
+    urlLabel: 'dash.cloudflare.com/profile/api-tokens',
+  },
+  kie: {
+    href: 'https://kie.ai/',
+    urlLabel: 'kie.ai',
+  },
+  fal: {
+    href: 'https://fal.ai/dashboard/keys',
+    urlLabel: 'fal.ai/dashboard/keys',
+  },
   runware: {
     href: 'https://runware.ai/signup',
     urlLabel: 'runware.ai/signup',

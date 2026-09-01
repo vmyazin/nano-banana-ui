@@ -160,8 +160,10 @@ describe('VideoWorkspace provider selection', () => {
     // Level 2 pins this to the workspace heading: the mode card above renders
     // the same words as an h3.
     expect(screen.getByRole('heading', { level: 2, name: 'Text to video' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
-    fireEvent.click(screen.getByRole('button', { name: /Connect fal key/i }));
+    fireEvent.click(screen.getByRole('button', { name: '← Back' }));
+    // Unkeyed, the connect action lives in the shared not-connected callout
+    // rather than the header, on fal exactly as on the aggregators.
+    fireEvent.click(screen.getByRole('button', { name: 'Connect key' }));
     expect(onExit).toHaveBeenCalledOnce();
     expect(onOpenConnections).toHaveBeenCalledOnce();
 
