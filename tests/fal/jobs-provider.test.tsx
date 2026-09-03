@@ -7,14 +7,16 @@ import { FAL_JOB_TIMEOUT_MS, nextFalPollDelay } from '../../lib/fal/queue';
 import type { FalJob, FalTask } from '../../lib/fal/types';
 import { useAppStore } from '../../store/useAppStore';
 import { useFalJobsStore } from '../../store/useFalJobsStore';
+import { useSpendStore } from '../../store/useSpendStore';
 
-const { cancelFalJob, getFalJobStatus, submitFalJob } = vi.hoisted(() => ({
+const { cancelFalJob, estimateFalJobCost, getFalJobStatus, submitFalJob } = vi.hoisted(() => ({
   cancelFalJob: vi.fn(),
+  estimateFalJobCost: vi.fn().mockResolvedValue({ costUsd: 0.5, unit: 'second', quantity: 8 }),
   getFalJobStatus: vi.fn(),
   submitFalJob: vi.fn(),
 }));
 
-vi.mock('../../lib/fal/browser', () => ({ cancelFalJob, getFalJobStatus, submitFalJob }));
+vi.mock('../../lib/fal/browser', () => ({ cancelFalJob, estimateFalJobCost, getFalJobStatus, submitFalJob }));
 
 const NOW = new Date('2026-08-04T12:00:00.000Z').getTime();
 const TIMEOUT_MESSAGE =
@@ -58,10 +60,18 @@ describe('FalJobsProvider', () => {
     vi.useFakeTimers();
     vi.setSystemTime(NOW);
     cancelFalJob.mockReset();
+    estimateFalJobCost.mockReset();
+    estimateFalJobCost.mockResolvedValue({ costUsd: 0.5, unit: 'second', quantity: 8 });
     getFalJobStatus.mockReset();
     submitFalJob.mockReset();
     useAppStore.setState({ falApiKey: 'fal-key-secret' });
     useFalJobsStore.getState().clearJobs();
+    useSpendStore.setState({ entries: [] });
+    // jsdom's localStorage.setItem schedules a same-tick storage event via
+    // setTimeout(…, 0) whenever the persisted value actually changes (it does
+    // here once a prior test has filed a real entry). Flush it immediately so
+    // it never shows up as a leftover timer in this file's exact-count checks.
+    vi.advanceTimersByTime(0);
   });
 
   afterEach(() => {
@@ -69,7 +79,9 @@ describe('FalJobsProvider', () => {
   });
 
   it('polls queued to running to success and stores complete replacement snapshots', async () => {
-    const initial = makeJob();
+    // A real catalog model id (unlike the fixture default), so captureFalJob's
+    // resolveFalVariant lookup succeeds and files an estimated spend entry.
+    const initial = makeJob({ modelId: 'veo-3-1-fast' });
     const running: FalTask = {
       requestId: initial.requestId,
       state: 'running',
@@ -122,6 +134,18 @@ describe('FalJobsProvider', () => {
     });
     expect(submitFalJob).not.toHaveBeenCalled();
     expect(cancelFalJob).not.toHaveBeenCalled();
+
+    await vi.waitFor(() => expect(useSpendStore.getState().entries).toHaveLength(1));
+    expect(useSpendStore.getState().entries[0]).toMatchObject({ id: `fal-${initial.id}`, provider: 'fal', kind: 'video', costUsd: 0.5 });
+  });
+
+  it('files nothing in the spend ledger for a failed job', async () => {
+    getFalJobStatus.mockResolvedValueOnce({ requestId: 'request_0001', state: 'fail', logs: [], error: 'nope' });
+    useFalJobsStore.getState().upsertJob(makeJob());
+    render(<FalJobsProvider><div /></FalJobsProvider>);
+    await advance(nextFalPollDelay(0));
+    expect(useFalJobsStore.getState().jobs[0].state).toBe('fail');
+    expect(useSpendStore.getState().entries).toEqual([]);
   });
 
   it('keeps a job active after a safe transient rejection and later completes without resubmit', async () => {

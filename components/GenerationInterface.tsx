@@ -18,6 +18,8 @@ import {
 } from '@/lib/media-download';
 import { runFalImage } from '@/lib/fal/browser';
 import { FAL_IMAGE_MODEL } from '@/lib/fal/catalog';
+import type { EngineUsage } from '@/lib/engines/gemini';
+import { captureImageResult } from '@/lib/spend/capture';
 import { downloadFilenameBase } from '@/lib/download-name';
 import { convertedForDownload } from '@/lib/image/download-format';
 import ProviderLogo from '@/components/ProviderLogo';
@@ -399,7 +401,7 @@ export default function GenerationInterface({ feature, apiKey, onBack, onOpenCon
   };
 
   const generateMutation = useMutation({
-    mutationFn: async (): Promise<{ dataUrl: string; ext: string; mimeType: string }> => {
+    mutationFn: async (): Promise<{ dataUrl: string; ext: string; mimeType: string; usage?: EngineUsage; cost?: number }> => {
       // Tailor the prompt to the feature.
       let finalPrompt = prompt;
       if (feature.id === 'social-media-thumbnail') {
@@ -499,7 +501,13 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
       if (data.success && data.imageData) {
         const mime: string = data.mimeType || 'image/png';
         const ext = mime.includes('jpeg') || mime.includes('jpg') ? 'jpg' : 'png';
-        return { dataUrl: `data:${mime};base64,${data.imageData}`, ext, mimeType: mime };
+        return {
+          dataUrl: `data:${mime};base64,${data.imageData}`,
+          ext,
+          mimeType: mime,
+          usage: data.usage,
+          cost: typeof data.cost === 'number' ? data.cost : undefined,
+        };
       }
 
       const debugInfo = data.debug ? ` (${data.debug})` : '';
@@ -522,7 +530,19 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
       ]);
       // Images are small enough to keep every time. The provider URL fal hands
       // back expires in a week, so the bytes are what make this durable.
-      void captureImage(result.dataUrl);
+      void captureImage(result.dataUrl).then((galleryRecordId) =>
+        captureImageResult({
+          engine: activeEngine.id,
+          modelId: activeModelId,
+          prompt,
+          inputImages: images.length,
+          resolution: config.imageSize,
+          usage: result.usage,
+          cost: result.cost,
+          galleryRecordId,
+          falApiKey,
+        })
+      );
     },
     onError: (e) => {
       if (e instanceof LocalFalCancellation) return;
@@ -530,10 +550,10 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
     },
   });
 
-  const captureImage = async (result: string) => {
+  const captureImage = async (result: string): Promise<string | undefined> => {
     try {
       const blob = await resultBlob(result, 'image');
-      await useGalleryStore.getState().record({
+      const record = await useGalleryStore.getState().record({
         kind: 'image',
         prompt,
         slug: filenameSlug ?? undefined,
@@ -547,9 +567,11 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
         sourceUrl: result.startsWith('data:') ? undefined : result,
         blob,
       });
+      return record?.id;
     } catch {
       // A result that cannot be filed is still on screen and downloadable;
       // failing to archive it must not read as a failed generation.
+      return undefined;
     }
   };
 

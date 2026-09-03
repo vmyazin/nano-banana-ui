@@ -11,6 +11,7 @@ import { FEATURES, type Feature } from '../types';
 
 vi.mock('@/lib/fal/browser', () => ({
   cancelFalJob: vi.fn(),
+  estimateFalJobCost: vi.fn().mockResolvedValue({ costUsd: null }),
   runFalImage: vi.fn(),
 }));
 

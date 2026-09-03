@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { describeMicroTask, requestPromptSlug } from '../../lib/micro-ai/browser';
 import { useMicroAiUsageStore } from '../../store/useMicroAiUsageStore';
+import { useSpendStore } from '../../store/useSpendStore';
 
 describe('describeMicroTask', () => {
   it('names the shared-tier model and what the call cost', () => {
@@ -30,6 +31,7 @@ describe('describeMicroTask', () => {
 describe('requestPromptSlug usage accounting', () => {
   beforeEach(() => {
     useMicroAiUsageStore.getState().reset();
+    useSpendStore.setState({ entries: [] });
   });
 
   it('accumulates reported usage and remembers the model that served it', async () => {
@@ -53,6 +55,7 @@ describe('requestPromptSlug usage accounting', () => {
     expect(state.completionTokens).toBe(10);
     expect(state.costUsd).toBe(0.0000022);
     expect(state.lastModel).toBe('meta-llama/Llama-3.1-8B-Instruct');
+    expect(useSpendStore.getState().entries[0]).toMatchObject({ provider: 'micro-ai', kind: 'helper' });
   });
 
   it('records nothing when a fallback served the request for free', async () => {
