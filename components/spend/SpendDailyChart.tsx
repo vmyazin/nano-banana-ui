@@ -103,10 +103,29 @@ export default function SpendDailyChart({ days }: { days: SpendDay[] }) {
             const visible = PROVIDER_ORDER.filter((provider) => (day.byProvider[provider] ?? 0) > 0);
             const x = PAD_LEFT + index * slot + (slot - barWidth) / 2;
             const isHovered = hovered?.index === index;
+            const leftPct = ((x + barWidth / 2) / WIDTH) * 100;
+            const dayLabel = `${day.day}: ${formatUsdTotal(day.costUsd)} across ${day.runs} run${day.runs === 1 ? '' : 's'}`;
             let y = baseline;
 
+            const enter = () => setHovered({ index, leftPct });
+            const leave = () => setHovered((current) => (current?.index === index ? null : current));
+
             return (
-              <g key={day.day} opacity={hovered && !isHovered ? 0.55 : 1} style={{ transition: 'opacity 120ms ease' }}>
+              <g
+                key={day.day}
+                tabIndex={0}
+                aria-label={dayLabel}
+                opacity={hovered && !isHovered ? 0.55 : 1}
+                style={{ transition: 'opacity 120ms ease' }}
+                onMouseEnter={enter}
+                onMouseLeave={leave}
+                onFocus={enter}
+                onBlur={leave}
+              >
+                {/* Hit target wider than the bar itself, covering the day's whole slot and full plot height.
+                    Drawn beneath the segments (not on top) so their native <title> tooltips stay reachable
+                    by mouse; hover/focus is detected on the whole <g>, not this rect specifically. */}
+                <rect x={PAD_LEFT + index * slot} y={PAD_TOP} width={slot} height={plotHeight} fill="transparent" />
                 {visible.map((provider, segmentIndex) => {
                   const usd = day.byProvider[provider] ?? 0;
                   const height = scale(usd);
@@ -123,7 +142,7 @@ export default function SpendDailyChart({ days }: { days: SpendDay[] }) {
                     </path>
                   );
                 })}
-                {/* Hover lift: a translucent surface-color wash lightens the whole stack together. */}
+                {/* Hover/focus lift: a translucent surface-color wash lightens the whole stack together. */}
                 {isHovered && (
                   <rect x={x} y={PAD_TOP} width={barWidth} height={plotHeight} fill="#fff" fillOpacity={0.12} />
                 )}
@@ -138,16 +157,6 @@ export default function SpendDailyChart({ days }: { days: SpendDay[] }) {
                     {day.day.slice(5)}
                   </text>
                 )}
-                {/* Hit target wider than the bar itself, covering the day's whole slot and full plot height. */}
-                <rect
-                  x={PAD_LEFT + index * slot}
-                  y={PAD_TOP}
-                  width={slot}
-                  height={plotHeight}
-                  fill="transparent"
-                  onMouseEnter={() => setHovered({ index, leftPct: ((x + barWidth / 2) / WIDTH) * 100 })}
-                  onMouseLeave={() => setHovered((current) => (current?.index === index ? null : current))}
-                />
               </g>
             );
           })}

@@ -56,6 +56,12 @@ describe('SpendPage', () => {
     expect(within(summary).getByText('3')).toBeInTheDocument();
     expect(await within(summary).findByText('940')).toBeInTheDocument();
 
+    const charts = screen.getAllByRole('img', { name: /Spend per day/ });
+    expect(charts.length).toBeGreaterThan(0);
+    const focusableDay = charts[0].querySelector('[tabindex="0"]');
+    expect(focusableDay).not.toBeNull();
+    expect(focusableDay).toHaveAttribute('aria-label', expect.stringContaining('$0.14'));
+
     const byProvider = screen.getByRole('table', { name: 'By provider' });
     expect(within(byProvider).getAllByRole('row')).toHaveLength(4);
     expect(within(byProvider).getByText('Google Gemini')).toBeInTheDocument();

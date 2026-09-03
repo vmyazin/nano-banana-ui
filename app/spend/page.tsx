@@ -69,7 +69,7 @@ function SpendView() {
   };
 
   return (
-    <div className="min-h-screen w-full">
+    <div className="min-h-screen relative w-full overflow-x-clip">
       <header className="sticky top-0 z-50 border-b border-[var(--border)] bg-[hsl(var(--tint-hue)_38%_5%/0.72)] backdrop-blur-xl">
         <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-6 py-3.5 sm:px-8 md:px-12 md:py-4 lg:px-16">
           <Link href="/" aria-label="Go to Scene Assembly home" className="block min-w-0 rounded-lg">
