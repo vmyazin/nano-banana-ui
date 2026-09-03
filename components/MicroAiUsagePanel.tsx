@@ -2,14 +2,9 @@
 
 import { Check, Cpu } from 'lucide-react';
 
+import { formatUsd } from '@/lib/spend/format';
 import { MICRO_AI_MODELS, PRICING_NOTE } from '@/lib/micro-ai/models';
 import { useMicroAiUsageStore } from '@/store/useMicroAiUsageStore';
-
-/** Sub-cent figures round to nothing, so show a floor rather than "$0.0000". */
-export function formatUsd(cost: number): string {
-  if (!Number.isFinite(cost) || cost <= 0) return '$0.0000';
-  return cost < 0.0001 ? '<$0.0001' : `$${cost.toFixed(4)}`;
-}
 
 /**
  * Read-only telemetry for the shared micro-AI tier that names downloads and
