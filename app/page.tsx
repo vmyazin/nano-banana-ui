@@ -375,6 +375,14 @@ function Studio() {
               <p className="text-xs text-[var(--foreground-muted)]">
                 {brand.description}
               </p>
+              <p className="text-xs">
+                <Link
+                  href="/spend"
+                  className="text-[var(--neon-cyan)] hover:text-[var(--neon-purple)] font-medium transition-colors hover:underline"
+                >
+                  Spend
+                </Link>
+              </p>
             </div>
           </div>
 

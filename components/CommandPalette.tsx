@@ -19,6 +19,7 @@ import {
   Type,
   Volume2,
   VolumeX,
+  Wallet,
   Wand2,
   type LucideIcon,
 } from 'lucide-react';
@@ -310,6 +311,17 @@ export function CommandPalette({
             <span className="cmd-item-body">
               <span className="cmd-item-title">Saved prompts</span>
               <span className="cmd-item-desc">Reuse a prompt you kept</span>
+            </span>
+          </Command.Item>
+          <Command.Item
+            value="View spend"
+            keywords={['cost', 'spend', 'expenses', 'usage', 'billing', 'ledger', 'money']}
+            onSelect={() => go(() => window.location.assign('/spend'))}
+          >
+            <Wallet size={15} />
+            <span className="cmd-item-body">
+              <span className="cmd-item-title">View spend</span>
+              <span className="cmd-item-desc">What your generations have cost</span>
             </span>
           </Command.Item>
           <Command.Item

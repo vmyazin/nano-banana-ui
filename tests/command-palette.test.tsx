@@ -83,6 +83,11 @@ describe('CommandPalette', () => {
     expect(onOpenLibrary).toHaveBeenCalledWith('prompts');
   });
 
+  it('offers a jump to the spend page', () => {
+    renderPalette();
+    expect(screen.getByText('View spend')).toBeInTheDocument();
+  });
+
   it('keeps a search on the rows that actually match the word', () => {
     renderPalette();
 
