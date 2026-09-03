@@ -1,0 +1,34 @@
+import { formatUsdTotal } from '@/lib/spend/format';
+import type { SpendTotals } from '@/lib/spend/rollup';
+
+interface SpendSummaryProps {
+  totals: SpendTotals;
+  /** Live Kie balance; undefined hides the tile, null means the read failed. */
+  kieCredits?: number | null;
+}
+
+function Tile({ label, value, hint }: { label: string; value: string; hint?: string }) {
+  return (
+    <div className="glass-card p-3.5 md:p-4">
+      <dt className="field-label">{label}</dt>
+      <dd className="display mt-1 text-2xl">{value}</dd>
+      {hint && <p className="field-hint mt-1">{hint}</p>}
+    </div>
+  );
+}
+
+export default function SpendSummary({ totals, kieCredits }: SpendSummaryProps) {
+  const exactShare = totals.costUsd > 0 ? Math.round((totals.exactUsd / totals.costUsd) * 100) : 0;
+  return (
+    <section aria-label="Summary">
+      <dl className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <Tile label="Total" value={formatUsdTotal(totals.costUsd)} hint={totals.unknownRuns > 0 ? `${totals.unknownRuns} run${totals.unknownRuns === 1 ? '' : 's'} unpriced` : undefined} />
+        <Tile label="Runs" value={String(totals.runs)} />
+        <Tile label="Exact" value={`${exactShare}%`} hint={`${formatUsdTotal(totals.estimatedUsd)} estimated`} />
+        {kieCredits !== undefined && (
+          <Tile label="Kie credits" value={kieCredits === null ? '—' : String(kieCredits)} hint="Live balance" />
+        )}
+      </dl>
+    </section>
+  );
+}

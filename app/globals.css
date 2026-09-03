@@ -91,6 +91,18 @@
   }
 }
 
+/* Chromium only propagates a <body> overflow rule to the viewport when body
+   has no `position` of its own; ours is `position: relative` (for the glow
+   pseudo-elements below), which silently breaks that propagation and leaves
+   <html> — the actual scrolling element — unrestricted. A page that contains
+   any genuinely wider-than-viewport content (e.g. a table meant to scroll
+   inside its own container) then drags the whole document sideways with it.
+   Declaring the same rule on html directly is the standard defensive fix and
+   doesn't change anything for pages that never overflow. */
+html {
+  overflow-x: hidden;
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
