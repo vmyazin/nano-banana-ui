@@ -42,6 +42,12 @@ export interface ProviderSize {
   preset?: string;
 }
 
+/** A flat published price the app can multiply, unlike the display-only `price`. */
+export interface ProviderRate {
+  usd: number;
+  per: 'image' | 'second' | 'video';
+}
+
 export interface ProviderModel {
   /** The vendor's own identifier, verbatim. Never construct one of these. */
   id: string;
@@ -62,6 +68,12 @@ export interface ProviderModel {
    * not arithmetic. `undefined` means the vendor meters it without a flat rate.
    */
   price?: string;
+  /**
+   * The same published price as arithmetic, for the spend ledger. Only set
+   * when `price` is one flat figure; tiered or metered models leave it out and
+   * their runs record as unknown.
+   */
+  rate?: ProviderRate;
   /** Max reference images the model accepts, when the vendor documents one. */
   maxInputImages?: number;
   /** Per-mode video input contracts, when a model has more than the legacy frame input. */

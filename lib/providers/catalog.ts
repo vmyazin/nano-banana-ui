@@ -173,6 +173,7 @@ const ATLAS_MODELS: ProviderModel[] = [
     kind: 'image',
     modes: ['text', 'image'],
     price: '$0.003 / image',
+    rate: { usd: 0.003, per: 'image' },
     maxInputImages: 1,
   },
   {
@@ -182,6 +183,7 @@ const ATLAS_MODELS: ProviderModel[] = [
     kind: 'image',
     modes: ['text', 'image'],
     price: '$0.005 / image',
+    rate: { usd: 0.005, per: 'image' },
     maxInputImages: 1,
   },
   {
@@ -191,6 +193,7 @@ const ATLAS_MODELS: ProviderModel[] = [
     kind: 'image',
     modes: ['text'],
     price: '$0.04 / image',
+    rate: { usd: 0.04, per: 'image' },
   },
   {
     id: 'qwen-image-3.0/edit',
@@ -199,6 +202,7 @@ const ATLAS_MODELS: ProviderModel[] = [
     kind: 'image',
     modes: ['image'],
     price: '$0.04 / image',
+    rate: { usd: 0.04, per: 'image' },
     maxInputImages: 1,
   },
   {
@@ -208,6 +212,7 @@ const ATLAS_MODELS: ProviderModel[] = [
     kind: 'video',
     modes: ['text'],
     price: '$0.002 / s',
+    rate: { usd: 0.002, per: 'second' },
     // No durations on purpose: this model takes num_frames, not seconds, so the
     // control is hidden and no duration is sent.
     sizes: [
@@ -224,6 +229,7 @@ const ATLAS_MODELS: ProviderModel[] = [
     kind: 'video',
     modes: ['image'],
     price: '$0.009 / s',
+    rate: { usd: 0.009, per: 'second' },
     maxInputImages: 1,
     // Documented options run 2–12; these are the stops worth offering.
     durations: [4, 5, 6, 8, 10, 12],
