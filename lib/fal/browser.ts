@@ -513,3 +513,33 @@ export async function runFalImage(
     controller.abort();
   }
 }
+
+export interface FalJobCostEstimate {
+  costUsd: number | null;
+  unit?: string;
+  quantity?: number;
+}
+
+/** Spend readout for a finished job. Resolves to an unknown figure rather than rejecting. */
+export async function estimateFalJobCost(args: {
+  apiKey: string;
+  endpointId: string;
+  durationSeconds?: number;
+}): Promise<FalJobCostEstimate> {
+  try {
+    const response = await fetch('/api/fal/estimate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(args),
+    });
+    const data = (await response.json().catch(() => ({}))) as Partial<FalJobCostEstimate> & { success?: boolean };
+    if (!response.ok || !data.success) return { costUsd: null };
+    return {
+      costUsd: typeof data.costUsd === 'number' ? data.costUsd : null,
+      ...(typeof data.unit === 'string' ? { unit: data.unit } : {}),
+      ...(typeof data.quantity === 'number' ? { quantity: data.quantity } : {}),
+    };
+  } catch {
+    return { costUsd: null };
+  }
+}

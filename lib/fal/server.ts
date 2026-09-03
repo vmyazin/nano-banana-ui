@@ -1,6 +1,7 @@
 import { createFalClient } from '@fal-ai/client';
 
 import { buildFalInput, extractFalResult, resolveFalVariant } from './catalog';
+import { falUnitQuantity } from './pricing';
 import type { FalInputMode, FalMediaType, FalTask, FalValue } from './types';
 
 const FAL_PRICING_URL =
@@ -193,6 +194,79 @@ export async function validateFalApiKey(apiKey: string): Promise<void> {
     });
     if (!response.ok) throw safeError(response.status);
   }, apiKey);
+}
+
+const FAL_PRICING_API = 'https://api.fal.ai/v1/models/pricing';
+const FAL_ESTIMATE_API = 'https://api.fal.ai/v1/models/pricing/estimate';
+
+export interface FalCostEstimate {
+  costUsd: number | null;
+  unit?: string;
+  quantity?: number;
+}
+
+/** Unit prices do not change within a process lifetime, so one lookup per endpoint. */
+const falUnitPrices = new Map<string, { unit: string; unitPrice: number }>();
+
+async function falUnitPrice(
+  apiKey: string,
+  endpointId: string
+): Promise<{ unit: string; unitPrice: number } | null> {
+  const cached = falUnitPrices.get(endpointId);
+  if (cached) return cached;
+  try {
+    const response = await fetch(`${FAL_PRICING_API}?endpoint_id=${encodeURIComponent(endpointId)}`, {
+      headers: { Authorization: `Key ${apiKey}` },
+    });
+    if (!response.ok) return null;
+    const payload = asRecord(await response.json());
+    const first = asRecord((Array.isArray(payload.prices) ? payload.prices : [])[0]);
+    if (typeof first.unit !== 'string' || typeof first.unit_price !== 'number') return null;
+    const price = { unit: first.unit, unitPrice: first.unit_price };
+    falUnitPrices.set(endpointId, price);
+    return price;
+  } catch {
+    return null;
+  }
+}
+
+async function falEstimateTotal(apiKey: string, endpointId: string, quantity: number): Promise<number | null> {
+  try {
+    const response = await fetch(FAL_ESTIMATE_API, {
+      method: 'POST',
+      headers: { Authorization: `Key ${apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        estimate_type: 'unit_price',
+        endpoints: { [endpointId]: { unit_quantity: quantity } },
+      }),
+    });
+    if (!response.ok) return null;
+    const payload = asRecord(await response.json());
+    return typeof payload.total_cost === 'number' && Number.isFinite(payload.total_cost)
+      ? payload.total_cost
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * What one run of an endpoint costs. Never throws: a spend figure is a readout,
+ * and the generation it describes has already succeeded. Prefers fal's own
+ * estimate (it applies account discounts), and multiplies the unit price itself
+ * when that call fails.
+ */
+export async function estimateFalCost(args: {
+  apiKey: string;
+  endpointId: string;
+  durationSeconds?: number;
+}): Promise<FalCostEstimate> {
+  const price = await falUnitPrice(args.apiKey, args.endpointId);
+  if (!price) return { costUsd: null };
+  const quantity = falUnitQuantity(price.unit, args.durationSeconds);
+  if (quantity === null) return { costUsd: null, unit: price.unit };
+  const total = await falEstimateTotal(args.apiKey, args.endpointId, quantity);
+  return { costUsd: total ?? price.unitPrice * quantity, unit: price.unit, quantity };
 }
 
 export async function uploadFalFile(args: { apiKey: string; file: File }): Promise<string> {

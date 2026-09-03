@@ -11,6 +11,7 @@ const {
   submitFalTask,
   getFalTask,
   cancelFalTask,
+  estimateFalCost,
 } = vi.hoisted(() => ({
   FalApiError: class FalApiError extends Error {
     constructor(
@@ -25,6 +26,7 @@ const {
   submitFalTask: vi.fn(),
   getFalTask: vi.fn(),
   cancelFalTask: vi.fn(),
+  estimateFalCost: vi.fn(),
 }));
 
 vi.mock('../../lib/fal/server', () => ({
@@ -34,11 +36,13 @@ vi.mock('../../lib/fal/server', () => ({
   submitFalTask,
   getFalTask,
   cancelFalTask,
+  estimateFalCost,
 }));
 
 import { POST as queuePost } from '../../app/api/fal/queue/route';
 import { POST as uploadPost } from '../../app/api/fal/upload/route';
 import { POST as validatePost } from '../../app/api/fal/validate/route';
+import { POST as estimatePost } from '../../app/api/fal/estimate/route';
 
 function jsonRequest(path: string, body: unknown): NextRequest {
   return new Request(`http://localhost${path}`, {
@@ -849,6 +853,30 @@ describe('fal API routes', () => {
     await expect(response.json()).resolves.toEqual({
       success: false,
       error: 'Something went wrong while contacting fal.',
+    });
+  });
+
+  describe('POST /api/fal/estimate', () => {
+    it('proxies the estimate for a valid body', async () => {
+      estimateFalCost.mockResolvedValue({ costUsd: 0.4, unit: 'second', quantity: 8 });
+      const response = await estimatePost(
+        jsonRequest('/api/fal/estimate', { apiKey: 'fal-key', endpointId: 'fal-ai/veo3.1', durationSeconds: 8 })
+      );
+      await expect(response.json()).resolves.toEqual({ success: true, costUsd: 0.4, unit: 'second', quantity: 8 });
+      expect(estimateFalCost).toHaveBeenCalledWith({ apiKey: 'fal-key', endpointId: 'fal-ai/veo3.1', durationSeconds: 8 });
+    });
+
+    it('answers 200 with a null figure when the vendor fails', async () => {
+      estimateFalCost.mockRejectedValue(new Error('boom'));
+      const response = await estimatePost(jsonRequest('/api/fal/estimate', { apiKey: 'fal-key', endpointId: 'fal-ai/veo3.1' }));
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toEqual({ success: true, costUsd: null });
+    });
+
+    it('rejects a missing key or an endpoint id it does not like', async () => {
+      expect((await estimatePost(jsonRequest('/api/fal/estimate', { endpointId: 'fal-ai/veo3.1' }))).status).toBe(400);
+      expect((await estimatePost(jsonRequest('/api/fal/estimate', { apiKey: 'k', endpointId: 'https://evil' }))).status).toBe(400);
+      expect(estimateFalCost).not.toHaveBeenCalled();
     });
   });
 });
