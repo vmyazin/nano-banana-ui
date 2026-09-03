@@ -6,14 +6,16 @@ import { useKieJobsStore } from '../../store/useKieJobsStore';
 import { useSeedFrameStore } from '../../store/useSeedFrameStore';
 import { useDraftStore } from '../../store/useDraftStore';
 
-const { submitKieJobMock, uploadKieFilesMock } = vi.hoisted(() => ({
+const { submitKieJobMock, uploadKieFilesMock, fetchKieCreditsMock } = vi.hoisted(() => ({
   submitKieJobMock: vi.fn(),
   uploadKieFilesMock: vi.fn(),
+  fetchKieCreditsMock: vi.fn(),
 }));
 
 vi.mock('../../lib/kie/browser', () => ({
   submitKieJob: submitKieJobMock,
   uploadKieFiles: uploadKieFilesMock,
+  fetchKieCredits: fetchKieCreditsMock,
 }));
 
 describe('Kie generation workspace', () => {
@@ -21,6 +23,7 @@ describe('Kie generation workspace', () => {
     vi.clearAllMocks();
     uploadKieFilesMock.mockResolvedValue([]);
     submitKieJobMock.mockResolvedValue({ taskId: 'task_test', protocol: 'market' });
+    fetchKieCreditsMock.mockResolvedValue(1000);
     useAppStore.setState({
       apiKey: 'gemini_test_key',
       kieApiKey: 'kie_test_key',
@@ -335,6 +338,26 @@ describe('Kie generation workspace', () => {
       values: expect.objectContaining({ seed: 42, resolution: '2K' }),
     }));
     expect(uploadKieFilesMock).toHaveBeenCalledWith('kie_test_key', []);
+  });
+
+  it('reads the Kie balance before submitting and pins it to the job', async () => {
+    render(
+      <KieGenerationWorkspace
+        mediaType="image"
+        inputMode="text"
+        onBack={() => undefined}
+        onOpenConnections={() => undefined}
+      />
+    );
+
+    fireEvent.change(screen.getByLabelText('Prompt'), { target: { value: 'A glass forest' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Generate image' }));
+
+    await waitFor(() => expect(submitKieJobMock).toHaveBeenCalledOnce());
+    expect(fetchKieCreditsMock).toHaveBeenCalledWith('kie_test_key');
+    await waitFor(() =>
+      expect(useKieJobsStore.getState().jobs[0]).toMatchObject({ id: 'task_test', creditsBefore: 1000 })
+    );
   });
 
   it.each([

@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 import ProviderLogo from '@/components/ProviderLogo';
 import { useFileDrop } from '@/lib/drop/use-file-drop';
 import { requestExamplePrompt, requestPromptSlug } from '@/lib/micro-ai/browser';
-import { submitKieJob, uploadKieFiles } from '@/lib/kie/browser';
+import { fetchKieCredits, submitKieJob, uploadKieFiles } from '@/lib/kie/browser';
 import { defaultKieValues, modelsForKieMode, resolveKieVariant, validateKieInput } from '@/lib/kie/catalog';
 import { currentKieTime, isKieJobTerminal } from '@/lib/kie/queue';
 import type { KieFieldDefinition, KieInputMode, KieJob, MediaType } from '@/lib/kie/types';
@@ -348,7 +348,12 @@ export default function KieGenerationWorkspace({
     setError(null);
     setIsSubmitting(true);
     try {
-      const uploadUrls = await uploadKieFiles(kieApiKey, references.map((reference) => reference.file));
+      // The balance is read alongside the uploads, before the submit that spends
+      // it, so the ledger can bill the drop once the task succeeds.
+      const [uploadUrls, creditsBefore] = await Promise.all([
+        uploadKieFiles(kieApiKey, references.map((reference) => reference.file)),
+        fetchKieCredits(kieApiKey),
+      ]);
       const { taskId, protocol } = await submitKieJob({
         apiKey: kieApiKey,
         modelId: selectedModel.id,
@@ -372,6 +377,7 @@ export default function KieGenerationWorkspace({
         inputMode,
         prompt: submittedPrompt,
         controlValues: values,
+        creditsBefore: creditsBefore ?? undefined,
         createdAt: now,
         updatedAt: now,
         pollAttempt: 0,

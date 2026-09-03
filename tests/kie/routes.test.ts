@@ -14,6 +14,7 @@ vi.mock('../../lib/kie/client', () => ({ createKieTask, getKieTask }));
 import { POST as validatePost } from '../../app/api/kie/validate/route';
 import { POST as uploadPost } from '../../app/api/kie/upload/route';
 import { POST as generatePost } from '../../app/api/generate/route';
+import { POST as creditsPost } from '../../app/api/kie/credits/route';
 
 describe('Kie API routes', () => {
   afterEach(() => vi.clearAllMocks());
@@ -95,5 +96,29 @@ describe('Kie API routes', () => {
         values: { aspect_ratio: '1:1' },
       })
     );
+  });
+
+  it('reads the credit balance without validating anything else', async () => {
+    validateKieApiKey.mockResolvedValue({ credits: 940 });
+    const response = await creditsPost(
+      new Request('http://localhost/api/kie/credits', { method: 'POST', body: JSON.stringify({ apiKey: 'kie_test_key' }) }) as NextRequest
+    );
+    await expect(response.json()).resolves.toEqual({ success: true, credits: 940 });
+  });
+
+  it('answers 200 with a null balance when Kie fails', async () => {
+    validateKieApiKey.mockRejectedValue(new Error('down'));
+    const response = await creditsPost(
+      new Request('http://localhost/api/kie/credits', { method: 'POST', body: JSON.stringify({ apiKey: 'kie_test_key' }) }) as NextRequest
+    );
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ success: true, credits: null });
+  });
+
+  it('rejects a credits request without a key', async () => {
+    const response = await creditsPost(
+      new Request('http://localhost/api/kie/credits', { method: 'POST', body: JSON.stringify({}) }) as NextRequest
+    );
+    expect(response.status).toBe(400);
   });
 });

@@ -61,6 +61,8 @@ export interface KieJob extends KieTask {
   slug?: string;
   /** Controls this ran with, snapshotted so a past run can be restored. */
   controlValues?: Record<string, string | number | boolean>;
+  /** Credit balance read just before submit; the ledger bills the drop on success. */
+  creditsBefore?: number;
   createdAt: number;
   updatedAt: number;
   pollAttempt: number;

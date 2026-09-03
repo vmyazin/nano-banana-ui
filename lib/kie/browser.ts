@@ -52,6 +52,21 @@ export async function submitKieJob(args: {
   return { taskId: data.taskId, protocol: data.protocol };
 }
 
+/** Balance readout for the spend ledger. Resolves to null on any failure. */
+export async function fetchKieCredits(apiKey: string): Promise<number | null> {
+  try {
+    const response = await fetch('/api/kie/credits', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ apiKey }),
+    });
+    const data = (await response.json().catch(() => ({}))) as { success?: boolean; credits?: unknown };
+    return response.ok && data.success && typeof data.credits === 'number' ? data.credits : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function getKieJobStatus(args: {
   apiKey: string;
   taskId: string;
