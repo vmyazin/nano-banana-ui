@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import { Feature, GenerationConfig } from '@/types';
 import { useFileDrop } from '@/lib/drop/use-file-drop';
 import { metaForFeature, slugify } from '@/lib/example-prompts';
+import { geminiResolutionCost } from '@/lib/spend/rates';
 import { requestExamplePrompt, requestPromptSlug } from '@/lib/micro-ai/browser';
 import {
   boundedMediaBlob,
@@ -608,11 +609,9 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
       ? generateMutation.error.message
       : null);
 
-  // Cost line, per engine. Gemini runs on gemini-3-pro-image-preview, billed at
-  // $120 / 1M output tokens: 1K & 2K ≈ 1120 tokens (~$0.13), 4K ≈ 2000 tokens
-  // (~$0.24); each uploaded input image ≈ 560 tokens (~$0.0011). Pollinations is free.
-  const OUTPUT_COST: Record<string, number> = { '1K': 0.134, '2K': 0.134, '4K': 0.24 };
-  const estCost = (OUTPUT_COST[config.imageSize ?? '1K'] ?? 0.134) + images.length * 0.0011;
+  // Cost line, per engine. Gemini's rate is the single table in lib/spend/rates.ts —
+  // that file names the vendor page it was read from. Pollinations is free.
+  const estCost = geminiResolutionCost(config.imageSize, images.length);
   // Aggregator prices are the vendors' published rates, carried on the catalog
   // entry — the units differ per provider, so they are shown as written rather
   // than folded into one estimate.

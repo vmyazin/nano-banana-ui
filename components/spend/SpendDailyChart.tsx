@@ -144,7 +144,7 @@ export default function SpendDailyChart({ days }: { days: SpendDay[] }) {
                 })}
                 {/* Hover/focus lift: a translucent surface-color wash lightens the whole stack together. */}
                 {isHovered && (
-                  <rect x={x} y={PAD_TOP} width={barWidth} height={plotHeight} fill="#fff" fillOpacity={0.12} />
+                  <rect x={x} y={PAD_TOP} width={barWidth} height={plotHeight} fill="var(--foreground)" fillOpacity={0.12} />
                 )}
                 {index % labelEvery === 0 && (
                   <text

@@ -25,6 +25,9 @@ vi.mock('nuqs', () => ({
   useQueryState: (key: string) => [null, setters[key]],
 }));
 
+const { push } = vi.hoisted(() => ({ push: vi.fn() }));
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push }) }));
+
 function renderPalette(props: Partial<Parameters<typeof CommandPalette>[0]> = {}) {
   const onOpenChange = vi.fn();
   const onOpenApiKey = vi.fn();
@@ -44,6 +47,7 @@ function renderPalette(props: Partial<Parameters<typeof CommandPalette>[0]> = {}
 describe('CommandPalette', () => {
   beforeEach(() => {
     Object.values(setters).forEach((setter) => setter.mockClear());
+    push.mockClear();
   });
 
   it('describes each image feature with its blurb and what it needs', () => {
@@ -86,6 +90,10 @@ describe('CommandPalette', () => {
   it('offers a jump to the spend page', () => {
     renderPalette();
     expect(screen.getByText('View spend')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('View spend'));
+
+    expect(push).toHaveBeenCalledWith('/spend');
   });
 
   it('keeps a search on the rows that actually match the word', () => {

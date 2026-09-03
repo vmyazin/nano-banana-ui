@@ -148,7 +148,9 @@ export function byDay(entries: SpendEntry[], range: SpendRange, now: number): Sp
 
 function csvCell(value: string | number | undefined | null): string {
   if (value === undefined || value === null) return '';
-  const text = String(value);
+  // A leading =, +, -, @, tab, or CR is a formula trigger in Excel/Sheets; prefix with
+  // ' so a pasted prompt like `=HYPERLINK(...)` renders as text instead of executing.
+  const text = /^[=+\-@\t\r]/.test(String(value)) ? `'${value}` : String(value);
   return /[",\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
 }
 

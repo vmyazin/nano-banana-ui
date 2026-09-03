@@ -95,7 +95,11 @@ function SpendView() {
           </div>
         </div>
 
-        {hasHydrated && scoped.length === 0 ? (
+        {!hasHydrated ? (
+          <div className="flex items-center justify-center py-16">
+            <div className="loading-spinner" />
+          </div>
+        ) : scoped.length === 0 ? (
           <section className="glass-card p-6 text-center">
             <p className="text-[var(--foreground)]">Nothing recorded yet for this range.</p>
             <p className="field-hint mt-2">

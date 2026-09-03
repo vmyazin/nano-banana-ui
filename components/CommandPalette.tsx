@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import { Command } from 'cmdk';
 import { useQueryState } from 'nuqs';
+import { useRouter } from 'next/navigation';
 import {
   Bookmark,
   Home,
@@ -180,6 +181,7 @@ export function CommandPalette({
   const [, setFeatureId] = useQueryState('feature', { history: 'push' });
   const [, setWorkspace] = useQueryState('workspace', { history: 'push' });
   const [, setVideoMode] = useQueryState('videoMode', { history: 'push' });
+  const router = useRouter();
   const setVideoEngine = useAppStore((state) => state.setVideoEngine);
   const chimeOnComplete = useAppStore((state) => state.chimeOnComplete);
 
@@ -316,7 +318,7 @@ export function CommandPalette({
           <Command.Item
             value="View spend"
             keywords={['cost', 'spend', 'expenses', 'usage', 'billing', 'ledger', 'money']}
-            onSelect={() => go(() => window.location.assign('/spend'))}
+            onSelect={() => go(() => router.push('/spend'))}
           >
             <Wallet size={15} />
             <span className="cmd-item-body">

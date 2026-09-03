@@ -36,6 +36,8 @@ export const useSpendStore = create<SpendState>()(
     }),
     {
       name: STORAGE_KEY,
+      // Bump when the persisted shape changes, and add a migrate() to match.
+      version: 1,
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({ entries: state.entries }),
       // Same deferred hydration as useAppStore: kicked from a mount effect so the

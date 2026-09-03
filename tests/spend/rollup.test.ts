@@ -144,4 +144,10 @@ describe('toCsv', () => {
     expect(header).toBe('at,provider,model,kind,input_mode,quantity,unit,cost_usd,confidence,source,prompt');
     expect(row).toBe('2026-09-15T12:00:00.000Z,runware,runware:z-image@turbo,image,,5,second,0.01,exact,response,"A ""quoted"", prompt"');
   });
+
+  it('neutralizes a prompt that looks like a spreadsheet formula', () => {
+    const csv = toCsv([entry({ promptExcerpt: '=HYPERLINK("x")' })]);
+    const row = csv.split('\n')[1];
+    expect(row.endsWith('"\'=HYPERLINK(""x"")"')).toBe(true);
+  });
 });
