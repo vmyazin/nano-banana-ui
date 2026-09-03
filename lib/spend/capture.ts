@@ -126,52 +126,62 @@ export function captureImageResult(args: ImageResultCapture): void {
 }
 
 export function captureFalJob(job: FalJob, apiKey: string): void {
-  const base = {
-    id: `fal-${job.id}`,
-    at: Date.now(),
-    provider: 'fal' as const,
-    modelId: job.modelId,
-    kind: job.mediaType,
-    inputMode: job.inputMode,
-    promptExcerpt: excerpt(job.prompt),
-    galleryRecordId: `fal-${job.id}`,
-  };
-  void (async () => {
-    try {
-      const endpointId = resolveFalVariant(job.modelId, job.mediaType, job.inputMode).endpointId;
-      const durationSeconds = falDurationSeconds(job.controlValues ?? {});
-      const estimate = await estimateFalJobCost({
-        apiKey,
-        endpointId,
-        ...(durationSeconds !== undefined ? { durationSeconds } : {}),
-      });
-      file(withFigure(base, resolveFalEstimate(estimate)));
-    } catch {
-      file(withFigure(base, unknownFigure('estimate-api')));
-    }
-  })();
+  try {
+    const base = {
+      id: `fal-${job.id}`,
+      at: Date.now(),
+      provider: 'fal' as const,
+      modelId: job.modelId,
+      kind: job.mediaType,
+      inputMode: job.inputMode,
+      promptExcerpt: excerpt(job.prompt),
+      galleryRecordId: `fal-${job.id}`,
+    };
+    void (async () => {
+      try {
+        const endpointId = resolveFalVariant(job.modelId, job.mediaType, job.inputMode).endpointId;
+        const durationSeconds = falDurationSeconds(job.controlValues ?? {});
+        const estimate = await estimateFalJobCost({
+          apiKey,
+          endpointId,
+          ...(durationSeconds !== undefined ? { durationSeconds } : {}),
+        });
+        file(withFigure(base, resolveFalEstimate(estimate)));
+      } catch {
+        file(withFigure(base, unknownFigure('estimate-api')));
+      }
+    })();
+  } catch {
+    // base construction itself failed (e.g. a stale job with a nullish
+    // prompt) — there is nothing to file, but a generation that already
+    // succeeded must never see this.
+  }
 }
 
 export function captureKieJob(job: KieJob, apiKey: string, jobs: KieJob[]): void {
-  const base = {
-    id: `kie-${job.id}`,
-    at: Date.now(),
-    provider: 'kie' as const,
-    modelId: job.modelId,
-    kind: job.mediaType,
-    inputMode: job.inputMode,
-    promptExcerpt: excerpt(job.prompt),
-    galleryRecordId: `kie-${job.id}`,
-  };
-  void (async () => {
-    try {
-      const after = await fetchKieCredits(apiKey);
-      const sharedWith = kieSharers(jobs, job);
-      file(withFigure(base, resolveKieDelta({ before: job.creditsBefore, after, sharedWith })));
-    } catch {
-      file(withFigure(base, unknownFigure('balance-delta')));
-    }
-  })();
+  try {
+    const base = {
+      id: `kie-${job.id}`,
+      at: Date.now(),
+      provider: 'kie' as const,
+      modelId: job.modelId,
+      kind: job.mediaType,
+      inputMode: job.inputMode,
+      promptExcerpt: excerpt(job.prompt),
+      galleryRecordId: `kie-${job.id}`,
+    };
+    void (async () => {
+      try {
+        const after = await fetchKieCredits(apiKey);
+        const sharedWith = kieSharers(jobs, job);
+        file(withFigure(base, resolveKieDelta({ before: job.creditsBefore, after, sharedWith })));
+      } catch {
+        file(withFigure(base, unknownFigure('balance-delta')));
+      }
+    })();
+  } catch {
+    // See captureFalJob.
+  }
 }
 
 export function captureProviderJob(provider: ProviderId, job: ProviderJob, task: ProviderTask): void {

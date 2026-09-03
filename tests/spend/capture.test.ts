@@ -94,6 +94,12 @@ describe('captureFalJob', () => {
     await vi.waitFor(() => expect(entries()).toHaveLength(1));
     expect(entries()[0]).toMatchObject({ costUsd: null, confidence: 'unknown' });
   });
+
+  it('never throws into the success path, even for a job with a nullish prompt', () => {
+    expect(() =>
+      captureFalJob({ ...job, prompt: undefined as unknown as string }, 'fal-key')
+    ).not.toThrow();
+  });
 });
 
 describe('captureKieJob', () => {
@@ -115,6 +121,12 @@ describe('captureKieJob', () => {
     captureKieJob(job, 'kie-key', [job, { ...job, id: 't-2', createdAt: 2_000 }]);
     await vi.waitFor(() => expect(entries()).toHaveLength(1));
     expect(entries()[0]).toMatchObject({ costUsd: 0.15, note: 'Balance change shared with 1 other Kie job.' });
+  });
+
+  it('never throws into the success path, even for a job with a nullish prompt', () => {
+    expect(() =>
+      captureKieJob({ ...job, prompt: undefined as unknown as string }, 'kie-key', [job])
+    ).not.toThrow();
   });
 });
 
