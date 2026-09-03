@@ -58,6 +58,14 @@
   `convertedForDownload` (`lib/image/download-format.ts`) on the way to an
   anchor, and `useGalleryStore.record`/`keep` for the library. Every provider
   reads `DraftReference.file`, so the ingest hook covers all of them at once.
+- **Anything that costs money, or a new place a generation finishes** → file it
+  through `lib/spend/capture.ts` next to the gallery record, and price it with a
+  resolver in `lib/spend/resolve.ts` that labels the figure exact, estimated, or
+  unknown. Rates live only in `lib/spend/rates.ts` and the catalog's `rate`
+  field, because a number pasted into a component drifts from the vendor page
+  it came from and nobody can tell which run it applied to. Capture never
+  throws: the generation it describes has already succeeded. Spec:
+  `docs/superpowers/specs/2026-09-03-spend-dashboard-design.md`.
 
 ## Session workflow (worktree → smoke-test → ship → wipe)
 

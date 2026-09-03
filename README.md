@@ -52,7 +52,7 @@ Both providers create tab-local, in-memory jobs. For fal, the app uses the [asyn
 ### 🎯 Studio Features
 
 - **API connections dialog** — manage Gemini, fal, Kie, and Cloudflare credentials in one place (stored in browser `localStorage`)
-- **Per-image cost estimate** — shown under the Generate button for Gemini runs
+- **Spend page** — every finished generation is recorded in your browser with its cost, labelled exact or estimated, and rolled up by provider, model, and day at `/spend`. Runware reports exact costs; Gemini is priced from its token usage; fal and Kie are estimated from their pricing and credit-balance endpoints; free engines record as free
 - **Full-screen lightbox** — preview generated images before download
 - **AI-generated example prompts** — one-click "Gen Example" with a meta-prompt tooltip
 - **AI download filenames** — filenames derived from your prompt
