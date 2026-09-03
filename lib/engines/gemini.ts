@@ -1,8 +1,15 @@
 import { GoogleGenAI } from '@google/genai';
 
+export interface EngineUsage {
+  promptTokens: number;
+  outputTokens: number;
+}
+
 export interface EngineResult {
   imageData: string; // base64, no data: prefix
   mimeType: string;
+  /** Token counts from `usageMetadata`, when the API reported them. */
+  usage?: EngineUsage;
 }
 
 interface GeminiOpts {
@@ -61,5 +68,11 @@ export async function geminiGenerate(opts: GeminiOpts): Promise<EngineResult> {
     );
   }
 
-  return { imageData, mimeType: 'image/png' };
+  const meta = response.usageMetadata;
+  const usage: EngineUsage | undefined =
+    meta && typeof meta.candidatesTokenCount === 'number'
+      ? { promptTokens: meta.promptTokenCount ?? 0, outputTokens: meta.candidatesTokenCount }
+      : undefined;
+
+  return { imageData, mimeType: 'image/png', usage };
 }

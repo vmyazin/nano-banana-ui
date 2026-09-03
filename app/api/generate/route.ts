@@ -173,6 +173,8 @@ export async function POST(request: NextRequest) {
       success: true,
       imageData: result.imageData,
       mimeType: result.mimeType,
+      // Only Gemini reports it; the free engines leave it undefined and JSON drops it.
+      usage: result.usage,
     });
   } catch (error: unknown) {
     console.error('Generation error:', error);
