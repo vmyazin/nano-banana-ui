@@ -67,4 +67,62 @@ describe('ReferenceStack', () => {
     const { container } = render(<ReferenceStack items={[]} onRemove={vi.fn()} />);
     expect(container).toBeEmptyDOMElement();
   });
+
+  // Load-bearing invariant of the `find`-based design: `openItem` is derived
+  // by looking up `openId` in the current `items` prop on every render, not
+  // held as a snapshot. So removing the very item whose lightbox is open —
+  // the `items` array shrinking out from under an open `openId` — must make
+  // the lookup miss and close the overlay, rather than stranding it open on
+  // stale src/alt data or a since-removed id.
+  it('closes the lightbox when the open item is removed from a re-rendered items list', async () => {
+    const { rerender } = render(<ReferenceStack items={items} onRemove={vi.fn()} />);
+
+    fireEvent.click(screen.getByAltText('Reference 2'));
+    expect(await screen.findByAltText('Reference 2, full size')).toBeInTheDocument();
+
+    const withoutSecond = items.filter((item) => item.id !== 'b');
+    rerender(<ReferenceStack items={withoutSecond} onRemove={vi.fn()} />);
+
+    await waitFor(() => expect(screen.queryByAltText('Reference 2, full size')).toBeNull());
+    expect(screen.queryByRole('dialog', { name: 'Image preview' })).toBeNull();
+
+    // No overlay stranded: the remaining items still open their own lightbox fine.
+    fireEvent.click(screen.getByAltText('Reference 3'));
+    expect(await screen.findByAltText('Reference 3, full size')).toBeInTheDocument();
+  });
+
+  it('renders a caption, source label, and a custom caption class name', () => {
+    const captioned: ReferenceStackItem[] = [
+      {
+        id: 'x',
+        src: '/x.png',
+        alt: 'First frame',
+        caption: 'First frame',
+        sourceLabel: 'From clip-42.mp4',
+        removeLabel: 'Remove first frame',
+      },
+    ];
+
+    render(
+      <ReferenceStack
+        items={captioned}
+        onRemove={vi.fn()}
+        captionClassName="text-[0.65rem] font-medium text-[var(--neon-purple)]"
+      />
+    );
+
+    const caption = screen.getByText('First frame', { selector: 'p' });
+    expect(caption).toHaveClass('text-[0.65rem]', 'font-medium', 'text-[var(--neon-purple)]');
+
+    const sourceLabel = screen.getByText('From clip-42.mp4');
+    expect(sourceLabel).toHaveAttribute('title', 'From clip-42.mp4');
+  });
+
+  it('omits the caption and source label paragraphs when not provided', () => {
+    render(<ReferenceStack items={items} onRemove={vi.fn()} />);
+
+    const frame = screen.getByAltText('Reference 1').closest('div')?.parentElement;
+    expect(frame).toBeTruthy();
+    expect((frame as HTMLElement).querySelectorAll('p')).toHaveLength(0);
+  });
 });

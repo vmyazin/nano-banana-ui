@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Download, ImagePlus, Loader2, Maximize2, Search, Sparkles, Video } from 'lucide-react';
+import { Download, ImagePlus, Loader2, Search, Sparkles, Video } from 'lucide-react';
 import { toast } from 'sonner';
 import ProviderLogo from '@/components/ProviderLogo';
 import ReferenceStack from '@/components/ReferenceStack';

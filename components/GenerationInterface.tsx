@@ -198,7 +198,12 @@ export default function GenerationInterface({ feature, apiKey, onBack, onOpenCon
   const prompt = useDraftStore((state) => state.prompt);
   const setPrompt = useDraftStore((state) => state.setPrompt);
   const references = useDraftStore((state) => state.references);
-  const [images, setImages] = useState<string[]>([]);
+  // The id travels with the bytes rather than living in a parallel array: the
+  // read is async, so for one render after a removal a bare `string[]` would
+  // be longer than `references` and item i would pair the wrong reference's
+  // id with the previous reference's data URL — which is exactly the id the
+  // reference lightbox keys its "which one is open" state on.
+  const [images, setImages] = useState<Array<{ id: string; dataUrl: string }>>([]);
   const [config, setConfig] = useState<GenerationConfig>(draftedConfig);
 
   // Mirrored into the draft so the video workspaces inherit the same choice.
@@ -349,9 +354,14 @@ export default function GenerationInterface({ feature, apiKey, onBack, onOpenCon
   // re-read whenever the reference list changes.
   useEffect(() => {
     let cancelled = false;
-    Promise.all(references.map((reference) => readImageAsDataUrl(reference.file)))
-      .then((dataUrls) => {
-        if (!cancelled) setImages(dataUrls);
+    Promise.all(
+      references.map(async (reference) => ({
+        id: reference.id,
+        dataUrl: await readImageAsDataUrl(reference.file),
+      }))
+    )
+      .then((next) => {
+        if (!cancelled) setImages(next);
       })
       .catch(() => {
         if (!cancelled) setError('Unable to read one or more images');
@@ -436,7 +446,7 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
           const result = await runFalImage({
             apiKey: falApiKey,
             prompt: finalPrompt,
-            dataUrls: images,
+            dataUrls: images.map((image) => image.dataUrl),
             values: {
               aspect_ratio: config.aspectRatio ?? 'auto',
               resolution: config.imageSize ?? '1K',
@@ -487,7 +497,7 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
         body: JSON.stringify({
           engine: activeEngine.id,
           prompt: finalPrompt,
-          images: images.map((img) => img.split(',')[1]), // strip data: prefix
+          images: images.map((image) => image.dataUrl.split(',')[1]), // strip data: prefix
           config,
           featureId: feature.id,
           apiKey: activeProvider ? providerKeys[activeProvider] : apiKey,
@@ -944,9 +954,9 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
 
               {images.length > 0 && (
                 <ReferenceStack
-                  items={images.map((img, index) => ({
-                    id: references[index]?.id ?? `upload-${index}`,
-                    src: img,
+                  items={images.map((image, index) => ({
+                    id: image.id,
+                    src: image.dataUrl,
                     alt: `Upload ${index + 1}`,
                     removeLabel: `Remove upload ${index + 1}`,
                   }))}

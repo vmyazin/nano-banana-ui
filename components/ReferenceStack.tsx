@@ -69,7 +69,7 @@ export default function ReferenceStack({
                 type="button"
                 onClick={() => setOpenId(item.id)}
                 aria-label={`View ${item.alt} full screen`}
-                className="absolute left-2 top-2 rounded-md border border-white/10 bg-black/70 p-1.5 text-white opacity-0 transition-opacity hover:text-white focus-visible:opacity-100 group-hover/ref:opacity-100"
+                className="absolute left-2 top-2 rounded-md border border-white/10 bg-black/70 p-1.5 text-white opacity-0 transition-opacity focus-visible:opacity-100 group-hover/ref:opacity-100"
               >
                 <Maximize2 size={14} />
               </button>
