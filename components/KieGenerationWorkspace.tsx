@@ -34,6 +34,12 @@ import ModelControls, { type ModelControlField } from '@/components/ModelControl
 import StoredImagePicker from '@/components/StoredImagePicker';
 import GenerationWorkspaceLayout from '@/components/GenerationWorkspaceLayout';
 import ConnectionGate, { isGated } from '@/components/ConnectionGate';
+import SubmissionError from '@/components/SubmissionError';
+import {
+  AUTO_RETRY_DELAY_SECONDS,
+  isRetryableFailure,
+  useAutoRetry,
+} from '@/lib/providers/auto-retry';
 import type { EngineId } from '@/lib/engines/registry';
 
 interface KieGenerationWorkspaceProps {
@@ -109,6 +115,7 @@ export default function KieGenerationWorkspace({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [isReadingFrame, setIsReadingFrame] = useState(false);
+  const autoRetry = useAutoRetry();
   const fileInputRef = useRef<HTMLInputElement>(null);
   // Latest addReferences, so the paste listener attaches once instead of per render.
   const addReferencesRef = useRef<(files: File[]) => Promise<void>>(async () => {});
@@ -211,6 +218,7 @@ export default function KieGenerationWorkspace({
 
   const setModel = (modelId: string) => {
     setError(null);
+    autoRetry.reset();
     const setter = modelPreferenceKey(mediaType) === 'kieImageModel' ? setKieImageModel : setKieVideoModel;
     setter(modelId);
   };
@@ -385,11 +393,18 @@ export default function KieGenerationWorkspace({
       });
       // Runs alongside the generation so the name is ready before the result is.
       void attachSlug(taskId, submittedPrompt);
+      autoRetry.reset();
       toast.success('Task queued.');
     } catch (submissionError) {
       const message = submissionError instanceof Error ? submissionError.message : 'Kie could not start this task.';
       setError(message);
-      toast.error(message);
+      // Kie goes away for seconds at a time, and the person watching the button
+      // can do nothing about it but press it again — so the workspace presses it.
+      // Only for failures that never reached a decision: a rejected key or an
+      // empty balance would fail identically five more times, and the retry
+      // would only bury the sentence explaining why.
+      const retrying = isRetryableFailure(submissionError) && autoRetry.schedule(() => void submit());
+      toast.error(retrying ? `${message} Retrying in ${AUTO_RETRY_DELAY_SECONDS}s.` : message);
     } finally {
       setIsSubmitting(false);
     }
@@ -545,13 +560,20 @@ export default function KieGenerationWorkspace({
 
           <button
             type="button"
-            onClick={() => void submit()}
+            onClick={() => {
+              // A deliberate press is a fresh start: it drops any queued attempt
+              // and hands back the full retry budget.
+              autoRetry.reset();
+              void submit();
+            }}
             disabled={isSubmitting}
             className="btn-primary flex w-full items-center justify-center gap-2 py-3 text-base disabled:cursor-not-allowed disabled:opacity-50"
           >
             {isSubmitting ? <><Loader2 className="animate-spin" size={21} /> Uploading & starting…</> : <><Sparkles size={21} /> Generate {mediaType}</>}
           </button>
-          {error && <p role="alert" className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">{error}</p>}
+          {error && (
+            <SubmissionError message={error} retry={autoRetry.pending} onCancelRetry={autoRetry.cancel} />
+          )}
           </>
         }
         prompt={

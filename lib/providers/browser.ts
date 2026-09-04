@@ -1,4 +1,5 @@
 // lib/providers/browser.ts
+import { RouteError } from './route-error';
 import type { ProviderId, ProviderMode, ProviderTask } from './types';
 
 /**
@@ -21,7 +22,10 @@ async function post(body: Record<string, unknown>): Promise<VideoRouteResponse> 
   });
   const data = (await response.json().catch(() => ({}))) as VideoRouteResponse;
   if (!response.ok || !data.success) {
-    throw new Error(data.error || 'That provider could not complete the request.');
+    throw new RouteError(
+      data.error || 'That provider could not complete the request.',
+      response.status
+    );
   }
   return data;
 }

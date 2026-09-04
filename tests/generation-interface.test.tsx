@@ -429,6 +429,62 @@ describe('GenerationInterface fal image generation', () => {
     ]);
   });
 
+  it('counts a transient image failure down and generates again, cancel and all', async () => {
+    vi.useFakeTimers();
+    try {
+      mockedRunFalImage.mockRejectedValue(
+        Object.assign(new Error('fal is temporarily unavailable.'), { status: 503 })
+      );
+      renderInterface();
+
+      fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Glowing canyon' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Generate Image' }));
+
+      await vi.waitFor(() =>
+        expect(screen.getByText(/Retrying in 10s · attempt 1 of 5/)).toBeInTheDocument()
+      );
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10_000);
+      });
+      await vi.waitFor(() => expect(mockedRunFalImage).toHaveBeenCalledTimes(2));
+
+      await vi.waitFor(() => expect(screen.getByText(/attempt 2 of 5/)).toBeInTheDocument());
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel automatic retry' }));
+
+      expect(screen.queryByText(/Retrying in/)).not.toBeInTheDocument();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(60_000);
+      });
+      expect(mockedRunFalImage).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('never retries a generation the provider settled against', async () => {
+    vi.useFakeTimers();
+    try {
+      mockedRunFalImage.mockRejectedValue(
+        Object.assign(new Error('Your fal key is invalid.'), { status: 401 })
+      );
+      renderInterface();
+
+      fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Glowing canyon' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Generate Image' }));
+
+      await vi.waitFor(() => expect(mockedRunFalImage).toHaveBeenCalledTimes(1));
+      expect(screen.queryByText(/Retrying in/)).not.toBeInTheDocument();
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(60_000);
+      });
+      expect(mockedRunFalImage).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('rejects an oversized fal reference before FileReader converts it to a data URL', async () => {
     const readAsDataUrl = vi.spyOn(FileReader.prototype, 'readAsDataURL');
     renderInterface(multiImageCompose);

@@ -11,6 +11,8 @@ import ProviderLogo from '@/components/ProviderLogo';
 import StoredImagePicker from '@/components/StoredImagePicker';
 import GenerationWorkspaceLayout from '@/components/GenerationWorkspaceLayout';
 import ConnectionGate, { isGated } from '@/components/ConnectionGate';
+import SubmissionError from '@/components/SubmissionError';
+import { isRetryableFailure, useAutoRetry } from '@/lib/providers/auto-retry';
 import ReferenceStack from '@/components/ReferenceStack';
 import { requestExamplePrompt, requestPromptSlug } from '@/lib/micro-ai/browser';
 import { cancelFalJob, submitFalJob, uploadFalFiles } from '@/lib/fal/browser';
@@ -284,6 +286,10 @@ function FalGenerationWorkspaceSession({
   const [isGeneratingExample, setIsGeneratingExample] = useState(false);
   const [isReadingFrame, setIsReadingFrame] = useState(false);
   const [submittingVariantId, setSubmittingVariantId] = useState<string | null>(null);
+  const autoRetry = useAutoRetry();
+  // Latest submit, so a queued retry re-runs the button's own path — validation,
+  // uploads, and all — rather than a stale copy of it.
+  const submitRef = useRef<() => void>(() => {});
   const [cancellingIds, setCancellingIds] = useState<Set<string>>(() => new Set());
   const [cancelErrors, setCancelErrors] = useState<Record<string, string>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -573,11 +579,18 @@ function FalGenerationWorkspaceSession({
       });
       // Runs alongside the generation so the name is ready before the video is.
       void attachSlug(requestId, submittedPrompt);
+      autoRetry.reset();
     } catch (submitFailure) {
-      // A failed submit with no request ID cannot be reconciled without provider idempotency.
-      // Never retry automatically: doing so could bill a second accepted request.
       if (isCurrent() && !operation.controller.signal.aborted) {
-        setError(safeFailureText(submitFailure, apiKey.trim(), submissionError));
+        const message = safeFailureText(submitFailure, apiKey.trim(), submissionError);
+        setError(message);
+        // Only failures that never reached a decision are sent again: a rejected
+        // key or an empty balance would fail identically five more times. A
+        // failed submit still has no request ID to reconcile against, so a
+        // retried 5xx that fal did accept can bill twice — the tradeoff taken
+        // deliberately, because the alternative is a person re-pressing the
+        // button through an outage.
+        if (isRetryableFailure(submitFailure)) autoRetry.schedule(() => submitRef.current());
       }
     } finally {
       if (isCurrent()) {
@@ -586,6 +599,10 @@ function FalGenerationWorkspaceSession({
       }
     }
   };
+
+  useEffect(() => {
+    submitRef.current = () => void submit();
+  });
 
   const cancel = async (job: FalJob) => {
     if (cancellingRef.current.has(job.id) || isFalJobTerminal(job.state)) return;
@@ -785,10 +802,21 @@ function FalGenerationWorkspaceSession({
             </div>
           </section>
 
-          <button type="button" disabled={isSubmitting} onClick={() => void submit()} className="btn-primary flex w-full items-center justify-center gap-2 py-3 text-base disabled:cursor-not-allowed disabled:opacity-50">
+          <button
+            type="button"
+            disabled={isSubmitting}
+            onClick={() => {
+              // A deliberate press is a fresh start: it drops any queued attempt
+              // and hands back the full retry budget.
+              autoRetry.reset();
+              void submit();
+            }}
+            className="btn-primary flex w-full items-center justify-center gap-2 py-3 text-base disabled:cursor-not-allowed disabled:opacity-50">
             {isSubmitting ? <><Loader2 className="animate-spin" size={21} /> Uploading & starting…</> : <><Sparkles size={21} /> Generate video</>}
           </button>
-          {error && <p role="alert" className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">{error}</p>}
+          {error && (
+            <SubmissionError message={error} retry={autoRetry.pending} onCancelRetry={autoRetry.cancel} />
+          )}
           </>
         }
         prompt={

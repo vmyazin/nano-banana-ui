@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import KieGenerationWorkspace from '../../components/KieGenerationWorkspace';
 import { useAppStore } from '../../store/useAppStore';
 import { useKieJobsStore } from '../../store/useKieJobsStore';
@@ -162,6 +162,88 @@ describe('Kie generation workspace', () => {
     expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toEqual({
       prompt: 'A quiet ocean at dusk',
       apiKey: 'gemini_test_key',
+    });
+  });
+
+  describe('automatic retry after a transient failure', () => {
+    const transient = () => Object.assign(new Error('Kie is temporarily unavailable. Please try again.'), { status: 503 });
+
+    const startGeneration = () => {
+      render(
+        <KieGenerationWorkspace
+          mediaType="image"
+          inputMode="text"
+          onBack={() => undefined}
+          onOpenConnections={() => undefined}
+        />
+      );
+      fireEvent.change(screen.getByLabelText('Prompt'), { target: { value: 'A glass forest' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Generate image' }));
+    };
+
+    const tick = async (seconds: number) => {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(seconds * 1_000);
+      });
+    };
+
+    beforeEach(() => vi.useFakeTimers());
+    afterEach(() => vi.useRealTimers());
+
+    it('counts the failed submission down and sends it again', async () => {
+      submitKieJobMock.mockRejectedValueOnce(transient());
+      startGeneration();
+
+      await vi.waitFor(() => expect(screen.getByRole('alert').textContent).toContain('temporarily unavailable'));
+      expect(screen.getByText(/Retrying in 10s · attempt 1 of 5/)).toBeInTheDocument();
+
+      await tick(10);
+      await vi.waitFor(() => expect(submitKieJobMock).toHaveBeenCalledTimes(2));
+      await vi.waitFor(() => expect(useKieJobsStore.getState().jobs[0]?.id).toBe('task_test'));
+      expect(screen.queryByText(/Retrying in/)).not.toBeInTheDocument();
+    });
+
+    it('stops when the tiny cancel control is used', async () => {
+      submitKieJobMock.mockRejectedValue(transient());
+      startGeneration();
+
+      await vi.waitFor(() => expect(screen.getByText(/Retrying in 10s/)).toBeInTheDocument());
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel automatic retry' }));
+
+      expect(screen.queryByText(/Retrying in/)).not.toBeInTheDocument();
+      await tick(60);
+      expect(submitKieJobMock).toHaveBeenCalledOnce();
+      // The failure itself stays on screen — only the countdown was cancelled.
+      expect(screen.getByRole('alert').textContent).toContain('temporarily unavailable');
+    });
+
+    it('gives up after five attempts', async () => {
+      submitKieJobMock.mockRejectedValue(transient());
+      startGeneration();
+
+      for (let attempt = 1; attempt <= 5; attempt += 1) {
+        await vi.waitFor(() =>
+          expect(screen.getByText(new RegExp(`attempt ${attempt} of 5`))).toBeInTheDocument()
+        );
+        await tick(10);
+      }
+
+      await vi.waitFor(() => expect(submitKieJobMock).toHaveBeenCalledTimes(6));
+      await tick(60);
+      expect(submitKieJobMock).toHaveBeenCalledTimes(6);
+      expect(screen.queryByText(/Retrying in/)).not.toBeInTheDocument();
+    });
+
+    it('never retries a failure that would fail the same way again', async () => {
+      submitKieJobMock.mockRejectedValue(
+        Object.assign(new Error('Your Kie account has insufficient credits.'), { status: 402 })
+      );
+      startGeneration();
+
+      await vi.waitFor(() => expect(screen.getByRole('alert').textContent).toContain('insufficient credits'));
+      expect(screen.queryByText(/Retrying in/)).not.toBeInTheDocument();
+      await tick(60);
+      expect(submitKieJobMock).toHaveBeenCalledOnce();
     });
   });
 

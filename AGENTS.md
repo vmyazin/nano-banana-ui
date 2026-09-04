@@ -58,6 +58,15 @@
   `convertedForDownload` (`lib/image/download-format.ts`) on the way to an
   anchor, and `useGalleryStore.record`/`keep` for the library. Every provider
   reads `DraftReference.file`, so the ingest hook covers all of them at once.
+- **A generation that can fail at submission** → schedule the next attempt with
+  `useAutoRetry` (`lib/providers/auto-retry.ts`) and render the countdown through
+  `components/SubmissionError.tsx` (or `RetryCountdown` where the workspace owns
+  its own error box). Never gate the retry on the message text: throw
+  `RouteError` from the browser client so `isRetryableFailure` can read a status,
+  because a bad key and a 503 read alike as sentences and only one of them is
+  worth sending again. Ten seconds, five attempts, cancellable — the numbers live
+  only in that module. Spec:
+  `docs/superpowers/specs/2026-09-03-generation-auto-retry-design.md`.
 - **Anything that costs money, or a new place a generation finishes** → file it
   through `lib/spend/capture.ts` next to the gallery record, and price it with a
   resolver in `lib/spend/resolve.ts` that labels the figure exact, estimated, or

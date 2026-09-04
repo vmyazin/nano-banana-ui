@@ -1,5 +1,5 @@
-import { fireEvent, render, screen } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { act, fireEvent, render, screen } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import ProviderVideoWorkspace from '@/components/ProviderVideoWorkspace';
 import { useAppStore } from '@/store/useAppStore';
@@ -91,6 +91,77 @@ describe('ProviderVideoWorkspace', () => {
 
     expect(onOpenConnections).toHaveBeenCalled();
     expect(screen.getByRole('alert')).toHaveTextContent('Connect your Runware key');
+  });
+
+  describe('automatic retry after a transient failure', () => {
+    afterEach(() => {
+      vi.useRealTimers();
+      vi.unstubAllGlobals();
+    });
+
+    const videoCalls = (fetchMock: ReturnType<typeof vi.fn>) =>
+      fetchMock.mock.calls.filter((call) => call[0] === '/api/providers/video').length;
+
+    it('counts the failed submission down, sends it again, and can be called off', async () => {
+      vi.useFakeTimers();
+      // A fresh Response per call: a body can only be read once, and the retry
+      // reads it again.
+      const fetchMock = vi.fn(async () =>
+        new Response(JSON.stringify({ success: false, error: 'Runware is temporarily unavailable.' }), {
+          status: 503,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      );
+      vi.stubGlobal('fetch', fetchMock);
+      useAppStore.setState({ runwareApiKey: 'rw_test_key' });
+      renderWorkspace();
+      fireEvent.change(screen.getByLabelText('Prompt'), { target: { value: 'a drifting nebula' } });
+
+      fireEvent.click(screen.getByRole('button', { name: /Generate video/ }));
+
+      await vi.waitFor(() =>
+        expect(screen.getByText(/Retrying in 10s · attempt 1 of 5/)).toBeInTheDocument()
+      );
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10_000);
+      });
+      await vi.waitFor(() => expect(videoCalls(fetchMock)).toBe(2));
+
+      await vi.waitFor(() => expect(screen.getByText(/attempt 2 of 5/)).toBeInTheDocument());
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel automatic retry' }));
+      expect(screen.queryByText(/Retrying in/)).not.toBeInTheDocument();
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(60_000);
+      });
+      expect(videoCalls(fetchMock)).toBe(2);
+      expect(screen.getByRole('alert')).toHaveTextContent('temporarily unavailable');
+    });
+
+    it('never retries a failure that would fail the same way again', async () => {
+      vi.useFakeTimers();
+      const fetchMock = vi.fn(async () =>
+        new Response(JSON.stringify({ success: false, error: 'Your Runware key is invalid.' }), {
+          status: 401,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      );
+      vi.stubGlobal('fetch', fetchMock);
+      useAppStore.setState({ runwareApiKey: 'rw_test_key' });
+      renderWorkspace();
+      fireEvent.change(screen.getByLabelText('Prompt'), { target: { value: 'a drifting nebula' } });
+
+      fireEvent.click(screen.getByRole('button', { name: /Generate video/ }));
+
+      await vi.waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('key is invalid'));
+      expect(screen.queryByText(/Retrying in/)).not.toBeInTheDocument();
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(60_000);
+      });
+      expect(videoCalls(fetchMock)).toBe(1);
+    });
   });
 
   it('shares the draft prompt with the other workspaces', () => {

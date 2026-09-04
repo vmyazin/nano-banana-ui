@@ -5,6 +5,7 @@ import type {
   FalTaskState,
   FalValue,
 } from './types';
+import { RouteError } from '@/lib/providers/route-error';
 import { FAL_JOB_TIMEOUT_MS, isFalJobTerminal, nextFalPollDelay } from './queue';
 
 const REQUEST_ID_PATTERN = /^[A-Za-z0-9_-]{8,128}$/;
@@ -119,7 +120,8 @@ async function requestFalRoute(
     response = await fetch(path, init);
   } catch {
     if (init.signal?.aborted) throw new Error(REQUEST_ABORTED_ERROR);
-    throw new Error(ROUTE_ERROR);
+    // Status 0: the request never left the machine, so nothing was accepted.
+    throw new RouteError(ROUTE_ERROR, 0);
   }
 
   let data: unknown;
@@ -127,11 +129,11 @@ async function requestFalRoute(
     data = await response.json();
   } catch {
     if (init.signal?.aborted) throw new Error(REQUEST_ABORTED_ERROR);
-    throw new Error(ROUTE_ERROR);
+    throw new RouteError(ROUTE_ERROR, response.status);
   }
 
   if (!response.ok) {
-    throw new Error(safeErrorMessage(data, apiKey));
+    throw new RouteError(safeErrorMessage(data, apiKey), response.status);
   }
   if (!isRecord(data) || data.success !== true) {
     if (isRecord(data) && typeof data.error === 'string') {

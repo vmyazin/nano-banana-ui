@@ -47,6 +47,13 @@ import StoredImagePicker from '@/components/StoredImagePicker';
 import ImageFormatControl from '@/components/ImageFormatControl';
 import { playGenerationChime } from '@/lib/notify/chime';
 import ResultStack, { type ResultStackItem } from '@/components/ResultStack';
+import RetryCountdown from '@/components/RetryCountdown';
+import {
+  AUTO_RETRY_DELAY_SECONDS,
+  isRetryableFailure,
+  useAutoRetry,
+} from '@/lib/providers/auto-retry';
+import { RouteError, routeStatus } from '@/lib/providers/route-error';
 import ReferenceStack from '@/components/ReferenceStack';
 import {
   Wand2,
@@ -411,6 +418,10 @@ export default function GenerationInterface({ feature, apiKey, onBack, onOpenCon
     if (reference) useDraftStore.getState().removeReference(reference.id);
   };
 
+  const autoRetry = useAutoRetry();
+  // Latest generate call, so a queued retry re-runs the button's own path.
+  const generateRef = useRef<() => void>(() => {});
+
   const generateMutation = useMutation({
     mutationFn: async (): Promise<{ dataUrl: string; ext: string; mimeType: string; usage?: EngineUsage; cost?: number }> => {
       // Tailor the prompt to the feature.
@@ -480,7 +491,7 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
           ) {
             throw new LocalFalCancellation();
           }
-          throw new Error(FAL_GENERATION_ERROR);
+          throw new RouteError(FAL_GENERATION_ERROR, routeStatus(caught) ?? -1);
         } finally {
           if (
             generationOperationRef.current === operationId &&
@@ -523,9 +534,13 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
 
       const debugInfo = data.debug ? ` (${data.debug})` : '';
       const detailsInfo = data.details ? `\n\nDetails: ${data.details}` : '';
-      throw new Error((data.error || 'Failed to generate image') + debugInfo + detailsInfo);
+      throw new RouteError(
+        (data.error || 'Failed to generate image') + debugInfo + detailsInfo,
+        response.status
+      );
     },
     onSuccess: (result) => {
+      autoRetry.reset();
       toast.success('Image generated');
       playGenerationChime();
       resultIdRef.current += 1;
@@ -557,7 +572,12 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
     },
     onError: (e) => {
       if (e instanceof LocalFalCancellation) return;
-      toast.error(e instanceof Error ? e.message : 'Generation failed');
+      const message = e instanceof Error ? e.message : 'Generation failed';
+      // Sent again only when the request never reached a decision — a bad key,
+      // an empty balance, or a content-policy refusal would fail identically
+      // five more times, and the retry would only bury the reason.
+      const retrying = isRetryableFailure(e) && autoRetry.schedule(() => generateRef.current());
+      toast.error(retrying ? `${message} Retrying in ${AUTO_RETRY_DELAY_SECONDS}s.` : message);
     },
   });
 
@@ -640,7 +660,14 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
             ? `${activeProviderCatalogModel.price ?? 'Usage rates apply'} · ${activeProviderCatalogModel.label}`
             : `Est. ≈ $${estCost.toFixed(2)} / image · Gemini 3 Pro Image`;
 
+  useEffect(() => {
+    generateRef.current = () => generateMutation.mutate();
+  });
+
   const handleGenerate = () => {
+    // A deliberate press is a fresh start: it drops any queued attempt and hands
+    // back the full retry budget.
+    autoRetry.reset();
     const hasFeatureDefaultPrompt =
       feature.id === 'image-editing' || feature.id === 'style-transfer';
     if (!prompt.trim() && !hasFeatureDefaultPrompt) {
@@ -1165,6 +1192,7 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
                 className="glass-card p-4 bg-red-500/10 border-red-500/30 text-red-300 whitespace-pre-wrap"
               >
                 {displayError}
+                <RetryCountdown retry={autoRetry.pending} onCancel={autoRetry.cancel} />
               </motion.div>
             )}
           </AnimatePresence>

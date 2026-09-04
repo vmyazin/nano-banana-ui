@@ -9,6 +9,12 @@ import AutoExpandingPrompt from '@/components/AutoExpandingPrompt';
 import PromptPanel from '@/components/PromptPanel';
 import ModelControls, { type ModelControlField } from '@/components/ModelControls';
 import ConnectionGate, { isGated } from '@/components/ConnectionGate';
+import SubmissionError from '@/components/SubmissionError';
+import {
+  AUTO_RETRY_DELAY_SECONDS,
+  isRetryableFailure,
+  useAutoRetry,
+} from '@/lib/providers/auto-retry';
 import ProviderLogo from '@/components/ProviderLogo';
 import StoredImagePicker from '@/components/StoredImagePicker';
 import GenerationWorkspaceLayout from '@/components/GenerationWorkspaceLayout';
@@ -190,6 +196,7 @@ export default function ProviderVideoWorkspace({
   const [error, setError] = useState<string | null>(null);
   const [isGeneratingExample, setIsGeneratingExample] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const autoRetry = useAutoRetry();
   const [isDownloading, setIsDownloading] = useState(false);
   const [isReadingFrame, setIsReadingFrame] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -519,6 +526,7 @@ export default function ProviderVideoWorkspace({
       void attachSlug(jobId, submittedPrompt);
       const started = useProviderJobsStore.getState().jobs.find((job) => job.id === jobId);
       if (started) void pollJob(started);
+      autoRetry.reset();
       toast.success('Task queued.');
     } catch (submissionError) {
       const message =
@@ -526,7 +534,11 @@ export default function ProviderVideoWorkspace({
           ? submissionError.message
           : `${label} could not start this task.`;
       setError(message);
-      toast.error(message);
+      // Sent again only when the request never reached a decision — a bad key or
+      // an empty balance would fail identically five more times, and the retry
+      // would only bury the sentence explaining why.
+      const retrying = isRetryableFailure(submissionError) && autoRetry.schedule(() => void submit());
+      toast.error(retrying ? `${message} Retrying in ${AUTO_RETRY_DELAY_SECONDS}s.` : message);
     } finally {
       if (mountedRef.current) setIsSubmitting(false);
     }
@@ -740,7 +752,12 @@ export default function ProviderVideoWorkspace({
 
           <button
             type="button"
-            onClick={() => void submit()}
+            onClick={() => {
+              // A deliberate press is a fresh start: it drops any queued attempt
+              // and hands back the full retry budget.
+              autoRetry.reset();
+              void submit();
+            }}
             disabled={isSubmitting}
             className="btn-primary flex w-full items-center justify-center gap-2 py-3 text-base disabled:cursor-not-allowed disabled:opacity-50"
           >
@@ -755,12 +772,7 @@ export default function ProviderVideoWorkspace({
             )}
           </button>
           {error && (
-            <p
-              role="alert"
-              className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300"
-            >
-              {error}
-            </p>
+            <SubmissionError message={error} retry={autoRetry.pending} onCancelRetry={autoRetry.cancel} />
           )}
           </>
         }

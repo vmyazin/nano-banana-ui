@@ -1,3 +1,4 @@
+import { RouteError } from '@/lib/providers/route-error';
 import type { KieInputMode, KieJob, KieProtocol, KieTask, MediaType } from './types';
 
 interface KieRouteResponse {
@@ -10,9 +11,12 @@ interface KieRouteResponse {
 }
 
 async function parseKieResponse(response: Response): Promise<KieRouteResponse> {
-  const data = (await response.json()) as KieRouteResponse;
+  const data = (await response.json().catch(() => ({}))) as KieRouteResponse;
   if (!response.ok || !data.success) {
-    throw new Error(data.error || 'Kie could not complete that request. Please try again.');
+    throw new RouteError(
+      data.error || 'Kie could not complete that request. Please try again.',
+      response.status
+    );
   }
   return data;
 }
