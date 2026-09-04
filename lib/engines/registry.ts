@@ -132,9 +132,6 @@ export const ENGINES: EngineMeta[] = [
   },
 ];
 
-export function getEngine(id: string | null | undefined): EngineMeta {
-  return ENGINES.find((e) => e.id === id) ?? ENGINES[0];
-}
 
 /** Whether an engine can run a given feature mode. */
 export function engineSupportsFeature(engine: EngineMeta, feature: Feature): boolean {

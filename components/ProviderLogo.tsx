@@ -91,4 +91,3 @@ export default function ProviderLogo({
   );
 }
 
-export { NAMES as PROVIDER_NAMES };

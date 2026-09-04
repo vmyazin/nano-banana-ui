@@ -135,13 +135,3 @@ export function setAccountStatus(id: string, status: UserStatus): Account | null
   return row ? toAccount(row) : null;
 }
 
-export function sessionCookieOptions(expiresAt: number) {
-  return {
-    httpOnly: true,
-    sameSite: 'lax' as const,
-    // Set only over TLS in production; localhost has none.
-    secure: process.env.NODE_ENV === 'production',
-    path: '/',
-    expires: new Date(expiresAt),
-  };
-}

@@ -1,5 +1,5 @@
 import { buildKieInput } from './catalog';
-import type { KieInputMode, KieModelVariant, KieProtocol, KieTask } from './types';
+import type { KieModelVariant, KieProtocol, KieTask } from './types';
 
 export const KIE_API = 'https://api.kie.ai';
 
@@ -159,6 +159,3 @@ export async function getKieTask(args: {
   return args.protocol === 'market' ? marketTask(data, args.taskId) : veoTask(data, args.taskId);
 }
 
-export function variantForMode(variant: KieModelVariant, mode: KieInputMode): boolean {
-  return variant.inputMode === mode;
-}

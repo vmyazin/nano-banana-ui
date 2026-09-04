@@ -77,7 +77,6 @@ interface AppState {
   /** True once the persisted state has rehydrated on the client. */
   hasHydrated: boolean;
   setApiKey: (key: string) => void;
-  clearApiKey: () => void;
   setEngine: (engine: EngineId) => void;
   setCfAccountId: (v: string) => void;
   setCfToken: (v: string) => void;
@@ -158,7 +157,6 @@ export const useAppStore = create<AppState>()(
       chimeOnComplete: true,
       hasHydrated: false,
       setApiKey: (key) => set({ apiKey: key }),
-      clearApiKey: () => set({ apiKey: '' }),
       setEngine: (engine) => set({ engine }),
       setCfAccountId: (v) => set({ cfAccountId: v }),
       setCfToken: (v) => set({ cfToken: v }),

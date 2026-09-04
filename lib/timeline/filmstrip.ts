@@ -215,11 +215,6 @@ function evictOldestUnwatched(keep: string): void {
   }
 }
 
-/** Test seam: drops every cached strip. */
-export function __resetFilmstripsForTests(): void {
-  strips.clear();
-  pendingListeners.clear();
-}
 
 /**
  * Whether this environment can turn a video frame into an image at all.
