@@ -89,7 +89,7 @@ export const FEATURES: Feature[] = [
     name: 'Viral Thumbnail Generator',
     description: 'Create scroll-stopping YouTube and social media thumbnails that demand attention. Automatically adds dramatic expressions, bold text overlays, arrows, and viral aesthetics proven to boost engagement.',
     icon: '🚀',
-    thumbnail: '/thumbnails/photorealistic_example.png',
+    thumbnail: '/thumbnails/viral-youtube-thumbnail.jpg',
     category: 'special',
     requiresImage: true,
     requiresMultipleImages: false,
