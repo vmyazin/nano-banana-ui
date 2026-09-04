@@ -75,8 +75,9 @@ describe('the shared playhead', () => {
     await addEightSecondClip();
     act(() => usePlayheadStore.getState().seek(6));
 
-    // Exact: "Undo the cleared timeline" also matches a loose /clear/.
-    await userEvent.click(screen.getByRole('button', { name: /^clear$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^new$/i }));
+    const dialog = screen.getByRole('alertdialog', { name: /start a new project/i });
+    await userEvent.click(within(dialog).getByRole('button', { name: /start new project/i }));
     expect(usePlayheadStore.getState().time).toBe(0);
 
     // The clock lives in a store now, so a stale position would survive the

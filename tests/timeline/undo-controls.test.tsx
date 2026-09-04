@@ -26,7 +26,7 @@ describe('undo and clear in the header', () => {
   it('offers neither control on an untouched timeline', () => {
     renderWorkspace();
     expect(screen.queryByRole('button', { name: /undo/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /clear/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^new$/i })).not.toBeInTheDocument();
   });
 
   it('names what undo would put back', async () => {
@@ -58,11 +58,27 @@ describe('undo and clear in the header', () => {
     );
   });
 
-  it('clears the whole timeline, and offers that back', async () => {
+  it('asks before starting a new project, and keeps the timeline if declined', async () => {
     await addOneClip();
 
-    await userEvent.click(screen.getByRole('button', { name: /clear/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^new$/i }));
+    const dialog = screen.getByRole('alertdialog', { name: /start a new project/i });
+    expect(dialog).toBeInTheDocument();
+    expect(useTimelineStore.getState().timeline.clips).toHaveLength(1);
+
+    await userEvent.click(within(dialog).getByRole('button', { name: /keep editing/i }));
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
+    expect(useTimelineStore.getState().timeline.clips).toHaveLength(1);
+  });
+
+  it('starts a new project once confirmed, and offers the old one back', async () => {
+    await addOneClip();
+
+    await userEvent.click(screen.getByRole('button', { name: /^new$/i }));
+    const dialog = screen.getByRole('alertdialog', { name: /start a new project/i });
+    await userEvent.click(within(dialog).getByRole('button', { name: /start new project/i }));
     expect(useTimelineStore.getState().timeline.clips).toHaveLength(0);
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
 
     await userEvent.click(screen.getByRole('button', { name: /undo the cleared timeline/i }));
     expect(useTimelineStore.getState().timeline.clips).toHaveLength(1);

@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { HardDrive, RotateCcw, Trash2 } from 'lucide-react';
+import { FilePlus2, HardDrive, RotateCcw } from 'lucide-react';
 
 import { DEFAULT_GALLERY_BUDGET } from '@/lib/gallery/eviction';
 import { deriveOutputFormat } from '@/lib/timeline/derive-output';
@@ -9,6 +9,7 @@ import { acquireClipMedia, type ClipMedia, type Unavailable } from '@/lib/timeli
 import type { RenderEngine } from '@/lib/timeline/render/port';
 import { useGalleryStore } from '@/store/useGalleryStore';
 import { useTimelineStore } from '@/store/useTimelineStore';
+import ConfirmDialog from '@/components/ConfirmDialog';
 import TimelineClipDrawer from '@/components/TimelineClipDrawer';
 import TimelineExportPanel from '@/components/TimelineExportPanel';
 import TimelineList from '@/components/TimelineList';
@@ -224,6 +225,22 @@ export default function TimelineWorkspace({
     });
   }, []);
 
+  // "New" asks first: a timeline is the most expensive thing to lose here,
+  // and the button sits right where a hurried click lands.
+  const [confirmingNew, setConfirmingNew] = useState(false);
+
+  // Starts a blank project. Every placement's acquisition is aborted and its
+  // state dropped, not just the store's clips: a stale `loading` entry left
+  // behind would make the restore effect skip that clip if the user undoes
+  // this, leaving it stuck. With the map empty, undo re-resolves everything.
+  const startNewProject = useCallback(() => {
+    for (const controller of controllersRef.current.values()) controller.abort();
+    controllersRef.current.clear();
+    setClipStates({});
+    useTimelineStore.getState().clear();
+    setConfirmingNew(false);
+  }, []);
+
   // Aborts whatever is still in flight when the workspace itself closes —
   // the other half of "in-flight fetches abort when the clip is removed or
   // the workspace closes" (design spec §3).
@@ -274,7 +291,7 @@ export default function TimelineWorkspace({
           </div>
           <div className="flex shrink-0 items-center gap-2">
             {/* Undo first, and only when there is something to undo — the
-                affordance that makes Clear safe to offer at all. Removing a
+                affordance that makes New safe to offer at all. Removing a
                 clip is otherwise unrecoverable: an imported clip is pinned
                 with no source URL to fetch it back from. */}
             {undoLabel && (
@@ -289,15 +306,31 @@ export default function TimelineWorkspace({
             {clips.length > 0 && (
               <button
                 type="button"
-                onClick={() => useTimelineStore.getState().clear()}
+                onClick={() => setConfirmingNew(true)}
                 className="btn-secondary shrink-0 px-3 py-2 text-xs"
               >
-                <Trash2 size={13} /> Clear
+                <FilePlus2 size={13} /> New
               </button>
             )}
           </div>
         </div>
       </section>
+
+      <ConfirmDialog
+        open={confirmingNew}
+        title="Start a new project?"
+        description={
+          <>
+            This removes {clips.length === 1 ? 'the clip' : `all ${clips.length} clips`} from the
+            timeline and resets the output settings. Your library files stay where they are, and
+            you can undo this from the header.
+          </>
+        }
+        confirmLabel="Start new project"
+        cancelLabel="Keep editing"
+        onConfirm={startNewProject}
+        onCancel={() => setConfirmingNew(false)}
+      />
 
       <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-[280px_1fr] lg:gap-4">
         <TimelineClipDrawer

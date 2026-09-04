@@ -151,7 +151,11 @@ export default function TimelinePreview({ clips, clipStates, output }: TimelineP
       if (!element) return;
       if (!clipId) {
         loadedRef.current[slot] = null;
+        element.pause?.();
         element.removeAttribute('src');
+        // Removing the attribute alone leaves the last decoded frame painted;
+        // only load() resets the element to an empty (black) frame.
+        element.load?.();
         return;
       }
       const url = urls.get(clipId);

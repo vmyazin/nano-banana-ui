@@ -214,6 +214,23 @@ describe('TimelinePreview — a sequence that changes underneath the playhead', 
     expect(screen.queryByLabelText(/preview position/i)).not.toBeInTheDocument();
   });
 
+  it('blanks both media elements when the list empties, not just the transport', () => {
+    // Removing `src` alone leaves the last decoded frame painted; only load()
+    // resets the element, which is what makes a new project look new.
+    const load = vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => {});
+    const clips = [clip('a'), clip('b')];
+    const { rerender } = render(<TimelinePreview clips={clips} clipStates={statesFor(clips)} output={OUTPUT} />);
+    expect(screen.getByTestId('preview-slot-0')).toHaveAttribute('src');
+    load.mockClear();
+
+    rerender(<TimelinePreview clips={[]} clipStates={{}} output={OUTPUT} />);
+
+    expect(screen.getByTestId('preview-slot-0')).not.toHaveAttribute('src');
+    expect(screen.getByTestId('preview-slot-1')).not.toHaveAttribute('src');
+    expect(load).toHaveBeenCalledTimes(2);
+    load.mockRestore();
+  });
+
   it('recovers when clips come back after the list emptied', () => {
     const clips = [clip('a'), clip('b')];
     const { rerender } = render(<TimelinePreview clips={clips} clipStates={statesFor(clips)} output={OUTPUT} />);
