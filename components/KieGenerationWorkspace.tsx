@@ -1,9 +1,10 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Download, ImagePlus, Loader2, Maximize2, Search, Sparkles, Trash2, Video } from 'lucide-react';
+import { Download, ImagePlus, Loader2, Maximize2, Search, Sparkles, Video } from 'lucide-react';
 import { toast } from 'sonner';
 import ProviderLogo from '@/components/ProviderLogo';
+import ReferenceStack from '@/components/ReferenceStack';
 import { useFileDrop } from '@/lib/drop/use-file-drop';
 import { requestExamplePrompt, requestPromptSlug } from '@/lib/micro-ai/browser';
 import { fetchKieCredits, submitKieJob, uploadKieFiles } from '@/lib/kie/browser';
@@ -513,30 +514,17 @@ export default function KieGenerationWorkspace({
                   <StoredImagePicker referenceLimit={maxInputImages} />
                 )}
               </div>
-              {references.length > 0 && (
-                <div className="grid grid-cols-2 gap-3">
-                  {references.map((reference, index) => (
-                    <div key={reference.id} className="space-y-1">
-                      <div className="group relative overflow-hidden rounded-lg border border-[var(--border)]">
-                        <img src={reference.previewUrl} alt={`Reference ${index + 1}`} className="aspect-square w-full object-cover" />
-                        <button
-                          type="button"
-                          onClick={() => removeReference(index)}
-                          aria-label={`Remove reference ${index + 1}`}
-                          className="absolute right-2 top-2 rounded-md border border-white/10 bg-black/70 p-1.5 text-white opacity-0 transition-opacity group-hover:opacity-100"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                      {reference.sourceLabel && (
-                        <p title={reference.sourceLabel} className="truncate text-[0.65rem] text-[var(--foreground-subtle)]">
-                          {reference.sourceLabel}
-                        </p>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
+              <ReferenceStack
+                layout="grid"
+                items={references.map((reference, index) => ({
+                  id: reference.id,
+                  src: reference.previewUrl,
+                  alt: `Reference ${index + 1}`,
+                  removeLabel: `Remove reference ${index + 1}`,
+                  sourceLabel: reference.sourceLabel,
+                }))}
+                onRemove={removeReference}
+              />
             </section>
           )}
 

@@ -47,8 +47,8 @@ import StoredImagePicker from '@/components/StoredImagePicker';
 import ImageFormatControl from '@/components/ImageFormatControl';
 import { playGenerationChime } from '@/lib/notify/chime';
 import ResultStack, { type ResultStackItem } from '@/components/ResultStack';
+import ReferenceStack from '@/components/ReferenceStack';
 import {
-  X,
   Wand2,
   Loader2,
   ImagePlus,
@@ -943,25 +943,15 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
               </div>
 
               {images.length > 0 && (
-                <div className="grid grid-cols-2 gap-3">
-                  {images.map((img, index) => (
-                    <div key={index} className="relative group">
-                      <img
-                        src={img}
-                        alt={`Upload ${index + 1}`}
-                        className="w-full aspect-square object-cover rounded-lg"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => removeImage(index)}
-                        aria-label={`Remove upload ${index + 1}`}
-                        className="absolute top-2 right-2 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
-                        <X size={16} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
+                <ReferenceStack
+                  items={images.map((img, index) => ({
+                    id: references[index]?.id ?? `upload-${index}`,
+                    src: img,
+                    alt: `Upload ${index + 1}`,
+                    removeLabel: `Remove upload ${index + 1}`,
+                  }))}
+                  onRemove={removeImage}
+                />
               )}
             </div>
           )}

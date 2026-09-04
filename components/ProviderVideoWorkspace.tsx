@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowUpDown, Download, ImagePlus, Loader2, Search, Sparkles, Trash2, Video } from 'lucide-react';
+import { ArrowUpDown, Download, ImagePlus, Loader2, Search, Sparkles, Video } from 'lucide-react';
 import { toast } from 'sonner';
 
 import LastFrameActions from '@/components/LastFrameActions';
@@ -12,6 +12,7 @@ import ConnectionGate, { isGated } from '@/components/ConnectionGate';
 import ProviderLogo from '@/components/ProviderLogo';
 import StoredImagePicker from '@/components/StoredImagePicker';
 import GenerationWorkspaceLayout from '@/components/GenerationWorkspaceLayout';
+import ReferenceStack from '@/components/ReferenceStack';
 import { candidatesFromSizes, useAutoAspect } from '@/lib/draft/aspect-match';
 import { carryOverValues } from '@/lib/draft/carry-over';
 import { useFileDrop } from '@/lib/drop/use-file-drop';
@@ -682,60 +683,27 @@ export default function ProviderVideoWorkspace({
                   )}
                 </div>
               )}
-              {references.length > 0 && (
-                <div className="grid grid-cols-2 gap-3">
-                  {references.map((reference, index) => (
-                    <div key={reference.id} className="space-y-1">
-                      {isFrames && (
-                        <p className="text-[0.65rem] font-medium text-[var(--neon-purple)]">
-                          {frameSlotLabel(index)}
-                        </p>
-                      )}
-                      {isReference && (
-                        <p className="text-[0.65rem] font-medium text-[var(--neon-purple)]">
-                          {referenceToken(index)}
-                        </p>
-                      )}
-                      <div className="group relative overflow-hidden rounded-lg border border-[var(--border)]">
-                        {/* eslint-disable-next-line @next/next/no-img-element -- a local object URL, never a remote asset */}
-                        <img
-                          src={reference.previewUrl}
-                          alt={
-                            isFrames
-                              ? frameSlotLabel(index)
-                              : isReference
-                                ? `Image ${index + 1} character reference`
-                                : `Reference ${index + 1}`
-                          }
-                          className="aspect-square w-full object-cover"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => removeReference(index)}
-                          aria-label={
-                            isFrames
-                              ? `Remove ${frameSlotLabel(index).toLowerCase()}`
-                              : isReference
-                                ? `Remove Image ${index + 1}`
-                                : `Remove reference ${index + 1}`
-                          }
-                          className="absolute right-2 top-2 rounded-md border border-white/10 bg-black/70 p-1.5 text-white opacity-0 transition-opacity group-hover:opacity-100"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                      {reference.sourceLabel && (
-                        <p
-                          title={reference.sourceLabel}
-                          className="truncate text-[0.65rem] text-[var(--foreground-subtle)]"
-                        >
-                          {reference.sourceLabel}
-                        </p>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
+              <ReferenceStack
+                layout="grid"
+                captionClassName="text-[0.65rem] font-medium text-[var(--neon-purple)]"
+                items={references.map((reference, index) => ({
+                  id: reference.id,
+                  src: reference.previewUrl,
+                  caption: isFrames ? frameSlotLabel(index) : isReference ? referenceToken(index) : undefined,
+                  alt: isFrames
+                    ? frameSlotLabel(index)
+                    : isReference
+                      ? `Image ${index + 1} character reference`
+                      : `Reference ${index + 1}`,
+                  removeLabel: isFrames
+                    ? `Remove ${frameSlotLabel(index).toLowerCase()}`
+                    : isReference
+                      ? `Remove Image ${index + 1}`
+                      : `Remove reference ${index + 1}`,
+                  sourceLabel: reference.sourceLabel,
+                }))}
+                onRemove={removeReference}
+              />
               {/* Which image opens the clip and which closes it is the whole of
                   this mode, and picking them in the wrong order is a two-file
                   re-upload without this. */}

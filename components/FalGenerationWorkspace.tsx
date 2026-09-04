@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowUpDown, Download, ImagePlus, Loader2, Search, Sparkles, Trash2, Video } from 'lucide-react';
+import { ArrowUpDown, Download, ImagePlus, Loader2, Search, Sparkles, Video } from 'lucide-react';
 
 import LastFrameActions from '@/components/LastFrameActions';
 import AutoExpandingPrompt from '@/components/AutoExpandingPrompt';
@@ -11,6 +11,7 @@ import ProviderLogo from '@/components/ProviderLogo';
 import StoredImagePicker from '@/components/StoredImagePicker';
 import GenerationWorkspaceLayout from '@/components/GenerationWorkspaceLayout';
 import ConnectionGate, { isGated } from '@/components/ConnectionGate';
+import ReferenceStack from '@/components/ReferenceStack';
 import { requestExamplePrompt, requestPromptSlug } from '@/lib/micro-ai/browser';
 import { cancelFalJob, submitFalJob, uploadFalFiles } from '@/lib/fal/browser';
 import {
@@ -743,39 +744,20 @@ function FalGenerationWorkspaceSession({
                   )}
                 </div>
               )}
-              {references.map((reference, index) => (
-                <div key={reference.id} className="space-y-1">
-                  {isFramesMode && (
-                    <p className="text-xs font-medium text-[var(--foreground)]">{frameSlotLabel(index)}</p>
-                  )}
-                  <div className="relative overflow-hidden rounded-lg border border-[var(--border)]">
-                    {/* Local blob previews cannot be optimized by next/image. */}
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={reference.previewUrl}
-                      alt={isFramesMode ? frameSlotLabel(index) : `Reference ${index + 1}`}
-                      className="aspect-video w-full object-contain"
-                    />
-                    <button
-                      type="button"
-                      aria-label={
-                        isFramesMode
-                          ? `Remove ${frameSlotLabel(index).toLowerCase()}`
-                          : `Remove reference ${index + 1}`
-                      }
-                      onClick={() => removeReference(index)}
-                      className="absolute right-2 top-2 rounded-md bg-black/70 p-2 text-white"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                  {reference.sourceLabel && (
-                    <p title={reference.sourceLabel} className="truncate text-[0.65rem] text-[var(--foreground-subtle)]">
-                      {reference.sourceLabel}
-                    </p>
-                  )}
-                </div>
-              ))}
+              <ReferenceStack
+                layout="stack"
+                items={references.map((reference, index) => ({
+                  id: reference.id,
+                  src: reference.previewUrl,
+                  caption: isFramesMode ? frameSlotLabel(index) : undefined,
+                  alt: isFramesMode ? frameSlotLabel(index) : `Reference ${index + 1}`,
+                  removeLabel: isFramesMode
+                    ? `Remove ${frameSlotLabel(index).toLowerCase()}`
+                    : `Remove reference ${index + 1}`,
+                  sourceLabel: reference.sourceLabel,
+                }))}
+                onRemove={removeReference}
+              />
               {isFramesMode && references.length === 2 && (
                 <button
                   type="button"
