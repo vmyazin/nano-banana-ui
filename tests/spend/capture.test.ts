@@ -64,6 +64,13 @@ describe('captureImageResult', () => {
     ]);
   });
 
+  it('prices a fal image from the published table when there is no key', async () => {
+    captureImageResult({ engine: 'fal', modelId: 'nano-banana-2', prompt: 'p', inputImages: 0, resolution: '2K' });
+    await vi.waitFor(() => expect(entries()).toHaveLength(1));
+    expect(estimateFalJobCost).not.toHaveBeenCalled();
+    expect(entries()[0]).toMatchObject({ costUsd: 0.12, confidence: 'estimated', source: 'catalog-rate' });
+  });
+
   it('asks fal for an estimate on the image endpoint', async () => {
     estimateFalJobCost.mockResolvedValue({ costUsd: 0.039, unit: 'image', quantity: 1 });
     captureImageResult({ engine: 'fal', modelId: 'nano-banana-2', prompt: 'p', inputImages: 2, falApiKey: 'fal-key' });
@@ -88,9 +95,24 @@ describe('captureFalJob', () => {
     expect(entries()[0]).toMatchObject({ id: 'fal-req-1', galleryRecordId: 'fal-req-1', kind: 'video', costUsd: 1.2, quantity: { unit: 'second', value: 8 } });
   });
 
-  it('records unknown, not nothing, when the estimate throws', async () => {
+  it("falls back to fal's published rate when the estimate cannot answer", async () => {
     estimateFalJobCost.mockRejectedValue(new Error('offline'));
-    captureFalJob(job, 'fal-key');
+    // A real job carries every control the variant defines, defaults included.
+    captureFalJob({ ...job, controlValues: { duration: '8s', resolution: '720p', generate_audio: true } }, 'fal-key');
+    await vi.waitFor(() => expect(entries()).toHaveLength(1));
+    // Veo 3.1 Fast at 720p with audio: $0.15 a second across 8 seconds.
+    expect(entries()[0]).toMatchObject({
+      costUsd: 1.2,
+      confidence: 'estimated',
+      source: 'catalog-rate',
+      quantity: { unit: 'second', value: 8 },
+    });
+  });
+
+  it('records unknown, not nothing, when neither source can price the run', async () => {
+    estimateFalJobCost.mockResolvedValue({ costUsd: null });
+    // Seedance's duration control defaults to "auto", so no second count exists.
+    captureFalJob({ ...job, modelId: 'seedance-2', controlValues: { duration: 'auto' } }, 'fal-key');
     await vi.waitFor(() => expect(entries()).toHaveLength(1));
     expect(entries()[0]).toMatchObject({ costUsd: null, confidence: 'unknown' });
   });

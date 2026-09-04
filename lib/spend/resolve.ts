@@ -9,7 +9,13 @@ import type { MicroAiUsage } from '@/lib/micro-ai/models';
 import type { ProviderModel } from '@/lib/providers/types';
 
 import type { SpendEntry, SpendSource } from './ledger';
-import { geminiResolutionCost, geminiTokenCost, KIE_USD_PER_CREDIT } from './rates';
+import {
+  falPublishedCost,
+  geminiResolutionCost,
+  geminiTokenCost,
+  KIE_USD_PER_CREDIT,
+  type FalRunControls,
+} from './rates';
 
 export type SpendFigure = Pick<SpendEntry, 'costUsd' | 'confidence' | 'source' | 'quantity' | 'note'>;
 
@@ -96,6 +102,33 @@ export function resolveFalEstimate(estimate: FalEstimate | null | undefined): Sp
     source: 'estimate-api',
     ...(estimate.quantity !== undefined ? { quantity: { unit, value: estimate.quantity } } : {}),
   };
+}
+
+/** fal's own list price for the run, used when the estimate call could not answer. */
+export function resolveFalCatalog(endpointId: string, controls: FalRunControls): SpendFigure {
+  const published = falPublishedCost(endpointId, controls);
+  if (!published) return unknownFigure('estimate-api');
+  return {
+    costUsd: published.costUsd,
+    confidence: 'estimated',
+    source: 'catalog-rate',
+    quantity: { unit: published.unit, value: published.quantity },
+  };
+}
+
+/**
+ * One fal run's cost. fal's estimate applies whatever the account actually
+ * pays, so it wins; the published table only fills the gaps it leaves — an
+ * endpoint billed per megapixel, a run with no key, a network failure.
+ */
+export function resolveFalRun(args: {
+  estimate: FalEstimate | null | undefined;
+  endpointId: string;
+  controls: FalRunControls;
+}): SpendFigure {
+  const figure = resolveFalEstimate(args.estimate);
+  if (figure.costUsd !== null) return figure;
+  return resolveFalCatalog(args.endpointId, args.controls);
 }
 
 export function resolveKieDelta(args: {

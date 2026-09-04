@@ -6,6 +6,7 @@ import {
   kieSharers,
   resolveCatalogRate,
   resolveFalEstimate,
+  resolveFalRun,
   resolveFree,
   resolveGemini,
   resolveHelper,
@@ -81,6 +82,33 @@ describe('resolveFalEstimate', () => {
   });
   it('is unknown when the estimate failed', () => {
     expect(resolveFalEstimate({ costUsd: null })).toMatchObject({ costUsd: null, confidence: 'unknown', source: 'estimate-api' });
+  });
+});
+
+describe('resolveFalRun', () => {
+  const controls = { resolution: '1080p', audio: true, durationSeconds: 5 };
+
+  it("keeps fal's own estimate, which knows the account's pricing", () => {
+    expect(
+      resolveFalRun({ estimate: { costUsd: 0.5, unit: 'second', quantity: 5 }, endpointId: 'fal-ai/veo3.1', controls })
+    ).toMatchObject({ costUsd: 0.5, source: 'estimate-api' });
+  });
+
+  it('falls back to the published rate when the estimate is empty', () => {
+    expect(
+      resolveFalRun({ estimate: { costUsd: null }, endpointId: 'fal-ai/veo3.1', controls })
+    ).toEqual({
+      costUsd: expect.closeTo(2, 6),
+      confidence: 'estimated',
+      source: 'catalog-rate',
+      quantity: { unit: 'second', value: 5 },
+    });
+  });
+
+  it('is unknown when neither source has a price', () => {
+    expect(
+      resolveFalRun({ estimate: null, endpointId: 'fal-ai/veo3.1', controls: { resolution: '1080p' } })
+    ).toMatchObject({ costUsd: null, confidence: 'unknown', source: 'estimate-api' });
   });
 });
 

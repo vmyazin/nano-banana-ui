@@ -567,6 +567,7 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
           cost: result.cost,
           galleryRecordId,
           falApiKey,
+          webSearch: Boolean(config.useGoogleSearch),
         })
       );
     },

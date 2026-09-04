@@ -22,7 +22,7 @@ import { GEMINI_IMAGE_RATES } from './rates';
 import {
   kieSharers,
   resolveCatalogRate,
-  resolveFalEstimate,
+  resolveFalRun,
   resolveFree,
   resolveGemini,
   resolveHelper,
@@ -67,6 +67,8 @@ export interface ImageResultCapture {
   galleryRecordId?: string;
   /** fal only: the key the estimate call needs. */
   falApiKey?: string;
+  /** fal only: whether web search ran, which fal charges extra for. */
+  webSearch?: boolean;
 }
 
 const GEMINI_MODEL = GEMINI_IMAGE_RATES.modelId;
@@ -107,9 +109,14 @@ export function captureImageResult(args: ImageResultCapture): void {
           try {
             const endpointId = resolveFalVariant(modelId, 'image', inputMode).endpointId;
             const estimate = args.falApiKey
-              ? await estimateFalJobCost({ apiKey: args.falApiKey, endpointId })
+              ? await estimateFalJobCost({ apiKey: args.falApiKey, endpointId }).catch(() => null)
               : null;
-            file(withFigure({ ...base, modelId }, resolveFalEstimate(estimate)));
+            const figure = resolveFalRun({
+              estimate,
+              endpointId,
+              controls: { resolution: args.resolution, webSearch: args.webSearch },
+            });
+            file(withFigure({ ...base, modelId }, figure));
           } catch {
             file(withFigure({ ...base, modelId }, unknownFigure('estimate-api')));
           }
@@ -140,13 +147,26 @@ export function captureFalJob(job: FalJob, apiKey: string): void {
     void (async () => {
       try {
         const endpointId = resolveFalVariant(job.modelId, job.mediaType, job.inputMode).endpointId;
-        const durationSeconds = falDurationSeconds(job.controlValues ?? {});
+        const controlValues = job.controlValues ?? {};
+        const durationSeconds = falDurationSeconds(controlValues);
+        // A rejection here is the same answer as a null estimate: fall through
+        // to the published table rather than filing an unknown.
         const estimate = await estimateFalJobCost({
           apiKey,
           endpointId,
           ...(durationSeconds !== undefined ? { durationSeconds } : {}),
+        }).catch(() => null);
+        const figure = resolveFalRun({
+          estimate,
+          endpointId,
+          controls: {
+            resolution:
+              typeof controlValues.resolution === 'string' ? controlValues.resolution : undefined,
+            audio: controlValues.generate_audio !== false,
+            ...(durationSeconds !== undefined ? { durationSeconds } : {}),
+          },
         });
-        file(withFigure(base, resolveFalEstimate(estimate)));
+        file(withFigure(base, figure));
       } catch {
         file(withFigure(base, unknownFigure('estimate-api')));
       }
