@@ -8,7 +8,6 @@ export interface Feature {
   requiresImage: boolean;
   requiresMultipleImages: boolean;
   maxImages?: number;
-  modelType: 'flash' | 'pro';
   examplePrompt?: string;
 }
 
@@ -44,7 +43,6 @@ export const FEATURES: Feature[] = [
     category: 'generation',
     requiresImage: false,
     requiresMultipleImages: false,
-    modelType: 'pro',
     examplePrompt: 'A wide shot of a modern, well-lit living room with a prominent blue sofa in the center, hardwood floors, and large windows with natural light',
   },
   {
@@ -56,7 +54,6 @@ export const FEATURES: Feature[] = [
     category: 'editing',
     requiresImage: true,
     requiresMultipleImages: false,
-    modelType: 'pro',
     examplePrompt: 'Change the blue sofa to be a vintage, brown leather chesterfield sofa with tufted buttons and wooden legs',
   },
   {
@@ -69,7 +66,6 @@ export const FEATURES: Feature[] = [
     requiresImage: true,
     requiresMultipleImages: true,
     maxImages: 14,
-    modelType: 'pro',
     examplePrompt: 'Take the elegant dress from the first image and have the person from the second image wearing it, maintaining realistic lighting and fit',
   },
   {
@@ -81,7 +77,6 @@ export const FEATURES: Feature[] = [
     category: 'generation',
     requiresImage: false,
     requiresMultipleImages: false,
-    modelType: 'pro',
     examplePrompt: 'Create an artistic visualization of the current weather forecast for the next 5 days in San Francisco, showing temperature changes and conditions',
   },
   {
@@ -93,7 +88,6 @@ export const FEATURES: Feature[] = [
     category: 'special',
     requiresImage: true,
     requiresMultipleImages: false,
-    modelType: 'pro',
     examplePrompt: 'Person with shocked, excited expression discovering something amazing, dramatic lighting, with energy and urgency in the scene',
   },
   {
@@ -106,7 +100,6 @@ export const FEATURES: Feature[] = [
     requiresImage: true,
     requiresMultipleImages: true,
     maxImages: 2,
-    modelType: 'pro',
     examplePrompt: 'Apply the artistic style and color palette from the first image to the content of the second image, creating a stylized masterpiece',
   },
 ];
