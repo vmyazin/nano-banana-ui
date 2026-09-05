@@ -13,6 +13,13 @@
       "request": "launch",
       "command": "npm run dev -- --port 3221",
       "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "Account cloud plan smoke test",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "ACCOUNT_WORKER_PORT=8797 npm run dev -- --port 3097",
+      "cwd": "${workspaceFolder}"
     }
   ]
 }

@@ -16,6 +16,8 @@
 
 ## Auto-load routing
 
+- **Accounts, sign-in, or cloud persistence** → first read `docs/codex/account-development.md` and `docs/codex/specs/2026-09-04-optional-cloud-accounts-design.md`. Account access currently lives only at `/sign-in` and `/sign-up`; do not add account calls to action to the existing studio layout. The legacy admin gate is separate because enabling it would block guest routes.
+
 - **Video generation workspace layout** → first read
   `docs/codex/specs/2026-08-30-wan3-reference-video-design.md`, then compose setup,
   Prompt, and Result/Jobs through `components/GenerationWorkspaceLayout.tsx` because

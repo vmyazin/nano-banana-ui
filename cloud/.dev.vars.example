@@ -1,0 +1,5 @@
+APP_ORIGIN=http://localhost:3097
+DEV_ACCOUNT_EMAIL=creator@example.test
+# Optional for testing real Google sign-in locally. Never commit real values.
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
