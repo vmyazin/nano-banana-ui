@@ -111,8 +111,9 @@ Pollinations background adapters. Production support is deliberately opt-in via
 `CLOUD_GENERATION_PROVIDERS`; its default is empty. Do not enable an adapter
 until a real credentialed submission, reconciliation, capture, download, and
 cost-label check has passed in the target environment. No real vendor request,
-production Google OAuth setup, or production Cloudflare resource setup has been
-completed for this worktree.
+production Google OAuth setup, or account Worker deployment has been
+completed for this worktree. The dedicated Cloudflare database and private
+bucket are provisioned as recorded below.
 
 ### Local OAuth setup verified — 2026-09-05
 
@@ -126,14 +127,45 @@ for the credential location and exact boundaries. Production OAuth configuration
 and consent branding are still pending; do not reuse the local client as an
 implicit production configuration.
 
+### Cloudflare resource setup — 2026-09-05
+
+The user resumed setup through the Cloudflare browser open on **Rapid Systems**.
+Created the dedicated resources in account `7f64edc36bdefec27b66e6ff9b2dcc3d`:
+
+| Resource | Configuration |
+| --- | --- |
+| D1 `scene-assembly-accounts` | ID `a5146fdd-41c6-47d3-adff-8c7aeddc3071`; all 11 migrations applied; zero account rows |
+| R2 `scene-assembly-assets` | Standard storage, Eastern North America, public development URL disabled, no custom domain |
+| Multipart lifecycle | Enabled for all prefixes; abort incomplete uploads after one day; no completed-object expiry |
+
+`cloud/wrangler.jsonc` now pins this account and database ID. Its
+`preview_database_id` retains the original local-only identity so development
+sessions, encrypted connections, and local assets remain reachable. It is not a
+remote preview database; provision a separate database for a remote preview.
+Do not run remote preview commands using that local-only ID.
+
+Verification: remote migration count is 11, the avatar column exists, and the
+new database contains no accounts. Wrangler independently confirmed the one-day
+multipart lifecycle and disabled r2.dev access. Worker dry-run bundles all three
+bindings successfully. A browser reload preserved the existing local Google
+account. No existing resources, billing settings, application deployment, or
+production user data were changed.
+
+The Worker and `GenerationWorkflow` are configured but not published. Production
+Google OAuth, Worker origin and secrets (including independent production
+encryption keys), preview integration, provider acceptance, and backup/restore
+verification remain pending. The next deployment requires the repository's
+localhost review/sign-off; no push or deployment was performed in this step.
+
 ### Production runbook
 
 The person performing setup needs Cloudflare, Google Cloud, Vercel, and provider
 credentials, and may need to accept billing. Never put secret values in tracked
 files.
 
-1. Create a D1 database and R2 bucket, then replace the placeholder D1 ID in
-   `cloud/wrangler.jsonc`. Keep the binding names exactly `DB`, `ASSETS`, and
+1. The dedicated D1 database and R2 bucket above are already created and
+   recorded in `cloud/wrangler.jsonc`. For another environment, provision separate
+   resources and update its explicit IDs. Keep the binding names exactly `DB`, `ASSETS`, and
    `GENERATION`; the Workflow class is `GenerationWorkflow`. The R2 bucket must
    remain private.
 2. Configure the Worker variables `APP_ORIGIN=<target app HTTPS origin>`

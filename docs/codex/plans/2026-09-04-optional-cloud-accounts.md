@@ -1,5 +1,35 @@
 # Optional accounts and durable cloud generation — implementation plan
 
+## Cloudflare resource setup — 2026-09-05
+
+The user resumed setup through the Cloudflare browser open on **Rapid Systems**.
+Created the dedicated resources in account `7f64edc36bdefec27b66e6ff9b2dcc3d`:
+
+| Resource | Configuration |
+| --- | --- |
+| D1 `scene-assembly-accounts` | ID `a5146fdd-41c6-47d3-adff-8c7aeddc3071`; all 11 migrations applied; zero account rows |
+| R2 `scene-assembly-assets` | Standard storage, Eastern North America, public development URL disabled, no custom domain |
+| Multipart lifecycle | Enabled for all prefixes; abort incomplete uploads after one day; no completed-object expiry |
+
+`cloud/wrangler.jsonc` now pins this account and database ID. Its
+`preview_database_id` retains the original local-only identity so development
+sessions, encrypted connections, and local assets remain reachable. It is not a
+remote preview database; provision a separate database for a remote preview.
+Do not run remote preview commands using that local-only ID.
+
+Verification: remote migration count is 11, the avatar column exists, and the
+new database contains no accounts. Wrangler independently confirmed the one-day
+multipart lifecycle and disabled r2.dev access. Worker dry-run bundles all three
+bindings successfully. A browser reload preserved the existing local Google
+account. No existing resources, billing settings, application deployment, or
+production user data were changed.
+
+The Worker and `GenerationWorkflow` are configured but not published. Production
+Google OAuth, Worker origin and secrets (including independent production
+encryption keys), preview integration, provider acceptance, and backup/restore
+verification remain pending. The next deployment requires the repository's
+localhost review/sign-off; no push or deployment was performed in this step.
+
 ## Follow-up decision — 2026-09-05 Google account avatar
 
 User requested the Google profile photo in the existing account overview.

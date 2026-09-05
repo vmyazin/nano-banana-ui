@@ -6,8 +6,10 @@ Google-first `/sign-in` and `/sign-up` entry pages and a signed-in `/account`
 dashboard without adding global calls to action. Guests keep the existing browser-only studio, keys, library, jobs, and
 spend ledger.
 
-This is not production-ready yet. Production resources, OAuth, secrets, and
-provider credentials are not configured; no real provider call has been made.
+This is not production-ready yet. The dedicated Cloudflare D1 database and
+private R2 bucket are provisioned, but the account Worker is not deployed.
+Production OAuth, secrets, and provider credentials are not configured; no real
+provider call has been made.
 Real Google OAuth has been verified against local services as described below.
 All eight provider adapters exist, but `CLOUD_GENERATION_PROVIDERS` defaults to
 empty until each one passes a real provider verification.
@@ -35,6 +37,8 @@ The launcher copies `cloud/.dev.vars.example` to the gitignored
 key only when one is absent, and sets `PUBLIC_WORKER_ORIGIN`. Migrations `0001`
 through `0011` are represented in the development-only zero-seed bootstrap,
 which runs on first request. Each worktree has separate `.wrangler` state.
+The D1 `preview_database_id` keeps the original local database identity stable
+when the remote database ID is configured; it must not be used for a remote preview.
 
 The launcher starts the Next app and local Wrangler Worker in one command. It
 also invokes the Worker's scheduled reconciliation endpoint every minute;
@@ -200,7 +204,9 @@ Apply D1 migrations before deploying the Worker, then verify OAuth through an
 isolated preview app with a working gateway and matching origin/callback before
 connecting the production app. The detailed order and external setup checklist
 are in [`docs/deployment.md`](../deployment.md). Production setup requires user
-credentials and potentially billing consent, and remains later work. Get user
+credentials and potentially billing consent. The dedicated D1/R2 resources are
+created; Worker deployment, production secrets, and preview verification remain
+pending. Get user
 review and localhost sign-off before any push because `main` deploys
 automatically.
 
