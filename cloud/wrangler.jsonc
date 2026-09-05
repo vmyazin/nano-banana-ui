@@ -7,7 +7,7 @@
   // Pinned with Wrangler 4.113: later local proxies currently crash on connection loss.
   "compatibility_date": "2026-07-20",
   "define": { "__LOCAL_DEV__": "false" },
-  "vars": { "APP_ORIGIN": "https://sceneassembly.mzork.com" },
+  "vars": { "APP_ORIGIN": "https://sceneassembly.mzork.com", "PUBLIC_WORKER_ORIGIN": "https://scene-assembly-accounts.vasily-or-simon-account.workers.dev" },
   // Keep the existing local D1 identity stable; this preview ID is local-only, not a remote preview database.
   "d1_databases": [{ "binding": "DB", "database_name": "scene-assembly-accounts", "database_id": "a5146fdd-41c6-47d3-adff-8c7aeddc3071", "preview_database_id": "00000000-0000-0000-0000-000000000000", "migrations_dir": "migrations" }],
   "r2_buckets": [{ "binding": "ASSETS", "bucket_name": "scene-assembly-assets" }],

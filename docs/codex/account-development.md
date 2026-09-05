@@ -6,10 +6,11 @@ Google-first `/sign-in` and `/sign-up` entry pages and a signed-in `/account`
 dashboard without adding global calls to action. Guests keep the existing browser-only studio, keys, library, jobs, and
 spend ledger.
 
-This is not production-ready yet. The dedicated Cloudflare D1 database and
-private R2 bucket are provisioned, but the account Worker is not deployed.
-Production OAuth, secrets, and provider credentials are not configured; no real
-provider call has been made.
+This is not production-ready yet. The Cloudflare account Worker, D1 database,
+private R2 bucket, Workflow, production encryption secrets, and separate Google
+client are configured. The live web app is not connected, Google consent remains
+in testing mode, and no real provider call has been made. See the deployment
+record in `docs/deployment.md` for exact external state.
 Real Google OAuth has been verified against local services as described below.
 All eight provider adapters exist, but `CLOUD_GENERATION_PROVIDERS` defaults to
 empty until each one passes a real provider verification.
@@ -205,8 +206,8 @@ isolated preview app with a working gateway and matching origin/callback before
 connecting the production app. The detailed order and external setup checklist
 are in [`docs/deployment.md`](../deployment.md). Production setup requires user
 credentials and potentially billing consent. The dedicated D1/R2 resources are
-created; Worker deployment, production secrets, and preview verification remain
-pending. Get user
+created and the account Worker/Workflow deployed with production secrets.
+Full preview integration and authenticated cloud verification remain pending. Get user
 review and localhost sign-off before any push because `main` deploys
 automatically.
 

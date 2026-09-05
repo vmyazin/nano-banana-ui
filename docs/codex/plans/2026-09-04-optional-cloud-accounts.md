@@ -1,5 +1,41 @@
 # Optional accounts and durable cloud generation — implementation plan
 
+## Follow-up — 2026-09-05 approved account backend deployment
+
+The user approved the account page in response to the request to deploy the
+account Worker and Workflow. This satisfies the localhost review gate for this
+backend deployment; it does not record a completed production web rollout.
+
+Deployed `scene-assembly-accounts` in Rapid Systems with D1, private R2,
+`scene-assembly-generation` / `GenerationWorkflow`, and the five-minute cron.
+Worker origin:
+`https://scene-assembly-accounts.vasily-or-simon-account.workers.dev`.
+Configured that origin as `PUBLIC_WORKER_ORIGIN`; `APP_ORIGIN` remains
+`https://sceneassembly.mzork.com`. Latest deployed version:
+`dbb80be7-4a99-4c65-a167-159bad87e291`.
+
+Created a separate **Scene Assembly — Production** Google Web application
+client under the selected Google identity, with only
+`https://sceneassembly.mzork.com/api/account/callback/google` authorized.
+The consent audience remains External / Testing. Stored the Google client
+credentials and independent production encryption keys as four Worker secrets:
+`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `ACCOUNT_ENCRYPTION_KEYS`, and
+`ACCOUNT_ENCRYPTION_VERSION`. A recovery copy is held outside Git at
+`~/.config/scene-assembly/production-worker-secrets.json`, permissions `0600`.
+Never print or commit this file; preserve the encryption keys for recovery.
+Local `.dev.vars` and its credentials were not changed.
+
+Verified the deployed health and session endpoints, disabled local sign-in,
+empty enabled-provider list, cross-origin OAuth rejection, the exact production
+OAuth client/callback and identity scopes, PKCE, and Secure/HttpOnly/SameSite
+OAuth cookies. Wrangler confirms the Workflow registration and all four secret
+names. No real provider call or authenticated production account was created.
+
+Still required: connect an isolated web preview and verify full OAuth callback,
+private upload/download and background completion; finish public consent
+branding/publishing; verify native providers and backup recovery; then connect
+the production web app. No Git push or web app deployment was performed.
+
 ## Cloudflare resource setup — 2026-09-05
 
 The user resumed setup through the Cloudflare browser open on **Rapid Systems**.

@@ -110,10 +110,45 @@ The code supports fal, Kie, Runware, Atlas, Comet, Gemini, Cloudflare, and
 Pollinations background adapters. Production support is deliberately opt-in via
 `CLOUD_GENERATION_PROVIDERS`; its default is empty. Do not enable an adapter
 until a real credentialed submission, reconciliation, capture, download, and
-cost-label check has passed in the target environment. No real vendor request,
-production Google OAuth setup, or account Worker deployment has been
-completed for this worktree. The dedicated Cloudflare database and private
-bucket are provisioned as recorded below.
+cost-label check has passed in the target environment. No real vendor request or full authenticated production web flow has been
+verified. The account Worker, database, private bucket, Workflow, and production
+OAuth client are configured as recorded below; the web app is not connected yet.
+
+### Follow-up — 2026-09-05 approved account backend deployment
+
+The user approved the account page in response to the request to deploy the
+account Worker and Workflow. This satisfies the localhost review gate for this
+backend deployment; it does not record a completed production web rollout.
+
+Deployed `scene-assembly-accounts` in Rapid Systems with D1, private R2,
+`scene-assembly-generation` / `GenerationWorkflow`, and the five-minute cron.
+Worker origin:
+`https://scene-assembly-accounts.vasily-or-simon-account.workers.dev`.
+Configured that origin as `PUBLIC_WORKER_ORIGIN`; `APP_ORIGIN` remains
+`https://sceneassembly.mzork.com`. Latest deployed version:
+`dbb80be7-4a99-4c65-a167-159bad87e291`.
+
+Created a separate **Scene Assembly — Production** Google Web application
+client under the selected Google identity, with only
+`https://sceneassembly.mzork.com/api/account/callback/google` authorized.
+The consent audience remains External / Testing. Stored the Google client
+credentials and independent production encryption keys as four Worker secrets:
+`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `ACCOUNT_ENCRYPTION_KEYS`, and
+`ACCOUNT_ENCRYPTION_VERSION`. A recovery copy is held outside Git at
+`~/.config/scene-assembly/production-worker-secrets.json`, permissions `0600`.
+Never print or commit this file; preserve the encryption keys for recovery.
+Local `.dev.vars` and its credentials were not changed.
+
+Verified the deployed health and session endpoints, disabled local sign-in,
+empty enabled-provider list, cross-origin OAuth rejection, the exact production
+OAuth client/callback and identity scopes, PKCE, and Secure/HttpOnly/SameSite
+OAuth cookies. Wrangler confirms the Workflow registration and all four secret
+names. No real provider call or authenticated production account was created.
+
+Still required: connect an isolated web preview and verify full OAuth callback,
+private upload/download and background completion; finish public consent
+branding/publishing; verify native providers and backup recovery; then connect
+the production web app. No Git push or web app deployment was performed.
 
 ### Local OAuth setup verified — 2026-09-05
 
