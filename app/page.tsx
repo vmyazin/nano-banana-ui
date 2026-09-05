@@ -6,7 +6,7 @@ import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useQueryState } from 'nuqs';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Key, Check, Command as CommandIcon, Library as LibraryIcon, Film, Volume2, VolumeX } from 'lucide-react';
+import { Key, Check, Command as CommandIcon, Library as LibraryIcon, Film, Volume2, VolumeX, CircleDollarSign, CircleUserRound } from 'lucide-react';
 import ApiKeyConfig from '@/components/ApiKeyConfig';
 import LibraryOverlay from '@/components/LibraryOverlay';
 import { usePromptLibraryStore } from '@/store/usePromptLibraryStore';
@@ -21,6 +21,7 @@ import VideoWorkspace from '@/components/VideoWorkspace';
 import { Feature, FEATURES } from '@/types';
 import { brand } from '@/lib/brand';
 import { useAppStore } from '@/store/useAppStore';
+import { useAccountStore } from '@/store/useAccountStore';
 
 // Lazy-load the heavy generation workspace so the landing bundle stays light.
 const GenerationInterface = dynamic(() => import('@/components/GenerationInterface'), {
@@ -54,6 +55,14 @@ function Studio() {
   const falApiKey = useAppStore((s) => s.falApiKey);
   const hasHydrated = useAppStore((s) => s.hasHydrated);
   const chimeOnComplete = useAppStore((s) => s.chimeOnComplete);
+  /**
+   * The session resolves a moment after paint, so the footer waits for a
+   * definite answer before offering to sign anyone in: until then the row reads
+   * Account and points at /account, which sends a signed-out visitor on to
+   * sign-in anyway. Nobody sees a broken link, and nobody already signed in
+   * watches the row flip out from under them.
+   */
+  const signedOut = useAccountStore((s) => s.status === 'ready' && !s.session?.account);
   useEffect(() => {
     useAppStore.persist.rehydrate();
     // Its own call: each persisted store defers hydration to avoid an SSR mismatch.
@@ -351,8 +360,10 @@ function Studio() {
       {/* Footer */}
       <footer className="site-footer relative z-10 border-t border-[var(--border)] mt-8 sm:mt-10">
         <div className="w-full max-w-7xl mx-auto px-6 sm:px-8 md:px-12 lg:px-16 py-6 sm:py-7">
-          <div className="flex flex-col items-center justify-center gap-4 sm:gap-5 text-center">
-            <div className="text-center space-y-1.5">
+          {/* Who made this, and where to go next — one card each, so neither
+              reads as a footnote to the other. */}
+          <div className="mx-auto grid max-w-3xl gap-3 sm:grid-cols-2">
+            <div className="rounded-xl border border-[var(--border)] bg-[var(--background-glass)] px-5 py-4">
               <p className="text-[0.8125rem] text-[var(--foreground-muted)]">
                 <a
                   href={brand.githubUrl}
@@ -372,18 +383,31 @@ function Studio() {
                   {brand.maintainer.name}
                 </a>
               </p>
-              <p className="text-xs text-[var(--foreground-muted)]">
+              <p className="mt-1.5 text-xs text-[var(--foreground-muted)]">
                 {brand.description}
               </p>
-              <p className="text-xs">
+            </div>
+
+            <ul className="rounded-xl border border-[var(--border)] bg-[var(--background-glass)] px-5 py-4 space-y-2 text-[0.8125rem] font-bold">
+              <li>
                 <Link
                   href="/spend"
-                  className="text-[var(--neon-cyan)] hover:text-[var(--neon-purple)] font-medium transition-colors hover:underline"
+                  className="inline-flex items-center gap-2 text-[var(--neon-cyan)] hover:text-[var(--neon-purple)] transition-colors hover:underline"
                 >
+                  <CircleDollarSign size={15} aria-hidden="true" />
                   Spend
                 </Link>
-              </p>
-            </div>
+              </li>
+              <li>
+                <Link
+                  href={signedOut ? '/sign-in' : '/account'}
+                  className="inline-flex items-center gap-2 text-[var(--neon-cyan)] hover:text-[var(--neon-purple)] transition-colors hover:underline"
+                >
+                  <CircleUserRound size={15} aria-hidden="true" />
+                  {signedOut ? 'Sign in' : 'Account'}
+                </Link>
+              </li>
+            </ul>
           </div>
 
           {/* Engines available — capability context, not product identity.
