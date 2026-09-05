@@ -45,8 +45,15 @@ Do not modify: `cloud/src/provider-adapters/*`, `cloud/src/assets.ts`,
       its reservation to 0 MB. The fixture adapter, not fal, produced the bytes, so
       this proves the account job path for a non-Gemini provider, not fal's vendor
       contract. It also surfaced the connect-callout defect recorded above.
-- [ ] 6. Deploy the Worker (`npx wrangler deploy`) after sign-off. Record the
+- [x] 6. Deploy the Worker (`npx wrangler deploy`) after sign-off. Record the
       version ID.
+      Result: user approved 2026-09-05. `main` pushed at `c1f79ae`. Worker
+      deployed from the pinned local Wrangler 4.113 as version
+      `2bfca5fe-d9f8-452e-9afe-1685141cd611`; the global `npx wrangler` is 4.129
+      and cannot resolve `oauth4webapi` without `pnpm install` in `cloud/`, so
+      deploy through `cloud/node_modules/.bin/wrangler`. The unauthenticated
+      production session endpoint now reports all eight providers. No live
+      generation has been submitted, so seven providers are enabled but unverified.
 - [ ] 7. Live acceptance per provider, one at a time, smallest available output.
       Requires a saved production connection for each. For each: submit, close the
       submission tab, then confirm from a new tab that the job reached `saved`,
