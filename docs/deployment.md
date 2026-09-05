@@ -101,7 +101,7 @@ the private R2-bound Worker.
 
 The account implementation uses a Cloudflare Worker, D1, a private R2 bucket,
 and a `GenerationWorkflow` binding. It provides Google-first `/sign-in` and
-`/sign-up`, encrypted account connections, durable background jobs, explicit
+`/sign-up` entry pages, a signed-in `/account` dashboard, encrypted account connections, durable background jobs, explicit
 browser-asset/key imports, a fixed 1 GB permanent library, and a separate
 account spend ledger. Guest use remains available and there are no new global
 account calls to action.

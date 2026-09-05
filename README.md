@@ -52,7 +52,7 @@ Browser-only execution for both providers creates tab-local, in-memory jobs. For
 ### 🎯 Studio Features
 
 - **API connections dialog** — manage Gemini, fal, Kie, and Cloudflare credentials in one place (stored in browser `localStorage`)
-- **Optional cloud account** — when the separate service is configured, dedicated Google-first `/sign-in` and `/sign-up` pages can save encrypted connections, background jobs, a private 1 GB library, and a separate account spend ledger. Signing in never uploads browser keys or library files; each import is explicit and preserves the browser original
+- **Optional cloud account** — when the separate service is configured, Google-first `/sign-in` and `/sign-up` entry pages lead to `/account` for encrypted connections, background jobs, a private 1 GB library, explicit imports, and account controls. Account spend remains a separate ledger at `/spend`. Signing in never uploads browser keys or library files; each import is explicit and preserves the browser original
 - **Spend page** — every finished generation is recorded in your browser with its cost, labelled exact or estimated, and rolled up by provider, model, and day at `/spend`. Runware reports exact costs; Gemini is priced from its token usage; fal and Kie are estimated from their pricing and credit-balance endpoints; free engines record as free
 - **Full-screen lightbox** — preview generated images before download
 - **AI-generated example prompts** — one-click "Gen Example" with a meta-prompt tooltip

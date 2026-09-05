@@ -1,5 +1,11 @@
 # Optional accounts and durable cloud generation
 
+## Follow-up decision — 2026-09-05 dedicated account dashboard
+
+The user requested `/account` for signed-in account data. This supersedes placing the signed-in management panels on `/sign-in` and `/sign-up`: those remain authentication entry pages and route authenticated users to `/account`. The new page owns identity, sign-out, library/storage/jobs, saved connections, explicit imports, and account deletion by composing existing shared components. Guests resolve to `/sign-in`; loading or service-unavailable states must not be mistaken for guests. Successful sign-in returns to `/account`. No new studio/global account calls to action are authorized by this change.
+
+The user also requested less yellow glow. Reduce the shared account surface bloom while retaining readable borders, cyan primary actions, and the existing reduced-motion-aware entrance.
+
 ## Follow-up decision — 2026-09-04
 
 The user approved the implementation plan, selected sign-in/sign-up as the first milestone, then authorized implementation of all steps and incremental commits. This overrides the original task order and the earlier no-commit condition. Account access must live on dedicated /sign-in and /sign-up pages with no new account calls to action in the existing layout; this supersedes guest promotional messaging in the studio. Shipping still requires localhost review and explicit sign-off.

@@ -2,8 +2,8 @@
 
 The optional account path is implemented behind a Next.js gateway and a
 Cloudflare Worker using D1, private R2, and Workflows. It adds dedicated
-Google-first `/sign-in` and `/sign-up` pages without adding global calls to
-action. Guests keep the existing browser-only studio, keys, library, jobs, and
+Google-first `/sign-in` and `/sign-up` entry pages and a signed-in `/account`
+dashboard without adding global calls to action. Guests keep the existing browser-only studio, keys, library, jobs, and
 spend ledger.
 
 This is not production-ready yet. Production resources, OAuth, secrets, and
@@ -42,6 +42,11 @@ jobs, reconciles spend, and cleans expired OAuth/session, upload, import,
 retention, rate-limit, and object-deletion records.
 
 Open <http://localhost:3097/sign-up> and choose **Use local test account**. The
+successful sign-in opens `/account`, which composes identity, cloud library and
+storage, jobs, saved connections, explicit imports, and deletion controls.
+Signed-in users visiting either authentication page also move to `/account`;
+guests visiting `/account` move to `/sign-in` after session resolution.
+Loading and service errors remain explicit states rather than guest redirects. The
 shortcut requires the compile-time local marker, a localhost `APP_ORIGIN`, and
 `DEV_ACCOUNT_EMAIL`; deploy builds set the marker false. Host headers or request
 fields cannot enable it. Local Google endpoints use mocked cryptography in
