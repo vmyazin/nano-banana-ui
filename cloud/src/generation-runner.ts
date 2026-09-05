@@ -12,8 +12,8 @@ const SINGLE={retries:{limit:0,delay:'1 second'},timeout:'5 minutes'};
 export async function runGeneration(env:Env,jobId:string,step:DurableStep,override?:GenerationAdapter) {
   let job=await getJob(env,jobId);
   if(!job||['saved','failed','cancelled'].includes(job.state))return;
-  const adapter=override||adapterFor(env,job.provider);
   try{
+    const adapter=override||adapterFor(env,job.provider);
     await step.do('submit',SINGLE,async()=>{
       const current=await getJob(env,jobId);
       if(!current||current.provider_task||current.result_json)return;

@@ -859,7 +859,7 @@ function FalGenerationWorkspaceSession({
             />
           </PromptPanel>
         }
-        results={cloudWorkspace.cloud ? <CloudJobPanel provider="fal" modelId={selectedModel.id} mediaType="video" inputMode={inputMode} /> :
+        results={cloudWorkspace.cloud ? <CloudJobPanel provider="fal" modelId={selectedModel.id} mediaType="video" inputMode={inputMode} onContinueFromFrame={onContinueFromFrame} /> :
           <section className="glass-card min-h-[420px] space-y-3 p-3.5 md:p-4">
             <div>
               <h3 className="display text-base font-semibold">Jobs</h3>

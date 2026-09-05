@@ -11,6 +11,10 @@ Acceptance source: ../specs/2026-09-04-optional-cloud-accounts-design.md
 
 ## File map
 
+### Follow-up implementation boundary — remaining native adapters (2026-09-04)
+
+Extend `lib/providers/runware.ts:75-205` with shared image submission and media polling; `lib/providers/atlas.ts:42-160` with reusable image submission and current prediction envelope parsing. Add `cloud/src/provider-adapters/aggregators.ts` for catalog-validated Runware/Atlas jobs and connect it through `cloud/src/providers.ts`. Reuse owner/revision resolution from the queued adapter. Tests cover native payloads, current and legacy response formats, invalid settings and single-attempt submission. Do not modify guest route semantics, provider model catalogs or existing layout in this milestone. Verify both typechecks, provider suites and Worker bundle.
+
 Existing ranges measured in the planning worktree; refresh before edits:
 
 | Target | Responsibility |
@@ -40,6 +44,10 @@ Workspace submit handlers must be located through the code graph during task 1, 
 Do not modify: timeline rendering/encoding; image conversion algorithms; provider rates/catalog contents unrelated to capability metadata; prompt/layout animation components; existing guest auth requirements; unrelated main-checkout changes. Do not enable AUTH_ADMIN_EMAIL for the public app.
 
 ## Tasks
+
+Milestone record (2026-09-05): Runware/Atlas now have catalog-validated durable image/video adapters, and the shared aggregator video workspace submits account jobs without writing guest job stores. Cloud video results reuse LastFrameActions. Atlas's shared parser supports its documented current envelope and legacy fixtures. Verification: 50 Worker tests; 121 provider/account UI tests; both typechecks; focused lint; Worker production dry-run. Local browser smoke confirmed guest key gating, account-encrypted-key messaging and explicit browser fallback. Real provider requests and external setup remain pending; providers stay configuration-gated.
+
+Follow-up workspace boundary (2026-09-05): `components/ProviderVideoWorkspace.tsx:150-242,472-545,583-592,796-897` gets the shared account submit/gate/results branch. `components/account/CloudJobPanel.tsx` reuses existing `LastFrameActions` for saved videos; Kie/fal pass their existing continuation callback. Guest stores and polling retain their current behavior. Verify provider workspace suites and account tests, then local browser smoke.
 
 - [ ] 1. Verify provider execution boundaries. Create docs/codex/cloud-provider-capabilities.md using current official vendor docs and existing adapters. List every engine/model family, runtime dependencies, output size/retention bounds, idempotency/reconciliation/cancellation support. Append exact workspace handler ranges to this plan. Specify reservation, overflow, temporary-input, and concurrency caps backed by supported limits. Verify: pnpm exec tsc --noEmit for any compatibility spike, and provider contract tests introduced in cloud/tests/providers. Do not advertise background support for unchecked adapters.
 

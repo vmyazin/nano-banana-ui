@@ -70,12 +70,12 @@ function taskUUID(): string {
   return crypto.randomUUID();
 }
 
-export async function runwareGenerateImage(request: ImageRequest): Promise<ImageResult> {
+function imageTask(request: ImageRequest, uuid: string): Record<string, unknown> {
   const [width, height] = dimensionsFor(request.aspectRatio);
   const references = (request.images ?? []).slice(0, 4);
   const task: Record<string, unknown> = {
     taskType: 'imageInference',
-    taskUUID: taskUUID(),
+    taskUUID: uuid,
     model: request.model,
     positivePrompt: request.prompt,
     width,
@@ -98,7 +98,17 @@ export async function runwareGenerateImage(request: ImageRequest): Promise<Image
           };
   }
 
-  const payload = await runwareFetch(request.apiKey, [task]);
+  return task;
+}
+
+export async function runwareCreateImage(request: ImageRequest): Promise<{taskId: string}> {
+  const uuid = taskUUID();
+  await runwareFetch(request.apiKey, [{...imageTask(request, uuid), deliveryMethod: 'async'}]);
+  return {taskId: uuid};
+}
+
+export async function runwareGenerateImage(request: ImageRequest): Promise<ImageResult> {
+  const payload = await runwareFetch(request.apiKey, [imageTask(request, taskUUID())]);
   const first = payload.data?.[0] ?? {};
   const url = typeof first.imageURL === 'string' ? first.imageURL : undefined;
   if (!url) {
@@ -146,13 +156,13 @@ export async function runwareCreateVideo(request: VideoRequest): Promise<{ taskI
   return { taskId: uuid };
 }
 
-export async function runwarePollVideo(args: { apiKey: string; taskId: string }): Promise<ProviderTask> {
+async function runwarePoll(args: { apiKey: string; taskId: string }, output: 'imageURL' | 'videoURL'): Promise<ProviderTask> {
   const payload = await runwareFetch(args.apiKey, [
     { taskType: 'getResponse', taskUUID: args.taskId },
   ]);
   const first = payload.data?.[0] ?? {};
   const status = typeof first.status === 'string' ? first.status : undefined;
-  const url = typeof first.videoURL === 'string' ? first.videoURL : undefined;
+  const url = typeof first[output] === 'string' ? first[output] as string : undefined;
 
   // A finished task drops `status` and just carries the media, so a URL is the
   // real terminal signal.
@@ -182,6 +192,14 @@ export async function runwarePollVideo(args: { apiKey: string; taskId: string })
     progress: progress !== undefined ? Math.min(1, progress / 100) : undefined,
     urls: [],
   };
+}
+
+export function runwarePollImage(args: {apiKey: string; taskId: string}): Promise<ProviderTask> {
+  return runwarePoll(args, 'imageURL');
+}
+
+export function runwarePollVideo(args: {apiKey: string; taskId: string}): Promise<ProviderTask> {
+  return runwarePoll(args, 'videoURL');
 }
 
 export const runwareAdapter: ProviderAdapter = {

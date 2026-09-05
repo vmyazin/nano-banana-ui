@@ -1,0 +1,70 @@
+import { DatabaseSync } from 'node:sqlite';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { adapter } from './database';
+import { LOCAL_SCHEMA } from '../src/schema';
+import { saveConnection } from '../src/vault';
+import { acceptJob } from '../src/jobs';
+import { adapterFor, validateRequest } from '../src/providers';
+import { runGeneration } from '../src/generation-runner';
+import { atlasPollVideo } from '../../lib/providers/atlas';
+import type { Env } from '../src/security';
+import type { CloudJobRequest } from '../../lib/account/contracts';
+
+let db: DatabaseSync, env: Env;
+const request: CloudJobRequest = {provider:'runware', modelId:'runware:400@1', mediaType:'image', inputMode:'text', prompt:'A product photograph', values:{aspectRatio:'16:9'}, referenceIds:[]};
+beforeEach(async () => {
+  db = new DatabaseSync(':memory:'); db.exec(LOCAL_SCHEMA);
+  db.exec("INSERT INTO account_users VALUES ('owner','google','test@example.test','Test',1)");
+  env = {DB:adapter(db), APP_ORIGIN:'http://localhost:3097', CLOUD_GENERATION_PROVIDERS:'runware,atlas', ACCOUNT_ENCRYPTION_VERSION:'1', ACCOUNT_ENCRYPTION_KEYS:JSON.stringify({'1':btoa('x'.repeat(32))})};
+  await saveConnection(env,'owner','runware',{apiKey:'local-test-secret'});
+});
+afterEach(() => {vi.unstubAllGlobals(); db.close();});
+
+describe('durable aggregator adapters', () => {
+  it('submits async images with the shared payload and polls the same UUID', async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(Response.json({data:[]})).mockResolvedValueOnce(Response.json({data:[{imageURL:'https://im.runware.ai/result.jpg',cost:0.03}]}));
+    vi.stubGlobal('fetch', fetchMock);
+    expect(validateRequest(env,request)).toEqual(request);
+    const job = await acceptJob(env,'owner','runware-cloud-token',request);
+    const provider = adapterFor(env,'runware');
+    const {handle} = await provider.submit(env,job);
+    const payload = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(payload).toEqual([expect.objectContaining({taskType:'imageInference',taskUUID:handle!.id,deliveryMethod:'async',width:1344,height:768,numberResults:1})]);
+    expect(await provider.poll(env,job,handle!)).toMatchObject({state:'success',result:{sources:[{url:'https://im.runware.ai/result.jpg'}]}});
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual([{taskType:'getResponse',taskUUID:handle!.id}]);
+  });
+  it('rejects invalid media, references, arbitrary fields and unsupported size before intake', () => {
+    for (const patch of [{modelId:'arbitrary-model'},{mediaType:'video'},{inputMode:'image'}, {values:{size:'imaginary'}}, {values:{durationSeconds:8}}, {values:{apiKey:'untrusted'}}]) {
+      expect(() => validateRequest(env,{...request,...patch})).toThrow();
+    }
+  });
+  it('uses a server-resolved video size and duration', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(Response.json({data:[]})); vi.stubGlobal('fetch',fetchMock);
+    const r:CloudJobRequest = {...request, modelId:'lightricks:ltx@2.5-fast', mediaType:'video',values:{size:'720p · 16:9',durationSeconds:8}};
+    validateRequest(env,r);
+    const job = await acceptJob(env,'owner','runware-video-token',r);
+    await adapterFor(env,'runware').submit(env,job);
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)[0]).toMatchObject({taskType:'videoInference',width:1280,height:720,duration:8});
+  });
+  it('does not repeat a paid request after transport loss', async () => {
+    const fetchMock = vi.fn().mockRejectedValue(new Error('lost response')); vi.stubGlobal('fetch',fetchMock);
+    const job = await acceptJob(env,'owner','runware-lost-token',request);
+    const step = {do:async(_name:unknown,_config:unknown,fn:()=>Promise<unknown>) => fn(),sleep:async()=>{}};
+    // Use the real runner so replay is tested across persisted job state.
+    await runGeneration(env,job.id,step as Parameters<typeof runGeneration>[2]);
+    await runGeneration(env,job.id,step as Parameters<typeof runGeneration>[2]);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(db.prepare('SELECT state,error_code FROM account_jobs WHERE id=?').get(job.id)).toMatchObject({state:'needs_attention',error_code:'submission_ambiguous'});
+  });
+  it.each([
+    {data:{status:'completed',outputs:['https://atlascloud.ai/result.png']}},
+    {status:'succeeded',output:['https://atlascloud.ai/result.png']},
+  ])('reads current and legacy Atlas results', async payload => {
+    vi.stubGlobal('fetch',vi.fn().mockResolvedValue(Response.json(payload)));
+    expect(await atlasPollVideo({apiKey:'test',taskId:'prediction'})).toMatchObject({state:'success',urls:['https://atlascloud.ai/result.png']});
+  });
+  it('recognizes current Atlas terminal failures', async () => {
+    vi.stubGlobal('fetch',vi.fn().mockResolvedValue(Response.json({data:{status:'failed',error:'Model could not finish',outputs:[]}})));
+    expect(await atlasPollVideo({apiKey:'test',taskId:'prediction'})).toMatchObject({state:'error',error:'Model could not finish'});
+  });
+});

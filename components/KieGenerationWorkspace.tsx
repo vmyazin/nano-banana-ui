@@ -611,7 +611,7 @@ export default function KieGenerationWorkspace({
             />
           </PromptPanel>
         }
-        results={cloudWorkspace.cloud ? <CloudJobPanel provider="kie" modelId={selectedModel.id} mediaType={mediaType} inputMode={inputMode} /> :
+        results={cloudWorkspace.cloud ? <CloudJobPanel provider="kie" modelId={selectedModel.id} mediaType={mediaType} inputMode={inputMode} onContinueFromFrame={onContinueFromFrame} /> :
           <section className="glass-card flex min-h-[420px] flex-col gap-4 p-3.5 md:p-4">
           <div className="flex items-start justify-between gap-3">
             <div>

@@ -1,4 +1,5 @@
 import { falAdapter, kieAdapter, validateQueuedRequest } from './provider-adapters/queued';
+import { aggregatorAdapter, validateAggregatorRequest } from './provider-adapters/aggregators';
 import type { CloudJobRequest } from '../../lib/account/contracts';
 import { AccountError, type JobRow } from './jobs';
 import { isLocal, type Env } from './security';
@@ -23,8 +24,8 @@ const localAdapter:GenerationAdapter={
   },
 };
 export function enabledProviders(env:Env):CloudJobRequest['provider'][] {
-  if(isLocal(env)&&env.DEV_FAKE_GENERATION==='1')return ['fal','kie'];
-  return (env.CLOUD_GENERATION_PROVIDERS||'').split(',').map(p=>p.trim()).filter((p):p is 'fal'|'kie'=>p==='fal'||p==='kie');
+  if(isLocal(env)&&env.DEV_FAKE_GENERATION==='1')return ['fal','kie','runware','atlas'];
+  return (env.CLOUD_GENERATION_PROVIDERS||'').split(',').map(p=>p.trim()).filter((p):p is 'fal'|'kie'|'runware'|'atlas'=>['fal','kie','runware','atlas'].includes(p));
 }
 export function adapterFor(env:Env,provider:CloudJobRequest['provider']):GenerationAdapter {
   if(provider==='local-test'&&isLocal(env))return localAdapter;
@@ -32,6 +33,7 @@ export function adapterFor(env:Env,provider:CloudJobRequest['provider']):Generat
     if(isLocal(env)&&env.DEV_FAKE_GENERATION==='1')return localAdapter;
     if(provider==='fal')return falAdapter;
     if(provider==='kie')return kieAdapter;
+    if(provider==='runware'||provider==='atlas')return aggregatorAdapter;
   }
   throw new AccountError('Background generation for this provider is not enabled yet. Continue with the existing browser workflow.',409,'provider_unavailable');
 }
@@ -42,5 +44,6 @@ export function validateRequest(env:Env,value:unknown):CloudJobRequest {
   if(isLocal(env)&&env.DEV_FAKE_GENERATION==='1'&&r.mediaType!=='image')throw new AccountError('The local fixture currently supports image generation only.',409,'local_fixture_mode');
   adapterFor(env,r.provider!);
   if(r.provider==='fal'||r.provider==='kie')validateQueuedRequest(r as CloudJobRequest);
+  if(r.provider==='runware'||r.provider==='atlas')validateAggregatorRequest(r as CloudJobRequest);
   return {provider:r.provider!,modelId:r.modelId,mediaType:r.mediaType as 'image'|'video',inputMode:r.inputMode as CloudJobRequest['inputMode'],prompt:r.prompt.trim(),values:r.values,referenceIds:r.referenceIds};
 }

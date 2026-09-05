@@ -30,3 +30,6 @@ The current capture worker streams multipart uploads and commits deterministic o
 ## Runtime verification
 
 Cloud Worker imports the existing fal/Kie catalogs and transport functions directly. Typechecking and Wrangler production dry-run resolve those imports successfully; no browser state or plaintext-key return endpoint was introduced. Contract tests exercise native Kie HTTP submission/status and fal's one-network-attempt behavior. These mock tests do not substitute for credentialed generation.
+# Follow-up verification — 2026-09-05
+
+Runware image/video cloud adapters now reuse the native request builders with async delivery and saved UUID polling. Official [task polling](https://runware.ai/docs/platform/task-polling) and [CLI delivery examples](https://runware.ai/docs/platform/cli) document this contract. UUID correlation is not treated as permission to resubmit after a lost response. Atlas image/video use the shared prediction submit and poll paths; its [current prediction envelope](https://www.atlascloud.ai/docs/predictions) uses `data.status=completed` and `data.outputs`. The shared parser accepts that alongside the older flat `succeeded/output` shape. Both providers remain configuration-gated pending credentialed model/output-host/limit verification. Native paid requests were not made in this milestone.

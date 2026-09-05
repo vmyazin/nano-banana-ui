@@ -9,7 +9,7 @@ import { AccountError, type JobRow } from '../jobs';
 import type { Env } from '../security';
 import { resolveConnection } from '../vault';
 
-async function credentials(env: Env, job: JobRow) {
+export async function credentials(env: Env, job: JobRow) {
   if (!job.connection_id || job.connection_revision === null) throw new Error('Connection unavailable');
   const connection = await resolveConnection(env, job.user_id, job.connection_id, job.connection_revision);
   if (connection.provider !== job.provider) throw new Error('Connection mismatch');

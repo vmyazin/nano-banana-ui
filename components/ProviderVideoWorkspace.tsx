@@ -3,6 +3,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowUpDown, Download, ImagePlus, Loader2, Search, Sparkles, Video } from 'lucide-react';
 import { toast } from 'sonner';
+import { useCloudWorkspace } from '@/lib/account/useCloudWorkspace';
+import CloudExecutionNotice from '@/components/account/CloudExecutionNotice';
+import CloudJobPanel from '@/components/account/CloudJobPanel';
 
 import LastFrameActions from '@/components/LastFrameActions';
 import AutoExpandingPrompt from '@/components/AutoExpandingPrompt';
@@ -153,6 +156,7 @@ export default function ProviderVideoWorkspace({
   onOpenConnections,
   onContinueFromFrame,
 }: ProviderVideoWorkspaceProps) {
+  const cloudWorkspace = useCloudWorkspace(provider);
   const geminiApiKey = useAppStore((state) => state.apiKey);
   const imageFormat = useAppStore((state) => state.imageFormat);
   const runwareApiKey = useAppStore((state) => state.runwareApiKey);
@@ -220,8 +224,8 @@ export default function ProviderVideoWorkspace({
   );
 
   const allJobs = useProviderJobsStore((state) => state.jobs);
-  const needsKey = !apiKey.trim();
-  const hasFinishedWork = allJobs.some((job) => job.provider === provider);
+  const needsKey = cloudWorkspace.cloud ? !cloudWorkspace.connected : !apiKey.trim();
+  const hasFinishedWork = cloudWorkspace.cloud ? cloudWorkspace.hasJobs : allJobs.some((job) => job.provider === provider);
   const gated = isGated(needsKey, hasFinishedWork);
   const patchJob = useProviderJobsStore((state) => state.patchJob);
   const latestJob = allJobs.find(
@@ -470,7 +474,8 @@ export default function ProviderVideoWorkspace({
   };
 
   const submit = async () => {
-    if (!apiKey.trim()) {
+    if (cloudWorkspace.checking) return;
+    if (needsKey) {
       setError(`Connect your ${label} key before starting a generation.`);
       onOpenConnections(provider);
       return;
@@ -499,6 +504,14 @@ export default function ProviderVideoWorkspace({
     setError(null);
     setIsSubmitting(true);
     try {
+      if (cloudWorkspace.cloud) {
+        await cloudWorkspace.submit({modelId:selectedModel.id, mediaType:'video', inputMode, prompt:prompt.trim(), values:{
+          ...(typeof values.duration === 'number' ? {durationSeconds:values.duration} : {}),
+          ...(typeof values.size === 'string' ? {size:values.size} : {}),
+        }}, inputMode === 'text' ? [] : references.map(reference => reference.file));
+        autoRetry.reset();
+        return;
+      }
       const images = await Promise.all(references.map((reference) => fileAsDataUrl(reference.file)));
       const submittedPrompt = prompt.trim();
       const taskId = await submitProviderVideo({
@@ -537,7 +550,7 @@ export default function ProviderVideoWorkspace({
       // Sent again only when the request never reached a decision — a bad key or
       // an empty balance would fail identically five more times, and the retry
       // would only bury the sentence explaining why.
-      const retrying = isRetryableFailure(submissionError) && autoRetry.schedule(() => void submit());
+      const retrying = !cloudWorkspace.cloud && isRetryableFailure(submissionError) && autoRetry.schedule(() => void submit());
       toast.error(retrying ? `${message} Retrying in ${AUTO_RETRY_DELAY_SECONDS}s.` : message);
     } finally {
       if (mountedRef.current) setIsSubmitting(false);
@@ -580,7 +593,9 @@ export default function ProviderVideoWorkspace({
         </div>
       </section>
 
+      <CloudExecutionNotice workspace={cloudWorkspace} />
       <ConnectionGate
+        storage={cloudWorkspace.cloud ? 'account' : 'browser'}
         provider={provider}
         label={label}
         needsKey={needsKey}
@@ -758,7 +773,7 @@ export default function ProviderVideoWorkspace({
               autoRetry.reset();
               void submit();
             }}
-            disabled={isSubmitting}
+            disabled={isSubmitting || cloudWorkspace.checking}
             className="btn-primary flex w-full items-center justify-center gap-2 py-3 text-base disabled:cursor-not-allowed disabled:opacity-50"
           >
             {isSubmitting ? (
@@ -805,7 +820,7 @@ export default function ProviderVideoWorkspace({
             />
           </PromptPanel>
         }
-        results={
+        results={cloudWorkspace.cloud ? <CloudJobPanel provider={provider} modelId={selectedModel?.id ?? ''} mediaType="video" inputMode={inputMode} onContinueFromFrame={onContinueFromFrame} /> :
           <section className="glass-card flex min-h-[420px] flex-col gap-4 p-3.5 md:p-4">
           <div className="flex items-start justify-between gap-3">
             <div>

@@ -105,6 +105,8 @@ interface AtlasPrediction {
   id?: string;
   status?: 'queued' | 'processing' | 'succeeded' | 'failed' | string;
   output?: string[] | null;
+  outputs?: string[] | null;
+  error?: string | null;
   logs?: string;
 }
 
@@ -146,10 +148,13 @@ async function submit(
 }
 
 async function readPrediction(apiKey: string, id: string): Promise<ProviderTask> {
-  const prediction = await atlasFetch<AtlasPrediction>(`${ATLAS_API}/model/prediction/${encodeURIComponent(id)}`, apiKey);
-  const urls = (prediction.output ?? []).filter((url): url is string => typeof url === 'string' && url.length > 0);
+  const payload = await atlasFetch<AtlasPrediction & {data?: AtlasPrediction}>(`${ATLAS_API}/model/prediction/${encodeURIComponent(id)}`, apiKey);
+  // Current API wraps predictions in data; retain the original flat response
+  // for older model endpoints. Both guest and durable jobs use this parser.
+  const prediction = payload.data ?? payload;
+  const urls = (prediction.outputs ?? prediction.output ?? []).filter((url): url is string => typeof url === 'string' && url.length > 0);
 
-  if (prediction.status === 'succeeded') {
+  if (prediction.status === 'succeeded' || prediction.status === 'completed') {
     return { taskId: id, state: 'success', progress: 1, urls };
   }
   if (prediction.status === 'failed') {
@@ -158,7 +163,7 @@ async function readPrediction(apiKey: string, id: string): Promise<ProviderTask>
       state: 'error',
       urls: [],
       // `logs` is where Atlas puts the reason; it is often the only detail.
-      error: prediction.logs?.trim() || 'Atlas Cloud could not finish this generation.',
+      error: prediction.error?.trim() || prediction.logs?.trim() || 'Atlas Cloud could not finish this generation.',
     };
   }
   return { taskId: id, state: prediction.status === 'processing' ? 'running' : 'queued', urls };
@@ -172,10 +177,7 @@ async function readPrediction(apiKey: string, id: string): Promise<ProviderTask>
 const IMAGE_POLL_ATTEMPTS = 40;
 const IMAGE_POLL_INTERVAL_MS = 1500;
 
-export async function atlasGenerateImage(
-  request: ImageRequest,
-  sleep: (ms: number) => Promise<void> = (ms) => new Promise((r) => setTimeout(r, ms))
-): Promise<ImageResult> {
+export async function atlasCreateImage(request: ImageRequest): Promise<{ taskId: string }> {
   const id = await submit(request.apiKey, 'generateImage', {
     model: request.model,
     prompt: request.prompt,
@@ -183,6 +185,14 @@ export async function atlasGenerateImage(
     num_images: 1,
     ...imageReferenceFields(request.model, request.images ?? []),
   });
+  return { taskId: id };
+}
+
+export async function atlasGenerateImage(
+  request: ImageRequest,
+  sleep: (ms: number) => Promise<void> = (ms) => new Promise((r) => setTimeout(r, ms))
+): Promise<ImageResult> {
+  const { taskId: id } = await atlasCreateImage(request);
 
   for (let attempt = 0; attempt < IMAGE_POLL_ATTEMPTS; attempt += 1) {
     const task = await readPrediction(request.apiKey, id);
