@@ -19,7 +19,7 @@ Set on the Vercel project (Production + Preview), not in the repo:
 | `HF_BASE_URL` | no | Overrides the OpenAI-compatible endpoint the micro-AI tier calls. |
 | `AUTH_ADMIN_EMAIL` | **must stay unset** | See [The auth gate](#the-auth-gate-off-on-vercel) — the account store cannot survive on serverless as written. |
 | `TIMELINE_FFMPEG_PATH` | **must stay unset** | See [Server-side export](#server-side-export-off-on-vercel). |
-| `ACCOUNT_WORKER_ORIGIN` | no, until account launch | HTTPS origin of the separately deployed account Worker. Leave unset until that Worker, its migrations, and OAuth have been verified; guest routes keep working while it is absent. |
+| `ACCOUNT_WORKER_ORIGIN` | yes for accounts | Production is configured with `https://scene-assembly-accounts.vasily-or-simon-account.workers.dev`. Preview uses its isolated Worker. Guest routes keep working if this variable is absent. |
 
 Guest Gemini, fal, Kie, and Cloudflare credentials are supplied by each visitor
 and kept in browser storage. Active guest requests may proxy a credential

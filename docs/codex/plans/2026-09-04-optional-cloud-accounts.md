@@ -345,3 +345,32 @@ The user selected `rapidlyproductive@gmail.com` for Google Cloud. Its authentica
 Parent verification passed: 57 account tests, TypeScript, focused ESLint, production build (including `/account`), and browser smoke showing signed-in entry-page redirection and retained account data. Sign-out requests carry the expected owner and discard responses from an older session epoch, including same-owner re-login. `AccountPageShell` shares the account/auth page frame; the existing data panels remain authoritative. `AccountSurface` now uses dark depth and a faint accent tint with a subdued top line, as requested, rather than the prior yellow bloom.
 
 Google Auth Platform setup reached the contact/finish portion of the initial consent configuration under the selected account. Brave then reported an extension popup blocking automation. The unfinished Google tab was retained for handoff; no OAuth client credentials have been created or written to local/production configuration yet. Close the blocking extension UI before resuming that browser setup. No deployment or push was performed.
+
+### 2026-09-05 production merge and OAuth verification
+
+The user approved merging the account worktree and testing the real deployment.
+Rebased the account branch onto `a44d0ec`, preserving the concurrent Atlas Seedance
+2.0/Seedream changes and the shared background image submission adapter. Main was
+fast-forwarded and pushed at `3836b6e18c78c9b98d280733a1cc0cfb2e3c4e2b`.
+Independent integrated verification passed 1,566 application tests, 136 Worker
+tests, both TypeScript checks, the production build, and Worker bundle dry-run.
+Lint had zero errors; four warnings included two duplicates from the temporary,
+gitignored preview export.
+
+Vercel deployment `dpl_3A4Ucnj4AMUn26WyW6GT2MakWDiH` reached Ready and owns
+`https://sceneassembly.mzork.com`. Production `ACCOUNT_WORKER_ORIGIN` points to
+`https://scene-assembly-accounts.vasily-or-simon-account.workers.dev`.
+The integrated Worker deployed as version
+`e0f86dab-dc73-45e1-8012-423d1b0467f5`, retaining the existing secrets and bindings.
+Real production Google OAuth returned the selected `rapidlyproductive@gmail.com`
+identity to `/account`; a reload retained the session and the Google avatar loaded.
+The account displayed its 1 GB allowance. Unauthenticated production session API
+reported Google enabled, local sign-in disabled, and no enabled generation providers.
+
+The real paid generation/tab-close/autosave check is still pending the user's
+explicit choice of provider credential. Do not silently transfer local keys or
+claim this acceptance check passed. Keep provider execution disabled until that
+choice is resolved. Google consent remains in Testing; public consent publishing,
+other provider live checks, measured model limits, and backup recovery acceptance
+remain separate outstanding launch work. Preserve the local worktree's encrypted
+connections and emulator state until credential selection and safe cleanup finish.
