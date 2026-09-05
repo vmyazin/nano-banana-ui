@@ -1,0 +1,1229 @@
+<!--
+  EXPLORATION TEMPLATE — explore-design skill
+  Brand: Scene Assembly (DESIGN.md + app/globals.css), light-adapted. See _brand.md.
+
+  How to use:
+  - Brand init (references/brand-init.md) copies this file once per repo to
+    design-explorations/_template.html with the repo's real --brand-* / --accent-* / font values
+    applied; explorations then copy THAT file to design-explorations/<short-name>.html. Only use
+    this neutral file directly as a scan-only fallback when brand init couldn't run.
+  - Replace tokens in the page header
+  - Duplicate the .variant block for each direction (A, B, C, D…)
+  - The .preview-frame is intentionally a clean white surface — variants paint inside it
+  - The page chrome (background, header, labels) stays consistent. Do not restyle it per variant.
+
+  Title:     The /account console — four ways to use the rail
+  Source:    components/account/AccountDashboard.tsx + components/account/*, cloud/migrations/*.sql
+  Data:      account-page.manifest.md
+  Date:      2026-09-05 (round 2 — extrapolated from round-one variant B)
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>The /account console — four ways to use the rail</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@500;600&display=swap" rel="stylesheet" />
+  <style>
+    /* ----------------------------------------------------------------
+       SCENE ASSEMBLY — light adaptation of the repo brand.
+       Source: DESIGN.md ("The Illuminated Workbench") + app/globals.css.
+       The product is a dark teal workbench; the chrome translates that onto
+       light paper — canvas #081012 becomes ink, signal cyan / motion violet /
+       marker yellow become accents, Geist + Geist Mono stay. Quiet enough that
+       a dark variant preview can sit inside it without a fight.
+    ---------------------------------------------------------------- */
+    :root {
+      --brand-50: #e4f2f2;
+      --brand-100: #bfe4e4;
+      --brand-300: #4e8e91;
+      --brand-500: #076c70;   /* signal cyan #00fff9, contrast-fixed for paper */
+      --brand-700: #05494d;
+      --accent-50: #f4e9fd;
+      --accent-500: #7b16aa;  /* motion violet #bd00ff */
+      --accent-700: #5b0f7d;
+      --marker: #ffed4e;      /* marker yellow, used flat on ink only */
+      --magenta: #bd0059;     /* output magenta #ff006e */
+      --ink: #081012;         /* workbench canvas */
+      --ink-soft: #33474a;
+      --ink-mute: #6d8386;
+      --line: #d6e6e6;
+      --line-soft: #e7f0f0;
+      --paper: #ffffff;
+      --bg: #f1f7f7;
+      --font-sans: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      --font-mono: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      --shadow-sm: 0 1px 2px rgba(8, 16, 18, 0.05), 0 1px 1px rgba(8, 16, 18, 0.03);
+      --shadow-md: 0 16px 40px -26px rgba(8, 16, 18, 0.45), 0 2px 6px rgba(8, 16, 18, 0.04);
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      font-family: var(--font-sans);
+      letter-spacing: -0.011em;
+      background: var(--bg);
+      color: var(--ink);
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      line-height: 1.5;
+    }
+
+    .page {
+      max-width: 1320px;
+      margin: 0 auto;
+      padding: 72px 48px 160px;
+    }
+
+    /* ---------- Page header ---------- */
+    .doc-header {
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 40px;
+      margin-bottom: 80px;
+    }
+    .doc-eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      font-weight: 600;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--brand-700);
+      background: var(--brand-50);
+      padding: 6px 12px;
+      border-radius: 999px;
+      margin-bottom: 20px;
+    }
+    .doc-eyebrow::before {
+      content: '';
+      width: 6px;
+      height: 6px;
+      border-radius: 999px;
+      background: var(--brand-500);
+    }
+    .doc-title {
+      font-family: var(--font-sans);
+      font-size: 54px;
+      line-height: 1.02;
+      font-weight: 600;
+      letter-spacing: -0.035em;
+      margin: 0 0 16px;
+      color: var(--ink);
+    }
+    .doc-subtitle {
+      font-size: 19px;
+      color: var(--ink-soft);
+      max-width: 720px;
+      margin: 0 0 32px;
+      line-height: 1.45;
+    }
+    .doc-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 24px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--ink-mute);
+    }
+    .doc-meta > div { display: flex; gap: 6px; }
+    .doc-meta b {
+      color: var(--ink-soft);
+      font-weight: 600;
+    }
+
+    /* ---------- Variant section ---------- */
+    .variant {
+      margin-bottom: 96px;
+    }
+    .variant:last-child { margin-bottom: 0; }
+
+    .variant-head {
+      display: grid;
+      grid-template-columns: 64px 1fr;
+      gap: 20px;
+      align-items: start;
+      margin-bottom: 28px;
+    }
+    .variant-letter {
+      width: 48px;
+      height: 48px;
+      border-radius: 999px;
+      background: var(--ink);
+      color: var(--marker);
+      font-family: var(--font-mono);
+      font-weight: 600;
+      font-size: 19px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      letter-spacing: -0.02em;
+    }
+    .variant-meta h2 {
+      margin: 4px 0 6px;
+      font-size: 25px;
+      font-weight: 600;
+      letter-spacing: -0.03em;
+      color: var(--ink);
+    }
+    .variant-tradeoff {
+      font-size: 15px;
+      color: var(--ink-soft);
+      margin: 0;
+      max-width: 760px;
+    }
+    .variant-tradeoff b {
+      color: var(--brand-500);
+      font-weight: 600;
+    }
+
+    /* ---------- Preview frame ---------- */
+    .preview-frame {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      box-shadow: var(--shadow-md);
+      overflow: hidden;
+      margin-left: 84px;
+      position: relative;
+    }
+    .preview-frame::before {
+      content: '';
+      position: absolute;
+      top: 14px;
+      left: 16px;
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      background: #d5e7e7;
+      box-shadow: 18px 0 0 #d5e7e7, 36px 0 0 #d5e7e7;
+      z-index: 2;
+    }
+    .preview-frame-bar {
+      background: #f5fafa;
+      border-bottom: 1px solid var(--line-soft);
+      padding: 14px 16px 14px 76px;
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--ink-mute);
+      font-weight: 600;
+    }
+    .preview {
+      padding: 0;
+      min-height: 200px;
+    }
+
+    /* ---------- Analysis ---------- */
+    .variant-analysis {
+      margin: 24px 0 0 84px;
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 24px;
+    }
+    .analysis-block {
+      padding: 18px 20px;
+      border: 1px solid var(--line);
+      border-radius: 11px;
+      background: var(--paper);
+    }
+    .analysis-block h4 {
+      margin: 0 0 6px;
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      font-weight: 600;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--brand-500);
+    }
+    .analysis-block.is-risk h4 { color: var(--magenta); }
+    .analysis-block.is-pick h4 { color: var(--accent-700); }
+    .analysis-block p {
+      margin: 0;
+      font-size: 14px;
+      line-height: 1.55;
+      color: var(--ink-soft);
+    }
+
+    /* ---------- Decision row ---------- */
+    .decision {
+      position: relative;
+      overflow: hidden;
+      margin-top: 120px;
+      padding: 40px 48px;
+      background: var(--ink);
+      color: #ecf5f5;
+      border-radius: 16px;
+    }
+    .decision::before {
+      content: '';
+      position: absolute;
+      inset: 0 0 auto;
+      height: 1px;
+      background: linear-gradient(to right, transparent, var(--marker), transparent);
+      opacity: 0.45;
+    }
+    .decision h3 {
+      font-family: var(--font-sans);
+      font-size: 26px;
+      font-weight: 600;
+      letter-spacing: -0.03em;
+      margin: 0 0 8px;
+    }
+    .decision-sub {
+      color: #8fa5a7;
+      font-size: 14px;
+      margin: 0 0 28px;
+    }
+    .decision-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 20px;
+    }
+    .decision-cell b {
+      display: block;
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--marker);
+      margin-bottom: 6px;
+      font-weight: 600;
+    }
+    .decision-cell span {
+      font-size: 15px;
+      color: #ecf5f5;
+      line-height: 1.45;
+    }
+
+    /* ---------- Responsive ---------- */
+    @media (max-width: 900px) {
+      .page { padding: 40px 20px 80px; }
+      .doc-title { font-size: 36px; }
+      .variant-head { grid-template-columns: 48px 1fr; gap: 12px; }
+      .preview-frame { margin-left: 0; }
+      .variant-analysis { margin-left: 0; grid-template-columns: 1fr; }
+    }
+
+    /* ---------- Variant preview reset ----------
+       Anything inside .preview is the variant's own canvas.
+       Use scoped class prefixes per variant (.va-, .vb-, .vc-, .vd-)
+       to avoid cross-bleed of styles between variants.
+    */
+
+    /* ================= VARIANT CANVAS =================
+       All four variants are the same console frame (rail + library canvas),
+       so the Scene Assembly shell lives once under .sa- and each variant
+       overrides only what it changes, under .va-/.vb-/.vc-/.vd-.
+    */
+    .preview {
+      --sa-bg: #081012;
+      --sa-elev: #0e191b;
+      --sa-prompt: #0d1d20;
+      --sa-ink: #ecf5f5;
+      --sa-mute: #8fa5a7;
+      --sa-subtle: #7a8d8f;
+      --sa-cyan: #00fff9;
+      --sa-violet: #bd00ff;
+      --sa-magenta: #ff006e;
+      --sa-yellow: #ffed4e;
+      --sa-line: rgba(194, 232, 240, 0.075);
+      --sa-line-2: rgba(194, 232, 240, 0.17);
+      --sa-sans: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      --sa-mono: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+    .sa-app {
+      background: var(--sa-bg);
+      color: var(--sa-ink);
+      font-family: var(--sa-sans);
+      font-size: 14px;
+      letter-spacing: -0.011em;
+      line-height: 1.45;
+    }
+    .sa-app * { box-sizing: border-box; }
+    .sa-app h1, .sa-app h2, .sa-app h3, .sa-app h4 { margin: 0; letter-spacing: -0.03em; }
+    .sa-app p { margin: 0; }
+    .sa-app ul, .sa-app ol { margin: 0; padding: 0; list-style: none; }
+
+    .sa-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 14px 26px;
+      border-bottom: 1px solid var(--sa-line);
+      background: rgba(8, 16, 18, 0.72);
+    }
+    .sa-wordmark { font-family: var(--sa-mono); font-size: 12px; font-weight: 600; letter-spacing: 0.22em; }
+    .sa-wordmark span { color: var(--sa-yellow); }
+    .sa-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      height: 32px;
+      padding: 0 12px;
+      border-radius: 8px;
+      border: 1px solid var(--sa-line-2);
+      background: var(--sa-elev);
+      color: var(--sa-ink);
+      font-size: 13px;
+      font-weight: 500;
+      white-space: nowrap;
+    }
+    .sa-btn-primary { border-color: transparent; background: var(--sa-cyan); color: var(--sa-bg); font-weight: 600; }
+    .sa-mini { height: 24px; padding: 0 7px; border-radius: 7px; font-size: 11px; }
+    .sa-eyebrow {
+      font-family: var(--sa-mono);
+      font-size: 10.5px;
+      font-weight: 500;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--sa-yellow);
+    }
+    .sa-label {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      font-family: var(--sa-mono);
+      font-size: 10px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--sa-subtle);
+    }
+    .sa-avatar {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 36px;
+      height: 36px;
+      flex: none;
+      border-radius: 999px;
+      border: 1px solid var(--sa-line-2);
+      background: linear-gradient(135deg, rgba(0, 255, 249, 0.16), rgba(189, 0, 255, 0.16));
+      font-family: var(--sa-mono);
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .sa-dot { width: 6px; height: 6px; border-radius: 999px; flex: none; }
+    .sa-thumb {
+      border-radius: 8px;
+      border: 1px solid var(--sa-line);
+      background: #000709 linear-gradient(135deg, rgba(0, 255, 249, 0.18), rgba(189, 0, 255, 0.14) 55%, rgba(255, 0, 110, 0.16));
+    }
+    .sa-thumb.is-video { background: #000709 linear-gradient(135deg, rgba(189, 0, 255, 0.24), rgba(0, 102, 255, 0.16) 60%, rgba(0, 255, 249, 0.12)); }
+    .sa-thumb.is-flat { background: #000709 linear-gradient(135deg, rgba(255, 237, 78, 0.14), rgba(0, 255, 249, 0.1)); }
+
+    /* ---- the console shell ---- */
+    .sa-shell { display: grid; align-items: start; }
+    .sa-rail { padding: 20px 18px 24px; background: rgba(13, 29, 32, 0.45); min-height: 660px; }
+    .sa-rail-l { border-right: 1px solid var(--sa-line); }
+    .sa-rail-r { border-left: 1px solid var(--sa-line); }
+    .sa-main { padding: 20px 24px 26px; min-width: 0; }
+    .sa-id { display: flex; align-items: center; gap: 10px; }
+    .sa-id b { display: block; font-size: 13.5px; font-weight: 500; }
+    .sa-id span { display: block; font-size: 11.5px; color: var(--sa-mute); word-break: break-all; }
+    .sa-block { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--sa-line); }
+    .sa-meter { display: flex; height: 6px; margin-top: 10px; border-radius: 999px; overflow: hidden; background: rgba(255, 255, 255, 0.08); }
+    .sa-meter .used { width: 41.2%; background: var(--sa-cyan); }
+    .sa-meter .res { width: 4.8%; background: rgba(189, 0, 255, 0.7); }
+    .sa-figs { display: flex; justify-content: space-between; margin-top: 9px; font-size: 12px; }
+    .sa-figs b { font-weight: 500; }
+    .sa-figs span { color: var(--sa-mute); }
+    .sa-hint { margin-top: 6px; font-size: 11px; color: var(--sa-subtle); }
+    .sa-note { margin-top: 10px; font-size: 11px; line-height: 1.5; color: var(--sa-subtle); }
+    .sa-conn li { display: flex; align-items: center; gap: 9px; padding: 8px 0; border-bottom: 1px solid var(--sa-line); }
+    .sa-conn li b { flex: 1; min-width: 0; font-size: 12.5px; font-weight: 500; }
+    .sa-conn li span { font-family: var(--sa-mono); font-size: 10px; color: var(--sa-subtle); }
+    .sa-field { display: block; margin-bottom: 8px; }
+    .sa-field i { display: block; font-style: normal; font-size: 11.5px; font-weight: 500; margin-bottom: 5px; }
+    .sa-input {
+      display: flex;
+      align-items: center;
+      height: 34px;
+      width: 100%;
+      padding: 0 10px;
+      border-radius: 8px;
+      border: 1px solid var(--sa-line-2);
+      background: var(--sa-bg);
+      color: var(--sa-mute);
+      font-size: 12.5px;
+    }
+    .sa-del { margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--sa-line); font-size: 11px; line-height: 1.5; color: var(--sa-subtle); }
+    .sa-del a { color: #ffb3b3; }
+
+    .sa-head h1 { font-size: 24px; font-weight: 600; margin-top: 6px; }
+    .sa-head p { margin-top: 5px; font-size: 13px; color: var(--sa-mute); max-width: 460px; }
+    .sa-strip { margin-top: 16px; padding: 12px 14px; border: 1px solid var(--sa-line); border-radius: 11px; background: var(--sa-elev); }
+    .sa-runs { display: flex; gap: 8px; margin-top: 11px; }
+    .sa-run { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid var(--sa-line); border-radius: 8px; background: rgba(13, 29, 32, 0.7); font-size: 12px; }
+    .sa-run.is-warn { border-color: rgba(255, 191, 73, 0.35); }
+    .sa-run p { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .sa-run em { flex: none; font-family: var(--sa-mono); font-style: normal; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; }
+    .sa-temp { margin-top: 12px; padding: 10px 12px; border: 1px solid rgba(255, 191, 73, 0.3); border-radius: 10px; background: rgba(255, 191, 73, 0.06); font-size: 12px; color: #f5c86a; }
+
+    /* filter pills — shared by A and C */
+    .sa-filters { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 16px; }
+    .sa-filter {
+      padding: 5px 10px;
+      border: 1px solid var(--sa-line-2);
+      border-radius: 999px;
+      font-family: var(--sa-mono);
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--sa-mute);
+    }
+    .sa-filter.on { border-color: transparent; background: var(--sa-cyan); color: var(--sa-bg); font-weight: 600; }
+    /* Media type carries the studio's own identity colours (DESIGN.md: image =
+       marker yellow, video = motion violet); job state keeps the state palette. */
+    .sa-filter.image { border-color: rgba(255, 237, 78, 0.35); color: var(--sa-yellow); }
+    .sa-filter.video { border-color: rgba(189, 0, 255, 0.45); color: #c4b5fd; }
+    .sa-filter.state { border-color: rgba(125, 211, 252, 0.4); color: #7dd3fc; }
+    .sa-filter.warn { border-color: rgba(255, 191, 73, 0.4); color: #f5c86a; }
+
+    .sa-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 16px; }
+    .sa-card { display: flex; flex-direction: column; padding: 9px; border: 1px solid rgba(103, 232, 249, 0.25); border-radius: 11px; background: rgba(14, 25, 27, 0.8); }
+    .sa-card .sa-thumb { aspect-ratio: 16 / 9; }
+    .sa-card h4 {
+      margin: 9px 0 0;
+      font-size: 12.5px;
+      font-weight: 500;
+      letter-spacing: -0.01em;
+      line-height: 1.35;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .sa-card .meta { margin-top: 4px; font-family: var(--sa-mono); font-size: 10px; letter-spacing: 0.04em; color: #7fe9e8; }
+    .sa-card .acts { display: flex; flex-wrap: wrap; gap: 5px; margin-top: auto; padding-top: 9px; }
+    .sa-pager { display: flex; justify-content: space-between; margin-top: 14px; }
+
+    /* ---------------- A · full spine (the baseline) ---------------- */
+    .va-shell { grid-template-columns: 300px minmax(0, 1fr); }
+    .va-actions { margin-top: 14px; }
+    .va-actions .sa-btn { width: 100%; }
+    .va-spend { display: flex; align-items: baseline; justify-content: space-between; margin-top: 10px; }
+    .va-spend b { font-size: 20px; font-weight: 600; letter-spacing: -0.03em; }
+
+    /* ---------------- B · rail as index ---------------- */
+    .vb-shell { grid-template-columns: 260px minmax(0, 1fr); }
+    .vb-nav { margin-top: 18px; }
+    .vb-nav li {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 11px 9px 10px;
+      border-radius: 9px;
+      border-left: 2px solid transparent;
+      font-size: 13px;
+      color: var(--sa-mute);
+    }
+    .vb-nav li b { flex: 1; font-weight: 500; }
+    .vb-nav li span { font-family: var(--sa-mono); font-size: 10.5px; color: var(--sa-subtle); }
+    .vb-nav li.on { border-left-color: var(--sa-cyan); background: rgba(0, 255, 249, 0.07); color: var(--sa-ink); }
+    .vb-nav li.on b { font-weight: 600; }
+    .vb-nav li.on span { color: #7fe9e8; }
+    .vb-nav li.warn span { color: #f5c86a; }
+    .vb-nav li.danger { margin-top: 6px; color: #ffb3b3; }
+    .vb-quota { margin-top: 18px; padding: 12px; border: 1px solid var(--sa-line); border-radius: 10px; background: var(--sa-elev); }
+    .vb-tools { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 16px; }
+    .vb-tools .grp { display: flex; gap: 6px; }
+
+    /* ---------------- C · inspector on the right ---------------- */
+    .vc-shell { grid-template-columns: minmax(0, 1fr) 300px; }
+    /* cards carry no buttons: the inspector owns every action */
+    .vc-card { padding: 8px; }
+    .vc-card.is-sel { border-color: var(--sa-cyan); box-shadow: 0 0 0 1px var(--sa-cyan), 0 0 26px -8px rgba(0, 255, 249, 0.5); }
+    .vc-insp-thumb { aspect-ratio: 16 / 9; border-radius: 10px; }
+    .vc-prompt { margin-top: 12px; font-size: 13px; line-height: 1.5; }
+    .vc-specs { margin-top: 12px; }
+    .vc-specs li { display: flex; justify-content: space-between; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--sa-line); font-size: 11.5px; }
+    .vc-specs dt, .vc-specs .k { font-family: var(--sa-mono); font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--sa-subtle); }
+    .vc-specs .v { color: var(--sa-ink); text-align: right; word-break: break-word; }
+    .vc-acts { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 14px; }
+    .vc-acts .sa-btn { width: 100%; font-size: 12px; }
+    .vc-acts .wide { grid-column: 1 / -1; }
+
+    /* ---------------- D · compact rail + capacity band ---------------- */
+    .vd-shell { grid-template-columns: 220px minmax(0, 1fr); }
+    .vd-rail { padding: 18px 14px 22px; }
+    .vd-group { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--sa-line); }
+    .vd-group li { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 0; font-size: 12.5px; }
+    .vd-group li b { font-weight: 500; }
+    .vd-group li span { font-family: var(--sa-mono); font-size: 10px; color: var(--sa-subtle); }
+    .vd-band {
+      display: grid;
+      grid-template-columns: minmax(0, 300px) minmax(0, 1fr);
+      gap: 24px;
+      align-items: center;
+      margin-top: 14px;
+      padding: 16px 18px;
+      border: 1px solid var(--sa-line-2);
+      border-radius: 11px;
+      background: var(--sa-elev);
+      position: relative;
+      overflow: hidden;
+    }
+    .vd-band::before {
+      content: '';
+      position: absolute;
+      inset: 0 0 auto;
+      height: 1px;
+      background: linear-gradient(to right, transparent, var(--sa-yellow), transparent);
+      opacity: 0.45;
+    }
+    .vd-num { font-size: 32px; font-weight: 600; letter-spacing: -0.04em; line-height: 1; }
+    .vd-num span { font-size: 13px; font-weight: 400; letter-spacing: -0.01em; color: var(--sa-mute); }
+    .vd-chips { display: flex; gap: 8px; }
+    .vd-chip { flex: 1; min-width: 0; padding: 8px 10px; border: 1px solid var(--sa-line); border-radius: 8px; background: rgba(13, 29, 32, 0.7); }
+    .vd-chip.is-warn { border-color: rgba(255, 191, 73, 0.35); }
+    .vd-chip em { font-family: var(--sa-mono); font-style: normal; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; }
+    .vd-chip p { margin-top: 5px; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    @media (max-width: 1240px) {
+      .sa-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    }
+    @media (max-width: 1100px) {
+      .va-shell, .vb-shell, .vc-shell, .vd-shell { grid-template-columns: 1fr; }
+      .sa-rail-l, .sa-rail-r { border: 0; border-bottom: 1px solid var(--sa-line); min-height: 0; }
+      .vc-shell .sa-rail-r { order: -1; }
+      .sa-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+      .vd-band { grid-template-columns: 1fr; align-items: start; }
+    }
+    @media (max-width: 900px) {
+      .sa-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .sa-runs, .vd-chips { flex-wrap: wrap; }
+    }
+    @media (max-width: 720px) {
+      .sa-grid { grid-template-columns: 1fr; }
+      .vc-acts { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+
+    <header class="doc-header">
+      <div class="doc-eyebrow">Design exploration · round 2</div>
+      <h1 class="doc-title">The /account console — four ways to use the rail</h1>
+      <p class="doc-subtitle">
+        Round one picked the console direction: a settings rail beside a library canvas. All four
+        variants below are that same frame with the same account record — what changes is what the
+        rail <em>is</em>, and what that leaves the canvas free to do. Round-one directions A, C and D
+        (capacity control room, readiness checklist, ledger) have been cleared.
+      </p>
+      <div class="doc-meta">
+        <div><b>Surface</b> /account (signed in)</div>
+        <div><b>Source</b> components/account/AccountDashboard.tsx</div>
+        <div><b>Data</b> account-page.manifest.md</div>
+        <div><b>Generated</b> 2026-09-05</div>
+        <div><b>Variants</b> 4</div>
+      </div>
+    </header>
+
+    <!-- ===== VARIANT A ===== -->
+    <section class="variant">
+      <div class="variant-head">
+        <div class="variant-letter">A</div>
+        <div class="variant-meta">
+          <h2>Full spine — the round-one baseline</h2>
+          <p class="variant-tradeoff">
+            <b>Optimizes for</b> every setting being visible without a click: quota, spend, connections,
+            imports and deletion all live in one 300px scroll beside the library, with C's filter pills
+            replacing the in-flight strip and the temporary-result banner. <b>·  Tradeoff</b> nothing on the
+            page now names a <em>running</em> job, adding a key costs a dialog instead of being inline, and
+            the delete link still sits a few pixels from routine controls.
+          </p>
+        </div>
+      </div>
+      <div class="preview-frame">
+        <div class="preview-frame-bar">Variant A · preview</div>
+        <div class="preview">
+          <div class="sa-app">
+            <div class="sa-bar">
+              <div class="sa-wordmark">SCENE<span>·</span>ASSEMBLY</div>
+              <span class="sa-btn">Back to studio</span>
+            </div>
+            <div class="sa-shell va-shell">
+              <aside class="sa-rail sa-rail-l">
+                <div class="sa-id">
+                  <div class="sa-avatar">VM</div>
+                  <div style="min-width:0">
+                    <b>Vasily S. Myazin</b>
+                    <span>rapidlyproductive@gmail.com</span>
+                  </div>
+                </div>
+                <div class="va-actions"><span class="sa-btn">Sign out</span></div>
+
+                <div class="sa-block">
+                  <div class="sa-label"><span>Cloud storage</span><span>41%</span></div>
+                  <div class="sa-meter"><i class="used"></i><i class="res"></i></div>
+                  <div class="sa-figs"><b>412.3 MB saved</b><span>1 GB included</span></div>
+                  <p class="sa-hint">48 MB reserved for active jobs</p>
+                </div>
+
+                <div class="sa-block">
+                  <div class="sa-label"><span>Spend</span><span>View →</span></div>
+                  <div class="va-spend"><b>$14.82</b><span style="font-size:11.5px;color:var(--sa-mute)">61 runs · 78% exact</span></div>
+                </div>
+
+                <div class="sa-block">
+                  <div class="sa-label"><span>Saved connections</span><span>3</span></div>
+                  <ul class="sa-conn" style="margin-top:10px">
+                    <li><i class="sa-dot" style="background:var(--sa-cyan)"></i><b>Google Gemini</b><span>··7f2a</span></li>
+                    <li><i class="sa-dot" style="background:var(--sa-violet)"></i><b>fal.ai · Nano Banana 2</b><span>··c419</span></li>
+                    <li><i class="sa-dot" style="background:var(--sa-magenta)"></i><b>Kie.ai</b><span>··0b83</span></li>
+                  </ul>
+                  <span class="sa-btn" style="width:100%;margin-top:12px">Add provider key</span>
+                </div>
+
+                <div class="sa-block">
+                  <div class="sa-label"><span>Import from this browser</span></div>
+                  <p class="sa-note" style="margin-top:8px">3 provider keys and 7 files found on this device. Originals remain here.</p>
+                  <span class="sa-btn" style="width:100%;margin-top:10px">Review 10 items</span>
+                </div>
+
+                <div class="sa-del">
+                  Permanently remove your account, saved keys and cloud library. Browser-only work stays on this device.<br />
+                  <a href="#">Delete account and cloud files</a>
+                </div>
+              </aside>
+
+              <div class="sa-main">
+                <div class="sa-head">
+                  <p class="sa-eyebrow">YOUR CREATIVE SPACE</p>
+                  <h1>Cloud library</h1>
+                  <p>Manage the work and provider connections saved to your private cloud account.</p>
+                </div>
+                <div class="sa-filters">
+                  <span class="sa-filter on">All 24</span>
+                  <span class="sa-filter image">Images 18</span>
+                  <span class="sa-filter video">Video 6</span>
+                  <span class="sa-filter warn">Needs attention 1</span>
+                  <span class="sa-filter warn">Temporary 1</span>
+                </div>
+                <ul class="sa-grid">
+                  <li class="sa-card">
+                    <div class="sa-thumb"></div>
+                    <h4>Overhead shot of a ceramic espresso cup on a walnut counter, morning light</h4>
+                    <p class="meta">gemini · image · 2.4 MB</p>
+                    <div class="acts"><span class="sa-btn sa-mini">Use as reference</span><span class="sa-btn sa-mini">↓</span></div>
+                  </li>
+                  <li class="sa-card">
+                    <div class="sa-thumb is-video"></div>
+                    <h4>Slow dolly across a neon-lit arcade at night, 4s loop</h4>
+                    <p class="meta">fal · video · 18.7 MB</p>
+                    <div class="acts"><span class="sa-btn sa-mini">Continue from last frame</span><span class="sa-btn sa-mini">↓</span></div>
+                  </li>
+                  <li class="sa-card">
+                    <div class="sa-thumb is-flat"></div>
+                    <h4>Product hero: matte black headphones on a seamless teal sweep</h4>
+                    <p class="meta" style="color:#f5c86a">kie · image · 3.1 MB · Temporary</p>
+                    <div class="acts"><span class="sa-btn sa-mini">Use as reference</span><span class="sa-btn sa-mini">↓</span></div>
+                  </li>
+                  <li class="sa-card">
+                    <div class="sa-thumb"></div>
+                    <h4>Portrait of a lighthouse keeper, 35mm, overcast</h4>
+                    <p class="meta">runware · image · 2.9 MB</p>
+                    <div class="acts"><span class="sa-btn sa-mini">Use as reference</span><span class="sa-btn sa-mini">↓</span></div>
+                  </li>
+                  <li class="sa-card">
+                    <div class="sa-thumb is-video"></div>
+                    <h4>Camera orbit around a brushed-steel watch on slate</h4>
+                    <p class="meta">comet · video · 22.4 MB</p>
+                    <div class="acts"><span class="sa-btn sa-mini">Continue from last frame</span><span class="sa-btn sa-mini">↓</span></div>
+                  </li>
+                  <li class="sa-card">
+                    <div class="sa-thumb is-flat"></div>
+                    <h4>Cyanotype botanical study, pressed fern on cold-press paper</h4>
+                    <p class="meta">cloudflare · image · 1.8 MB</p>
+                    <div class="acts"><span class="sa-btn sa-mini">Use as reference</span><span class="sa-btn sa-mini">↓</span></div>
+                  </li>
+                  <li class="sa-card">
+                    <div class="sa-thumb"></div>
+                    <h4>Local background test</h4>
+                    <p class="meta">local-test · image · 0.4 MB</p>
+                    <div class="acts"><span class="sa-btn sa-mini">Use as reference</span><span class="sa-btn sa-mini">↓</span></div>
+                  </li>
+                  <li class="sa-card">
+                    <div class="sa-thumb is-video"></div>
+                    <h4>Rain on a workshop skylight, slow push in</h4>
+                    <p class="meta">kie · video · 15.2 MB</p>
+                    <div class="acts"><span class="sa-btn sa-mini">Continue from last frame</span><span class="sa-btn sa-mini">↓</span></div>
+                  </li>
+                </ul>
+                <div class="sa-pager"><span class="sa-btn">Latest assets</span><span class="sa-btn">Older assets</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="variant-analysis">
+        <div class="analysis-block">
+          <h4>What works</h4>
+          <p>Zero navigation: the quota you are about to blow and the key you need to add are both on screen while you browse. Folding the in-flight strip and the temporary banner into <em>Needs attention</em> and <em>Temporary</em> pills buys back roughly 130px above the fold — the grid now starts under the title — and the two states that cost money or expire are still one tap away, without the routing B needs. With the connection form gone the rail settles into one shape per group — a summary and a single button — so the rarest action no longer takes the most space.</p>
+        </div>
+        <div class="analysis-block is-risk">
+          <h4>What risks</h4>
+          <p>It does not scale — an eighth connection or a second storage tier pushes deletion off-screen and the rail becomes its own scroll region. Everything is equally loud, so nothing reads as primary. And a counted pill is a weaker signal than a banner: a job that <em>needs</em> a person now looks the same as a media-type filter, with no prompt text to recognise it by.</p>
+        </div>
+        <div class="analysis-block is-pick">
+          <h4>Pick this if</h4>
+          <p>You want the smallest change from what is built today, and accounts realistically stay small.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== VARIANT B ===== -->
+    <section class="variant">
+      <div class="variant-head">
+        <div class="variant-letter">B</div>
+        <div class="variant-meta">
+          <h2>Rail as index</h2>
+          <p class="variant-tradeoff">
+            <b>Optimizes for</b> giving every panel the full canvas when it is the thing you came for — the
+            rail becomes a counted navigation list, not a column of forms.
+            <b>·  Tradeoff</b> settings cost a click, and the quota has to be duplicated under the nav
+            because it is the one number that must stay on screen while you browse.
+          </p>
+        </div>
+      </div>
+      <div class="preview-frame">
+        <div class="preview-frame-bar">Variant B · preview</div>
+        <div class="preview">
+          <div class="sa-app">
+            <div class="sa-bar">
+              <div class="sa-wordmark">SCENE<span>·</span>ASSEMBLY</div>
+              <span class="sa-btn">Back to studio</span>
+            </div>
+            <div class="sa-shell vb-shell">
+              <aside class="sa-rail sa-rail-l">
+                <div class="sa-id">
+                  <div class="sa-avatar">VM</div>
+                  <div style="min-width:0">
+                    <b>Vasily S. Myazin</b>
+                    <span>rapidlyproductive@gmail.com</span>
+                  </div>
+                </div>
+                <ul class="vb-nav">
+                  <li class="on"><i class="sa-dot" style="background:var(--sa-cyan)"></i><b>Cloud library</b><span>24</span></li>
+                  <li class="warn"><i class="sa-dot" style="background:#f5c86a"></i><b>Jobs</b><span>3 · 1 !</span></li>
+                  <li><i class="sa-dot" style="background:var(--sa-violet)"></i><b>Connections</b><span>3</span></li>
+                  <li><i class="sa-dot" style="background:var(--sa-subtle)"></i><b>Import from browser</b><span>10</span></li>
+                  <li><i class="sa-dot" style="background:var(--sa-subtle)"></i><b>Spend</b><span>$14.82</span></li>
+                  <li class="danger"><i class="sa-dot" style="background:#ffb3b3"></i><b>Delete account</b><span></span></li>
+                </ul>
+
+                <div class="vb-quota">
+                  <div class="sa-label"><span>Storage</span><span>41%</span></div>
+                  <div class="sa-meter"><i class="used"></i><i class="res"></i></div>
+                  <div class="sa-figs"><b>412.3 MB</b><span>of 1 GB</span></div>
+                  <p class="sa-hint">48 MB reserved for active jobs</p>
+                </div>
+
+                <div class="sa-del" style="margin-top:16px">
+                  <span class="sa-btn" style="width:100%">Sign out</span>
+                </div>
+              </aside>
+
+              <div class="sa-main">
+                <div class="sa-head">
+                  <p class="sa-eyebrow">YOUR CREATIVE SPACE</p>
+                  <h1>Cloud library</h1>
+                  <p>Everything saved to your private cloud account, newest first.</p>
+                </div>
+                <div class="vb-tools">
+                  <div class="grp">
+                    <span class="sa-btn sa-mini">All 24</span>
+                    <span class="sa-btn sa-mini">Images 18</span>
+                    <span class="sa-btn sa-mini">Video 6</span>
+                  </div>
+                  <div class="grp">
+                    <span class="sa-btn sa-mini">Latest</span>
+                    <span class="sa-btn sa-mini">Older assets</span>
+                  </div>
+                </div>
+                <div class="sa-temp">1 result is temporarily available. Download it before its deadline, or free library space and resume saving.</div>
+                <ul class="sa-grid">
+                  <li class="sa-card">
+                    <div class="sa-thumb"></div>
+                    <h4>Overhead shot of a ceramic espresso cup on a walnut counter, morning light</h4>
+                    <p class="meta">gemini · image · 2.4 MB</p>
+                    <div class="acts"><span class="sa-btn sa-mini">Use as reference</span><span class="sa-btn sa-mini">↓</span></div>
+                  </li>
+                  <li class="sa-card">
+                    <div class="sa-thumb is-video"></div>
+                    <h4>Slow dolly across a neon-lit arcade at night, 4s loop</h4>
+                    <p class="meta">fal · video · 18.7 MB</p>
+                    <div class="acts"><span class="sa-btn sa-mini">Continue from last frame</span><span class="sa-btn sa-mini">↓</span></div>
+                  </li>
+                  <li class="sa-card">
+                    <div class="sa-thumb is-flat"></div>
+                    <h4>Product hero: matte black headphones on a seamless teal sweep</h4>
+                    <p class="meta" style="color:#f5c86a">kie · image · 3.1 MB · Temporary</p>
+                    <div class="acts"><span class="sa-btn sa-mini">Use as reference</span><span class="sa-btn sa-mini">↓</span></div>
+                  </li>
+                  <li class="sa-card">
+                    <div class="sa-thumb"></div>
+                    <h4>Portrait of a lighthouse keeper, 35mm, overcast</h4>
+                    <p class="meta">runware · image · 2.9 MB</p>
+                    <div class="acts"><span class="sa-btn sa-mini">Use as reference</span><span class="sa-btn sa-mini">↓</span></div>
+                  </li>
+                  <li class="sa-card">
+                    <div class="sa-thumb is-video"></div>
+                    <h4>Camera orbit around a brushed-steel watch on slate</h4>
+                    <p class="meta">comet · video · 22.4 MB</p>
+                    <div class="acts"><span class="sa-btn sa-mini">Continue from last frame</span><span class="sa-btn sa-mini">↓</span></div>
+                  </li>
+                  <li class="sa-card">
+                    <div class="sa-thumb is-flat"></div>
+                    <h4>Cyanotype botanical study, pressed fern on cold-press paper</h4>
+                    <p class="meta">cloudflare · image · 1.8 MB</p>
+                    <div class="acts"><span class="sa-btn sa-mini">Use as reference</span><span class="sa-btn sa-mini">↓</span></div>
+                  </li>
+                  <li class="sa-card">
+                    <div class="sa-thumb"></div>
+                    <h4>Local background test</h4>
+                    <p class="meta">local-test · image · 0.4 MB</p>
+                    <div class="acts"><span class="sa-btn sa-mini">Use as reference</span><span class="sa-btn sa-mini">↓</span></div>
+                  </li>
+                  <li class="sa-card">
+                    <div class="sa-thumb is-video"></div>
+                    <h4>Rain on a workshop skylight, slow push in</h4>
+                    <p class="meta">kie · video · 15.2 MB</p>
+                    <div class="acts"><span class="sa-btn sa-mini">Continue from last frame</span><span class="sa-btn sa-mini">↓</span></div>
+                  </li>
+                </ul>
+                <div class="sa-pager"><span class="sa-btn">Latest assets</span><span class="sa-btn">Older assets</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="variant-analysis">
+        <div class="analysis-block">
+          <h4>What works</h4>
+          <p>The counts do real work — "Jobs 3 · 1 !" tells you there is something to fix without spending vertical space on it, and connections finally get a full-width screen instead of a 260px form. A narrower rail buys the grid ~10px per card.</p>
+        </div>
+        <div class="analysis-block is-risk">
+          <h4>What risks</h4>
+          <p>It invents routing this page does not have — five destinations, each needing a URL, a back behaviour and an empty state. The in-flight strip disappears from the library view, so a running job is only a number until you navigate to it.</p>
+        </div>
+        <div class="analysis-block is-pick">
+          <h4>Pick this if</h4>
+          <p>You expect the account area to keep growing — billing, teams, more providers — and want somewhere to put the next panel that is not "further down the rail".</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== VARIANT C ===== -->
+    <section class="variant">
+      <div class="variant-head">
+        <div class="variant-letter">C</div>
+        <div class="variant-meta">
+          <h2>Inspector — rail flipped right, cards go quiet</h2>
+          <p class="variant-tradeoff">
+            <b>Optimizes for</b> acting on one result: selecting a card fills a right-hand inspector with the
+            full prompt, model, input mode and control values, and every action moves there — so the cards
+            themselves lose their buttons and get cleaner at 4-up.
+            <b>·  Tradeoff</b> account settings become the inspector's idle state, which demotes them, and
+            every action now costs a select-then-act instead of one click.
+          </p>
+        </div>
+      </div>
+      <div class="preview-frame">
+        <div class="preview-frame-bar">Variant C · preview</div>
+        <div class="preview">
+          <div class="sa-app">
+            <div class="sa-bar">
+              <div class="sa-wordmark">SCENE<span>·</span>ASSEMBLY</div>
+              <span class="sa-btn">Back to studio</span>
+            </div>
+            <div class="sa-shell vc-shell">
+              <div class="sa-main">
+                <div class="sa-head">
+                  <p class="sa-eyebrow">YOUR CREATIVE SPACE</p>
+                  <h1>Cloud library</h1>
+                  <p>Select a result to see how it was made and what you can do with it.</p>
+                </div>
+                <div class="sa-filters">
+                  <span class="sa-filter on">All 24</span>
+                  <span class="sa-filter image">Images 18</span>
+                  <span class="sa-filter video">Video 6</span>
+                  <span class="sa-filter warn">Needs attention 1</span>
+                  <span class="sa-filter warn">Temporary 1</span>
+                </div>
+                <ul class="sa-grid">
+                  <li class="sa-card vc-card">
+                    <div class="sa-thumb"></div>
+                    <h4>Overhead shot of a ceramic espresso cup on a walnut counter, morning light</h4>
+                    <p class="meta">gemini · image · 2.4 MB</p>
+                    
+                  </li>
+                  <li class="sa-card vc-card">
+                    <div class="sa-thumb is-video"></div>
+                    <h4>Slow dolly across a neon-lit arcade at night, 4s loop</h4>
+                    <p class="meta">fal · video · 18.7 MB</p>
+                    
+                  </li>
+                  <li class="sa-card vc-card is-sel">
+                    <div class="sa-thumb is-flat"></div>
+                    <h4>Product hero: matte black headphones on a seamless teal sweep</h4>
+                    <p class="meta" style="color:#f5c86a">kie · image · 3.1 MB · Temporary</p>
+                    
+                  </li>
+                  <li class="sa-card vc-card">
+                    <div class="sa-thumb"></div>
+                    <h4>Portrait of a lighthouse keeper, 35mm, overcast</h4>
+                    <p class="meta">runware · image · 2.9 MB</p>
+                    
+                  </li>
+                  <li class="sa-card vc-card">
+                    <div class="sa-thumb is-video"></div>
+                    <h4>Camera orbit around a brushed-steel watch on slate</h4>
+                    <p class="meta">comet · video · 22.4 MB</p>
+                    
+                  </li>
+                  <li class="sa-card vc-card">
+                    <div class="sa-thumb is-flat"></div>
+                    <h4>Cyanotype botanical study, pressed fern on cold-press paper</h4>
+                    <p class="meta">cloudflare · image · 1.8 MB</p>
+                    
+                  </li>
+                  <li class="sa-card vc-card">
+                    <div class="sa-thumb"></div>
+                    <h4>Local background test</h4>
+                    <p class="meta">local-test · image · 0.4 MB</p>
+                    
+                  </li>
+                  <li class="sa-card vc-card">
+                    <div class="sa-thumb is-video"></div>
+                    <h4>Rain on a workshop skylight, slow push in</h4>
+                    <p class="meta">kie · video · 15.2 MB</p>
+                    
+                  </li>
+                </ul>
+                <div class="sa-pager"><span class="sa-btn">Latest assets</span><span class="sa-btn">Older assets</span></div>
+              </div>
+
+              <aside class="sa-rail sa-rail-r">
+                <div class="sa-label"><span>Selected result</span><span>1 of 24</span></div>
+                <div class="sa-thumb is-flat vc-insp-thumb" style="margin-top:10px"></div>
+                <p class="vc-prompt">Product hero: matte black headphones on a seamless teal sweep</p>
+                <ul class="vc-specs">
+                  <li><span class="k">Provider</span><span class="v">Kie.ai</span></li>
+                  <li><span class="k">Model</span><span class="v">nano-banana-edit</span></li>
+                  <li><span class="k">Input</span><span class="v">reference · 2 images</span></li>
+                  <li><span class="k">Aspect</span><span class="v">16:9</span></li>
+                  <li><span class="k">Size</span><span class="v">3.1 MB</span></li>
+                  <li><span class="k">Saved</span><span class="v">31 minutes ago</span></li>
+                  <li><span class="k">Retention</span><span class="v" style="color:#f5c86a">Temporary</span></li>
+                </ul>
+                <div class="vc-acts">
+                  <span class="sa-btn sa-btn-primary wide">Use as reference</span>
+                  <span class="sa-btn">Restore settings</span>
+                  <span class="sa-btn">Download</span>
+                  <span class="sa-btn wide" style="border-color:rgba(255,120,120,0.4);background:rgba(255,120,120,0.1);color:#ffb3b3">Delete asset</span>
+                </div>
+
+                <div class="sa-block">
+                  <div class="sa-label"><span>Account</span><span>41% of 1 GB</span></div>
+                  <div class="sa-meter"><i class="used"></i><i class="res"></i></div>
+                  <div class="sa-figs"><b>412.3 MB saved</b><span>$14.82 spent</span></div>
+                  <p class="sa-note">3 connections saved · 10 browser items ready to import</p>
+                  <span class="sa-btn" style="width:100%;margin-top:10px">Account settings</span>
+                </div>
+              </aside>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="variant-analysis">
+        <div class="analysis-block">
+          <h4>What works</h4>
+          <p>It surfaces data the product already stores and currently throws away — <code>metadata.modelId</code>, <code>inputMode</code>, <code>referenceIds</code> and the whole <code>values</code> record are on every asset and shown nowhere today. It also fixes the 4-up squeeze honestly: the cards have no buttons to cram in.</p>
+        </div>
+        <div class="analysis-block is-risk">
+          <h4>What risks</h4>
+          <p>Settings end up behind a button in the corner of a media browser, which is a strange home for account deletion. Selection needs a real empty state, and on tablet the inspector has to become a sheet — the biggest build cost of the four.</p>
+        </div>
+        <div class="analysis-block is-pick">
+          <h4>Pick this if</h4>
+          <p>The library is where people spend their time and "how did I make this?" is a question worth answering — this is the only variant that can answer it.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== VARIANT D ===== -->
+    <section class="variant">
+      <div class="variant-head">
+        <div class="variant-letter">D</div>
+        <div class="variant-meta">
+          <h2>Compact rail + capacity band</h2>
+          <p class="variant-tradeoff">
+            <b>Optimizes for</b> keeping the spine while giving the quota and in-flight jobs the full width
+            they had in round one's control room — the rail shrinks to 220px of summaries.
+            <b>·  Tradeoff</b> two horizontal bands stand between you and the first thumbnail, and the
+            storage figure is stated twice on one screen.
+          </p>
+        </div>
+      </div>
+      <div class="preview-frame">
+        <div class="preview-frame-bar">Variant D · preview</div>
+        <div class="preview">
+          <div class="sa-app">
+            <div class="sa-bar">
+              <div class="sa-wordmark">SCENE<span>·</span>ASSEMBLY</div>
+              <span class="sa-btn">Back to studio</span>
+            </div>
+            <div class="sa-shell vd-shell">
+              <aside class="sa-rail sa-rail-l vd-rail">
+                <div class="sa-id">
+                  <div class="sa-avatar">VM</div>
+                  <div style="min-width:0">
+                    <b>Vasily S. Myazin</b>
+                    <span>rapidlyproductive@gmail.com</span>
+                  </div>
+                </div>
+                <div class="vd-group">
+                  <div class="sa-label"><span>Connections</span><span>3</span></div>
+                  <ul style="margin-top:8px">
+                    <li><b>Google Gemini</b><span>··7f2a</span></li>
+                    <li><b>fal.ai</b><span>··c419</span></li>
+                    <li><b>Kie.ai</b><span>··0b83</span></li>
+                  </ul>
+                  <span class="sa-btn sa-mini" style="width:100%;margin-top:8px">Add a connection</span>
+                </div>
+                <div class="vd-group">
+                  <div class="sa-label"><span>From this browser</span><span>10</span></div>
+                  <ul style="margin-top:8px">
+                    <li><b>Provider keys</b><span>3</span></li>
+                    <li><b>Files</b><span>7 · 96.4 MB</span></li>
+                  </ul>
+                  <span class="sa-btn sa-mini" style="width:100%;margin-top:8px">Review imports</span>
+                </div>
+                <div class="vd-group">
+                  <div class="sa-label"><span>Spend</span><span>View →</span></div>
+                  <ul style="margin-top:8px">
+                    <li><b>$14.82</b><span>61 runs</span></li>
+                  </ul>
+                </div>
+                <div class="sa-del">
+                  <span class="sa-btn sa-mini" style="width:100%">Sign out</span>
+                  <p style="margin-top:10px"><a href="#">Delete account and cloud files</a></p>
+                </div>
+              </aside>
+
+              <div class="sa-main">
+                <div class="sa-head">
+                  <p class="sa-eyebrow">YOUR CREATIVE SPACE</p>
+                  <h1>Cloud library</h1>
+                </div>
+                <div class="vd-band">
+                  <div>
+                    <div class="vd-num">412.3 MB <span>of 1 GB</span></div>
+                    <div class="sa-meter"><i class="used"></i><i class="res"></i></div>
+                    <p class="sa-hint">48 MB reserved for active jobs · 539.7 MB free</p>
+                  </div>
+                  <div class="vd-chips">
+                    <div class="vd-chip"><em style="color:#c4b5fd">Generating</em><p>Overhead shot of a ceramic espresso cup…</p></div>
+                    <div class="vd-chip"><em style="color:#67e8f9">Saving</em><p>Slow dolly across a neon-lit arcade…</p></div>
+                    <div class="vd-chip is-warn"><em style="color:#f5c86a">Attention</em><p>Product hero: matte black headphones…</p></div>
+                  </div>
+                </div>
+                <div class="sa-temp">1 result is temporarily available. Download it before its deadline, or free library space and resume saving.</div>
+                <ul class="sa-grid">
+                  <li class="sa-card">
+                    <div class="sa-thumb"></div>
+                    <h4>Overhead shot of a ceramic espresso cup on a walnut counter, morning light</h4>
+                    <p class="meta">gemini · image · 2.4 MB</p>
+                    <div class="acts"><span class="sa-btn sa-mini">Use as reference</span><span class="sa-btn sa-mini">↓</span></div>
+                  </li>
+                  <li class="sa-card">
+                    <div class="sa-thumb is-video"></div>
+                    <h4>Slow dolly across a neon-lit arcade at night, 4s loop</h4>
+                    <p class="meta">fal · video · 18.7 MB</p>
+                    <div class="acts"><span class="sa-btn sa-mini">Continue from last frame</span><span class="sa-btn sa-mini">↓</span></div>
+                  </li>
+                  <li class="sa-card">
+                    <div class="sa-thumb is-flat"></div>
+                    <h4>Product hero: matte black headphones on a seamless teal sweep</h4>
+                    <p class="meta" style="color:#f5c86a">kie · image · 3.1 MB · Temporary</p>
+                    <div class="acts"><span class="sa-btn sa-mini">Use as reference</span><span class="sa-btn sa-mini">↓</span></div>
+                  </li>
+                  <li class="sa-card">
+                    <div class="sa-thumb"></div>
+                    <h4>Portrait of a lighthouse keeper, 35mm, overcast</h4>
+                    <p class="meta">runware · image · 2.9 MB</p>
+                    <div class="acts"><span class="sa-btn sa-mini">Use as reference</span><span class="sa-btn sa-mini">↓</span></div>
+                  </li>
+                  <li class="sa-card">
+                    <div class="sa-thumb is-video"></div>
+                    <h4>Camera orbit around a brushed-steel watch on slate</h4>
+                    <p class="meta">comet · video · 22.4 MB</p>
+                    <div class="acts"><span class="sa-btn sa-mini">Continue from last frame</span><span class="sa-btn sa-mini">↓</span></div>
+                  </li>
+                  <li class="sa-card">
+                    <div class="sa-thumb is-flat"></div>
+                    <h4>Cyanotype botanical study, pressed fern on cold-press paper</h4>
+                    <p class="meta">cloudflare · image · 1.8 MB</p>
+                    <div class="acts"><span class="sa-btn sa-mini">Use as reference</span><span class="sa-btn sa-mini">↓</span></div>
+                  </li>
+                  <li class="sa-card">
+                    <div class="sa-thumb"></div>
+                    <h4>Local background test</h4>
+                    <p class="meta">local-test · image · 0.4 MB</p>
+                    <div class="acts"><span class="sa-btn sa-mini">Use as reference</span><span class="sa-btn sa-mini">↓</span></div>
+                  </li>
+                  <li class="sa-card">
+                    <div class="sa-thumb is-video"></div>
+                    <h4>Rain on a workshop skylight, slow push in</h4>
+                    <p class="meta">kie · video · 15.2 MB</p>
+                    <div class="acts"><span class="sa-btn sa-mini">Continue from last frame</span><span class="sa-btn sa-mini">↓</span></div>
+                  </li>
+                </ul>
+                <div class="sa-pager"><span class="sa-btn">Latest assets</span><span class="sa-btn">Older assets</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="variant-analysis">
+        <div class="analysis-block">
+          <h4>What works</h4>
+          <p>Recovers the one thing round one's control room got right — you cannot miss the quota or a job needing attention — without giving up the spine. The 220px rail also buys the widest cards of the four at ~208px.</p>
+        </div>
+        <div class="analysis-block is-risk">
+          <h4>What risks</h4>
+          <p>Redundant by construction: storage appears in the band and the rail has to stay quiet about it, which makes the rail feel arbitrary. Title, band and warning stack up before any work is visible.</p>
+        </div>
+        <div class="analysis-block is-pick">
+          <h4>Pick this if</h4>
+          <p>Storage overflow is a live support problem and you are unwilling to trade the spine away to fix it.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== Decision row ===== -->
+    <section class="decision">
+      <h3>How to pick a direction</h3>
+      <p class="decision-sub">Same console frame, same account record, same six panels. Choose on what the rail is for.</p>
+      <div class="decision-grid">
+        <div class="decision-cell"><b>Pick A if →</b><span>The rail is a settings drawer. Smallest build, nothing hidden, stops scaling at about eight connections.</span></div>
+        <div class="decision-cell"><b>Pick B if →</b><span>The rail is navigation. Each panel gets the full canvas, and there is room for the next one you add.</span></div>
+        <div class="decision-cell"><b>Pick C if →</b><span>The rail is an inspector. Cards go quiet, and the model, input mode and control values behind each result finally show up.</span></div>
+        <div class="decision-cell"><b>Pick D if →</b><span>The rail is a summary and the band carries the urgent numbers. Quota is unmissable; the screen repeats itself.</span></div>
+      </div>
+      <p class="decision-sub" style="margin: 28px 0 0">Cheapest real upgrade: <b>A's rail with C's inspector behaviour</b> — keep the settings spine, and let a selected card open its detail in place of the connection form. It needs no routing and no new empty states.</p>
+    </section>
+
+  </main>
+</body>
+</html>

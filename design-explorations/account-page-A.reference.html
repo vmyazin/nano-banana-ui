@@ -1,0 +1,327 @@
+<!--
+  REFERENCE — /account console, variant A ("Full spine")
+  Source exploration: design-explorations/account-page.html
+  Brand: Scene Assembly (see design-explorations/_brand.md)
+  Manifest: design-explorations/account-page-A.manifest.md
+  Date: 2026-09-05
+
+  This is the single source of truth for the parity diff. It renders standalone.
+  Fixture drawn: a loaded account — 24 assets, 3 connections, 412.3 MB used, 5 jobs.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>/account — variant A reference</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@500;600&display=swap" rel="stylesheet" />
+  <style>
+    /* ================= VARIANT A · FULL SPINE =================
+       The Scene Assembly console shell lives under .sa-; the rail layout
+       this variant chooses lives under .va-. Extracted from the four-up
+       exploration, carrying only the rules variant A renders.
+    */
+:root {
+      --sa-bg: #081012;
+      --sa-elev: #0e191b;
+      --sa-prompt: #0d1d20;
+      --sa-ink: #ecf5f5;
+      --sa-mute: #8fa5a7;
+      --sa-subtle: #7a8d8f;
+      --sa-cyan: #00fff9;
+      --sa-violet: #bd00ff;
+      --sa-magenta: #ff006e;
+      --sa-yellow: #ffed4e;
+      --sa-line: rgba(194, 232, 240, 0.075);
+      --sa-line-2: rgba(194, 232, 240, 0.17);
+      --sa-sans: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      --sa-mono: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--sa-bg);
+      color: var(--sa-ink);
+      font-family: var(--sa-sans);
+      font-size: 14px;
+      letter-spacing: -0.011em;
+      line-height: 1.45;
+    }
+    .sa-app * { box-sizing: border-box; }
+    .sa-app h1, .sa-app h2, .sa-app h3, .sa-app h4 { margin: 0; letter-spacing: -0.03em; }
+    .sa-app p { margin: 0; }
+    .sa-app ul, .sa-app ol { margin: 0; padding: 0; list-style: none; }
+
+    .sa-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 14px 26px;
+      border-bottom: 1px solid var(--sa-line);
+      background: rgba(8, 16, 18, 0.72);
+    }
+    .sa-wordmark { font-family: var(--sa-mono); font-size: 12px; font-weight: 600; letter-spacing: 0.22em; }
+    .sa-wordmark span { color: var(--sa-yellow); }
+    .sa-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      height: 32px;
+      padding: 0 12px;
+      border-radius: 8px;
+      border: 1px solid var(--sa-line-2);
+      background: var(--sa-elev);
+      color: var(--sa-ink);
+      font-size: 13px;
+      font-weight: 500;
+      white-space: nowrap;
+    }
+    .sa-btn-primary { border-color: transparent; background: var(--sa-cyan); color: var(--sa-bg); font-weight: 600; }
+    .sa-mini { height: 24px; padding: 0 7px; border-radius: 7px; font-size: 11px; }
+    .sa-eyebrow {
+      font-family: var(--sa-mono);
+      font-size: 10.5px;
+      font-weight: 500;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--sa-yellow);
+    }
+    .sa-label {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      font-family: var(--sa-mono);
+      font-size: 10px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--sa-subtle);
+    }
+    .sa-avatar {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 36px;
+      height: 36px;
+      flex: none;
+      border-radius: 999px;
+      border: 1px solid var(--sa-line-2);
+      background: linear-gradient(135deg, rgba(0, 255, 249, 0.16), rgba(189, 0, 255, 0.16));
+      font-family: var(--sa-mono);
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .sa-dot { width: 6px; height: 6px; border-radius: 999px; flex: none; }
+    .sa-thumb {
+      border-radius: 8px;
+      border: 1px solid var(--sa-line);
+      background: #000709 linear-gradient(135deg, rgba(0, 255, 249, 0.18), rgba(189, 0, 255, 0.14) 55%, rgba(255, 0, 110, 0.16));
+    }
+    .sa-thumb.is-video { background: #000709 linear-gradient(135deg, rgba(189, 0, 255, 0.24), rgba(0, 102, 255, 0.16) 60%, rgba(0, 255, 249, 0.12)); }
+    .sa-thumb.is-flat { background: #000709 linear-gradient(135deg, rgba(255, 237, 78, 0.14), rgba(0, 255, 249, 0.1)); }
+
+    /* ---- the console shell ---- */
+    .sa-shell { display: grid; align-items: start; }
+    .sa-rail { padding: 20px 18px 24px; background: rgba(13, 29, 32, 0.45); min-height: 660px; }
+    .sa-rail-l { border-right: 1px solid var(--sa-line); }
+    .sa-rail-r { border-left: 1px solid var(--sa-line); }
+    .sa-main { padding: 20px 24px 26px; min-width: 0; }
+    .sa-id { display: flex; align-items: center; gap: 10px; }
+    .sa-id b { display: block; font-size: 13.5px; font-weight: 500; }
+    .sa-id span { display: block; font-size: 11.5px; color: var(--sa-mute); word-break: break-all; }
+    .sa-block { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--sa-line); }
+    .sa-meter { display: flex; height: 6px; margin-top: 10px; border-radius: 999px; overflow: hidden; background: rgba(255, 255, 255, 0.08); }
+    .sa-meter .used { width: 41.2%; background: var(--sa-cyan); }
+    .sa-meter .res { width: 4.8%; background: rgba(189, 0, 255, 0.7); }
+    .sa-figs { display: flex; justify-content: space-between; margin-top: 9px; font-size: 12px; }
+    .sa-figs b { font-weight: 500; }
+    .sa-figs span { color: var(--sa-mute); }
+    .sa-hint { margin-top: 6px; font-size: 11px; color: var(--sa-subtle); }
+    .sa-note { margin-top: 10px; font-size: 11px; line-height: 1.5; color: var(--sa-subtle); }
+    .sa-conn li { display: flex; align-items: center; gap: 9px; padding: 8px 0; border-bottom: 1px solid var(--sa-line); }
+    .sa-conn li b { flex: 1; min-width: 0; font-size: 12.5px; font-weight: 500; }
+    .sa-conn li span { font-family: var(--sa-mono); font-size: 10px; color: var(--sa-subtle); }
+    .sa-field { display: block; margin-bottom: 8px; }
+    .sa-field i { display: block; font-style: normal; font-size: 11.5px; font-weight: 500; margin-bottom: 5px; }
+    .sa-input {
+      display: flex;
+      align-items: center;
+      height: 34px;
+      width: 100%;
+      padding: 0 10px;
+      border-radius: 8px;
+      border: 1px solid var(--sa-line-2);
+      background: var(--sa-bg);
+      color: var(--sa-mute);
+      font-size: 12.5px;
+    }
+    .sa-del { margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--sa-line); font-size: 11px; line-height: 1.5; color: var(--sa-subtle); }
+    .sa-del a { color: #ffb3b3; }
+
+    .sa-head h1 { font-size: 24px; font-weight: 600; margin-top: 6px; }
+    .sa-head p { margin-top: 5px; font-size: 13px; color: var(--sa-mute); max-width: 460px; }
+    .sa-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 16px; }
+    .sa-card { display: flex; flex-direction: column; padding: 9px; border: 1px solid rgba(103, 232, 249, 0.25); border-radius: 11px; background: rgba(14, 25, 27, 0.8); }
+    .sa-card .sa-thumb { aspect-ratio: 16 / 9; }
+    .sa-card h4 {
+      margin: 9px 0 0;
+      font-size: 12.5px;
+      font-weight: 500;
+      letter-spacing: -0.01em;
+      line-height: 1.35;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .sa-card .meta { margin-top: 4px; font-family: var(--sa-mono); font-size: 10px; letter-spacing: 0.04em; color: #7fe9e8; }
+    .sa-card .acts { display: flex; flex-wrap: wrap; gap: 5px; margin-top: auto; padding-top: 9px; }
+    .sa-pager { display: flex; justify-content: space-between; margin-top: 14px; }
+
+    /* ---------------- A · full spine (the baseline) ---------------- */
+    .va-shell { grid-template-columns: 300px minmax(0, 1fr); }
+    .va-actions { margin-top: 14px; }
+    .va-actions .sa-btn { width: 100%; }
+    .va-spend { display: flex; align-items: baseline; justify-content: space-between; margin-top: 10px; }
+    .va-spend b { font-size: 20px; font-weight: 600; letter-spacing: -0.03em; }
+
+    @media (max-width: 1240px) {
+      .sa-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    }
+    @media (max-width: 1100px) {
+      .va-shell { grid-template-columns: 1fr; }
+      .sa-rail-l, .sa-rail-r { border: 0; border-bottom: 1px solid var(--sa-line); min-height: 0; }
+      .sa-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    }
+    @media (max-width: 900px) {
+      .sa-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 720px) {
+      .sa-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<div class="sa-app">
+  <div class="sa-bar">
+    <div class="sa-wordmark">SCENE<span>·</span>ASSEMBLY</div>
+    <span class="sa-btn">Back to studio</span>
+  </div>
+  <div class="sa-shell va-shell">
+    <aside class="sa-rail sa-rail-l">
+      <div class="sa-id">
+        <div class="sa-avatar">VM</div>
+        <div style="min-width:0">
+          <b>Vasily S. Myazin</b>
+          <span>rapidlyproductive@gmail.com</span>
+        </div>
+      </div>
+      <div class="va-actions"><span class="sa-btn">Sign out</span></div>
+
+      <div class="sa-block">
+        <div class="sa-label"><span>Cloud storage</span><span>41%</span></div>
+        <div class="sa-meter"><i class="used"></i><i class="res"></i></div>
+        <div class="sa-figs"><b>412.3 MB saved</b><span>1 GB included</span></div>
+        <p class="sa-hint">48 MB reserved for active jobs</p>
+      </div>
+
+      <div class="sa-block">
+        <div class="sa-label"><span>Spend</span><span>View →</span></div>
+        <div class="va-spend"><b>$14.82</b><span style="font-size:11.5px;color:var(--sa-mute)">61 runs · 78% exact</span></div>
+      </div>
+
+      <div class="sa-block">
+        <div class="sa-label"><span>Saved connections</span><span>3</span></div>
+        <ul class="sa-conn" style="margin-top:10px">
+          <li><i class="sa-dot" style="background:var(--sa-cyan)"></i><b>Google Gemini</b><span>··7f2a</span></li>
+          <li><i class="sa-dot" style="background:var(--sa-violet)"></i><b>fal.ai · Nano Banana 2</b><span>··c419</span></li>
+          <li><i class="sa-dot" style="background:var(--sa-magenta)"></i><b>Kie.ai</b><span>··0b83</span></li>
+        </ul>
+        <span class="sa-btn" style="width:100%;margin-top:12px">Add provider key</span>
+      </div>
+
+      <div class="sa-block">
+        <div class="sa-label"><span>Import from this browser</span></div>
+        <p class="sa-note" style="margin-top:8px">3 provider keys and 7 files found on this device. Originals remain here.</p>
+        <span class="sa-btn" style="width:100%;margin-top:10px">Review 10 items</span>
+      </div>
+
+      <div class="sa-del">
+        Permanently remove your account, saved keys and cloud library. Browser-only work stays on this device.<br />
+        <a href="#">Delete account and cloud files</a>
+      </div>
+    </aside>
+
+    <div class="sa-main">
+      <div class="sa-head">
+        <p class="sa-eyebrow">YOUR CREATIVE SPACE</p>
+        <h1>Cloud library</h1>
+        <p>Manage the work and provider connections saved to your private cloud account.</p>
+      </div>
+      <div class="sa-filters">
+        <span class="sa-filter on">All 24</span>
+        <span class="sa-filter image">Images 18</span>
+        <span class="sa-filter video">Video 6</span>
+        <span class="sa-filter warn">Needs attention 1</span>
+        <span class="sa-filter warn">Temporary 1</span>
+      </div>
+      <ul class="sa-grid">
+        <li class="sa-card">
+          <div class="sa-thumb"></div>
+          <h4>Overhead shot of a ceramic espresso cup on a walnut counter, morning light</h4>
+          <p class="meta">gemini · image · 2.4 MB</p>
+          <div class="acts"><span class="sa-btn sa-mini">Use as ref</span><span class="sa-btn sa-mini">↓</span></div>
+        </li>
+        <li class="sa-card">
+          <div class="sa-thumb is-video"></div>
+          <h4>Slow dolly across a neon-lit arcade at night, 4s loop</h4>
+          <p class="meta">fal · video · 18.7 MB</p>
+          <div class="acts"><span class="sa-btn sa-mini">Continue from last frame</span><span class="sa-btn sa-mini">↓</span></div>
+        </li>
+        <li class="sa-card">
+          <div class="sa-thumb is-flat"></div>
+          <h4>Product hero: matte black headphones on a seamless teal sweep</h4>
+          <p class="meta" style="color:#f5c86a">kie · image · 3.1 MB · Temporary</p>
+          <div class="acts"><span class="sa-btn sa-mini">Use as ref</span><span class="sa-btn sa-mini">↓</span></div>
+        </li>
+        <li class="sa-card">
+          <div class="sa-thumb"></div>
+          <h4>Portrait of a lighthouse keeper, 35mm, overcast</h4>
+          <p class="meta">runware · image · 2.9 MB</p>
+          <div class="acts"><span class="sa-btn sa-mini">Use as ref</span><span class="sa-btn sa-mini">↓</span></div>
+        </li>
+        <li class="sa-card">
+          <div class="sa-thumb is-video"></div>
+          <h4>Camera orbit around a brushed-steel watch on slate</h4>
+          <p class="meta">comet · video · 22.4 MB</p>
+          <div class="acts"><span class="sa-btn sa-mini">Continue from last frame</span><span class="sa-btn sa-mini">↓</span></div>
+        </li>
+        <li class="sa-card">
+          <div class="sa-thumb is-flat"></div>
+          <h4>Cyanotype botanical study, pressed fern on cold-press paper</h4>
+          <p class="meta">cloudflare · image · 1.8 MB</p>
+          <div class="acts"><span class="sa-btn sa-mini">Use as ref</span><span class="sa-btn sa-mini">↓</span></div>
+        </li>
+        <li class="sa-card">
+          <div class="sa-thumb"></div>
+          <h4>Local background test</h4>
+          <p class="meta">local-test · image · 0.4 MB</p>
+          <div class="acts"><span class="sa-btn sa-mini">Use as ref</span><span class="sa-btn sa-mini">↓</span></div>
+        </li>
+        <li class="sa-card">
+          <div class="sa-thumb is-video"></div>
+          <h4>Rain on a workshop skylight, slow push in</h4>
+          <p class="meta">kie · video · 15.2 MB</p>
+          <div class="acts"><span class="sa-btn sa-mini">Continue from last frame</span><span class="sa-btn sa-mini">↓</span></div>
+        </li>
+      </ul>
+      <div class="sa-pager"><span class="sa-btn">Latest assets</span><span class="sa-btn">Older assets</span></div>
+    </div>
+  </div>
+</div>
+</body>
+</html>
