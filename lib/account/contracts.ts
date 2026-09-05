@@ -14,6 +14,11 @@ export interface CloudJobView {
   id: string; provider: CloudProvider; state: CloudJobState; errorCode: string | null;
   request: CloudJobRequest; createdAt: number; updatedAt: number;
 }
+export interface CloudAssetCounts {
+  /** Account-wide, never page-scoped: the pills must keep saying how much sits
+   *  behind each filter while you are inside a filtered, paged view. */
+  all: number; image: number; video: number; temporary: number;
+}
 export interface CloudAsset {
   id: string; kind: 'image' | 'video'; mimeType: string; bytes: number; createdAt: number;
   metadata: CloudJobRequest; jobId: string | null;

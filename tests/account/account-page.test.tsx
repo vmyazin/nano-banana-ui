@@ -5,6 +5,7 @@ import AccountPage from '@/app/account/page';
 import SignInPage from '@/app/sign-in/page';
 import SignUpPage from '@/app/sign-up/page';
 import { useAccountStore, type AccountSession } from '@/store/useAccountStore';
+import { useAppStore } from '@/store/useAppStore';
 
 const { replace, refreshAccount, accountChanged } = vi.hoisted(() => ({
   replace: vi.fn(),
@@ -14,8 +15,8 @@ const { replace, refreshAccount, accountChanged } = vi.hoisted(() => ({
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ replace }) }));
 vi.mock('@/lib/account/session', () => ({ refreshAccount, accountChanged }));
-vi.mock('@/components/account/AccountLibrary', () => ({
-  default: ({ ownerId }: { ownerId: string }) => <section>Cloud library for {ownerId}</section>,
+vi.mock('@/components/account/CloudAssetGrid', () => ({
+  default: ({ ownerId }: { ownerId: string }) => <section>Cloud assets for {ownerId}</section>,
 }));
 vi.mock('@/components/account/AccountConnections', () => ({ default: () => <section>Saved connections</section> }));
 vi.mock('@/components/account/AccountKeyImport', () => ({
@@ -52,6 +53,7 @@ describe('account pages', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     useAccountStore.getState().applySession(guestSession);
+    useAppStore.setState({ apiKey: '', cfToken: '', cfAccountId: '', kieApiKey: '', falApiKey: '', runwareApiKey: '', atlasApiKey: '', cometApiKey: '' });
     refreshAccount.mockResolvedValue(guestSession);
     vi.stubGlobal('fetch', vi.fn());
   });
@@ -63,12 +65,25 @@ describe('account pages', () => {
     expect(screen.getByRole('heading', { name: 'Your account' })).toBeInTheDocument();
     expect(screen.getByText('Ada Creator')).toBeInTheDocument();
     expect(screen.getByText('ada@example.test')).toBeInTheDocument();
-    expect(screen.getByText('Cloud library for owner-1')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Cloud library' })).toBeInTheDocument();
     expect(screen.getByText('Saved connections')).toBeInTheDocument();
-    expect(screen.getByText('Key import for owner-1')).toBeInTheDocument();
-    expect(screen.getByText('Asset import for owner-1')).toBeInTheDocument();
     expect(screen.getByText('Deletion for owner-1')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'View spend' })).toHaveAttribute('href', '/spend');
+    // Nothing is staged in this browser, so the import section is absent
+    // entirely rather than standing there saying it has nothing to do.
+    expect(screen.queryByText('Import from this browser')).toBeNull();
+  });
+
+  it('reveals the browser import panels from the rail once this device has something to import', () => {
+    useAppStore.setState({ apiKey: 'gemini-key-value' });
+    signedIn();
+    render(<AccountPage />);
+
+    expect(screen.getByText('Import from this browser')).toBeInTheDocument();
+    expect(screen.queryByText('Key import for owner-1')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Review 1 item' }));
+    expect(screen.getByText('Key import for owner-1')).toBeInTheDocument();
+    expect(screen.getByText('Asset import for owner-1')).toBeInTheDocument();
   });
 
   it('shows the Google photo and recovers from a failed photo when its URL changes', () => {
@@ -107,7 +122,7 @@ describe('account pages', () => {
     render(<AccountPage />);
 
     expect(screen.getByRole('status')).toHaveTextContent('Checking your account');
-    expect(screen.queryByText(/Cloud library for/)).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Cloud library' })).toBeNull();
     expect(replace).not.toHaveBeenCalled();
   });
 
@@ -119,7 +134,7 @@ describe('account pages', () => {
 
     expect(screen.getByRole('alert')).toHaveTextContent('Account service is temporarily unavailable');
     expect(screen.queryByText('ada@example.test')).toBeNull();
-    expect(screen.queryByText(/Cloud library for/)).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Cloud library' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
     await waitFor(() => expect(refreshAccount).toHaveBeenCalledTimes(1));
   });
@@ -128,7 +143,7 @@ describe('account pages', () => {
     render(<AccountPage />);
 
     await waitFor(() => expect(replace).toHaveBeenCalledWith('/sign-in'));
-    expect(screen.queryByText(/Cloud library for/)).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Cloud library' })).toBeNull();
   });
 
   it('returns local sign-in and Google sign-in attempts to /account', async () => {
@@ -178,7 +193,10 @@ describe('account pages', () => {
     render(<AccountPage />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Sign out' }));
-    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
+    // Asserted by target rather than by call count: the console legitimately
+    // fetches jobs, assets, storage and spend totals on mount, so a count here
+    // would only measure how many panels the page happens to have.
+    await waitFor(() => expect(fetch).toHaveBeenCalledWith('/api/account/sign-out', expect.objectContaining({ method: 'POST' })));
     useAccountStore.setState(state => ({ epoch: state.epoch + 1 }));
     await act(async () => {
       response.resolve({ ok: true, json: async () => ({ ok: true }) } as Response);

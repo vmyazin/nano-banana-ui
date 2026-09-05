@@ -1,0 +1,291 @@
+'use client';
+
+import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
+import { Cloud, LogOut, WalletCards } from 'lucide-react';
+
+import CloudAssetGrid from './CloudAssetGrid';
+import CloudJobList from './CloudJobList';
+import LibraryFilters, { type LibraryFilterId } from './LibraryFilters';
+import AccountAvatar from './AccountAvatar';
+import AccountConnections from './AccountConnections';
+import AccountDeletion from './AccountDeletion';
+import AccountKeyImport from './AccountKeyImport';
+import AccountAssetImport from './AccountAssetImport';
+import { accountRequest } from '@/lib/account/client';
+import { browserKeyCandidates } from '@/lib/account/key-import';
+import { isImportableGalleryRecord } from '@/lib/account/import';
+import { isActiveJob, needsAttention } from '@/lib/account/job-status';
+import { formatAccountBytes as size, useAccountLibrary, type LibraryKind } from '@/lib/account/use-library';
+import { useAccountSpendTotals } from '@/lib/account/use-spend-totals';
+import { formatUsdTotal } from '@/lib/spend/format';
+import type { AccountIdentity } from '@/store/useAccountStore';
+import { useAccountStore } from '@/store/useAccountStore';
+import { useAppStore } from '@/store/useAppStore';
+import { useGalleryStore } from '@/store/useGalleryStore';
+
+function RailLabel({ children, aside }: { children: React.ReactNode; aside?: React.ReactNode }) {
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--foreground-subtle)]">{children}</span>
+      {aside && <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--foreground-subtle)]">{aside}</span>}
+    </div>
+  );
+}
+
+function RailBlock({ children }: { children: React.ReactNode }) {
+  return <div className="mt-5 border-t border-[var(--border)] pt-4">{children}</div>;
+}
+
+/**
+ * The signed-in account console: a settings rail beside the cloud library.
+ *
+ * The library hook is mounted once, here, and its data handed down. Letting the
+ * rail and the canvas each call `useAccountLibrary` would put two five-second
+ * polls on the page and let the meter and the grid disagree about the same
+ * account for up to five seconds at a time.
+ */
+export default function AccountConsole({
+  account,
+  localTest = false,
+  busy,
+  error,
+  onSignOut,
+}: {
+  account: AccountIdentity;
+  localTest?: boolean;
+  busy: boolean;
+  error: string | null;
+  onSignOut: () => void;
+}) {
+  const ownerId = account.id;
+  const [filter, setFilter] = useState<LibraryFilterId>('all');
+  const [showImports, setShowImports] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [actionBusy, setActionBusy] = useState(false);
+
+  // Job-state filters cannot be an asset query, so the asset request stays on
+  // `all` while the canvas swaps to the job list.
+  const assetFilter: LibraryKind = filter === 'active' || filter === 'attention' ? 'all' : filter;
+  const library = useAccountLibrary(ownerId, assetFilter);
+  const { jobs, assets, storage, counts, loading } = library;
+  const spend = useAccountSpendTotals(ownerId);
+
+  const activeJobs = useMemo(() => jobs.filter(isActiveJob), [jobs]);
+  const attentionJobs = useMemo(() => jobs.filter(needsAttention), [jobs]);
+
+  // Selected field by field on purpose: a selector returning a fresh object
+  // gives `useSyncExternalStore` a new snapshot every render, which loops.
+  const apiKey = useAppStore(state => state.apiKey);
+  const cfToken = useAppStore(state => state.cfToken);
+  const cfAccountId = useAppStore(state => state.cfAccountId);
+  const kieApiKey = useAppStore(state => state.kieApiKey);
+  const falApiKey = useAppStore(state => state.falApiKey);
+  const runwareApiKey = useAppStore(state => state.runwareApiKey);
+  const atlasApiKey = useAppStore(state => state.atlasApiKey);
+  const cometApiKey = useAppStore(state => state.cometApiKey);
+  const records = useGalleryStore(state => state.records);
+  // Both stores are hydrated here rather than inside the import panels: those
+  // now render behind a disclosure that only opens when something is waiting,
+  // so leaving hydration to them would mean the count that decides whether to
+  // show the section could never rise above zero.
+  useEffect(() => {
+    if (!useAppStore.getState().hasHydrated) void useAppStore.persist.rehydrate();
+    void useGalleryStore.getState().hydrate();
+  }, []);
+  const browserKeys = useMemo(
+    () => browserKeyCandidates({ apiKey, cfToken, cfAccountId, kieApiKey, falApiKey, runwareApiKey, atlasApiKey, cometApiKey }).length,
+    [apiKey, atlasApiKey, cfAccountId, cfToken, cometApiKey, falApiKey, kieApiKey, runwareApiKey]
+  );
+  const browserFiles = useMemo(() => records.filter(isImportableGalleryRecord), [records]);
+  const browserBytes = browserFiles.reduce((total, record) => total + record.blob.size, 0);
+  const pendingImports = browserKeys + browserFiles.length;
+
+  async function jobAction(path: string, body?: unknown) {
+    if (actionBusy) return;
+    setActionBusy(true);
+    setActionError(null);
+    try {
+      if (ownerId !== useAccountStore.getState().session?.account?.id) throw new Error('Your account changed. Try again from the current library.');
+      await accountRequest(path, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Account-Id': ownerId }, ...(body ? { body: JSON.stringify(body) } : {}) });
+      if (ownerId === useAccountStore.getState().session?.account?.id) library.refresh();
+    } catch (reason) {
+      setActionError(reason instanceof Error ? reason.message : 'Please try again.');
+    } finally {
+      setActionBusy(false);
+    }
+  }
+
+  const showingJobs = filter === 'active' || filter === 'attention';
+  const visibleJobs = filter === 'active' ? activeJobs : attentionJobs;
+
+  return (
+    <div className="mt-8 grid items-start gap-0 overflow-hidden rounded-2xl border border-[var(--border-hover)] bg-[var(--background-elevated)] lg:grid-cols-[300px_minmax(0,1fr)]">
+      <aside aria-label="Account settings" className="border-b border-[var(--border)] bg-[hsl(var(--tint-hue)_42%_8.8%/0.45)] p-5 lg:min-h-[40rem] lg:border-b-0 lg:border-r">
+        <div className="flex items-center gap-2.5">
+          <AccountAvatar name={account.name} picture={account.picture} />
+          <div className="min-w-0">
+            <p className="truncate text-sm font-medium text-[var(--foreground)]">{account.name}</p>
+            <p className="break-all text-xs text-[var(--foreground-muted)]">{account.email}</p>
+          </div>
+        </div>
+        <button type="button" disabled={busy} onClick={onSignOut} className="btn-secondary mt-3.5 flex w-full justify-center">
+          <LogOut size={15} aria-hidden="true" />{busy ? 'Signing out…' : 'Sign out'}
+        </button>
+        {error && <p role="alert" className="mt-3 text-sm text-[var(--neon-pink)]">{error}</p>}
+
+        <RailBlock>
+          <RailLabel aside={storage ? `${Math.round((storage.usedBytes / storage.limitBytes) * 100)}%` : undefined}>Cloud storage</RailLabel>
+          {storage ? (
+            <>
+              <div
+                role="meter"
+                aria-valuemin={0}
+                aria-valuemax={storage.limitBytes}
+                aria-valuenow={Math.min(storage.limitBytes, storage.usedBytes + storage.reservedBytes)}
+                aria-valuetext={`${size(storage.usedBytes)} saved, ${size(storage.reservedBytes)} reserved`}
+                aria-label="Cloud storage used and reserved"
+                className="mt-2.5 flex h-1.5 overflow-hidden rounded-full bg-white/10"
+              >
+                <span className="bg-[var(--neon-cyan)] transition-[width] duration-300 motion-reduce:transition-none" style={{ width: `${Math.min(100, (storage.usedBytes / storage.limitBytes) * 100)}%` }} />
+                <span className="bg-violet-400/70 transition-[width] duration-300 motion-reduce:transition-none" style={{ width: `${Math.min(100, (storage.reservedBytes / storage.limitBytes) * 100)}%` }} />
+              </div>
+              <div className="mt-2 flex justify-between gap-2 text-xs">
+                <span className="font-medium text-[var(--foreground)]">{size(storage.usedBytes)} saved</span>
+                <span className="text-[var(--foreground-muted)]">1 GB included</span>
+              </div>
+              <p className="mt-1.5 text-[11px] text-[var(--foreground-subtle)]">
+                {storage.activeJobs > 0
+                  ? `${storage.activeJobs} active ${storage.activeJobs === 1 ? 'job' : 'jobs'} · ${size(storage.reservedBytes)} reserved`
+                  : `${size(storage.reservedBytes)} reserved for active jobs`}
+              </p>
+            </>
+          ) : (
+            <p className="mt-2 text-xs text-[var(--foreground-muted)]">Checking your storage…</p>
+          )}
+        </RailBlock>
+
+        <RailBlock>
+          <RailLabel aside={<Link href="/spend" className="hover:text-[var(--neon-cyan)]">View →</Link>}>Spend</RailLabel>
+          <div className="mt-2 flex items-baseline justify-between gap-2">
+            <span className="display text-xl font-semibold text-[var(--foreground)]">
+              {spend.totals ? formatUsdTotal(spend.totals.costUsd) : '—'}
+            </span>
+            <span className="text-xs text-[var(--foreground-muted)]">
+              {spend.totals ? `${spend.totals.runs} run${spend.totals.runs === 1 ? '' : 's'}` : spend.error ? 'Unavailable' : 'Loading…'}
+            </span>
+          </div>
+          <Link href="/spend" className="btn-secondary mt-2.5 flex w-full justify-center">
+            <WalletCards size={15} aria-hidden="true" />View spend
+          </Link>
+        </RailBlock>
+
+        <RailBlock>
+          <AccountConnections variant="rail" />
+        </RailBlock>
+
+        {/* Absent, not empty: an account with nothing staged on this device has
+            no import decision to make, and a permanent "nothing here" line is
+            one more thing to read past on every visit. */}
+        {pendingImports > 0 && (
+          <RailBlock>
+            <RailLabel aside={String(pendingImports)}>Import from this browser</RailLabel>
+            <p className="mt-2 text-[11px] leading-relaxed text-[var(--foreground-subtle)]">
+              {browserKeys > 0 && `${browserKeys} provider ${browserKeys === 1 ? 'key' : 'keys'}`}
+              {browserKeys > 0 && browserFiles.length > 0 && ' and '}
+              {browserFiles.length > 0 && `${browserFiles.length} ${browserFiles.length === 1 ? 'file' : 'files'} (${size(browserBytes)})`}
+              {' found on this device. Originals remain here.'}
+            </p>
+            <button type="button" aria-expanded={showImports} onClick={() => setShowImports(current => !current)} className="btn-secondary mt-2.5 flex w-full justify-center">
+              {showImports ? 'Hide imports' : `Review ${pendingImports} item${pendingImports === 1 ? '' : 's'}`}
+            </button>
+            {showImports && (
+              <div className="mt-3 space-y-3 [&>section]:mt-0">
+                <AccountKeyImport ownerId={ownerId} />
+                <AccountAssetImport ownerId={ownerId} onImported={library.refresh} />
+              </div>
+            )}
+          </RailBlock>
+        )}
+
+        <div className="mt-5 border-t border-[var(--border)] pt-4">
+          <AccountDeletion ownerId={ownerId} variant="rail" />
+        </div>
+      </aside>
+
+      <div className="min-w-0 p-5 sm:p-6">
+        <h2 className="display text-2xl font-semibold tracking-tight text-[var(--foreground)]">Cloud library</h2>
+        <p className="mt-1.5 text-sm text-[var(--foreground-muted)]">Everything saved to your private cloud account, newest first.</p>
+
+        <LibraryFilters
+          counts={counts}
+          attentionCount={attentionJobs.length}
+          activeCount={activeJobs.length}
+          active={filter}
+          onSelect={setFilter}
+        />
+
+        {localTest && (
+          <button
+            type="button"
+            disabled={actionBusy}
+            className="btn-secondary mt-4 px-2.5 py-1 text-xs"
+            onClick={() => void jobAction('jobs', { token: crypto.randomUUID(), request: { provider: 'local-test', modelId: 'local-test', mediaType: 'image', inputMode: 'text', prompt: 'Local background test', values: {}, referenceIds: [] } })}
+          >
+            Run local background test
+          </button>
+        )}
+
+        <div className="mt-4">
+          {showingJobs ? (
+            visibleJobs.length > 0 ? (
+              <CloudJobList
+                jobs={visibleJobs}
+                limit={20}
+                busy={actionBusy}
+                onResume={id => void jobAction(`jobs/${id}/resume`)}
+                onCancel={id => void jobAction(`jobs/${id}/cancel`)}
+                onDismiss={id => void jobAction(`jobs/${id}/dismiss`)}
+              />
+            ) : (
+              <p className="py-8 text-center text-sm text-[var(--foreground-muted)]">Nothing here right now.</p>
+            )
+          ) : loading ? (
+            <p role="status" className="py-8 text-center text-sm text-[var(--foreground-muted)]">Loading cloud assets…</p>
+          ) : assets.length === 0 && !library.cursor ? (
+            /* The mock never drew an empty library, so this state is designed
+               rather than inherited: a single grey line in a canvas this wide
+               reads as a broken page. No studio link — the header already
+               carries one, and repeating it here was cut in review. */
+            <div className="flex flex-col items-center rounded-xl border border-[var(--border)] px-6 py-14 text-center">
+              <span className="rounded-xl border border-cyan-400/25 bg-gradient-to-br from-cyan-400/15 to-violet-400/15 p-3 text-cyan-300">
+                <Cloud size={22} aria-hidden="true" />
+              </span>
+              <p className="mt-4 text-base font-semibold text-[var(--foreground)]">Nothing saved to the cloud yet</p>
+              <p className="mt-2 max-w-md text-sm leading-relaxed text-[var(--foreground-muted)]">
+                Generations you run while signed in are saved here automatically and stay available on every device you sign in from.
+                {browserFiles.length > 0 && ' Work already on this device can be imported from the panel on the left.'}
+              </p>
+            </div>
+          ) : (
+            <CloudAssetGrid assets={assets} ownerId={ownerId} columns={4} onChanged={library.refresh} />
+          )}
+        </div>
+
+        {(library.cursor || library.nextCursor) && !showingJobs && (
+          <div className="mt-4 flex justify-between gap-2">
+            {library.cursor && <button type="button" disabled={loading} className="btn-secondary text-sm" onClick={() => library.page(null)}>Latest assets</button>}
+            {library.nextCursor && <button type="button" disabled={loading} className="btn-secondary text-sm" onClick={() => library.page(library.nextCursor)}>Older assets</button>}
+          </div>
+        )}
+
+        {(actionError || library.error) && (
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+            <p role="alert" className="text-sm text-red-300">{actionError || library.error}</p>
+            {library.error && <button type="button" disabled={loading} className="btn-secondary px-2 py-1 text-xs" onClick={library.refresh}>Try again</button>}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

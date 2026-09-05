@@ -61,14 +61,30 @@ export async function jobRoutes(request:Request,env:Env):Promise<Response|null>{
       }
     }
     if(path==='/api/account/assets'&&request.method==='GET'){
-      const cursor=new URL(request.url).searchParams.get('cursor');
+      const params=new URL(request.url).searchParams;
+      const cursor=params.get('cursor');
+      const kind=params.get('kind');
+      if(kind!==null&&kind!=='image'&&kind!=='video')return json({error:'Unsupported media filter.'},400);
+      const temporaryOnly=params.get('temporary')==='1';
       const match=cursor?.match(/^(\d+):([a-zA-Z0-9-]+)$/);
       if(cursor&&!match)return json({error:'Invalid page cursor.'},400);
       const before=match?Number(match[1]):Number.MAX_SAFE_INTEGER;
       const beforeId=match?match[2]:'~';
-      const rows=await env.DB.prepare('SELECT a.*,r.expires_at FROM account_assets a LEFT JOIN account_asset_retention r ON r.asset_id=a.id WHERE a.user_id = ? AND a.deleted = 0 AND (r.expires_at IS NULL OR r.expires_at>?) AND (a.created_at < ? OR (a.created_at = ? AND a.id < ?)) ORDER BY a.created_at DESC, a.id DESC LIMIT 51').bind(account.id,Date.now(),before,before,beforeId).all<Parameters<typeof assetView>[0]>();
+      const now=Date.now();
+      const rows=await env.DB.prepare('SELECT a.*,r.expires_at FROM account_assets a LEFT JOIN account_asset_retention r ON r.asset_id=a.id WHERE a.user_id = ? AND a.deleted = 0 AND (r.expires_at IS NULL OR r.expires_at>?) AND (? IS NULL OR a.kind = ?) AND (? = 0 OR r.expires_at IS NOT NULL) AND (a.created_at < ? OR (a.created_at = ? AND a.id < ?)) ORDER BY a.created_at DESC, a.id DESC LIMIT 51').bind(account.id,now,kind,kind,temporaryOnly?1:0,before,before,beforeId).all<Parameters<typeof assetView>[0]>();
       const page=rows.results.slice(0,50), last=page.at(-1);
-      return json({accountId:account.id,assets:page.map(assetView),nextCursor:rows.results.length>50&&last?`${last.created_at}:${last.id}`:null});
+      // Counts deliberately ignore both the cursor and the active filter. A
+      // count that shrank as you paged, or that only described the current
+      // filter, would make the pills lie about what is behind them.
+      const counts=await env.DB.prepare(`SELECT COUNT(*) AS all_count,
+          SUM(CASE WHEN a.kind='image' THEN 1 ELSE 0 END) AS image_count,
+          SUM(CASE WHEN a.kind='video' THEN 1 ELSE 0 END) AS video_count,
+          SUM(CASE WHEN r.expires_at IS NOT NULL THEN 1 ELSE 0 END) AS temporary_count
+        FROM account_assets a LEFT JOIN account_asset_retention r ON r.asset_id=a.id
+        WHERE a.user_id = ? AND a.deleted = 0 AND (r.expires_at IS NULL OR r.expires_at>?)`)
+        .bind(account.id,now).first<{all_count:number;image_count:number|null;video_count:number|null;temporary_count:number|null}>();
+      return json({accountId:account.id,assets:page.map(assetView),nextCursor:rows.results.length>50&&last?`${last.created_at}:${last.id}`:null,
+        counts:{all:counts?.all_count??0,image:counts?.image_count??0,video:counts?.video_count??0,temporary:counts?.temporary_count??0}});
     }
     const assetMatch=path.match(/^\/api\/account\/assets\/([a-zA-Z0-9-]+)(\/(?:content|access))?$/);
     if(assetMatch){

@@ -1,4 +1,5 @@
 import { buildAccountSpendEntry, type AccountSpendEntry, type PersistedProviderResult } from '../../lib/spend/account';
+import { totals as rollupTotals } from '../../lib/spend/rollup';
 import { currentAccount } from './sessions';
 import { json, type Env } from './security';
 import type { JobRow } from './jobs';
@@ -57,6 +58,25 @@ export async function spendRoutes(request:Request,env:Env):Promise<Response|null
       .bind(account.id,before,before,beforeId).all<SpendRow>();
     const page=rows.results.slice(0,50),entries=page.map(entryView).filter((entry):entry is AccountSpendEntry=>entry!==null),last=page.at(-1);
     return json({accountId:account.id,entries,nextCursor:rows.results.length>50&&last?`${last.at}:${last.id}`:null});
+  }
+  if(path==='/api/account/spend/totals'&&request.method==='GET'){
+    // Summed here rather than in the browser because the ledger is paged: a
+    // client adding up the first page would under-report every account past
+    // fifty runs. Walked in batches so a long ledger stays memory-bounded, and
+    // reduced with the same pure rollup /spend uses — a SQL reimplementation of
+    // the arithmetic would drift from it.
+    const entries:AccountSpendEntry[]=[];
+    let before=Number.MAX_SAFE_INTEGER,beforeId='~';
+    for(let batch=0;batch<200;batch++){
+      const rows=await env.DB.prepare(`SELECT * FROM account_spend WHERE user_id=? AND deleted=0
+        AND (at<? OR (at=? AND id<?)) ORDER BY at DESC,id DESC LIMIT 500`)
+        .bind(account.id,before,before,beforeId).all<SpendRow>();
+      for(const row of rows.results){const entry=entryView(row);if(entry)entries.push(entry);}
+      const last=rows.results.at(-1);
+      if(rows.results.length<500||!last)break;
+      before=last.at;beforeId=last.id;
+    }
+    return json({accountId:account.id,totals:rollupTotals(entries)});
   }
   if(path==='/api/account/spend/all'&&request.method==='DELETE'){
     await env.DB.prepare('UPDATE account_spend SET deleted=1 WHERE user_id=? AND deleted=0').bind(account.id).run();

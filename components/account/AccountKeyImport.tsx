@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Download, LockKeyhole } from 'lucide-react';
 import { ENGINES } from '@/lib/engines/registry';
-import { importBrowserKey, type BrowserKeyImport, type ImportableProvider } from '@/lib/account/key-import';
+import { browserKeyCandidates, importBrowserKey, type ImportableProvider } from '@/lib/account/key-import';
 import { accountChanged, refreshAccount } from '@/lib/account/session';
 import { useAccountStore } from '@/store/useAccountStore';
 import { useAppStore } from '@/store/useAppStore';
@@ -38,15 +38,10 @@ export default function AccountKeyImport({ ownerId }: { ownerId: string }) {
   }, []);
 
   const saved = useMemo(() => new Set(connections.map(connection => connection.provider)), [connections]);
-  const available = useMemo(() => ([
-    { provider: 'gemini', apiKey },
-    { provider: 'cloudflare', apiKey: cfToken, accountId: cfAccountId },
-    { provider: 'kie', apiKey: kieApiKey },
-    { provider: 'fal', apiKey: falApiKey },
-    { provider: 'runware', apiKey: runwareApiKey },
-    { provider: 'atlas', apiKey: atlasApiKey },
-    { provider: 'comet', apiKey: cometApiKey },
-  ] as BrowserKeyImport[]).filter(key => key.apiKey.trim().length > 0), [apiKey, atlasApiKey, cfAccountId, cfToken, cometApiKey, falApiKey, kieApiKey, runwareApiKey]);
+  const available = useMemo(
+    () => browserKeyCandidates({ apiKey, cfToken, cfAccountId, kieApiKey, falApiKey, runwareApiKey, atlasApiKey, cometApiKey }),
+    [apiKey, atlasApiKey, cfAccountId, cfToken, cometApiKey, falApiKey, kieApiKey, runwareApiKey]
+  );
   const active = available.filter(key => !imported.has(key.provider));
   if (hasHydrated && active.length === 0) return null;
 
