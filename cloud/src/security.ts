@@ -1,6 +1,8 @@
 declare const __LOCAL_DEV__: boolean;
 export interface Env {
   DB: D1Database;
+  ASSETS?: R2Bucket;
+  GENERATION?: Workflow<{ jobId: string }>;
   APP_ORIGIN: string;
   GOOGLE_CLIENT_ID?: string;
   GOOGLE_CLIENT_SECRET?: string;

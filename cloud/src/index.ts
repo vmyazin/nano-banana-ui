@@ -1,3 +1,5 @@
+import { jobRoutes } from './job-routes';
+import { dispatchJob, type JobRow } from './jobs';
 import { connectionRoutes } from './connections';
 import { LOCAL_SCHEMA } from './schema';
 import { cookie, cookieName, hash, isLocal, json, randomToken, readCookie, returnPath, validOrigin, type Env } from './security';
@@ -17,6 +19,8 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
     const url = new URL(request.url);
     const path = url.pathname;
     if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method) && request.headers.get('origin') !== env.APP_ORIGIN) return json({ error: 'Request origin is not allowed.' }, 403);
+    const jobResponse = await jobRoutes(request, env);
+    if (jobResponse) return jobResponse;
     const connectionResponse = await connectionRoutes(request, env);
     if (connectionResponse) return connectionResponse;
     if (path === '/health' && request.method === 'GET') return json({ ok: true });
@@ -73,6 +77,8 @@ function redirect(location: string, cookies: string[]) {
 const worker = {
   fetch: handleRequest,
   async scheduled(_event: ScheduledController, env: Env) {
+    const pending = await env.DB.prepare("SELECT * FROM account_jobs WHERE dispatched = 0 AND deleted = 0 AND state IN ('queued','running','saving') LIMIT 50").all<JobRow>();
+    for (const job of pending.results) await dispatchJob(env, job).catch(() => {});
     await env.DB.batch([
       env.DB.prepare('DELETE FROM account_oauth WHERE expires_at <= ?').bind(Date.now()),
       env.DB.prepare('DELETE FROM account_sessions WHERE expires_at <= ?').bind(Date.now()),

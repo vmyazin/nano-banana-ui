@@ -1,10 +1,12 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "scene-assembly-accounts",
-  "main": "src/index.ts",
+  "main": "src/entry.ts",
   "compatibility_date": "2026-09-01",
   "define": { "__LOCAL_DEV__": "false" },
   "vars": { "APP_ORIGIN": "https://sceneassembly.mzork.com" },
   "d1_databases": [{ "binding": "DB", "database_name": "scene-assembly-accounts", "database_id": "00000000-0000-0000-0000-000000000000", "migrations_dir": "migrations" }],
-  "triggers": { "crons": ["17 * * * *"] }
+  "r2_buckets": [{ "binding": "ASSETS", "bucket_name": "scene-assembly-assets" }],
+  "workflows": [{ "binding": "GENERATION", "name": "scene-assembly-generation", "class_name": "GenerationWorkflow" }],
+  "triggers": { "crons": ["*/5 * * * *"] }
 }

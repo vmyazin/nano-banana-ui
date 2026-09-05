@@ -6,7 +6,7 @@ The user approved the implementation plan, selected sign-in/sign-up as the first
 
 
 Date: 2026-09-04
-Status: Ready for implementation planning review; no implementation performed
+Status: Approved; implementation in progress
 Acceptance source: ../specs/2026-09-04-optional-cloud-accounts-design.md
 
 ## File map
@@ -91,3 +91,9 @@ The auth portion of task 3 is implemented, with real Google smoke remaining. Tas
 ## Milestone record — encrypted connections
 
 Implemented masked connection listing, authenticated encryption with versioned keys, owner-scoped deletion and revision-aware resolution. Account pages reuse provider registry labels, the existing confirmation dialog, and a shared accent surface. Verified 19 cloud tests, both typechecks and focused lint; local browser smoke saved and removed a dummy connection through D1. Real key/provider validation is still pending.
+
+## Milestone record — durable storage foundation
+
+Implemented local R2/Workflows bindings, idempotent job intake with atomic quota reservations, dispatch reconciliation, non-retrying submission, resumable polling/saving, streamed multipart capture, owner-scoped paginated library access, byte-range downloads and deletion tombstones. Dedicated account pages reuse ResultStack and ConfirmDialog with a shared accented AccountSurface; existing studio layout remains unchanged.
+
+Validation: 31 cloud tests passed (including quota races, ambiguous acceptance, replay and storage recovery), root and Worker typechecks and focused lint passed, Next production build and Wrangler dry-run passed. The checked-in local seed completed a Workflow, saved its fixture in R2 and verified an authenticated download. Browser smoke displayed the saved job and private asset. Native providers remain deliberately disabled pending their integration; this milestone does not complete provider coverage, imports, global cleanup or external setup.

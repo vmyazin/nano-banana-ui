@@ -1,5 +1,6 @@
 import { DatabaseSync } from 'node:sqlite';
 export function adapter(db: DatabaseSync) {
+  let pending = Promise.resolve<unknown>(undefined);
   function prepare(query: string) {
     let values: unknown[] = [];
     return {
@@ -10,8 +11,12 @@ export function adapter(db: DatabaseSync) {
     };
   }
   return { prepare, async batch(statements: { run(): Promise<unknown> }[]) {
-    db.exec('BEGIN');
-    try { const results = []; for (const s of statements) results.push(await s.run()); db.exec('COMMIT'); return results; }
-    catch (e) { db.exec('ROLLBACK'); throw e; }
+    const next = pending.then(async () => {
+      db.exec('BEGIN');
+      try { const results = []; for (const s of statements) results.push(await s.run()); db.exec('COMMIT'); return results; }
+      catch (e) { db.exec('ROLLBACK'); throw e; }
+    });
+    pending = next.catch(() => undefined);
+    return next;
   } } as unknown as D1Database;
 }
