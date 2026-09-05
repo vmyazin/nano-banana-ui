@@ -1,5 +1,24 @@
 # Optional accounts and durable cloud generation — implementation plan
 
+## Follow-up decision — 2026-09-05 local Google OAuth verified
+
+This updates task 10 and supersedes the earlier popup-blocked setup note.
+The user resumed OAuth setup. Created the **Scene Assembly — Local development**
+Web application client in `scene-assembly-accounts`, using only the exact callback
+`http://localhost:3097/api/account/callback/google`. Configured External / Testing,
+added the selected Google identity as a test user, and declared only basic
+OpenID/email/profile scopes. Stored credentials only in gitignored
+`cloud/.dev.vars` (0600), then restarted the local services.
+
+Real browser verification passed first consent and callback to `/account`,
+correct identity rendering, an empty private library with 1 GB allowance,
+session persistence across navigation, sign-out, and returning Google sign-in.
+Existing local-account data was preserved. Public branding/domain details,
+production OAuth, the Cloudflare owning-account choice/resources, native
+provider acceptance, and release sign-off remain outstanding. No deployment,
+billing change, or push was performed. Documentation-only changes require
+`git diff --check`; the credentialed browser smoke verifies this setup milestone.
+
 ## Follow-up decision — 2026-09-04
 
 The user approved the implementation plan, selected sign-in/sign-up as the first milestone, then authorized implementation of all steps and incremental commits. This overrides the original task order and the earlier no-commit condition. Account access must live on dedicated /sign-in and /sign-up pages with no new account calls to action in the existing layout; this supersedes guest promotional messaging in the studio. Shipping still requires localhost review and explicit sign-off.

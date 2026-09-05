@@ -114,6 +114,18 @@ cost-label check has passed in the target environment. No real vendor request,
 production Google OAuth setup, or production Cloudflare resource setup has been
 completed for this worktree.
 
+### Local OAuth setup verified — 2026-09-05
+
+The `scene-assembly-accounts` Google project now has a dedicated local Web
+application client, with only
+`http://localhost:3097/api/account/callback/google` authorized. Real Google
+consent, callback, session persistence, sign-out, and returning sign-in passed
+against the local account service. The audience remains External / Testing.
+See [local account development](codex/account-development.md#real-google-sign-in-for-local-development)
+for the credential location and exact boundaries. Production OAuth configuration
+and consent branding are still pending; do not reuse the local client as an
+implicit production configuration.
+
 ### Production runbook
 
 The person performing setup needs Cloudflare, Google Cloud, Vercel, and provider

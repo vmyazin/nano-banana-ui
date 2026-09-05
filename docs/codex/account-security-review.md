@@ -2,6 +2,18 @@
 
 Scope: the optional Cloudflare account implementation, its Next gateway, and account client state in the `codex/account-cloud-plan` worktree. This is an implementation review with local emulation and deterministic fixtures, not a production readiness certification. No real Google credentials, production resources, or paid provider requests were used.
 
+## Follow-up verification — 2026-09-05 real local OAuth
+
+After the original fixture-based review, a dedicated Google Web application
+client was configured in the user-selected project. Real Google authorization
+with only identity scopes returned to the local `/account` dashboard. Browser
+checks verified page-load persistence, sign-out, and returning sign-in; the
+Google account started with an empty library and no saved connections, separate
+from the existing local test account. Credentials are stored only in gitignored
+local Worker vars with `0600` permissions. This supersedes the original review's
+no-real-Google-credentials boundary for local verification only. Production
+OAuth, Cloudflare resources, and provider acceptance remain unverified.
+
 ## Review and fixes
 
 The parent integrated and verified the work; a Sol high worker independently reviewed authentication, imports, job recovery, storage lifecycle, and account isolation.

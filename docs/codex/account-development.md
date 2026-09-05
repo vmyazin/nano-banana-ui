@@ -8,6 +8,7 @@ spend ledger.
 
 This is not production-ready yet. Production resources, OAuth, secrets, and
 provider credentials are not configured; no real provider call has been made.
+Real Google OAuth has been verified against local services as described below.
 All eight provider adapters exist, but `CLOUD_GENERATION_PROVIDERS` defaults to
 empty until each one passes a real provider verification.
 
@@ -62,6 +63,35 @@ downloads, and an idempotent import of the 68-byte PNG fixture:
 ```bash
 node scripts/seed-account-demo.mjs
 ```
+
+## Real Google sign-in for local development
+
+Verified on 2026-09-05 using the Google Cloud project
+`scene-assembly-accounts` (Scene Assembly), owned by the user-selected
+`rapidlyproductive@gmail.com` identity. The Web application client is named
+**Scene Assembly — Local development**. Its only authorized redirect URI is
+`http://localhost:3097/api/account/callback/google`; JavaScript origins are not
+needed for this server-side authorization-code flow.
+
+The consent configuration is External / Testing, with that Google account added
+as a test user. Declared scopes are only `openid`, `userinfo.email`, and
+`userinfo.profile`; the app requests their equivalent `openid email profile`
+identity scopes. Home page, privacy policy, terms, and authorized production
+domain details remain pending for public launch. No consent-screen logo or
+additional API access was configured.
+
+The current worktree stores `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` only
+in gitignored `cloud/.dev.vars`, with file permissions `0600`. Supply credentials
+through that local file and restart `npm run dev`; never copy their values into
+tracked configuration or client-side environment variables. A different web
+port needs its own exact authorized callback in Google Cloud.
+
+Browser verification completed the real Google consent/callback, showed the
+selected identity on `/account` with an empty library and 1 GB allowance,
+retained the session after a fresh page load, signed out, and signed back in.
+The original local test account and its saved data remained separate. These
+checks use local D1/R2/Workflow services and do not verify production cookies,
+cross-device storage, or native provider generation.
 
 ## Implemented behavior
 
