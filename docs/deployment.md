@@ -114,6 +114,49 @@ cost-label check has passed in the target environment. No real vendor request or
 verified. The account Worker, database, private bucket, Workflow, and production
 OAuth client are configured as recorded below; the web app is not connected yet.
 
+### Isolated account preview — verified 2026-09-05
+
+- Web: <https://scene-assembly-ohuguqu4p-mzork.vercel.app/account> (Vercel preview,
+  READY, source `d8d8414`, existing `scene-assembly` project).
+- Worker: `scene-assembly-accounts-preview` at
+  `https://scene-assembly-accounts-preview.vasily-or-simon-account.workers.dev`.
+- D1: `scene-assembly-accounts-preview`,
+  `f3499f84-01b0-49ec-bdf3-9d0378d189f8`, migrations 0001–0011.
+- R2: `scene-assembly-assets-preview`, private Standard storage, with one-day
+  incomplete multipart cleanup and no completed-object expiry.
+- Workflow: `scene-assembly-generation-preview`, class `GenerationWorkflow`.
+- Google client: **Scene Assembly — Account preview**, with the exact web
+  preview callback `/api/account/callback/google`; External / Testing audience.
+
+The preview deployment has only its own `ACCOUNT_WORKER_ORIGIN` override; no
+production Vercel environment variable or alias was changed. Its resources and
+secrets are separate from production. Preview credential recovery copy:
+`~/.config/scene-assembly/preview-worker-secrets.json`, permissions `0600`,
+outside Git. Do not copy local dev identity/fake-generation values into it.
+
+Use `--config wrangler.preview.jsonc` for preview Worker operations. The config
+pins the current web preview origin. A newly generated Vercel URL requires both
+that origin and the Google client's exact callback to be updated; do not promote
+this preview directly to production while it still points to preview resources.
+
+Verified real Google sign-in, avatar, reload persistence, sign-out, and returning
+sign-in through the Vercel gateway. Private storage verification is reproducible:
+
+```bash
+node scripts/verify-account-preview.mjs
+```
+
+The script hard-pins preview resources, creates two short-lived fixture accounts
+using administrator D1 access, then exercises authenticated Worker APIs with a
+68-byte PNG. It verifies direct references, import replay, exact-byte/private
+and ranged downloads, cross-account denial and deletion revocation, and removes
+its fixture accounts/files. This separately verifies storage; it is not a
+substitute for the browser's real Google OAuth check or vendor generation.
+After the run, D1 reports one Google account, zero fixture accounts/assets and
+zero queued object deletions. Native provider execution remains disabled, so
+paid generation, durable provider completion and backup restoration remain
+launch acceptance work.
+
 ### Follow-up — 2026-09-05 approved account backend deployment
 
 The user approved the account page in response to the request to deploy the

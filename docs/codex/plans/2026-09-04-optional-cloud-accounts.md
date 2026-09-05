@@ -1,5 +1,34 @@
 # Optional accounts and durable cloud generation — implementation plan
 
+## Follow-up — 2026-09-05 isolated web preview verification
+
+User requested the next step after backend deployment. Create a Vercel preview
+from committed source in the existing Scene Assembly project, with an isolated
+`cloud/wrangler.preview.jsonc`, preview D1/R2/Workflow, Google OAuth client and
+encryption keys. Keep production web aliases and resources unchanged. Verify
+real Google sign-in in the browser and private storage with a temporary fixture
+through `scripts/verify-account-preview.mjs`; hard-pin that script to preview
+resources, seed separate short-lived accounts, and remove its records/files.
+Do not enable local auth, fake generation, or unverified native providers.
+
+Verification completed: Vercel preview `dpl_BJ2Puku7JWYGwEHkX36XmRUUwa36`
+is READY at `https://scene-assembly-ohuguqu4p-mzork.vercel.app`, built from
+commit `d8d8414` in the existing `scene-assembly` project. Real browser Google
+sign-in returned to `/account` with the selected identity/photo; reload,
+sign-out and returning sign-in passed. The preview uses its own D1/R2/Workflow,
+OAuth client, and encryption secrets. The fixture script passed direct reference
+upload/cleanup, import replay, exact-byte private download, ranges, unauthenticated
+and cross-account rejection, and deletion revocation. Remote inspection confirms
+11 migrations, one Google account, zero fixture accounts/assets, and zero queued
+object deletions. Node syntax, focused lint, and diff checks passed.
+
+The first export attempt hit Python's unsupported tar filter option; an empty
+`account-preview-source` Vercel project was created by the subsequent CLI command.
+That exact placeholder project and its deployment were removed. The corrected
+export was explicitly linked to the existing Scene Assembly project before
+upload. The live web app and production account resources remain unchanged.
+Native provider/background-job and backup recovery acceptance remain open.
+
 ## Follow-up — 2026-09-05 approved account backend deployment
 
 The user approved the account page in response to the request to deploy the

@@ -1,0 +1,47 @@
+// Isolated account verification: never point this environment at production data.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "scene-assembly-accounts-preview",
+  "account_id": "7f64edc36bdefec27b66e6ff9b2dcc3d",
+  "main": "src/entry.ts",
+  "compatibility_date": "2026-07-20",
+  "define": {
+    "__LOCAL_DEV__": "false"
+  },
+  "vars": {
+    "APP_ORIGIN": "https://scene-assembly-ohuguqu4p-mzork.vercel.app",
+    "PUBLIC_WORKER_ORIGIN": "https://scene-assembly-accounts-preview.vasily-or-simon-account.workers.dev"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "scene-assembly-accounts-preview",
+      "database_id": "f3499f84-01b0-49ec-bdf3-9d0378d189f8",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "ASSETS",
+      "bucket_name": "scene-assembly-assets-preview"
+    }
+  ],
+  "workflows": [
+    {
+      "binding": "GENERATION",
+      "name": "scene-assembly-generation-preview",
+      "class_name": "GenerationWorkflow"
+    }
+  ],
+  "observability": {
+    "enabled": true,
+    "logs": {
+      "invocation_logs": false
+    }
+  },
+  "triggers": {
+    "crons": [
+      "*/5 * * * *"
+    ]
+  }
+}

@@ -8,8 +8,9 @@ spend ledger.
 
 This is not production-ready yet. The Cloudflare account Worker, D1 database,
 private R2 bucket, Workflow, production encryption secrets, and separate Google
-client are configured. The live web app is not connected, Google consent remains
-in testing mode, and no real provider call has been made. See the deployment
+client are configured. An isolated Vercel/Cloudflare preview passed real Google
+sign-in and private-storage verification. The live web app is not connected,
+Google consent remains in testing mode, and no real provider call has been made. See the deployment
 record in `docs/deployment.md` for exact external state.
 Real Google OAuth has been verified against local services as described below.
 All eight provider adapters exist, but `CLOUD_GENERATION_PROVIDERS` defaults to
@@ -207,7 +208,8 @@ connecting the production app. The detailed order and external setup checklist
 are in [`docs/deployment.md`](../deployment.md). Production setup requires user
 credentials and potentially billing consent. The dedicated D1/R2 resources are
 created and the account Worker/Workflow deployed with production secrets.
-Full preview integration and authenticated cloud verification remain pending. Get user
+The isolated preview passed real Google login and private-storage checks;
+real provider/background-job and backup recovery checks remain pending. Get user
 review and localhost sign-off before any push because `main` deploys
 automatically.
 
@@ -224,6 +226,15 @@ to abort incomplete multipart uploads after one day. Do not set permanent asset
 expiry. Application cleanup covers abandoned imports, temporary results,
 deleted objects, and deleted-account prefix rescans; the bucket lifecycle is a
 last-resort multipart cleanup rather than the account retention policy.
+
+## Remote preview verification
+
+The isolated web URL, Worker config, resource IDs and verification results are
+recorded in [deployment](../deployment.md#isolated-account-preview--verified-2026-09-05).
+Run `node scripts/verify-account-preview.mjs` to repeat the private storage smoke
+against those fixed preview resources. The script seeds and removes only its own
+fixture accounts; it neither imports user browser data nor calls a provider.
+Keep `cloud/wrangler.preview.jsonc` separate from the production config.
 
 ## Verification
 
