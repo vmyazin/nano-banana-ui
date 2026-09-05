@@ -144,6 +144,10 @@ Comet's catalog is public too: `GET https://api.cometapi.com/api/models`.
 | Atlas | `qwen-image-3.0/edit` | image→image | $0.04 / image |
 | Atlas | `ltx-2.3-quality/text-to-video` | text→video | $0.002 / s |
 | Atlas | `bytedance/seedance-v1-pro-fast/image-to-video` | image→video | $0.009 / s |
+| Atlas | `bytedance/seedream-v5.0-pro/text-to-image` | text→image | $0.036 / image |
+| Atlas | `bytedance/seedream-v5.0-pro/edit` | image→image | $0.036 / image (+$0.003 per extra reference) |
+| Atlas | `bytedance/seedance-2.0-mini/{text,image,reference}-to-video` | text→video, image→video, first+last frame, reference→video | $0.011 / s |
+| Atlas | `bytedance/seedance-2.0-fast/{text,image,reference}-to-video` | text→video, image→video, first+last frame, reference→video | $0.027 / s |
 | Comet | `gpt-image-2` | text→image | metered |
 | Comet | `qwen-image` | text→image (n must be 1) | metered |
 | Comet | `seedance-2-5`, `doubao-seedance-2-0-mini` | text→video, image→video | metered |
@@ -154,6 +158,20 @@ Comet's catalog is public too: `GET https://api.cometapi.com/api/models`.
 | Comet | `minimax-h3` | text→video, image→video | metered |
 | Comet | `happyhorse-1.1` | text→video, image→video | metered |
 | Comet | `flux-3` | text→video, image→video | metered |
+
+**2026-09-05 addition:** Atlas cut Seedance 2.0 Mini to $0.011/s (from $0.056),
+Seedance 2.0 Fast to $0.027/s (from $0.09), and Seedream v5.0 Pro to $0.036/image
+(from $0.045), so all three were added. Ids, prices, resolutions, and durations
+come from `https://www.atlascloud.ai/models/{model}/llms.txt` — the per-model
+machine-readable reference Atlas publishes for agents, and the one it names as
+authoritative for its own pricing over the vendor blurb on the HTML page.
+
+Two field names differ from the rest of the Atlas catalog and are handled in the
+adapter: Seedance 2.0 spells the aspect field `ratio` where Seedance v1 spells it
+`aspect_ratio`, and Seedream's editor takes an `images` array where the FLUX
+endpoints take a single `image`. Seedream also refuses the shared size table —
+it requires 1,048,576–4,194,304 output pixels and every size in that table is
+smaller — so it carries its own.
 
 **2026-08-16 correction:** `bfl:flux@2-dev` and `runware:101@1` were dropped. The
 first appears only on Runware's marketing pages — the FLUX.2 [dev] model page

@@ -12,6 +12,14 @@ describe('provider catalog rates', () => {
       'qwen-image-3.0/edit': { usd: 0.04, per: 'image' },
       'ltx-2.3-quality/text-to-video': { usd: 0.002, per: 'second' },
       'bytedance/seedance-v1-pro-fast/image-to-video': { usd: 0.009, per: 'second' },
+      'bytedance/seedream-v5.0-pro/text-to-image': { usd: 0.036, per: 'image' },
+      'bytedance/seedream-v5.0-pro/edit': { usd: 0.036, per: 'image' },
+      'bytedance/seedance-2.0-mini/text-to-video': { usd: 0.011, per: 'second' },
+      'bytedance/seedance-2.0-mini/image-to-video': { usd: 0.011, per: 'second' },
+      'bytedance/seedance-2.0-mini/reference-to-video': { usd: 0.011, per: 'second' },
+      'bytedance/seedance-2.0-fast/text-to-video': { usd: 0.027, per: 'second' },
+      'bytedance/seedance-2.0-fast/image-to-video': { usd: 0.027, per: 'second' },
+      'bytedance/seedance-2.0-fast/reference-to-video': { usd: 0.027, per: 'second' },
     });
   });
 

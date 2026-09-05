@@ -86,6 +86,129 @@ describe('atlas cloud', () => {
     expect(taskId).toBe('pred-3');
   });
 
+  it('names the aspect field the way each Seedance generation does', async () => {
+    const fetchMock = mockFetchSequence([
+      { payload: { data: { id: 'pred-4' } } },
+      { payload: { data: { id: 'pred-5' } } },
+    ]);
+
+    await atlasCreateVideo({
+      apiKey: 'at-key',
+      model: 'bytedance/seedance-v1-pro-fast/image-to-video',
+      prompt: 'push in slowly',
+      images: ['data:image/png;base64,AAA'],
+      inputField: 'frameImages',
+      aspectRatio: '16:9',
+    });
+    await atlasCreateVideo({
+      apiKey: 'at-key',
+      model: 'bytedance/seedance-2.0-mini/text-to-video',
+      prompt: 'a kite over the harbour',
+      aspectRatio: '16:9',
+    });
+
+    // Seedance v1 takes `aspect_ratio`; 2.0 renamed it to `ratio`, and either
+    // model drops the other spelling in silence rather than failing.
+    const v1 = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+    expect(v1.aspect_ratio).toBe('16:9');
+    expect(v1.ratio).toBeUndefined();
+
+    const v2 = JSON.parse(fetchMock.mock.calls[1][1].body as string);
+    expect(v2.ratio).toBe('16:9');
+    expect(v2.aspect_ratio).toBeUndefined();
+  });
+
+  it('bookends a Seedance 2.0 clip with a closing frame when a second still is sent', async () => {
+    const fetchMock = mockFetchSequence([{ payload: { data: { id: 'pred-6' } } }]);
+
+    await atlasCreateVideo({
+      apiKey: 'at-key',
+      model: 'bytedance/seedance-2.0-mini/image-to-video',
+      prompt: 'the door opens',
+      images: ['data:image/png;base64,AAA', 'data:image/png;base64,BBB'],
+      inputMode: 'frames',
+      inputField: 'frameImages',
+      durationSeconds: 6,
+      resolution: '720p',
+    });
+
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body as string)).toMatchObject({
+      image: 'data:image/png;base64,AAA',
+      last_image: 'data:image/png;base64,BBB',
+      duration: 6,
+      resolution: '720p',
+    });
+  });
+
+  it('sends subject references as the array the reference endpoints take', async () => {
+    const fetchMock = mockFetchSequence([{ payload: { data: { id: 'pred-7' } } }]);
+
+    await atlasCreateVideo({
+      apiKey: 'at-key',
+      model: 'bytedance/seedance-2.0-fast/reference-to-video',
+      prompt: 'Image 1 walks through Image 2',
+      images: ['data:image/png;base64,AAA', 'data:image/png;base64,BBB'],
+      inputMode: 'reference',
+      inputField: 'referenceImages',
+    });
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+    expect(body.reference_images).toEqual([
+      'data:image/png;base64,AAA',
+      'data:image/png;base64,BBB',
+    ]);
+    // The single-frame field would pin the first reference as a first frame.
+    expect(body.image).toBeUndefined();
+  });
+
+  it('sizes Seedream inside the pixel window it requires', async () => {
+    const fetchMock = mockFetchSequence([
+      { payload: { data: { id: 'pred-8' } } },
+      { payload: { id: 'pred-8', status: 'succeeded', output: ['https://cdn.atlas/b.png'] } },
+    ]);
+
+    await atlasGenerateImage(
+      {
+        apiKey: 'at-key',
+        model: 'bytedance/seedream-v5.0-pro/edit',
+        prompt: 'make the sign read OPEN',
+        images: ['data:image/png;base64,AAA', 'data:image/png;base64,BBB'],
+        aspectRatio: '16:9',
+      },
+      noSleep
+    );
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+    // 1344*768 is below Seedream's 1,048,576-pixel floor, so it takes its own.
+    expect(body.size).toBe('2048*1152');
+    // The editor takes an array, and rejects the singular `image` field.
+    expect(body.images).toEqual(['data:image/png;base64,AAA', 'data:image/png;base64,BBB']);
+    expect(body.image).toBeUndefined();
+  });
+
+  it('drops a carried-over reference for a Seedream text-to-image run', async () => {
+    const fetchMock = mockFetchSequence([
+      { payload: { data: { id: 'pred-9' } } },
+      { payload: { id: 'pred-9', status: 'succeeded', output: ['https://cdn.atlas/c.png'] } },
+    ]);
+
+    await atlasGenerateImage(
+      {
+        apiKey: 'at-key',
+        model: 'bytedance/seedream-v5.0-pro/text-to-image',
+        prompt: 'a harbour at dawn',
+        images: ['data:image/png;base64,AAA'],
+        aspectRatio: '1:1',
+      },
+      noSleep
+    );
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+    expect(body.size).toBe('1536*1536');
+    expect(body.image).toBeUndefined();
+    expect(body.images).toBeUndefined();
+  });
+
   it('maps a queued prediction to a queued task', async () => {
     mockFetchSequence([{ payload: { id: 'pred-3', status: 'queued' } }]);
 

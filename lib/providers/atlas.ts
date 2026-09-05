@@ -6,6 +6,7 @@ import {
   type ImageResult,
   type ProviderAdapter,
   type ProviderTask,
+  type VideoInputField,
   type VideoRequest,
 } from './types';
 
@@ -30,6 +31,68 @@ const SIZES: Record<string, string> = {
   '2:3': '832*1216',
   '21:9': '1536*640',
 };
+
+/**
+ * Atlas is an aggregator, so a request body is the upstream model's, not one of
+ * its own: the same idea wears a different field name per model, and a name the
+ * model does not know is dropped in silence rather than rejected. Everything
+ * from here to the adapter is quoted from a model's own parameter reference.
+ *
+ * Seedream v5.0 Pro, to start, will not take any of the sizes above: it requires
+ * 1,048,576–4,194,304 output pixels and every one of them is smaller. These are
+ * its own published sizes, all inside its 1.5K billing tier (≤2.36M pixels), so
+ * a run costs the $0.036 the catalog quotes rather than the 2K tier's price. It
+ * publishes no 3:2 or 21:9 size, so those snap to the nearest shape it does.
+ */
+const SEEDREAM_SIZES: Record<string, string> = {
+  '1:1': '1536*1536',
+  '16:9': '2048*1152',
+  '9:16': '1152*2048',
+  '4:3': '1776*1328',
+  '3:4': '1328*1776',
+  '3:2': '1776*1328',
+  '2:3': '1328*1776',
+  '21:9': '2048*1152',
+};
+
+const isSeedream = (model: string) => model.startsWith('bytedance/seedream-');
+
+/** By the model's own size table, since not every model shares one. */
+function imageSize(model: string, aspectRatio: string | undefined): string {
+  const table = isSeedream(model) ? SEEDREAM_SIZES : SIZES;
+  return table[aspectRatio ?? '1:1'] ?? table['1:1'];
+}
+
+/** `image` is what the FLUX endpoints take; Seedream's editor takes an array. */
+function imageReferenceFields(model: string, images: string[]): Record<string, unknown> {
+  if (images.length === 0) return {};
+  // Seedream's text-to-image endpoint has no image field at all, so a reference
+  // carried over from another model is dropped instead of sent and rejected.
+  if (isSeedream(model)) return model.endsWith('/edit') ? { images } : {};
+  return { image: images[0] };
+}
+
+/**
+ * Seedance 2.0 renamed the aspect field to `ratio`; Seedance v1 and everything
+ * else here still call it `aspect_ratio`.
+ */
+const ratioField = (model: string) =>
+  model.startsWith('bytedance/seedance-2.0') ? 'ratio' : 'aspect_ratio';
+
+/**
+ * A first frame with an optional closing frame (`image` / `last_image`), or a
+ * set of subject references (`reference_images`) — which one is decided by the
+ * catalog's declared input field, never by how many images happened to arrive.
+ */
+function videoImageFields(
+  field: VideoInputField | undefined,
+  images: string[]
+): Record<string, unknown> {
+  if (images.length === 0) return {};
+  if (field === 'referenceImages') return { reference_images: images };
+  const [first, last] = images;
+  return { image: first, ...(last ? { last_image: last } : {}) };
+}
 
 interface AtlasSubmitEnvelope {
   code?: string | number;
@@ -113,13 +176,12 @@ export async function atlasGenerateImage(
   request: ImageRequest,
   sleep: (ms: number) => Promise<void> = (ms) => new Promise((r) => setTimeout(r, ms))
 ): Promise<ImageResult> {
-  const reference = request.images?.[0];
   const id = await submit(request.apiKey, 'generateImage', {
     model: request.model,
     prompt: request.prompt,
-    size: SIZES[request.aspectRatio ?? '1:1'] ?? SIZES['1:1'],
+    size: imageSize(request.model, request.aspectRatio),
     num_images: 1,
-    ...(reference ? { image: reference } : {}),
+    ...imageReferenceFields(request.model, request.images ?? []),
   });
 
   for (let attempt = 0; attempt < IMAGE_POLL_ATTEMPTS; attempt += 1) {
@@ -132,14 +194,13 @@ export async function atlasGenerateImage(
 }
 
 export async function atlasCreateVideo(request: VideoRequest): Promise<{ taskId: string }> {
-  const reference = request.images?.[0];
   const taskId = await submit(request.apiKey, 'generateVideo', {
     model: request.model,
     prompt: request.prompt,
-    ...(reference ? { image: reference } : {}),
+    ...videoImageFields(request.inputField, request.images ?? []),
     ...(request.durationSeconds ? { duration: request.durationSeconds } : {}),
     ...(request.resolution ? { resolution: request.resolution } : {}),
-    ...(request.aspectRatio ? { aspect_ratio: request.aspectRatio } : {}),
+    ...(request.aspectRatio ? { [ratioField(request.model)]: request.aspectRatio } : {}),
   });
   return { taskId };
 }

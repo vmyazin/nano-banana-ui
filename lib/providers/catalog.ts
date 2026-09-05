@@ -165,6 +165,70 @@ const RUNWARE_MODELS: ProviderModel[] = [
   },
 ];
 
+/**
+ * Seedance 2.0's Mini and Fast tiers are one model behind three endpoints each —
+ * Atlas gives every mode its own id — so the controls they share are written
+ * once and a tier supplies only its ids and its rate. Read on 2026-09-05 from
+ * `https://www.atlascloud.ai/models/bytedance/seedance-2.0-{tier}/{mode}/llms.txt`,
+ * the per-model reference Atlas publishes for agents.
+ *
+ * Neither tier has a native 1080p: above 720p they list only the upscaled `-SR`
+ * sizes, and `4k` belongs to the full Seedance 2.0 model alone.
+ */
+function seedance20Tier(tier: 'mini' | 'fast', usdPerSecond: number): ProviderModel[] {
+  const shared = {
+    label: `Seedance 2.0 ${tier === 'mini' ? 'Mini' : 'Fast'}`,
+    kind: 'video' as const,
+    price: `$${usdPerSecond} / s`,
+    rate: { usd: usdPerSecond, per: 'second' as const },
+    // Documented as any whole 4–15; these are the stops worth offering.
+    durations: [4, 5, 6, 8, 10, 12, 15],
+    sizes: [
+      { label: '480p', preset: '480p' },
+      { label: '720p', preset: '720p' },
+      { label: '1080p (upscaled)', preset: '1080p-SR' },
+      { label: '1440p (upscaled)', preset: '1440p-SR' },
+    ],
+  };
+
+  return [
+    {
+      ...shared,
+      id: `bytedance/seedance-2.0-${tier}/text-to-video`,
+      fileCode: `seedance-2_0-${tier}-t2v`,
+      modes: ['text'],
+    },
+    {
+      ...shared,
+      id: `bytedance/seedance-2.0-${tier}/image-to-video`,
+      fileCode: `seedance-2_0-${tier}-i2v`,
+      // `last_image` is optional, so one still opens the clip and two bookend it.
+      modes: ['image', 'frames'],
+      maxInputImages: 2,
+      videoInputs: {
+        image: { field: 'frameImages', maxImages: 1 },
+        frames: { field: 'frameImages', maxImages: 2 },
+      },
+    },
+    {
+      ...shared,
+      id: `bytedance/seedance-2.0-${tier}/reference-to-video`,
+      fileCode: `seedance-2_0-${tier}-r2v`,
+      modes: ['reference'],
+      maxInputImages: 9,
+      videoInputs: {
+        reference: {
+          field: 'referenceImages',
+          maxImages: 9,
+          clientMaxImages: 5,
+          promptSyntax: 'image-index',
+        },
+      },
+      note: 'Carries characters, products, and styles between shots, with native audio.',
+    },
+  ];
+}
+
 const ATLAS_MODELS: ProviderModel[] = [
   {
     id: 'black-forest-labs/flux-schnell',
@@ -206,6 +270,27 @@ const ATLAS_MODELS: ProviderModel[] = [
     maxInputImages: 1,
   },
   {
+    id: 'bytedance/seedream-v5.0-pro/text-to-image',
+    label: 'Seedream v5.0 Pro',
+    fileCode: 'seedream-v5_0-pro',
+    kind: 'image',
+    modes: ['text'],
+    price: '$0.036 / image',
+    rate: { usd: 0.036, per: 'image' },
+    note: "ByteDance's flagship — the best prompt adherence and in-image typography here.",
+  },
+  {
+    id: 'bytedance/seedream-v5.0-pro/edit',
+    label: 'Seedream v5.0 Pro Edit',
+    fileCode: 'seedream-v5_0-pro-edit',
+    kind: 'image',
+    modes: ['image'],
+    price: '$0.036 / image',
+    rate: { usd: 0.036, per: 'image' },
+    maxInputImages: 10,
+    note: 'Editing only — it needs at least one reference. The first is included in the price; each one after it adds $0.003.',
+  },
+  {
     id: 'ltx-2.3-quality/text-to-video',
     label: 'LTX 2.3 Quality',
     fileCode: 'ltx-2_3-quality',
@@ -239,6 +324,9 @@ const ATLAS_MODELS: ProviderModel[] = [
       { label: '1080p', preset: '1080p' },
     ],
   },
+  // The only models here with native audio and a character-reference mode.
+  ...seedance20Tier('mini', 0.011),
+  ...seedance20Tier('fast', 0.027),
 ];
 
 const COMET_MODELS: ProviderModel[] = [

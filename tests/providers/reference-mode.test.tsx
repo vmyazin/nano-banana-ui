@@ -60,7 +60,7 @@ describe('reference video mode routing', () => {
     fireEvent.click(screen.getByRole('button', { name: /Character references/i }));
     expect(onInputModeChange).toHaveBeenCalledWith('reference');
 
-    for (const provider of ['kie', 'fal', 'atlas', 'comet'] as const) {
+    for (const provider of ['kie', 'fal', 'comet'] as const) {
       useAppStore.setState({ videoEngine: provider });
       view.rerender(
         <VideoWorkspace
@@ -72,6 +72,18 @@ describe('reference video mode routing', () => {
       );
       expect(screen.queryByRole('button', { name: /Character references/i })).not.toBeInTheDocument();
     }
+
+    // Atlas gained the mode with Seedance 2.0's reference-to-video endpoints.
+    useAppStore.setState({ videoEngine: 'atlas' });
+    view.rerender(
+      <VideoWorkspace
+        inputMode="reference"
+        onInputModeChange={onInputModeChange}
+        onExit={() => undefined}
+        onOpenConnections={() => undefined}
+      />
+    );
+    expect(screen.getByRole('button', { name: /Character references/i })).toBeInTheDocument();
   });
 
   it('narrows an unsupported reference deep link to the existing image flow', () => {
