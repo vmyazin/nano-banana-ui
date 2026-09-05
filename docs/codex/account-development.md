@@ -64,6 +64,12 @@ Wrangler does not trigger cron automatically in local development. The dev super
 
 Wrangler is pinned to 4.113.0 with a compatible runtime date because newer local proxies reproduced a fatal Network connection lost error while serving concurrent account requests. Upstream evidence: [Cloudflare local proxy regression](https://github.com/cloudflare/workers-sdk/issues/15002), [empty fatal proxy error](https://github.com/cloudflare/workers-sdk/issues/15317). Recheck the upstream fix and local smoke suite before upgrading. No runtime secrets or production bindings were changed for this workaround.
 
+## Quota overflow and expiry
+
+The permanent library never exceeds its configured byte limit. Capture protects other accepted jobs' reservations while consuming its own. If an output does not fit, its bytes remain privately downloadable as a temporary result for 24 hours, with an explicit deadline in the shared result/library UI. Free space and resume the same job to promote those bytes; neither promotion nor saving an already known result requires another provider call. Native providers may be disabled or their connection removed after generation without preventing an already persisted result from being saved.
+
+Aggregate output is capped at 1 GB per job, with at most three active jobs per account and 100 across the service. Temporary reference uploads also have a 10 GB service-wide cap. These caps bound outstanding work; they do not replace per-model limit verification. Expiry tombstones temporary assets, revokes reads and releases reservations; permanent assets remain unchanged. Local emulation creates migration 0005 automatically on its next request; production must apply migrations explicitly. The retention journal precedes the asset insert within one atomic D1 batch, which is why it has no immediate foreign key.
+
 ## Studio account execution
 
 The invisible AccountSessionProvider refreshes session/connection metadata and owner-scoped jobs. useAccountStore is memory-only and clears account results on identity changes. Shared submission helpers bind mutations to the initiating account, so switching accounts during an upload cannot attach the old draft to the new account. Intake retries retain the same token and reference IDs after an uncertain response. Guest stores are never used for cloud jobs.

@@ -1,14 +1,16 @@
 import type { CloudAsset, CloudJobRequest } from '../../lib/account/contracts';
 import { AccountError, type JobRow } from './jobs';
 import type { Env } from './security';
+import { AVAILABLE_CAPACITY, OVERFLOW_TTL_MS, promoteTemporaryAsset } from './retention';
 
 export const MAX_OUTPUT_BYTES = 1_000_000_000;
 export const MAX_JOB_OUTPUTS = 8;
-interface AssetRow { id: string; user_id: string; job_id: string | null; object_key: string; kind: 'image'|'video'; mime_type: string; bytes: number; metadata_json: string; created_at: number; deleted: number }
+export const MAX_JOB_OUTPUT_BYTES = 1_000_000_000;
+interface AssetRow { id: string; user_id: string; job_id: string | null; object_key: string; kind: 'image'|'video'; mime_type: string; bytes: number; metadata_json: string; created_at: number; deleted: number; expires_at?:number|null }
 export interface ResultSource { url?: string; objectKey?: string; mimeType?: string }
 export interface ProviderResult { sources: ResultSource[]; cost?: number; usage?: { promptTokens: number; outputTokens: number } }
-export function assetView(row: AssetRow): CloudAsset { return { id:row.id, jobId:row.job_id, kind:row.kind, mimeType:row.mime_type, bytes:row.bytes, createdAt:row.created_at, metadata:JSON.parse(row.metadata_json) }; }
-export async function getAsset(env:Env,id:string,owner:string) { return env.DB.prepare('SELECT * FROM account_assets WHERE id = ? AND user_id = ? AND deleted = 0').bind(id,owner).first<AssetRow>(); }
+export function assetView(row: AssetRow): CloudAsset { return { id:row.id, jobId:row.job_id, kind:row.kind, mimeType:row.mime_type, bytes:row.bytes, createdAt:row.created_at, metadata:JSON.parse(row.metadata_json),...(row.expires_at?{expiresAt:row.expires_at}:{}) }; }
+export async function getAsset(env:Env,id:string,owner:string) { return env.DB.prepare('SELECT a.*,r.expires_at FROM account_assets a LEFT JOIN account_asset_retention r ON r.asset_id=a.id WHERE a.id = ? AND a.user_id = ? AND a.deleted = 0 AND (r.expires_at IS NULL OR r.expires_at>?)').bind(id,owner,Date.now()).first<AssetRow>(); }
 
 /** Host allowlist prevents a provider result from turning the capture worker into a URL proxy. */
 export function safeResultUrl(value:string): URL {
@@ -55,10 +57,15 @@ export async function captureResult(env:Env,job:JobRow,result:ProviderResult) {
   if(!env.ASSETS)throw new Error('Asset storage is unavailable');
   if(result.sources.length===0||result.sources.length>MAX_JOB_OUTPUTS)throw new AccountError('Unsupported number of results.',502,'result_count');
   const request=JSON.parse(job.request_json) as CloudJobRequest;
+  let totalBytes=0;
   for(let i=0;i<result.sources.length;i++){
     const id=`${job.id}-${i}`, source=result.sources[i], key=`accounts/${job.user_id}/jobs/${job.id}/${i}`;
-    const existing=await env.DB.prepare('SELECT id FROM account_assets WHERE id = ?').bind(id).first();
-    if(existing)continue; // Includes tombstones: never resurrect a deleted asset.
+    const existing=await env.DB.prepare('SELECT a.bytes,a.deleted,r.expires_at FROM account_assets a LEFT JOIN account_asset_retention r ON r.asset_id=a.id WHERE a.id=?').bind(id).first<{bytes:number;deleted:number;expires_at:number|null}>();
+    if(existing){
+      totalBytes+=existing.bytes;
+      if(!existing.deleted&&existing.expires_at)await promoteTemporaryAsset(env,job,id,existing.bytes);
+      continue; // Includes tombstones: never resurrect a deleted asset.
+    }
     let object=await env.ASSETS.head(key);
     if(!object){
       if(source.objectKey){
@@ -69,22 +76,27 @@ export async function captureResult(env:Env,job:JobRow,result:ProviderResult) {
       const response=await fetchOutput(source.url);
       const mime=(response.headers.get('content-type')||source.mimeType||'').split(';')[0].trim().toLowerCase();
       if(!mime.startsWith(`${request.mediaType}/`)){await response.body?.cancel();throw new Error('Unexpected result type');}
-      object=await writeOutput(env,key,response.body!,mime);
+      object=await writeOutput(env,key,response.body!,mime,MAX_JOB_OUTPUT_BYTES-totalBytes);
     }
     if(object.size<=0)throw new Error('Empty stored result');
+    totalBytes+=object.size;
+    if(totalBytes>MAX_JOB_OUTPUT_BYTES)throw new AccountError('This job exceeds the supported total output size.',502,'result_size');
     // The marker is the insert itself. Replays cannot count the same object twice.
     // If deletion raced the transfer, this inserts nothing; cleanup removes the orphan.
     await env.DB.batch([
-      env.DB.prepare(`UPDATE account_storage SET used_bytes = used_bytes + ? WHERE user_id = ? AND NOT EXISTS (SELECT 1 FROM account_assets WHERE id = ?) AND EXISTS (SELECT 1 FROM account_jobs WHERE id = ? AND deleted = 0)`).bind(object.size,job.user_id,id,job.id),
+      env.DB.prepare(`INSERT OR IGNORE INTO account_asset_retention (asset_id,expires_at) SELECT ?,? WHERE NOT EXISTS (SELECT 1 FROM account_assets WHERE id=?) AND EXISTS (SELECT 1 FROM account_jobs WHERE id=? AND deleted=0 AND state NOT IN ('failed','cancelled')) AND NOT EXISTS (${AVAILABLE_CAPACITY})`).bind(id,Date.now()+OVERFLOW_TTL_MS,id,job.id,job.id,object.size),
+      env.DB.prepare(`UPDATE account_storage SET used_bytes = used_bytes + ? WHERE user_id = ? AND NOT EXISTS (SELECT 1 FROM account_assets WHERE id = ?) AND NOT EXISTS (SELECT 1 FROM account_asset_retention WHERE asset_id=?) AND EXISTS (SELECT 1 FROM account_jobs WHERE id = ? AND deleted = 0 AND state NOT IN ('failed','cancelled'))`).bind(object.size,job.user_id,id,id,job.id),
       env.DB.prepare(`INSERT OR IGNORE INTO account_assets (id,user_id,job_id,object_key,kind,mime_type,bytes,metadata_json,created_at)
-        SELECT ?,?,?,?,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM account_jobs WHERE id = ? AND deleted = 0)`)
+        SELECT ?,?,?,?,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM account_jobs WHERE id = ? AND deleted = 0 AND state NOT IN ('failed','cancelled'))`)
         .bind(id,job.user_id,job.id,key,request.mediaType,object.httpMetadata?.contentType||source.mimeType||'application/octet-stream',object.size,job.request_json,Date.now(),job.id),
     ]);
   }
+  const temporary=await env.DB.prepare('SELECT 1 FROM account_asset_retention r JOIN account_assets a ON a.id=r.asset_id WHERE a.job_id=? AND a.deleted=0 LIMIT 1').bind(job.id).first();
+  if(temporary)throw new AccountError('Free space and resume saving. These results are temporarily downloadable for 24 hours.',409,'storage_full');
 }
 export async function deleteAsset(env:Env,id:string,owner:string) {
   await env.DB.batch([
-    env.DB.prepare('UPDATE account_storage SET used_bytes = used_bytes - COALESCE((SELECT bytes FROM account_assets WHERE id = ? AND user_id = ? AND deleted = 0),0) WHERE user_id = ?').bind(id,owner,owner),
+    env.DB.prepare('UPDATE account_storage SET used_bytes = used_bytes - COALESCE((SELECT bytes FROM account_assets WHERE id = ? AND user_id = ? AND deleted = 0 AND NOT EXISTS (SELECT 1 FROM account_asset_retention WHERE asset_id=?)),0) WHERE user_id = ?').bind(id,owner,id,owner),
     env.DB.prepare('UPDATE account_assets SET deleted = 1 WHERE id = ? AND user_id = ?').bind(id,owner),
   ]);
   const row=await env.DB.prepare('SELECT object_key FROM account_assets WHERE id = ? AND user_id = ? AND deleted = 1').bind(id,owner).first<{object_key:string}>();

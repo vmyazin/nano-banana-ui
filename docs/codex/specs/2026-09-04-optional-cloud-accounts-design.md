@@ -76,3 +76,6 @@ Release acceptance includes closing the browser at every stage, reopening on ano
 - https://developers.cloudflare.com/workflows/build/local-development/ — local emulation.
 - https://developers.cloudflare.com/workers/local-development/bindings-per-env/ — D1/R2 local support.
 - https://developers.cloudflare.com/r2/pricing/ — storage economics; allowance is not monthly generation credit.
+# Implementation follow-up — 2026-09-05
+
+An accepted job whose output exceeds its reserved allowance may use bounded temporary overflow: capture at most 1 GB across all outputs for a job, keep overflow privately downloadable for 24 hours, and mark the job as needing storage attention. Promote the existing bytes after the user frees library space; no new generation is submitted. Expiry removes only temporary outputs and releases the job reservation. The permanent library remains capped at 1 GB and existing assets are preserved. The active-job caps bound temporary generation storage to three jobs per account and 100 globally. These are implementation safety limits pending credentialed model-size verification, not assertions about vendor maxima.

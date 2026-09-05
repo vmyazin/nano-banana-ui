@@ -5,6 +5,7 @@ import { currentAccount } from './sessions';
 import { json, type Env } from './security';
 export const MAX_INPUT_BYTES=20_000_000;
 export const MAX_TEMP_BYTES=256_000_000;
+export const MAX_GLOBAL_TEMP_BYTES=10_000_000_000;
 const INPUT_TTL=86_400_000;
 interface Upload {id:string;user_id:string;object_key:string;mime_type:string;expected_bytes:number;state:string;expires_at:number}
 export async function reserveUpload(env:Env,owner:string,bytes:number,mime:string) {
@@ -13,8 +14,9 @@ export async function reserveUpload(env:Env,owner:string,bytes:number,mime:strin
   const id=crypto.randomUUID(),key=`accounts/${owner}/inputs/${id}`,now=Date.now();
   const inserted=await env.DB.prepare(`INSERT INTO account_uploads (id,user_id,object_key,mime_type,expected_bytes,created_at,expires_at)
     SELECT ?,?,?,?,?,?,? WHERE (SELECT COALESCE(SUM(expected_bytes),0) FROM account_uploads WHERE user_id=? AND state!='deleted')+?<=?
-    AND (SELECT COUNT(*) FROM account_uploads WHERE user_id=? AND state!='deleted')<32`)
-    .bind(id,owner,key,mime,bytes,now,now+INPUT_TTL,owner,bytes,MAX_TEMP_BYTES,owner).run();
+    AND (SELECT COUNT(*) FROM account_uploads WHERE user_id=? AND state!='deleted')<32
+    AND (SELECT COALESCE(SUM(expected_bytes),0) FROM account_uploads WHERE state!='deleted')+?<=?`)
+    .bind(id,owner,key,mime,bytes,now,now+INPUT_TTL,owner,bytes,MAX_TEMP_BYTES,owner,bytes,MAX_GLOBAL_TEMP_BYTES).run();
   if(!inserted.meta.changes)throw new AccountError('Temporary input storage is full. Remove unused uploads or wait for cleanup.',409,'input_capacity');
   return {id,...await mediaAccess(env,owner,id,'upload')};
 }

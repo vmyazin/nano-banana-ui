@@ -4,6 +4,7 @@ import type { Provider } from './vault';
 import { MAX_INLINE_INPUT_BYTES } from './limits';
 export const FREE_BYTES = 1_000_000_000;
 export const MAX_ACTIVE_JOBS = 3;
+export const MAX_GLOBAL_ACTIVE_JOBS = 100;
 export const IMAGE_RESERVATION = 64_000_000;
 export const VIDEO_RESERVATION = 256_000_000;
 export interface JobRow {
@@ -42,26 +43,30 @@ export async function acceptJob(env: Env, owner: string, token: string, request:
   await env.DB.batch([
     env.DB.prepare('INSERT OR IGNORE INTO account_storage (user_id) VALUES (?)').bind(owner),
     env.DB.prepare(`INSERT OR IGNORE INTO account_jobs (id,user_id,request_token,request_digest,connection_id,connection_revision,provider,request_json,reservation_bytes,created_at,updated_at)
-      SELECT ?,?,?,?,?,?,?,?,?,?,? FROM account_storage WHERE user_id = ? AND used_bytes + reserved_bytes + ? <= limit_bytes AND active_jobs < ? AND (SELECT COUNT(*) FROM account_uploads WHERE user_id=? AND state='ready' AND expires_at>? AND id IN (SELECT value FROM json_each(?)))=?`)
+      SELECT ?,?,?,?,?,?,?,?,?,?,? FROM account_storage WHERE user_id = ? AND used_bytes + reserved_bytes + ? <= limit_bytes AND active_jobs < ? AND (SELECT COALESCE(SUM(active_jobs),0) FROM account_storage) < ${MAX_GLOBAL_ACTIVE_JOBS} AND (SELECT COUNT(*) FROM account_uploads WHERE user_id=? AND state='ready' AND expires_at>? AND id IN (SELECT value FROM json_each(?)))=?`)
       .bind(id, owner, token, digest, connection?.id ?? null, connection?.revision ?? null, request.provider, JSON.stringify(request), reservation, now, now, owner, reservation, MAX_ACTIVE_JOBS, owner, now, references, request.referenceIds.length),
     env.DB.prepare('UPDATE account_storage SET reserved_bytes = reserved_bytes + ?, active_jobs = active_jobs + 1 WHERE user_id = ? AND EXISTS (SELECT 1 FROM account_jobs WHERE id = ? AND reservation_accounted = 0)').bind(reservation, owner, id),
     env.DB.prepare('UPDATE account_jobs SET reservation_accounted = 1 WHERE id = ?').bind(id),
     env.DB.prepare('INSERT OR IGNORE INTO account_job_inputs (job_id,upload_id) SELECT ?,id FROM account_uploads WHERE user_id=? AND id IN (SELECT value FROM json_each(?)) AND EXISTS (SELECT 1 FROM account_jobs WHERE id=?)').bind(id,owner,references,id),
   ]);
   const row = await env.DB.prepare('SELECT * FROM account_jobs WHERE user_id = ? AND request_token = ?').bind(owner, token).first<JobRow>();
-  if (!row) throw new AccountError('Your account needs more available storage or fewer active jobs. Free space or wait for a job to finish.', 409, 'capacity');
+  if (!row) {
+    const global=await env.DB.prepare('SELECT COALESCE(SUM(active_jobs),0) AS active FROM account_storage').first<{active:number}>();
+    if((global?.active??0)>=MAX_GLOBAL_ACTIVE_JOBS)throw new AccountError('Background generation is busy. Try again shortly or explicitly choose browser-only generation.',503,'service_capacity');
+    throw new AccountError('Your account needs more available storage or fewer active jobs. Free space or wait for a job to finish.', 409, 'capacity');
+  }
   if (row.request_digest !== digest) throw new AccountError('Submission token already used.', 409, 'token_conflict');
   return row;
 }
 export async function setJobState(env: Env, id: string, state: CloudJobState, errorCode: string | null = null) {
-  await env.DB.prepare('UPDATE account_jobs SET state = ?, error_code = ?, updated_at = ? WHERE id = ? AND deleted = 0').bind(state, errorCode, Date.now(), id).run();
+  await env.DB.prepare("UPDATE account_jobs SET state = ?, error_code = ?, updated_at = ? WHERE id = ? AND deleted = 0 AND state NOT IN ('saved','failed','cancelled')").bind(state, errorCode, Date.now(), id).run();
 }
 /** Release once, under the same transaction as the terminal status. */
 export async function finishJob(env: Env, id: string, state: 'saved' | 'failed' | 'cancelled', errorCode: string | null = null) {
   await env.DB.batch([
     env.DB.prepare(`UPDATE account_storage SET reserved_bytes = reserved_bytes - (SELECT reservation_bytes FROM account_jobs WHERE id = ?), active_jobs = active_jobs - 1
-      WHERE user_id = (SELECT user_id FROM account_jobs WHERE id = ? AND reservation_accounted = 1)`).bind(id, id),
-    env.DB.prepare('UPDATE account_jobs SET state = ?, error_code = ?, reservation_accounted = 0, updated_at = ? WHERE id = ? AND deleted = 0').bind(state, errorCode, Date.now(), id),
+      WHERE user_id = (SELECT user_id FROM account_jobs WHERE id = ? AND reservation_accounted = 1 AND deleted=0 AND state NOT IN ('saved','failed','cancelled'))`).bind(id, id),
+    env.DB.prepare("UPDATE account_jobs SET state = ?, error_code = ?, reservation_accounted = 0, updated_at = ? WHERE id = ? AND deleted = 0 AND state NOT IN ('saved','failed','cancelled')").bind(state, errorCode, Date.now(), id),
   ]);
 }
 export async function dispatchJob(env: Env, job: JobRow) {

@@ -55,7 +55,7 @@ export async function jobRoutes(request:Request,env:Env):Promise<Response|null>{
       if(cursor&&!match)return json({error:'Invalid page cursor.'},400);
       const before=match?Number(match[1]):Number.MAX_SAFE_INTEGER;
       const beforeId=match?match[2]:'~';
-      const rows=await env.DB.prepare('SELECT * FROM account_assets WHERE user_id = ? AND deleted = 0 AND (created_at < ? OR (created_at = ? AND id < ?)) ORDER BY created_at DESC, id DESC LIMIT 51').bind(account.id,before,before,beforeId).all<Parameters<typeof assetView>[0]>();
+      const rows=await env.DB.prepare('SELECT a.*,r.expires_at FROM account_assets a LEFT JOIN account_asset_retention r ON r.asset_id=a.id WHERE a.user_id = ? AND a.deleted = 0 AND (r.expires_at IS NULL OR r.expires_at>?) AND (a.created_at < ? OR (a.created_at = ? AND a.id < ?)) ORDER BY a.created_at DESC, a.id DESC LIMIT 51').bind(account.id,Date.now(),before,before,beforeId).all<Parameters<typeof assetView>[0]>();
       const page=rows.results.slice(0,50), last=page.at(-1);
       return json({accountId:account.id,assets:page.map(assetView),nextCursor:rows.results.length>50&&last?`${last.created_at}:${last.id}`:null});
     }

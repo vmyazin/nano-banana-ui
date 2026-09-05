@@ -17,4 +17,6 @@ export interface CloudJobView {
 export interface CloudAsset {
   id: string; kind: 'image' | 'video'; mimeType: string; bytes: number; createdAt: number;
   metadata: CloudJobRequest; jobId: string | null;
+  /** Present only for overflow awaiting space in the permanent library. */
+  expiresAt?: number;
 }

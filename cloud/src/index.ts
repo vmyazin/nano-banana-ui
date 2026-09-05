@@ -1,6 +1,7 @@
 import { enabledProviders } from './providers';
 import { listConnections } from './vault';
 import { publicMedia, uploadRoutes, cleanupUploads } from './uploads';
+import { cleanupRetainedAssets } from './retention';
 import { jobRoutes } from './job-routes';
 import { dispatchJob, type JobRow } from './jobs';
 import { connectionRoutes } from './connections';
@@ -92,6 +93,7 @@ const worker = {
     const pending = await env.DB.prepare("SELECT * FROM account_jobs WHERE dispatched = 0 AND deleted = 0 AND state IN ('queued','running','saving') LIMIT 50").all<JobRow>();
     for (const job of pending.results) await dispatchJob(env, job).catch(() => {});
     await cleanupUploads(env);
+    await cleanupRetainedAssets(env);
     await env.DB.batch([
       env.DB.prepare('DELETE FROM account_oauth WHERE expires_at <= ?').bind(Date.now()),
       env.DB.prepare('DELETE FROM account_sessions WHERE expires_at <= ?').bind(Date.now()),
