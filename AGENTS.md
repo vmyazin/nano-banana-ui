@@ -16,6 +16,7 @@
 
 ## Auto-load routing
 
+- **Signed-in generation** → reuse `useCloudWorkspace`, `CloudExecutionNotice`, `CloudJobPanel` and `CloudJobList`; keep account jobs in the memory-only `useAccountStore`, never a guest job store. Pass `storage="account"` to `ConnectionGate` for cloud execution so its key-storage explanation stays accurate.
 - **Accounts, sign-in, or cloud persistence** → first read `docs/codex/account-development.md` and `docs/codex/specs/2026-09-04-optional-cloud-accounts-design.md`. Account access currently lives only at `/sign-in` and `/sign-up`; do not add account calls to action to the existing studio layout. The legacy admin gate is separate because enabling it would block guest routes.
 
 - **Video generation workspace layout** → first read

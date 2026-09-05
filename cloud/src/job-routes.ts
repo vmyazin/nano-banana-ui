@@ -28,7 +28,7 @@ export async function jobRoutes(request:Request,env:Env):Promise<Response|null>{
     }
     if(path==='/api/account/jobs'&&request.method==='GET'){
       const rows=await env.DB.prepare('SELECT * FROM account_jobs WHERE user_id = ? AND deleted = 0 ORDER BY created_at DESC LIMIT 100').bind(account.id).all<JobRow>();
-      return json({jobs:rows.results.map(jobView)});
+      return json({accountId:account.id,jobs:rows.results.map(jobView)});
     }
     const jobMatch=path.match(/^\/api\/account\/jobs\/([a-zA-Z0-9-]+)(\/resume)?$/);
     if(jobMatch){
@@ -50,7 +50,7 @@ export async function jobRoutes(request:Request,env:Env):Promise<Response|null>{
       const beforeId=match?match[2]:'~';
       const rows=await env.DB.prepare('SELECT * FROM account_assets WHERE user_id = ? AND deleted = 0 AND (created_at < ? OR (created_at = ? AND id < ?)) ORDER BY created_at DESC, id DESC LIMIT 51').bind(account.id,before,before,beforeId).all<Parameters<typeof assetView>[0]>();
       const page=rows.results.slice(0,50), last=page.at(-1);
-      return json({assets:page.map(assetView),nextCursor:rows.results.length>50&&last?`${last.created_at}:${last.id}`:null});
+      return json({accountId:account.id,assets:page.map(assetView),nextCursor:rows.results.length>50&&last?`${last.created_at}:${last.id}`:null});
     }
     const assetMatch=path.match(/^\/api\/account\/assets\/([a-zA-Z0-9-]+)(\/(?:content|access))?$/);
     if(assetMatch){

@@ -1,5 +1,9 @@
 'use client';
 
+import { useCloudWorkspace } from '@/lib/account/useCloudWorkspace';
+import CloudExecutionNotice from '@/components/account/CloudExecutionNotice';
+import CloudJobPanel from '@/components/account/CloudJobPanel';
+
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Download, ImagePlus, Loader2, Search, Sparkles, Video } from 'lucide-react';
 import { toast } from 'sonner';
@@ -90,8 +94,9 @@ export default function KieGenerationWorkspace({
   const setKieImageModel = useAppStore((state) => state.setKieImageModel);
   const setKieVideoModel = useAppStore((state) => state.setKieVideoModel);
   const jobs = useKieJobsStore((state) => state.jobs);
-  const needsKey = !kieApiKey.trim();
-  const gated = isGated(needsKey, jobs.length > 0);
+  const cloudWorkspace=useCloudWorkspace('kie');
+  const needsKey = cloudWorkspace.cloud ? !cloudWorkspace.connected : !kieApiKey.trim();
+  const gated = isGated(needsKey, cloudWorkspace.cloud ? cloudWorkspace.hasJobs : jobs.length > 0);
   const upsertJob = useKieJobsStore((state) => state.upsertJob);
 
   const models = useMemo(() => modelsForKieMode(mediaType, inputMode), [inputMode, mediaType]);
@@ -340,7 +345,8 @@ export default function KieGenerationWorkspace({
   };
 
   const submit = async () => {
-    if (!kieApiKey) {
+    if (cloudWorkspace.checking) { setError('Checking your account…'); return; }
+    if (needsKey) {
       setError('Connect your Kie API key before starting a generation.');
       onOpenConnections('kie');
       return;
@@ -357,6 +363,10 @@ export default function KieGenerationWorkspace({
     setError(null);
     setIsSubmitting(true);
     try {
+      if(cloudWorkspace.cloud){
+        await cloudWorkspace.submit({modelId:selectedModel.id,mediaType,inputMode,prompt:prompt.trim(),values},(inputMode==='text'?[]:references).map(r=>r.file));
+        autoRetry.reset();toast.success('Background job accepted. You can leave this page.');return;
+      }
       // The balance is read alongside the uploads, before the submit that spends
       // it, so the ledger can bill the drop once the task succeeds.
       const [uploadUrls, creditsBefore] = await Promise.all([
@@ -403,7 +413,7 @@ export default function KieGenerationWorkspace({
       // Only for failures that never reached a decision: a rejected key or an
       // empty balance would fail identically five more times, and the retry
       // would only bury the sentence explaining why.
-      const retrying = isRetryableFailure(submissionError) && autoRetry.schedule(() => void submit());
+      const retrying = !cloudWorkspace.cloud && isRetryableFailure(submissionError) && autoRetry.schedule(() => void submit());
       toast.error(retrying ? `${message} Retrying in ${AUTO_RETRY_DELAY_SECONDS}s.` : message);
     } finally {
       setIsSubmitting(false);
@@ -447,11 +457,13 @@ export default function KieGenerationWorkspace({
 
       {engineSelector}
 
+      <CloudExecutionNotice workspace={cloudWorkspace} />
       <ConnectionGate
+        storage={cloudWorkspace.cloud ? 'account' : 'browser'}
         provider="kie"
         label="Kie.ai"
         needsKey={needsKey}
-        hasFinishedWork={jobs.length > 0}
+        hasFinishedWork={cloudWorkspace.cloud ? cloudWorkspace.hasJobs : jobs.length > 0}
         onConnect={() => onOpenConnections('kie')}
       >
       <GenerationWorkspaceLayout
@@ -566,7 +578,7 @@ export default function KieGenerationWorkspace({
               autoRetry.reset();
               void submit();
             }}
-            disabled={isSubmitting}
+            disabled={isSubmitting || cloudWorkspace.checking}
             className="btn-primary flex w-full items-center justify-center gap-2 py-3 text-base disabled:cursor-not-allowed disabled:opacity-50"
           >
             {isSubmitting ? <><Loader2 className="animate-spin" size={21} /> Uploading & starting…</> : <><Sparkles size={21} /> Generate {mediaType}</>}
@@ -599,7 +611,7 @@ export default function KieGenerationWorkspace({
             />
           </PromptPanel>
         }
-        results={
+        results={cloudWorkspace.cloud ? <CloudJobPanel provider="kie" modelId={selectedModel.id} mediaType={mediaType} inputMode={inputMode} /> :
           <section className="glass-card flex min-h-[420px] flex-col gap-4 p-3.5 md:p-4">
           <div className="flex items-start justify-between gap-3">
             <div>

@@ -10,6 +10,7 @@ export interface Env {
   GOOGLE_CLIENT_ID?: string;
   GOOGLE_CLIENT_SECRET?: string;
   DEV_ACCOUNT_EMAIL?: string;
+  DEV_FAKE_GENERATION?: string;
   ACCOUNT_ENCRYPTION_KEYS?: string;
   ACCOUNT_ENCRYPTION_VERSION?: string;
 }

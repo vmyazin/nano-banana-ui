@@ -21,10 +21,12 @@ import { KEY_SOURCES } from '@/lib/providers/key-source';
 export default function ConnectKeyCallout({
   provider,
   label,
+  storage = 'browser',
   onConnect,
 }: {
   provider: EngineId;
   label: string;
+  storage?: 'browser' | 'account';
   onConnect: () => void;
 }) {
   const { href, urlLabel } = KEY_SOURCES[provider];
@@ -53,7 +55,7 @@ export default function ConnectKeyCallout({
               Add your {label} key to start generating
             </h3>
             <p className="max-w-2xl text-sm leading-relaxed text-[var(--foreground-muted)]">
-              Keys stay in this browser and are sent only with your own generations.
+              {storage==='account'?'Keys are encrypted in your account and used by your background jobs.':'Keys stay in this browser and are sent only with your own generations.'}
             </p>
           </div>
         </div>

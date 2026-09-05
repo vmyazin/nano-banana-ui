@@ -1,3 +1,5 @@
+import { enabledProviders } from './providers';
+import { listConnections } from './vault';
 import { publicMedia, uploadRoutes, cleanupUploads } from './uploads';
 import { jobRoutes } from './job-routes';
 import { dispatchJob, type JobRow } from './jobs';
@@ -22,6 +24,8 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
     const url = new URL(request.url);
     const path = url.pathname;
     if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method) && request.headers.get('origin') !== env.APP_ORIGIN) return json({ error: 'Request origin is not allowed.' }, 403);
+    const expectedOwner=request.headers.get('x-account-id');
+    if(expectedOwner&&(await currentAccount(request,env))?.id!==expectedOwner)return json({error:'Your account changed. Refresh before continuing.'},409);
     const uploadResponse = await uploadRoutes(request,env);
     if(uploadResponse)return uploadResponse;
     const jobResponse = await jobRoutes(request, env);
@@ -29,7 +33,10 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
     const connectionResponse = await connectionRoutes(request, env);
     if (connectionResponse) return connectionResponse;
     if (path === '/health' && request.method === 'GET') return json({ ok: true });
-    if (path === '/api/account/session' && request.method === 'GET') return json({ account: await currentAccount(request, env), googleEnabled: googleEnabled(env), localSignIn: isLocal(env) && Boolean(env.DEV_ACCOUNT_EMAIL) });
+    if (path === '/api/account/session' && request.method === 'GET') {
+      const account=await currentAccount(request,env);
+      return json({account,googleEnabled:googleEnabled(env),localSignIn:isLocal(env)&&Boolean(env.DEV_ACCOUNT_EMAIL),providers:enabledProviders(env),connections:account?await listConnections(env,account.id):[]});
+    }
     if (path === '/api/account/sign-out' && request.method === 'POST') {
       await revokeSession(request, env);
       return json({ ok: true }, 200, [cookie(env, 'session', '', 0), cookie(env, 'oauth', '', 0)]);

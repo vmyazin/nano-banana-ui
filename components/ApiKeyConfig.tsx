@@ -4,6 +4,8 @@ import { useState, useEffect, useId, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Key, Eye, EyeOff, AlertCircle, X, Loader2, Check, Volume2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useAccountStore } from '@/store/useAccountStore';
+import AccountConnections from '@/components/account/AccountConnections';
 import { useAppStore } from '@/store/useAppStore';
 import MicroAiUsagePanel from '@/components/MicroAiUsagePanel';
 import { setChimeEnabled } from '@/lib/notify/chime';
@@ -201,6 +203,8 @@ function safeFalValidationError(value: unknown): string {
 }
 
 export default function ApiKeyConfig({ open, onOpenChange, focusProvider }: ApiKeyConfigProps) {
+  const account=useAccountStore(state=>state.session?.account);
+  const accountId=account?.id;
   const savedKey = useAppStore((s) => s.apiKey);
   const chimeOnComplete = useAppStore((s) => s.chimeOnComplete);
   const setApiKey = useAppStore((s) => s.setApiKey);
@@ -484,6 +488,8 @@ export default function ApiKeyConfig({ open, onOpenChange, focusProvider }: ApiK
   useEffect(() => {
     if (!open || !focusProvider) return;
     const frame = requestAnimationFrame(() => {
+      const accountField=accountId?dialogRef.current?.querySelector<HTMLInputElement>('[data-account-key]'):null;
+      if(accountField){accountField.scrollIntoView?.({block:'center'});accountField.focus({preventScroll:true});return;}
       const card = dialogRef.current?.querySelector(`[data-provider="${focusProvider}"]`);
       if (!card) return;
       // Optional call: jsdom (and any host without smooth scrolling) has no
@@ -492,7 +498,7 @@ export default function ApiKeyConfig({ open, onOpenChange, focusProvider }: ApiK
       card.querySelector('input')?.focus({ preventScroll: true });
     });
     return () => cancelAnimationFrame(frame);
-  }, [open, focusProvider]);
+  }, [open, focusProvider, accountId]);
 
   return (
     <AnimatePresence>
@@ -539,6 +545,7 @@ export default function ApiKeyConfig({ open, onOpenChange, focusProvider }: ApiK
             </header>
 
             <div className="dialog-scroll-region min-h-0 flex-1 overflow-y-auto px-3.5 py-3.5 sm:px-4">
+              {account&&<div className="mb-5"><AccountConnections key={`${account.id}:${focusProvider}`} initialProvider={focusProvider} /><h3 className="mt-6 font-semibold">Browser-only connections</h3><p className="mt-1 text-sm text-[var(--foreground-muted)]">The keys below stay on this device and are used only when you choose browser-only generation.</p></div>}
               <div className="grid gap-4 sm:grid-cols-2">
                 {/* Google Gemini */}
                 <ProviderCard
@@ -743,8 +750,7 @@ export default function ApiKeyConfig({ open, onOpenChange, focusProvider }: ApiK
 
             <footer className="dialog-safe-footer flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-t border-[var(--border)] px-3.5 py-3 sm:px-4">
               <p className="field-hint max-w-md">
-                Credentials live in this browser&apos;s local storage and go straight to each
-                provider — never to our servers beyond proxying the request.
+                {account?'Browser-only keys stay on this device. Account connections above are encrypted on the server and save separately.':'Credentials live in this browser’s local storage and go straight to each provider — never to our servers beyond proxying the request.'}
               </p>
               <button
                 onClick={handleSave}

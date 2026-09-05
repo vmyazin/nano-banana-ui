@@ -1,6 +1,7 @@
 /** Fixed upstream and allowlisted headers: account identity is validated by the Worker. */
 export async function accountGateway(request: Request): Promise<Response> {
   const upstream = process.env.ACCOUNT_WORKER_ORIGIN;
+  if(!upstream&&new URL(request.url).pathname==='/api/account/session')return Response.json({account:null,googleEnabled:false,localSignIn:false,providers:[],connections:[]},{headers:{'Cache-Control':'no-store'}});
   if (!upstream) return Response.json({ error: 'Account sign-in is not available yet. You can continue as a guest.' }, { status: 503, headers: { 'Cache-Control': 'no-store' } });
   const base = new URL(upstream);
   if (base.protocol !== 'https:' && !(process.env.NODE_ENV === 'development' && base.protocol === 'http:' && ['localhost', '127.0.0.1'].includes(base.hostname))) {
@@ -11,7 +12,7 @@ export async function accountGateway(request: Request): Promise<Response> {
   const path = incoming.pathname.slice('/api/account/'.length);
   if (!allowed.has(path) && !/^(?:jobs(?:\/[a-zA-Z0-9-]+(?:\/resume)?)?|assets(?:\/[a-zA-Z0-9-]+(?:\/(?:content|access))?)?|uploads(?:\/[a-zA-Z0-9-]+)?|storage)$/.test(path) && !/^connections(?:\/(?:gemini|fal|kie|runware|atlas|comet|cloudflare))?$/.test(path)) return new Response(null, { status: 404 });
   const headers = new Headers();
-  for (const name of ['cookie', 'origin', 'content-type', 'range']) {
+  for (const name of ['cookie', 'origin', 'content-type', 'range', 'x-account-id']) {
     const value = request.headers.get(name);
     if (value) headers.set(name, value);
   }

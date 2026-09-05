@@ -3,6 +3,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'sonner';
 import { useState } from 'react';
+import AccountSessionProvider from '@/components/account/AccountSessionProvider';
 import FalJobsProvider from '@/components/FalJobsProvider';
 import KieJobsProvider from '@/components/KieJobsProvider';
 
@@ -20,9 +21,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
+      <AccountSessionProvider>
       <KieJobsProvider>
         <FalJobsProvider>{children}</FalJobsProvider>
       </KieJobsProvider>
+      </AccountSessionProvider>
       <Toaster
         theme="dark"
         position="bottom-right"

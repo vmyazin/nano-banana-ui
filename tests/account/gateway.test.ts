@@ -5,7 +5,8 @@ afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
 describe('account gateway', () => {
   it('fails gracefully with no backend and does not require guest authentication', async () => {
     vi.stubEnv('ACCOUNT_WORKER_ORIGIN', '');
-    expect((await accountGateway(new Request('https://app.test/api/account/session'))).status).toBe(503);
+    const response=await accountGateway(new Request('https://app.test/api/account/session'));
+    expect(response.status).toBe(200);expect((await response.json()).account).toBeNull();
   });
   it('forwards only safe headers and preserves multiple cookies and redirects', async () => {
     vi.stubEnv('ACCOUNT_WORKER_ORIGIN', 'https://accounts.test');

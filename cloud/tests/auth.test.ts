@@ -85,6 +85,12 @@ describe('account boundary', () => {
     await request('sign-out', 'POST', a);
     expect((await (await request('session', 'GET', b)).json()).account.id).toBe(accountB.id);
   });
+  it('rejects requests tied to a stale account identity',async()=>{
+    const login=await request('local-sign-in','POST');
+    const response=await handleRequest(new Request('http://localhost:8791/api/account/jobs',{headers:{cookie:cookies(login),'x-account-id':'another-owner'}}),env);
+    expect(response.status).toBe(409);
+    expect(await response.text()).not.toContain('creator@example.test');
+  });
   it('only permits local return destinations', () => {
     for (const input of ['https://evil.test', '//evil.test', '/\\evil.test', '/api/account/sign-out', '/\n/evil.test']) expect(returnPath(input)).toBe('/');
     expect(returnPath('/sign-up?from=studio')).toBe('/sign-up?from=studio');

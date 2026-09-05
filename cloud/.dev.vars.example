@@ -3,3 +3,7 @@ DEV_ACCOUNT_EMAIL=creator@example.test
 # Optional for testing real Google sign-in locally. Never commit real values.
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
+
+# Credential-free image fixture through the real account UI/Workflow/R2 flow.
+# 1 bypasses vendors only in a compile-time local build; never set in production.
+DEV_FAKE_GENERATION=0

@@ -1,5 +1,9 @@
 'use client';
 
+import { useCloudWorkspace } from '@/lib/account/useCloudWorkspace';
+import CloudExecutionNotice from '@/components/account/CloudExecutionNotice';
+import CloudJobPanel from '@/components/account/CloudJobPanel';
+
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowUpDown, Download, ImagePlus, Loader2, Search, Sparkles, Video } from 'lucide-react';
 
@@ -263,8 +267,9 @@ function FalGenerationWorkspaceSession({
   const falVideoModel = useAppStore((state) => state.falVideoModel);
   const setFalVideoModel = useAppStore((state) => state.setFalVideoModel);
   const jobs = useFalJobsStore((state) => state.jobs);
-  const needsKey = !apiKey.trim();
-  const gated = isGated(needsKey, jobs.length > 0);
+  const cloudWorkspace=useCloudWorkspace('fal');
+  const needsKey = cloudWorkspace.cloud ? !cloudWorkspace.connected : !apiKey.trim();
+  const gated = isGated(needsKey, cloudWorkspace.cloud ? cloudWorkspace.hasJobs : jobs.length > 0);
   const upsertJob = useFalJobsStore((state) => state.upsertJob);
   const models = useMemo(() => modelsForFalMode('video', inputMode), [inputMode]);
   const selectedModel = models.find((model) => model.id === falVideoModel) ?? models[0];
@@ -485,7 +490,8 @@ function FalGenerationWorkspaceSession({
 
   const submit = async () => {
     if (submissionRef.current) return;
-    if (!apiKey.trim()) {
+    if(cloudWorkspace.checking){setError('Checking your account…');return;}
+    if (needsKey) {
       setError('Connect your fal API key before starting a generation.');
       onOpenConnections('fal');
       return;
@@ -512,6 +518,13 @@ function FalGenerationWorkspaceSession({
       return;
     }
 
+    if(cloudWorkspace.cloud){
+      setError(null);setSubmittingVariantId(variant.id);
+      try{await cloudWorkspace.submit({modelId:selectedModel.id,mediaType:'video',inputMode,prompt:prompt.trim(),values},activeReferences.map(r=>r.file));autoRetry.reset();}
+      catch(error){if(mountedRef.current)setError(error instanceof Error?error.message:'Could not confirm this background job.');}
+      finally{if(mountedRef.current)setSubmittingVariantId(null);}
+      return;
+    }
     const operation: SubmissionOperation = {
       controller: new AbortController(),
       phase: 'uploading',
@@ -669,11 +682,13 @@ function FalGenerationWorkspaceSession({
         </div>
       </section>
 
+      <CloudExecutionNotice workspace={cloudWorkspace} />
       <ConnectionGate
+        storage={cloudWorkspace.cloud ? 'account' : 'browser'}
         provider="fal"
         label="fal.ai"
         needsKey={needsKey}
-        hasFinishedWork={jobs.length > 0}
+        hasFinishedWork={cloudWorkspace.cloud ? cloudWorkspace.hasJobs : jobs.length > 0}
         onConnect={() => onOpenConnections('fal')}
       >
       <GenerationWorkspaceLayout
@@ -804,7 +819,7 @@ function FalGenerationWorkspaceSession({
 
           <button
             type="button"
-            disabled={isSubmitting}
+            disabled={isSubmitting || cloudWorkspace.checking}
             onClick={() => {
               // A deliberate press is a fresh start: it drops any queued attempt
               // and hands back the full retry budget.
@@ -844,7 +859,7 @@ function FalGenerationWorkspaceSession({
             />
           </PromptPanel>
         }
-        results={
+        results={cloudWorkspace.cloud ? <CloudJobPanel provider="fal" modelId={selectedModel.id} mediaType="video" inputMode={inputMode} /> :
           <section className="glass-card min-h-[420px] space-y-3 p-3.5 md:p-4">
             <div>
               <h3 className="display text-base font-semibold">Jobs</h3>

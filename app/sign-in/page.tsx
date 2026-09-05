@@ -1,4 +1,4 @@
 import type { Metadata } from 'next';
 import AccountAccess from '@/components/account/AccountAccess';
 export const metadata: Metadata = { title: 'Sign in · Scene Assembly', robots: { index: false, follow: false } };
-export default function SignInPage() { return <AccountAccess mode="sign-in" />; }
+export default async function SignInPage({searchParams}:{searchParams:Promise<{account?:string}>}) { const query=await searchParams; return <AccountAccess mode="sign-in" signInFailed={query.account==='signin-failed'} />; }

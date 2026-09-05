@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, ArrowRight, Check, LogOut } from 'lucide-react';
 import { AccountSurface } from './AccountSurface';
@@ -8,40 +8,17 @@ import AccountLibrary from './AccountLibrary';
 import AccountConnections from './AccountConnections';
 import { BrandWordmark } from '@/components/BrandMark';
 
-interface Account { id: string; name: string; email: string }
-interface Session { account: Account | null; googleEnabled: boolean; localSignIn: boolean }
+import { useAccountStore } from '@/store/useAccountStore';
+import { accountChanged, refreshAccount } from '@/lib/account/session';
 
-export default function AccountAccess({ mode }: { mode: 'sign-in' | 'sign-up' }) {
-  const [session, setSession] = useState<Session | null>(null);
-  const [error, setError] = useState<string | null>(null);
+export default function AccountAccess({ mode, signInFailed=false }: { mode: 'sign-in' | 'sign-up'; signInFailed?:boolean }) {
+  const session=useAccountStore(state=>state.session);
+  const accountStatus=useAccountStore(state=>state.status);
+  const [error, setError] = useState<string | null>(signInFailed?'Google sign-in was not completed. Please try again.':null);
   const [busy, setBusy] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const loading=accountStatus==='loading';
   const signup = mode === 'sign-up';
 
-  async function refresh() {
-    const response = await fetch('/api/account/session', { cache: 'no-store' });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error ?? 'Sign-in is temporarily unavailable.');
-    setSession(data);
-  }
-  useEffect(() => {
-    let active = true;
-    const controller = new AbortController();
-    fetch('/api/account/session', { cache: 'no-store', signal: controller.signal })
-      .then(async response => {
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error ?? 'Sign-in is temporarily unavailable.');
-        if (active) {
-          setSession(data);
-          if (new URLSearchParams(window.location.search).get('account') === 'signin-failed') setError('Google sign-in was not completed. Please try again.');
-        }
-      })
-      .catch(error => { if (active) setError(error instanceof Error ? error.message : 'Could not load your account.'); })
-      .finally(() => { if (active) setLoading(false); });
-    const onFocus = () => { void refresh().catch(() => setSession(null)); };
-    window.addEventListener('focus', onFocus);
-    return () => { active = false; controller.abort(); window.removeEventListener('focus', onFocus); };
-  }, []);
 
   async function act(path: string) {
     setBusy(true); setError(null);
@@ -54,8 +31,8 @@ export default function AccountAccess({ mode }: { mode: 'sign-in' | 'sign-up' })
         if (destination.origin !== 'https://accounts.google.com') throw new Error('Invalid sign-in response.');
         window.location.assign(destination.href);
       } else {
-        if (path === 'sign-out') setSession(current => current ? { ...current, account: null } : null);
-        await refresh();
+        accountChanged(path==='sign-out');
+        await refreshAccount();
       }
     } catch (error) { setError(error instanceof Error ? error.message : 'Please try again.'); }
     finally { setBusy(false); }
@@ -81,7 +58,7 @@ export default function AccountAccess({ mode }: { mode: 'sign-in' | 'sign-up' })
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-400/10 text-emerald-400"><Check size={20} aria-hidden="true" /></span>
                 <div className="min-w-0"><p className="truncate font-medium">{session.account.name}</p><p className="break-all text-sm text-[var(--foreground-muted)]">{session.account.email}</p></div>
               </div>
-              <p className="mt-5 text-sm leading-relaxed text-[var(--foreground-muted)]">Manage your saved connections below. Generated assets still stay in this browser while cloud saving is being added.</p>
+              <p className="mt-5 text-sm leading-relaxed text-[var(--foreground-muted)]">Manage your saved connections and cloud library below. Supported account jobs keep running after you leave the studio.</p>
               <Link href="/" className="btn-primary mt-6 flex w-full justify-center">Open the studio <ArrowRight size={16} aria-hidden="true" /></Link>
               <button type="button" disabled={busy} onClick={() => void act('sign-out')} className="btn-secondary mt-3 flex w-full justify-center"><LogOut size={15} aria-hidden="true" />{busy ? 'Signing out…' : 'Sign out'}</button>
             </>
@@ -95,11 +72,12 @@ export default function AccountAccess({ mode }: { mode: 'sign-in' | 'sign-up' })
               <p className="mt-5 text-center text-sm leading-relaxed text-[var(--foreground-muted)]">An account is optional. You can create and download without signing in.</p>
             </>
           )}
+          {accountStatus==='unavailable'&&<p role="alert" className="mt-4 text-sm text-amber-300">Account service is temporarily unavailable. Please try again shortly.</p>}
           {error && <p role="alert" className="mt-4 text-sm leading-relaxed text-[var(--neon-pink)]">{error}</p>}
         </AccountSurface>
-        {session?.account && <div key={session.account.id}><AccountLibrary localTest={session.localSignIn} /><AccountConnections /></div>}
+        {session?.account && <div key={session.account.id}><AccountLibrary localTest={session.localSignIn} ownerId={session.account.id} /><AccountConnections /></div>}
         {!session?.account && <p className="mt-6 text-center text-sm text-[var(--foreground-muted)]">{signup ? 'Already have an account?' : 'New to Scene Assembly?'}{' '}<Link className="text-[var(--foreground)] underline underline-offset-4" href={signup ? '/sign-in' : '/sign-up'}>{signup ? 'Sign in' : 'Create an account'}</Link></p>}
-        <Link href="/" className="mx-auto mt-8 inline-flex items-center gap-2 text-sm text-[var(--foreground-muted)] hover:text-[var(--foreground)]"><ArrowLeft size={15} aria-hidden="true" />Continue as a guest</Link>
+        <Link href="/" className="mx-auto mt-8 inline-flex items-center gap-2 text-sm text-[var(--foreground-muted)] hover:text-[var(--foreground)]"><ArrowLeft size={15} aria-hidden="true" />{session?.account?'Return to the studio':'Continue as a guest'}</Link>
       </div>
     </main>
   );

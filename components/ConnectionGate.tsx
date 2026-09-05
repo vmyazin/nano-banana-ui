@@ -18,6 +18,7 @@ import type { EngineId } from '@/lib/engines/registry';
 export default function ConnectionGate({
   provider,
   label,
+  storage = 'browser',
   needsKey,
   hasFinishedWork = false,
   onConnect,
@@ -26,6 +27,7 @@ export default function ConnectionGate({
   provider: EngineId;
   /** The provider's display name, as the callout and the overlay say it. */
   label: string;
+  storage?: 'browser' | 'account';
   /** No key stored for this provider, so nothing here can be submitted. */
   needsKey: boolean;
   /**
@@ -42,7 +44,7 @@ export default function ConnectionGate({
   return (
     <>
       {needsKey && (
-        <ConnectKeyCallout provider={provider} label={label} onConnect={onConnect} />
+        <ConnectKeyCallout provider={provider} label={label} storage={storage} onConnect={onConnect} />
       )}
       <div className="relative">
         {/* The whole dimmed area is the target: someone who reaches for a control

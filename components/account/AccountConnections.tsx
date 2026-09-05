@@ -4,13 +4,16 @@ import { useEffect, useState } from 'react';
 import { KeyRound, Trash2 } from 'lucide-react';
 import { ENGINES } from '@/lib/engines/registry';
 import ConfirmDialog from '@/components/ConfirmDialog';
+import { useAccountStore } from '@/store/useAccountStore';
+import { accountChanged, refreshAccount } from '@/lib/account/session';
 import { AccountSurface } from './AccountSurface';
 
 const providers = ENGINES.filter(engine => engine.requiresApiKey).map(engine => [engine.id, engine.label] as const);
 interface Connection { id: string; provider: string; revision: number; hint: string }
-export default function AccountConnections() {
+export default function AccountConnections({initialProvider='gemini'}:{initialProvider?:string}) {
+  const ownerId=useAccountStore(state=>state.session?.account?.id);
   const [connections, setConnections] = useState<Connection[]>([]);
-  const [provider, setProvider] = useState<string>('gemini');
+  const [provider, setProvider] = useState<string>(initialProvider);
   const [apiKey, setApiKey] = useState('');
   const [accountId, setAccountId] = useState('');
   const [busy, setBusy] = useState(false);
@@ -19,20 +22,21 @@ export default function AccountConnections() {
   const [removing, setRemoving] = useState<Connection | null>(null);
   useEffect(() => {
     const controller = new AbortController();
-    fetch('/api/account/connections', { signal: controller.signal, cache: 'no-store' }).then(async response => {
+    fetch('/api/account/connections', { signal: controller.signal, cache: 'no-store',headers:ownerId?{'X-Account-Id':ownerId}:{} }).then(async response => {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error);
-      setConnections(data.connections);
+      if(!controller.signal.aborted)setConnections(data.connections);
     }).catch(error => { if (!controller.signal.aborted) setError(error instanceof Error ? error.message : 'Could not load connections.'); });
     return () => controller.abort();
-  }, []);
+  }, [ownerId]);
   async function update(method: 'POST' | 'DELETE', removeProvider?: string) {
     setBusy(true); setError(null); setNotice(null);
     try {
-      const response = await fetch(`/api/account/connections${removeProvider ? `/${removeProvider}` : ''}`, { method, headers: { 'Content-Type': 'application/json' }, ...(method === 'POST' ? { body: JSON.stringify({ provider, apiKey, accountId }) } : {}) });
+      const response = await fetch(`/api/account/connections${removeProvider ? `/${removeProvider}` : ''}`, { method, headers: { 'Content-Type': 'application/json',...(ownerId?{'X-Account-Id':ownerId}:{}) }, ...(method === 'POST' ? { body: JSON.stringify({ provider, apiKey, accountId }) } : {}) });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error ?? 'Could not update this connection.');
       setConnections(data.connections); setApiKey(''); setAccountId('');
+      accountChanged();void refreshAccount().catch(()=>{});
       setNotice(method === 'POST' ? 'Connection saved securely to your account.' : 'Connection removed.');
     } catch (error) { setError(error instanceof Error ? error.message : 'Please try again.'); }
     finally { setBusy(false); setRemoving(null); }
@@ -44,7 +48,7 @@ export default function AccountConnections() {
     <form className="mt-5 space-y-4" onSubmit={event => { event.preventDefault(); void update('POST'); }}>
       <label className="block text-sm font-medium">Provider<select value={provider} onChange={event => setProvider(event.target.value)} className="mt-2 min-h-11 w-full rounded-lg border border-[var(--border-hover)] bg-[var(--background)] px-3 text-[var(--foreground)]">{providers.map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select></label>
       {provider === 'cloudflare' && <label className="block text-sm font-medium">Cloudflare account ID<input required value={accountId} onChange={event => setAccountId(event.target.value)} autoComplete="off" className="mt-2 min-h-11 w-full rounded-lg border border-[var(--border-hover)] bg-[var(--background)] px-3" /></label>}
-      <label className="block text-sm font-medium">API key<input required type="password" minLength={8} maxLength={4096} value={apiKey} onChange={event => setApiKey(event.target.value)} autoComplete="off" spellCheck={false} className="mt-2 min-h-11 w-full rounded-lg border border-[var(--border-hover)] bg-[var(--background)] px-3" /></label>
+      <label className="block text-sm font-medium">API key<input required data-account-key type="password" minLength={8} maxLength={4096} value={apiKey} onChange={event => setApiKey(event.target.value)} autoComplete="off" spellCheck={false} className="mt-2 min-h-11 w-full rounded-lg border border-[var(--border-hover)] bg-[var(--background)] px-3" /></label>
       {connections.some(c => c.provider === provider) && <p className="text-sm text-amber-300">Saving replaces this connection. Jobs using the previous key may need attention.</p>}
       <button disabled={busy || !apiKey.trim()} type="submit" className="btn-primary flex min-h-11 w-full justify-center">{busy ? 'Saving…' : 'Save connection'}</button>
     </form>
