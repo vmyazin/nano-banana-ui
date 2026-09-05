@@ -20,9 +20,12 @@ const response = await fetch(`${origin}/api/account/jobs`, { method: 'POST', hea
 const payload = await response.json();
 if (!response.ok) throw new Error(payload.error || 'Could not queue local job.');
 console.log('Local job accepted.');
-for (let attempt = 0; attempt < 20; attempt++) {
+const completionDeadline = Date.now() + 90_000;
+let latestJobState = 'unknown';
+while (Date.now() < completionDeadline) {
   const result = await fetch(`${origin}/api/account/jobs/${payload.job.id}`, { headers });
   const { job } = await result.json();
+  latestJobState = job.state;
   if (job.state === 'saved') {
     const library = await fetch(`${origin}/api/account/assets`, { headers });
     const { assets } = await library.json();
@@ -38,7 +41,7 @@ for (let attempt = 0; attempt < 20; attempt++) {
     console.log(`Local Workflow saved ${bytes} bytes to R2; authenticated download verified.`);
     process.exit(0);
   }
-  if (['failed', 'needs_attention'].includes(job.state)) throw new Error(`Local job needs attention: ${job.errorCode}`);
+  if (['failed', 'needs_attention', 'cancelled'].includes(job.state)) throw new Error(`Local job needs attention: ${job.errorCode}`);
   await new Promise(resolve => setTimeout(resolve, 500));
 }
-throw new Error('Local workflow did not complete in time.');
+throw new Error(`Local workflow did not complete before the deadline (job ${payload.job.id}, latest state ${latestJobState}). Rerunning reuses the same job instead of creating a new generation.`);

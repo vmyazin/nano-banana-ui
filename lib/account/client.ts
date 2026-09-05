@@ -34,6 +34,6 @@ export async function uploadAccountReferences(files:File[],signal?:AbortSignal,o
 export async function submitAccountJob(token:string,request:CloudJobRequest,signal?:AbortSignal,owner?:string) {
   return accountRequest<{job:CloudJobView}>('jobs',{...post({token,request}),signal,headers:{'Content-Type':'application/json',...(owner?{'X-Account-Id':owner}:{})}});
 }
-export async function accountAssetUrl(id:string,signal?:AbortSignal) {
-  return (await accountRequest<{url:string;expiresAt:number}>(`assets/${id}/access`,{method:'POST',signal})).url;
+export async function accountAssetUrl(id:string,signal?:AbortSignal,ownerId?:string) {
+  return (await accountRequest<{url:string;expiresAt:number}>(`assets/${id}/access`,{method:'POST',signal,headers:ownerId?{'X-Account-Id':ownerId}:undefined})).url;
 }

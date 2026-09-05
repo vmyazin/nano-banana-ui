@@ -151,3 +151,17 @@ Remaining scope is unchanged: common image and aggregator video workspaces, all 
 ### 2026-09-05 account lifecycle verification
 
 Account deletion and queued object cleanup implemented and locally verified: 72 Worker tests, 16 account client tests, both typechecks and focused lint pass. Browser deletion of the fixture account returned to guest state; recreation had zero bytes and no saved connections. Production setup and credentialed provider checks remain pending.
+
+### 2026-09-05 library reuse implementation boundary
+
+Task 8 integration uses `components/LibraryOverlay.tsx:1-220` to expose cloud and browser sources only inside the existing library. `components/account/AccountLibrary.tsx:1-100`, new `CloudAssetGrid.tsx` and `lib/account/use-library.ts` share owner-scoped pagination, deletion, downloads and reference selection. `lib/account/reference.ts` uses the existing prepareReferences/addReferences boundary and rejects account switches during downloads. Do not modify guest GalleryStorage, gallery persistence, existing global navigation or provider layouts. Verify with account and gallery tests, both typechecks, lint and the local existing-library/reference-picker flow.
+
+### 2026-09-05 cancellation and import boundaries
+
+Queued cancellation is confined to `cloud/src/jobs.ts`, `job-routes.ts`, `generation-runner.ts` and the gateway route allowlist. Only a queued, unsubmitted job can cancel, atomically releasing its reservation once. If submission wins, keep tracking the job and return an explicit conflict. Do not claim that already accepted vendor work was cancelled. Verify cancellation/replay, ownership and submission races in Worker and gateway tests.
+
+Explicit browser-library imports use new `cloud/src/imports.ts`, migration 0007, schema/Worker wiring, then account-page import controls. Reserve permanent quota before direct R2 upload, journal a stable import ID and immutable metadata digest, resume interrupted transfers and finalize bytes exactly once. Completed/deleted import IDs cannot resurrect an asset. Expire abandoned reservations after 24 hours. Preserve all guest originals; no implicit history upload, provider calls or spend entries for imports. Verify image/video transfers, changed-payload replay, quota competition, expiry and account-deletion races. External setup remains pending.
+
+### 2026-09-05 shared library and queued cancellation verification
+
+Shared cloud library/picker and queued cancellation implemented. Independent parent checks: 78 Worker tests, 16 focused library/reference tests, six gateway tests, three job-state UI tests, root TypeScript and focused lint passed. Local browser verified cloud/browser separation, nested confirmation and choosing a cloud image into a video draft. Local seed passed private R2 staging/download/range checks after its deadline was corrected. Imports, cloud spend and external setup remain pending.

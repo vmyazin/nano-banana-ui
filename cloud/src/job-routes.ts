@@ -2,7 +2,7 @@ import { mediaAccess } from './media';
 export { byteRange } from './range';
 import { currentAccount } from './sessions';
 import { json, type Env } from './security';
-import { acceptJob, AccountError, dispatchJob, getJob, jobView, type JobRow } from './jobs';
+import { acceptJob, AccountError, cancelQueuedJob, dispatchJob, getJob, jobView, type JobRow } from './jobs';
 import { adapterFor, validateRequest } from './providers';
 import { assetView, deleteAsset, getAsset } from './assets';
 
@@ -30,11 +30,16 @@ export async function jobRoutes(request:Request,env:Env):Promise<Response|null>{
       const rows=await env.DB.prepare('SELECT * FROM account_jobs WHERE user_id = ? AND deleted = 0 ORDER BY created_at DESC LIMIT 100').bind(account.id).all<JobRow>();
       return json({accountId:account.id,jobs:rows.results.map(jobView)});
     }
-    const jobMatch=path.match(/^\/api\/account\/jobs\/([a-zA-Z0-9-]+)(\/resume)?$/);
+    const jobMatch=path.match(/^\/api\/account\/jobs\/([a-zA-Z0-9-]+)(\/(?:resume|cancel))?$/);
     if(jobMatch){
       const job=await getJob(env,jobMatch[1],account.id);if(!job)return json({error:'Job not found.'},404);
       if(request.method==='GET'&&!jobMatch[2])return json({job:jobView(job)});
-      if(request.method==='POST'&&jobMatch[2]){
+      if(request.method==='POST'&&jobMatch[2]==='/cancel'){
+        const cancelled=await cancelQueuedJob(env,job.id,account.id);
+        if(!cancelled)return json({error:'Job not found.'},404);
+        return json({job:jobView(cancelled)});
+      }
+      if(request.method==='POST'&&jobMatch[2]==='/resume'){
         if(job.state==='needs_attention'&&!job.provider_task&&!job.result_json){
           const result=await adapterFor(env,job.provider).recover?.(env,job);
           if(result){

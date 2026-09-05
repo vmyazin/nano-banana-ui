@@ -69,6 +69,19 @@ export async function finishJob(env: Env, id: string, state: 'saved' | 'failed' 
     env.DB.prepare("UPDATE account_jobs SET state = ?, error_code = ?, reservation_accounted = 0, updated_at = ? WHERE id = ? AND deleted = 0 AND state NOT IN ('saved','failed','cancelled')").bind(state, errorCode, Date.now(), id),
   ]);
 }
+/** Cancel only before provider submission, releasing the reservation atomically. */
+export async function cancelQueuedJob(env: Env, id: string, owner: string): Promise<JobRow | null> {
+  const now = Date.now();
+  await env.DB.batch([
+    env.DB.prepare(`UPDATE account_storage SET reserved_bytes = reserved_bytes - (SELECT reservation_bytes FROM account_jobs WHERE id = ?), active_jobs = active_jobs - 1
+      WHERE user_id = (SELECT user_id FROM account_jobs WHERE id = ? AND user_id = ? AND reservation_accounted = 1 AND deleted = 0 AND state = 'queued' AND provider_task IS NULL AND result_json IS NULL)`).bind(id, id, owner),
+    env.DB.prepare("UPDATE account_jobs SET state = 'cancelled', error_code = NULL, reservation_accounted = 0, updated_at = ? WHERE id = ? AND user_id = ? AND deleted = 0 AND state = 'queued' AND provider_task IS NULL AND result_json IS NULL").bind(now, id, owner),
+  ]);
+  const job = await getJob(env, id, owner);
+  if (!job) return null;
+  if (job.state === 'cancelled') return job;
+  throw new AccountError('This generation has already started and remains tracked.', 409, 'generation_started');
+}
 export async function dispatchJob(env: Env, job: JobRow) {
   if (!env.GENERATION) throw new Error('Workflow binding is unavailable');
   const instanceId = `${job.id}-${job.workflow_attempt}`;

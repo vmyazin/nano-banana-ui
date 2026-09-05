@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import TemporaryAssetNotice from '@/components/account/TemporaryAssetNotice';
 import CloudJobList from '@/components/account/CloudJobList';
@@ -20,4 +20,13 @@ describe('temporary cloud results',()=>{
     expect(screen.getByRole('button',{name:'Resume existing job'})).toBeInTheDocument();
     expect(screen.queryByRole('button',{name:/Generate/})).not.toBeInTheDocument();
   });
+});
+
+it('offers cancellation only before submission, including a queued click target',()=>{
+  const onCancel=vi.fn();
+  const jobs:CloudJobView[]=['queued','submitting','running','saved'].map((state,index)=>({id:`job-${index}`,provider:'gemini',request,state:state as CloudJobView['state'],errorCode:null,createdAt:1,updatedAt:1}));
+  render(<CloudJobList jobs={jobs} onResume={vi.fn()} onCancel={onCancel}/>);
+  expect(screen.getAllByRole('button',{name:'Cancel queued job'})).toHaveLength(1);
+  fireEvent.click(screen.getByRole('button',{name:'Cancel queued job'}));
+  expect(onCancel).toHaveBeenCalledWith('job-0');
 });

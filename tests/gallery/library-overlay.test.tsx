@@ -1,10 +1,15 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import LibraryOverlay from '../../components/LibraryOverlay';
 import type { GalleryRecord } from '../../lib/gallery/storage';
 import { useDraftStore } from '../../store/useDraftStore';
 import { useGalleryStore } from '../../store/useGalleryStore';
+import { useAccountStore } from '../../store/useAccountStore';
+
+vi.mock('../../components/account/AccountLibrary', () => ({
+  default: ({ownerId}:{ownerId:string}) => <div data-testid="cloud-library">Cloud assets for {ownerId}</div>,
+}));
 
 function record(overrides: Partial<GalleryRecord> = {}): GalleryRecord {
   return {
@@ -32,6 +37,7 @@ describe('LibraryOverlay', () => {
     }));
     useDraftStore.getState().reset();
     useGalleryStore.setState({ records: [], hydrated: true, storageError: null });
+    useAccountStore.setState({session:null,status:'ready',epoch:0,jobs:[],assets:[]});
   });
 
   it('presents a focused image-only picker without library management', () => {
@@ -94,5 +100,28 @@ describe('LibraryOverlay', () => {
     expect(screen.getByRole('tab', { name: 'results' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'prompts' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Clear library' })).toBeInTheDocument();
+  });
+
+  it('offers cloud and browser sources only while signed in', () => {
+    useGalleryStore.setState({ records: [record()] });
+    useAccountStore.getState().applySession({account:{id:'owner-1',name:'Owner',email:'owner@example.test'},googleEnabled:true,localSignIn:false,providers:[],connections:[]});
+    render(<LibraryOverlay open onOpenChange={() => undefined} />);
+
+    expect(screen.getByTestId('cloud-library')).toHaveTextContent('owner-1');
+    expect(screen.getByRole('button',{name:'Cloud account'})).toHaveAttribute('aria-pressed','true');
+    fireEvent.click(screen.getByRole('button',{name:'This browser'}));
+    expect(screen.getByText('moonlit palms')).toBeInTheDocument();
+    expect(screen.queryByTestId('cloud-library')).toBeNull();
+  });
+
+  it('returns to the browser library when the account disappears', () => {
+    useGalleryStore.setState({ records: [record()] });
+    useAccountStore.getState().applySession({account:{id:'owner-1',name:'Owner',email:'owner@example.test'},googleEnabled:true,localSignIn:false,providers:[],connections:[]});
+    render(<LibraryOverlay open onOpenChange={() => undefined} />);
+    expect(screen.getByTestId('cloud-library')).toBeInTheDocument();
+
+    act(()=>useAccountStore.getState().applySession({account:null,googleEnabled:true,localSignIn:false,providers:[],connections:[]}));
+    expect(screen.getByText('moonlit palms')).toBeInTheDocument();
+    expect(screen.queryByRole('group',{name:'Library source'})).toBeNull();
   });
 });

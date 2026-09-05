@@ -4,6 +4,8 @@ import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Library, X } from 'lucide-react';
 
+import AccountLibrary from '@/components/account/AccountLibrary';
+import { useAccountStore } from '@/store/useAccountStore';
 import GalleryGrid from '@/components/GalleryGrid';
 import PromptLibraryList from '@/components/PromptLibraryList';
 import { useAccessibleDialog } from '@/hooks/useAccessibleDialog';
@@ -42,6 +44,9 @@ export default function LibraryOverlay({
   purpose = 'browse',
   referenceLimit,
 }: LibraryOverlayProps) {
+  const account = useAccountStore(state => state.status === 'ready' ? state.session?.account : null);
+  const [source, setSource] = useState<'auto' | 'browser' | 'cloud'>('auto');
+  const cloud = Boolean(account) && source !== 'browser';
   const records = useGalleryStore((state) => state.records);
   const storageError = useGalleryStore((state) => state.storageError);
   const [quota, setQuota] = useState<{ usage: number; quota: number } | null>(null);
@@ -102,7 +107,7 @@ export default function LibraryOverlay({
                 <p id={descriptionId} className="text-[0.9375rem] text-[var(--foreground-muted)]">
                   {isImagePicker
                     ? 'Stored images available as a frame for this clip'
-                    : 'Results kept in this browser after the provider links expire'}
+                    : account ? 'Your cloud library and the results stored on this device' : 'Results kept in this browser after the provider links expire'}
                 </p>
               </div>
               <button
@@ -136,13 +141,27 @@ export default function LibraryOverlay({
               </div>
             )}
 
-            {storageError && (
+            {account && (isImagePicker || tab === 'results') && (
+              <div role="group" aria-label="Library source" className="mb-4 flex gap-2">
+                {(['cloud', 'browser'] as const).map(value => (
+                  <button key={value} type="button" aria-pressed={cloud === (value === 'cloud')}
+                    onClick={() => setSource(value)}
+                    className={`flex-1 rounded-lg border px-3 py-2 text-sm transition-colors motion-reduce:transition-none ${cloud === (value === 'cloud') ? 'border-cyan-300/50 bg-cyan-300/15 text-cyan-100' : 'border-[var(--border)] text-[var(--foreground-muted)] hover:text-[var(--foreground)]'}`}>
+                    {value === 'cloud' ? 'Cloud account' : 'This browser'}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {!cloud && storageError && (
               <p role="alert" className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-[0.9375rem] text-red-200">
                 {storageError}
               </p>
             )}
 
-            {isImagePicker ? (
+            {cloud && account && (isImagePicker || tab === 'results') ? (
+              <AccountLibrary key={account.id} ownerId={account.id} mode={isImagePicker ? 'pick-image' : 'browse'} referenceLimit={referenceLimit} onUsedReference={close} />
+            ) : isImagePicker ? (
               <GalleryGrid
                 mode="pick-image"
                 onUsedReference={close}
@@ -155,7 +174,7 @@ export default function LibraryOverlay({
             )}
             </div>
 
-            <footer className="dialog-safe-footer flex flex-wrap items-center justify-between gap-3 border-t border-[var(--border)] px-3.5 py-3.5 sm:px-4">
+            {(!cloud || (!isImagePicker && tab === 'prompts')) && <footer className="dialog-safe-footer flex flex-wrap items-center justify-between gap-3 border-t border-[var(--border)] px-3.5 py-3.5 sm:px-4">
               <p className="text-[0.9375rem] text-[var(--foreground-muted)]">
                 {isImagePicker ? (
                   <>{storedImages.length} stored image{storedImages.length === 1 ? '' : 's'}</>
@@ -193,7 +212,7 @@ export default function LibraryOverlay({
                   </button>
                 )}
               </div>
-            </footer>
+            </footer>}
           </motion.div>
         </motion.div>
       )}

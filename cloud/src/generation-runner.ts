@@ -18,7 +18,7 @@ export async function runGeneration(env:Env,jobId:string,step:DurableStep,overri
     const adapter=()=>override||adapterFor(env,job!.provider);
     await step.do('submit',SINGLE,async()=>{
       const current=await getJob(env,jobId);
-      if(!current||current.provider_task||current.result_json)return;
+      if(!current||['saved','failed','cancelled'].includes(current.state)||current.provider_task||current.result_json)return;
       // A synchronous response may have reached R2 before D1 was committed.
       // Recover that object even though repeating the paid call is forbidden.
       if(current.state!=='queued' && adapter().recover){
@@ -46,6 +46,7 @@ export async function runGeneration(env:Env,jobId:string,step:DurableStep,overri
       if(!job.provider_task)throw new Error('submission_ambiguous');
       const outcome=await step.do(`poll-${attempt}`,SAFE,async()=>{
         const current=await getJob(env,jobId);if(!current)return 'deleted';
+        if(['saved','failed','cancelled'].includes(current.state))return 'terminal';
         const status=await adapter().poll(env,current,JSON.parse(current.provider_task!) as ProviderHandle).catch(()=>{throw new Error('Provider status could not be read');});
         if(status.state==='failed'){await finishJob(env,jobId,'failed','provider_failed');return 'failed';}
         if(status.state==='success'){
@@ -55,7 +56,7 @@ export async function runGeneration(env:Env,jobId:string,step:DurableStep,overri
         }
         return 'running';
       });
-      if(outcome==='failed'||outcome==='deleted')return;
+      if(outcome==='failed'||outcome==='deleted'||outcome==='terminal')return;
       if(outcome==='success')break;
       await step.sleep(`wait-${attempt}`,'15 seconds');
     }
@@ -64,7 +65,8 @@ export async function runGeneration(env:Env,jobId:string,step:DurableStep,overri
     if(!job.result_json)throw new Error('provider_timeout');
     const capturedJob:JobRow=job;
     const saveOutcome=await step.do('save-assets',SAFE,async()=>{
-      if(!await getJob(env,jobId))return;
+      const current=await getJob(env,jobId);
+      if(!current||['saved','failed','cancelled'].includes(current.state))return;
       try{
         await captureResult(env,capturedJob,JSON.parse(capturedJob.result_json!) as ProviderResult);
       }catch(error){

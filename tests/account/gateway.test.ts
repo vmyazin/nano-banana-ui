@@ -39,6 +39,14 @@ describe('account gateway', () => {
     expect((await accountGateway(new Request('https://app.test/api/account/admin'))).status).toBe(404);
     expect((await accountGateway(new Request('https://app.test/api/account/sign-in/google', { method: 'POST', body: 'x'.repeat(2049) }))).status).toBe(413);
   });
+  it('forwards the explicit job cancellation route and rejects adjacent actions', async () => {
+    vi.stubEnv('ACCOUNT_WORKER_ORIGIN', 'https://accounts.test');
+    const fetcher=vi.fn().mockResolvedValue(Response.json({job:{id:'job-1',state:'cancelled'}}));vi.stubGlobal('fetch',fetcher);
+    const response=await accountGateway(new Request('https://app.test/api/account/jobs/job-1/cancel',{method:'POST',headers:{origin:'https://app.test','X-Account-Id':'owner'}}));
+    expect(response.status).toBe(200);
+    expect(String(fetcher.mock.calls[0][0])).toBe('https://accounts.test/api/account/jobs/job-1/cancel');
+    expect((await accountGateway(new Request('https://app.test/api/account/jobs/job-1/retry',{method:'POST'}))).status).toBe(404);
+  });
   it('rejects plaintext upstreams in production', async () => {
     vi.stubEnv('NODE_ENV', 'production');
     vi.stubEnv('ACCOUNT_WORKER_ORIGIN', 'http://localhost:8797');
