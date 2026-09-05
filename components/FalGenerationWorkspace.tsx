@@ -682,7 +682,6 @@ function FalGenerationWorkspaceSession({
         </div>
       </section>
 
-      <CloudExecutionNotice workspace={cloudWorkspace} />
       <ConnectionGate
         storage={cloudWorkspace.cloud ? 'account' : 'browser'}
         provider="fal"
@@ -829,6 +828,7 @@ function FalGenerationWorkspaceSession({
             className="btn-primary flex w-full items-center justify-center gap-2 py-3 text-base disabled:cursor-not-allowed disabled:opacity-50">
             {isSubmitting ? <><Loader2 className="animate-spin" size={21} /> Uploading & starting…</> : <><Sparkles size={21} /> Generate video</>}
           </button>
+          <CloudExecutionNotice workspace={cloudWorkspace} />
           {error && (
             <SubmissionError message={error} retry={autoRetry.pending} onCancelRetry={autoRetry.cancel} />
           )}

@@ -457,7 +457,6 @@ export default function KieGenerationWorkspace({
 
       {engineSelector}
 
-      <CloudExecutionNotice workspace={cloudWorkspace} />
       <ConnectionGate
         storage={cloudWorkspace.cloud ? 'account' : 'browser'}
         provider="kie"
@@ -583,6 +582,7 @@ export default function KieGenerationWorkspace({
           >
             {isSubmitting ? <><Loader2 className="animate-spin" size={21} /> Uploading & starting…</> : <><Sparkles size={21} /> Generate {mediaType}</>}
           </button>
+          <CloudExecutionNotice workspace={cloudWorkspace} />
           {error && (
             <SubmissionError message={error} retry={autoRetry.pending} onCancelRetry={autoRetry.cancel} />
           )}

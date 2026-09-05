@@ -35,6 +35,22 @@ describe('account execution and isolation',()=>{
     expect(submit.mock.calls[0][1]).toMatchObject({provider:'gemini',modelId:'gemini-3-pro-image-preview',prompt:'Account image request',mediaType:'image'});
     expect(submit.mock.calls[0][1]).not.toHaveProperty('apiKey');
   });
+  it('asks for the account connection, not the browser key, when fal runs in the cloud',async()=>{
+    const falSession:AccountSession={...session,providers:['fal'],connections:[{id:'fal-connection',provider:'fal',revision:1,hint:'test'}]};
+    useAccountStore.getState().applySession(falSession);refresh.mockResolvedValue(falSession);
+    useAppStore.setState({engine:'fal',falApiKey:''});
+    const {rerender}=render(<QueryClientProvider client={new QueryClient()}><GenerationInterface feature={FEATURES.find(f=>f.id==='text-to-image')!} apiKey="" onBack={()=>{}} onOpenConnections={()=>{}}/></QueryClientProvider>);
+    expect(screen.queryByText('Connect your fal API key to use this engine.')).toBeNull();
+    fireEvent.change(screen.getByRole('textbox',{name:'Prompt'}),{target:{value:'Account fal request'}});
+    fireEvent.click(screen.getByRole('button',{name:/Generate Image/i}));
+    await waitFor(()=>expect(submit).toHaveBeenCalledTimes(1));
+    expect(submit.mock.calls[0][1]).toMatchObject({provider:'fal',mediaType:'image',prompt:'Account fal request'});
+    // Without a saved connection the cloud path must still ask, and it asks for the account one.
+    const noConnection={...falSession,connections:[]};
+    useAccountStore.getState().applySession(noConnection);refresh.mockResolvedValue(noConnection);
+    rerender(<QueryClientProvider client={new QueryClient()}><GenerationInterface feature={FEATURES.find(f=>f.id==='text-to-image')!} apiKey="" onBack={()=>{}} onOpenConnections={()=>{}}/></QueryClientProvider>);
+    expect(screen.getByText('Connect your fal API key to use this engine.')).toBeTruthy();
+  });
   it('submits aggregator cloud video without adding a guest video job',async()=>{
     const runwareSession:AccountSession={...session,providers:['runware'],connections:[{id:'runware-connection',provider:'runware',revision:1,hint:'test'}]};
     useAccountStore.getState().applySession(runwareSession);refresh.mockResolvedValue(runwareSession);
@@ -87,7 +103,7 @@ describe('account execution and isolation',()=>{
     fireEvent.click(screen.getByRole('button',{name:'Generate image'}));
     expect(await screen.findByText('Storage quota is full.')).toBeInTheDocument();
     expect(guestSubmit).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole('button',{name:'Use browser-only generation instead'}));
-    expect(screen.getByText(/Keep this tab open/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button',{name:'Switch to in-browser'}));
+    expect(screen.getByText(/Runs in this tab/)).toBeInTheDocument();
   });
 });

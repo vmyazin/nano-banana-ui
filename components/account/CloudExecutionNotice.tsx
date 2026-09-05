@@ -1,11 +1,18 @@
 'use client';
 import { Cloud, Monitor } from 'lucide-react';
 import type { useCloudWorkspace } from '@/lib/account/useCloudWorkspace';
+/** One muted line under the generate button, not a callout above the controls.
+ *  Where the run happens is a property of the press, so it belongs next to the
+ *  cost line; framed as a panel at the top of the page it read as a warning
+ *  about the page rather than a choice about this generation. */
 export default function CloudExecutionNotice({workspace}:{workspace:ReturnType<typeof useCloudWorkspace>}) {
   if(!workspace.signedIn&&!workspace.uncertain)return null;
-  return <div className="rounded-xl border border-cyan-300/25 bg-cyan-300/5 p-3 text-sm">
-    <p className="flex items-center gap-2 font-medium text-cyan-200">{workspace.cloud?<Cloud size={16} aria-hidden="true"/>:<Monitor size={16} aria-hidden="true"/>}{workspace.uncertain&&workspace.cloud?'Account status unavailable':workspace.cloud?'Background generation · autosave':'Browser-only generation'}</p>
-    <p className="mt-1 text-xs leading-relaxed text-[var(--foreground-muted)]">{workspace.uncertain&&workspace.cloud?'We could not confirm your account. Wait for the connection to recover, or explicitly use browser-only generation.':workspace.cloud?(workspace.enabled?'Accepted jobs keep running after you leave. Results save to your account.':'Background generation for this provider is not enabled yet.'):'Keep this tab open and download your results. This job will not use your saved account connection or cloud library.'}</p>
-    <button type="button" onClick={workspace.cloud?workspace.useBrowser:workspace.useCloud} className="mt-2 text-xs text-[var(--foreground)] underline underline-offset-4">{workspace.cloud?'Use browser-only generation instead':'Use background generation'}</button>
-  </div>;
+  const status=workspace.uncertain&&workspace.cloud?'Account status unavailable'
+    :workspace.cloud?(workspace.enabled?'Runs in the background · saves to your account':'Background generation unavailable for this provider')
+    :'Runs in this tab · keep it open';
+  return <p className="mt-1.5 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-center text-xs text-[var(--foreground-subtle)]">
+    {workspace.cloud?<Cloud size={12} aria-hidden="true"/>:<Monitor size={12} aria-hidden="true"/>}
+    {status}
+    <button type="button" onClick={workspace.cloud?workspace.useBrowser:workspace.useCloud} className="underline underline-offset-2 transition-colors hover:text-[var(--foreground)]">{workspace.cloud?'Switch to in-browser':'Switch to background'}</button>
+  </p>;
 }

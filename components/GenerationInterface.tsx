@@ -914,8 +914,6 @@ export default function GenerationInterface({ feature, apiKey, onBack, onOpenCon
         onSelect={handleEngineSelect}
       />
 
-      <CloudExecutionNotice workspace={cloudWorkspace} />
-
       {/* Same shape as the Model card in the Kie and fal workspaces: a select
           of what this provider serves, with the vendor's own description of the
           chosen one underneath. */}
@@ -1096,7 +1094,11 @@ export default function GenerationInterface({ feature, apiKey, onBack, onOpenCon
                 </h3>
 
                 <div className="space-y-3">
-                  {activeEngine.id === 'cloudflare' && !hasCfCreds && (
+                  {/* In cloud mode the saved account connection is what runs the job,
+                      so testing the browser key here would ask a signed-in person to
+                      reconnect a provider they already connected — directly
+                      contradicting the background-generation notice above. */}
+                  {activeEngine.id === 'cloudflare' && (cloudWorkspace.cloud ? !cloudWorkspace.connected : !hasCfCreds) && (
                     <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3 flex items-center justify-between gap-3">
                       <p className="text-xs text-[var(--foreground-muted)]">
                         Connect your Cloudflare token to use this engine.
@@ -1111,7 +1113,7 @@ export default function GenerationInterface({ feature, apiKey, onBack, onOpenCon
                     </div>
                   )}
 
-                  {activeEngine.id === 'fal' && !falApiKey.trim() && (
+                  {activeEngine.id === 'fal' && (cloudWorkspace.cloud ? !cloudWorkspace.connected : !falApiKey.trim()) && (
                     <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3 flex items-center justify-between gap-3">
                       <p className="text-xs text-[var(--foreground-muted)]">
                         Connect your fal API key to use this engine.
@@ -1202,6 +1204,8 @@ export default function GenerationInterface({ feature, apiKey, onBack, onOpenCon
           <p className="mt-2 text-center text-xs text-[var(--foreground-subtle)]">
             {costLine}
           </p>
+
+          <CloudExecutionNotice workspace={cloudWorkspace} />
 
           {/* Error Display */}
           <AnimatePresence>

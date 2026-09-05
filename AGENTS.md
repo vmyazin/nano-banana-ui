@@ -17,6 +17,17 @@
 ## Auto-load routing
 
 - **Cloud library, imports, or spend** → first read `docs/codex/account-development.md`. Reuse `CloudAssetGrid` / `useAccountLibrary` for cloud files, `prepareReferences` for reference insertion, and `SpendReport` with the canonical spend resolvers for either ledger. Import controls read browser stores only after explicit selection; account requests must retain owner/epoch guards because a session can change during a file transfer.
+- **"Background generation is not available for this provider"** → that message is
+  configuration, not a missing adapter. `CLOUD_GENERATION_PROVIDERS` in
+  `cloud/wrangler.jsonc` is the only gate; `enabledProviders` filters it against
+  `CLOUD_PROVIDERS` and the Worker reports the result to the browser, so a
+  provider is unavailable until it is named there *and the Worker is redeployed* —
+  editing the file alone changes nothing. A provider joins that list only after the
+  live check in
+  `docs/superpowers/plans/2026-09-05-cloud-provider-enablement.md`, because a paid
+  submission is not idempotent and an untested adapter fails after the money is
+  spent. Any UI that asks for a provider key must read the account connection when
+  `cloudWorkspace.cloud` is true, never the browser key.
 - **Signed-in generation** → reuse `useCloudWorkspace`, `CloudExecutionNotice`, `CloudJobPanel` and `CloudJobList`; keep account jobs in the memory-only `useAccountStore`, never a guest job store. Pass `storage="account"` to `ConnectionGate` for cloud execution so its key-storage explanation stays accurate.
 - **Accounts, sign-in, or cloud persistence** → first read `docs/codex/account-development.md` and `docs/codex/specs/2026-09-04-optional-cloud-accounts-design.md`. Authentication entry pages live at `/sign-in` and `/sign-up`; signed-in management lives at `/account`, composing the existing account panels. Do not add account calls to action to the existing studio layout. The legacy admin gate is separate because enabling it would block guest routes.
 
@@ -106,11 +117,19 @@ document the exact symlink/copy commands to wire it up — an agent should not h
 rediscover them. For this repo, from inside the new worktree:
 
 ```sh
-ln -s ../../../node_modules node_modules   # deps are installed only in the main checkout
+pnpm install --frozen-lockfile --prefer-offline   # ~4s; pnpm hardlinks from the shared store
+pnpm --dir cloud install --frozen-lockfile        # the Worker is a separate pnpm project
 cp ../../../.env.local .env.local          # gitignored dev keys
 cp ../../../next-env.d.ts .                # gitignored; without it tsc can't type image imports
 cp ../../../public/thumbnails/*.jpg public/thumbnails/ 2>/dev/null || true  # gitignored local assets
+cp cloud/.dev.vars.example cloud/.dev.vars # then set DEV_FAKE_GENERATION=1 for credential-free jobs
 ```
+
+Install rather than symlink `node_modules`: `ln -s ../../../node_modules` still
+satisfies `tsc` and `vitest`, but Turbopack treats the worktree as its filesystem
+root and fails `next build` with "Symlink [project]/node_modules is invalid, it
+points out of the filesystem root". An absolute symlink fails the same way, so a
+symlinked worktree cannot verify the production build.
 
 ## Local development must be full-fidelity and credential-free
 

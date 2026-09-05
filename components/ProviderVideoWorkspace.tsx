@@ -593,7 +593,6 @@ export default function ProviderVideoWorkspace({
         </div>
       </section>
 
-      <CloudExecutionNotice workspace={cloudWorkspace} />
       <ConnectionGate
         storage={cloudWorkspace.cloud ? 'account' : 'browser'}
         provider={provider}
@@ -786,6 +785,7 @@ export default function ProviderVideoWorkspace({
               </>
             )}
           </button>
+          <CloudExecutionNotice workspace={cloudWorkspace} />
           {error && (
             <SubmissionError message={error} retry={autoRetry.pending} onCancelRetry={autoRetry.cancel} />
           )}

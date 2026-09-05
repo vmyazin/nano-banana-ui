@@ -20,6 +20,13 @@
       "request": "launch",
       "command": "ACCOUNT_WORKER_PORT=8797 npm run dev -- --port 3097",
       "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "Cloud provider enablement smoke test",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "ACCOUNT_WORKER_PORT=8799 DEV_FAKE_GENERATION=1 npm run dev -- --port 3099",
+      "cwd": "${workspaceFolder}"
     }
   ]
 }

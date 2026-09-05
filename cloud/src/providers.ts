@@ -25,9 +25,15 @@ const localAdapter:GenerationAdapter={
     return {state:'success',result:{sources:[{objectKey:key,mimeType:'image/png'}]}};
   },
 };
+/** Every provider that can run a background job. `local-test` is excluded on
+ *  purpose: it is the local fixture and is reached through its own branch below.
+ *  One list, so a provider added to the union cannot be silently missing from the
+ *  deployed configuration — `tests/providers-config.test.ts` compares the two. */
+export const CLOUD_PROVIDERS = ['fal','kie','runware','atlas','comet','gemini','cloudflare','pollinations'] as const;
+type EnabledProvider = typeof CLOUD_PROVIDERS[number];
 export function enabledProviders(env:Env):CloudJobRequest['provider'][] {
-  if(isLocal(env)&&env.DEV_FAKE_GENERATION==='1')return ['fal','kie','runware','atlas','comet','gemini','cloudflare','pollinations'];
-  return (env.CLOUD_GENERATION_PROVIDERS||'').split(',').map(p=>p.trim()).filter((p):p is 'fal'|'kie'|'runware'|'atlas'|'comet'|'gemini'|'cloudflare'|'pollinations'=>['fal','kie','runware','atlas','comet','gemini','cloudflare','pollinations'].includes(p));
+  if(isLocal(env)&&env.DEV_FAKE_GENERATION==='1')return [...CLOUD_PROVIDERS];
+  return (env.CLOUD_GENERATION_PROVIDERS||'').split(',').map(p=>p.trim()).filter((p):p is EnabledProvider=>(CLOUD_PROVIDERS as readonly string[]).includes(p));
 }
 export function adapterFor(env:Env,provider:CloudJobRequest['provider']):GenerationAdapter {
   if(provider==='local-test'&&isLocal(env))return localAdapter;
