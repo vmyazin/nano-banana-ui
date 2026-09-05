@@ -1,5 +1,7 @@
 declare const __LOCAL_DEV__: boolean;
 export interface Env {
+  /** Opt-in only after provider contract and credentialed smoke verification. */
+  CLOUD_GENERATION_PROVIDERS?: string;
   DB: D1Database;
   ASSETS?: R2Bucket;
   GENERATION?: Workflow<{ jobId: string }>;

@@ -97,3 +97,9 @@ Implemented masked connection listing, authenticated encryption with versioned k
 Implemented local R2/Workflows bindings, idempotent job intake with atomic quota reservations, dispatch reconciliation, non-retrying submission, resumable polling/saving, streamed multipart capture, owner-scoped paginated library access, byte-range downloads and deletion tombstones. Dedicated account pages reuse ResultStack and ConfirmDialog with a shared accented AccountSurface; existing studio layout remains unchanged.
 
 Validation: 31 cloud tests passed (including quota races, ambiguous acceptance, replay and storage recovery), root and Worker typechecks and focused lint passed, Next production build and Wrangler dry-run passed. The checked-in local seed completed a Workflow, saved its fixture in R2 and verified an authenticated download. Browser smoke displayed the saved job and private asset. Native providers remain deliberately disabled pending their integration; this milestone does not complete provider coverage, imports, global cleanup or external setup.
+
+## Milestone record — native queue adapter boundary
+
+Added cloud/src/provider-adapters/queued.ts to reuse existing fal/Kie transports and catalogs. Encrypted connections resolve by owner and saved revision at execution time. Intake validates model/settings before submission; text-only adapters remain explicitly disabled unless CLOUD_GENERATION_PROVIDERS is configured. This is partial task 6, not all-provider launch coverage. Capability evidence and remaining limits are recorded in ../cloud-provider-capabilities.md.
+
+Verification: 37 cloud tests pass, including native Kie submit/status, revoked connection rejection and a fal SDK upstream failure making exactly one network request. Worker typecheck and production bundle dry-run pass. Real provider calls were not made.
