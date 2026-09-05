@@ -408,3 +408,29 @@ a local development archive, not a production backup/restore acceptance test.
 To resume locally in a fresh task worktree, copy the archived `cloud/.wrangler/state`,
 `cloud/.dev.vars`, and `.env.local` to the corresponding paths only after checking
 that the destinations do not contain another task's data. Keep these files out of Git.
+
+### 2026-09-05 successful production tab-close acceptance
+
+Follow-up decision: the user added a replacement Gemini connection and requested
+completion of the live test. This supersedes the invalid-key blocker above.
+Gemini was enabled on Worker version `1eced22d-2816-4d00-bd4e-e602ec42923e`.
+One square 1K blue-circle image job, `52882d1a-6b66-46b1-8ae1-7f4c831ca2c2`,
+was accepted as Queued. The actual submission tab was then closed. With that tab
+closed, a read-only production D1 query confirmed `saved`, no error, and a completion
+interval of 21.577 seconds (created 1788626920061, updated 1788626941638).
+
+Opening a new browser tab at `/account` retained the Google session and displayed
+the saved image; its loaded natural width was 1024 pixels. The library showed
+558.9 KB used and zero reserved bytes. The cloud spend report contained exactly one
+record for this run, priced at $0.1436 from reported usage (1212 tokens), and linked
+the run to its library asset. The saved-image Download action completed without a
+UI error. The original failed red-circle job remains visibly Tracking stopped.
+
+The real Gemini background completion and automatic-saving acceptance check passed.
+`cloud/wrangler.jsonc` now retains Gemini in CLOUD_GENERATION_PROVIDERS so a normal
+future deployment preserves the verified capability. Other providers remain disabled
+pending their own live checks. The saved Atlas/Comet/Gemini connections are retained.
+Worker bundle dry-run with the pinned cloud dependency lockfile passed. The temporary
+verification worktree has no local emulator state to retain; the prior private local
+archive remains available. Public Google consent publishing, wider provider coverage,
+measured output bounds, and production backup recovery remain separate launch work.
