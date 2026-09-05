@@ -374,3 +374,37 @@ choice is resolved. Google consent remains in Testing; public consent publishing
 other provider live checks, measured model limits, and backup recovery acceptance
 remain separate outstanding launch work. Preserve the local worktree's encrypted
 connections and emulator state until credential selection and safe cleanup finish.
+
+### 2026-09-05 live generation attempt and worktree closure
+
+The user explicitly authorized transferring the saved local Gemini connection and
+running one small image test. The selected connection was decrypted in memory and
+re-encrypted using the production account owner and production vault key. The
+if-absent database insert preserved other connections; no plaintext key was saved
+or printed. Gemini alone was temporarily enabled for the test.
+
+Job `b9bf316b-3312-45d2-a8e5-80114f899d4e` requested a single square 1K red-circle
+image. It reached `needs_attention/submission_ambiguous` before the tab could be
+closed, with no provider handle or persisted result. Independent read-only Google
+model metadata/list requests using the same key returned HTTP 400,
+`API_KEY_INVALID`. No additional generation was submitted. Therefore the real
+completion-after-tab-close and autosave acceptance check has NOT passed.
+
+Cleanup stopped tracking the failed job through the account UI and verified zero
+used/reserved storage bytes. The invalid transferred Gemini connection was removed;
+the separate CometAPI connection was preserved. Worker version
+`ca04610a-1b50-40a3-a49e-1f86eda91cfb` restored the checked-in configuration with
+cloud generation providers disabled. Retry the acceptance check only with a valid,
+explicitly selected provider credential. The generic ambiguous-error presentation
+also remains a diagnostics improvement opportunity: preserve sanitized stage/status
+categories without persisting raw vendor responses or keys.
+
+The task's local dev supervisor was stopped; ports 3097 and 8797 were released.
+Before removing the merged worktree, its emulator state, local Worker variables,
+and local Next environment were archived under
+`~/.config/scene-assembly/account-cloud-plan-local-2026-09-05` with private directory
+and file permissions. Every copied emulator file was verified by SHA-256. This is
+a local development archive, not a production backup/restore acceptance test.
+To resume locally in a fresh task worktree, copy the archived `cloud/.wrangler/state`,
+`cloud/.dev.vars`, and `.env.local` to the corresponding paths only after checking
+that the destinations do not contain another task's data. Keep these files out of Git.
