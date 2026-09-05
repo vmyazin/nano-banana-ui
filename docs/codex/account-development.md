@@ -1,43 +1,184 @@
 # Account service development
 
-The sign-in milestone adds dedicated `/sign-in` and `/sign-up` pages only. The existing studio layout has no new account calls to action. Guest routes and the legacy self-hosted admin gate are unchanged. Cloud saving and connections are subsequent milestones; the account page does not claim they work yet.
+The optional account path is implemented behind a Next.js gateway and a
+Cloudflare Worker using D1, private R2, and Workflows. It adds dedicated
+Google-first `/sign-in` and `/sign-up` pages without adding global calls to
+action. Guests keep the existing browser-only studio, keys, library, jobs, and
+spend ledger.
+
+This is not production-ready yet. Production resources, OAuth, secrets, and
+provider credentials are not configured; no real provider call has been made.
+All eight provider adapters exist, but `CLOUD_GENERATION_PROVIDERS` defaults to
+empty until each one passes a real provider verification.
 
 ## Run locally
 
-Requires Node 24 (the auth test database uses node:sqlite). Install root and isolated Worker dependencies:
+Node 24 is required because account tests use `node:sqlite`. Install the root
+and isolated Worker dependencies:
 
-```sh
+```bash
 pnpm install --frozen-lockfile
 pnpm --dir cloud install --frozen-lockfile
 npm run dev
 ```
 
-The named worktree scenario in `.claude/launch.json` uses web port 3097 and Worker port 8797. Override with `npm run dev -- --port 3098` and `ACCOUNT_WORKER_PORT=8798` when needed. The startup script copies `cloud/.dev.vars.example` if local variables are absent, keeps its app origin aligned with the web port, and starts both processes. Schema is created on the first local request. Each worktree keeps separate `.wrangler` state. Scheduled cleanup is not automatic locally; trigger it with `curl http://localhost:8797/cdn-cgi/local/scheduled`.
+The named scenario in `.claude/launch.json` uses web port 3097 and Worker port
+8797. Override them with:
 
-Open http://localhost:3097/sign-up and choose **Use local test account**, then visit `/sign-in` or reload to verify persistence. Sign out revokes the session. Local test login requires both the compile-time local marker and an explicitly localhost app origin plus the dev identity variable. Deploy builds replace the marker with false. Host alone never enables the shortcut; no production request field can switch it on.
+```bash
+ACCOUNT_WORKER_PORT=8798 npm run dev -- --port 3098
+```
 
-## Real Google setup (not yet configured)
+The launcher copies `cloud/.dev.vars.example` to the gitignored
+`cloud/.dev.vars` when needed, aligns `APP_ORIGIN`, creates a local encryption
+key only when one is absent, and sets `PUBLIC_WORKER_ORIGIN`. Migrations `0001`
+through `0010` are represented in the development-only zero-seed bootstrap,
+which runs on first request. Each worktree has separate `.wrangler` state.
 
-Create a Google OAuth **Web application** client with these exact authorized redirects:
+The launcher starts the Next app and local Wrangler Worker in one command. It
+also invokes the Worker's scheduled reconciliation endpoint every minute;
+Wrangler does not fire cron by itself locally. This tick recovers undispatched
+jobs, reconciles spend, and cleans expired OAuth/session, upload, import,
+retention, rate-limit, and object-deletion records.
 
-- `http://localhost:3097/api/account/callback/google`
-- `https://sceneassembly.mzork.com/api/account/callback/google`
+Open <http://localhost:3097/sign-up> and choose **Use local test account**. The
+shortcut requires the compile-time local marker, a localhost `APP_ORIGIN`, and
+`DEV_ACCOUNT_EMAIL`; deploy builds set the marker false. Host headers or request
+fields cannot enable it. Local Google endpoints use mocked cryptography in
+tests unless real Google values are supplied.
 
-Use a separate client/environment for staging. Configure the consent screen and test users as required by Google. Request only openid, email and profile. Put client ID and secret in gitignored `cloud/.dev.vars` for local testing; production values use Wrangler secrets. Never print credentials or write them into tracked files.
+Set `DEV_FAKE_GENERATION=1` in `cloud/.dev.vars` and restart for the
+credential-free full account flow. The fake adapter is compile-time local only.
+It exercises the real D1 reservation, Workflow, R2 capture, library, and private
+download path but does not verify provider behavior or billing. The seed checks
+direct reference input, a local generation, full and byte-range private
+downloads, and an idempotent import of the 68-byte PNG fixture:
 
-The Worker uses oauth4webapi for code exchange and OIDC claim/signature validation, including state, PKCE, nonce, issuer, audience, expiry and verified email. Identity is keyed by Google subject. OAuth attempts are browser-bound, expire in ten minutes and are consumed atomically. Session cookies are HttpOnly and SameSite=Lax; production cookies are Secure with the __Host- prefix. Session tokens are hashed in D1 and expire after 30 days. Sign-in/sign-out POSTs require the configured Origin. Provider tokens are not persisted.
+```bash
+node scripts/seed-account-demo.mjs
+```
 
-## Cloudflare / Vercel setup (not yet performed)
+## Implemented behavior
 
-Create the D1 database and replace the placeholder database ID in `cloud/wrangler.jsonc`. Apply all checked-in `cloud/migrations/` with Wrangler D1 migrations before enabling the Worker. Production never auto-bootstraps schema. Configure APP_ORIGIN to the canonical HTTPS app origin. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET as Worker secrets. Configure ACCOUNT_WORKER_ORIGIN in Vercel to the Worker HTTPS origin.
+Account connections are encrypted with AES keys in
+`ACCOUNT_ENCRYPTION_KEYS`, a JSON map from version to base64-encoded 32-byte
+key. `ACCOUNT_ENCRYPTION_VERSION` selects the current write key. Reads expose
+only masked metadata, and old versions must remain available during rotation.
+An explicit browser-key import uses an if-absent write, so an existing cloud
+connection wins and the browser original is never removed.
 
-The Next.js gateway allows only account routes and forwards cookies/origin/content-type, never user-ID headers. It preserves redirects and separate Set-Cookie headers and disables caching. Google returns to the app origin through that gateway. Missing backend configuration returns a friendly account-unavailable response without affecting guest routes. Keep AUTH_ADMIN_EMAIL unset: it controls an unrelated legacy local-database gate.
+Cloud jobs live only in the account store and never enter guest job stores.
+Submission tokens and immutable request digests make intake idempotent. An
+uncertain dispatch is reconciled without a second paid submission. A queued job
+can be cancelled only before the provider claim wins. A job in
+`needs_attention` can be resumed or marked **Stop tracking**; stopping releases
+Scene Assembly's reservation and ends polling/saving, but the provider may
+still finish and charge. Existing saved assets stay available and temporary
+downloads keep their deadline.
 
-Production migration precedes Worker deployment because code queries the account tables immediately. Enable the Vercel backend origin after the Worker is healthy. No deployment or push is authorized until the user reviews the localhost change.
+All eight adapters are implemented: fal, Kie, Runware, Atlas, Comet, Gemini,
+Cloudflare, and Pollinations. The first five include queue/task or staged-result
+recovery appropriate to their transport; synchronous image calls stage output
+before metadata commit where possible. Provider flags still default off because
+contract tests and compile-only local generation do not replace real vendor
+verification.
 
-## Verify
+The permanent library limit is exactly 1,000,000,000 bytes. A job reserves 64
+MB for images or 256 MB for video, currently placeholders pending measurement.
+Output capture is capped at 1 GB per job. Direct imports accept supported images
+or videos up to 1 GB and preserve the browser asset. Each import has a stable
+intent and immutable metadata digest. Retrying an interrupted transfer creates
+a fenced object attempt; stale attempts are cleaned without deleting a later
+successful object. Replaying a completed import returns the existing asset, and
+deleted or expired intents cannot resurrect it.
 
-```sh
+Temporary references allow 20 MB per image, 32 ready uploads and 256 MB per
+account, and 10 GB across the service. Inline-input providers accept 12 MB per
+job and inline responses are capped at 24 MB. The service allows three active
+jobs per account and 100 globally. New intake is blocked while the owner has a
+live temporary overflow; the global 100-job bound also counts terminal jobs that
+still hold temporary results, independently of released active-job slots.
+Replaying an already accepted job remains possible, and permanent assets are
+never evicted. These values bound the implementation; the 64/256 MB reservations
+and provider-specific limits must be measured before launch.
+
+If a completed result does not fit the permanent quota, it remains privately
+downloadable for 24 hours. Freeing space and resuming saves those same bytes
+without another provider call. Permanent assets have no automatic expiry.
+
+The account spend ledger is stored in D1 and remains separate from the browser
+ledger. Both use the canonical resolvers in `lib/spend/resolve.ts`; figures stay
+exact, estimated, or unknown when trustworthy rate/usage data is unavailable.
+Spend capture follows a confirmed provider result even when saving needs
+attention, and reconciliation repairs a missed ledger insert without affecting
+the completed generation. Account spend and asset endpoints return 50 rows at a
+time. **Older assets** pages the library explicitly; **Load older records**
+appends another spend page and pauses automatic latest-page replacement for
+that scope.
+
+Reference uploads and account imports/downloads use short-lived direct Worker
+capabilities, so file bytes do not pass through Vercel. The R2 bucket stays
+private. Capability URLs are owner- and purpose-scoped, and deletion immediately
+revokes metadata access before queued object cleanup.
+
+## Ingress and observability
+
+The Worker bounds metadata request bodies before parsing them: jobs 40,000
+bytes, connections 8,192 bytes, imports 32,768 bytes, and other account POSTs
+2,048 bytes. Per-minute D1-backed budgets are 600 owner reads, 120 owner writes,
+20 job submissions, 3,000 signed-out account requests, and 120 OAuth starts.
+Cross-site mutations are rejected before session and counter work. See
+[`cloud/src/ingress.ts`](../../cloud/src/ingress.ts) for the executable limits.
+
+`cloud/wrangler.jsonc` keeps Worker observability enabled but disables invocation
+logs because private media capabilities appear in URL paths. Do not enable
+invocation URL logging without first redacting those paths.
+
+## Local and production configuration
+
+`cloud/.dev.vars.example` defines `APP_ORIGIN`, `DEV_ACCOUNT_EMAIL`, optional
+local `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`, and
+`DEV_FAKE_GENERATION`. The launcher supplies `PUBLIC_WORKER_ORIGIN` and local
+encryption keys. Next receives `ACCOUNT_WORKER_ORIGIN` separately.
+
+To test real Google OAuth locally, create a Web application client with
+`http://localhost:3097/api/account/callback/google` as an authorized redirect
+and put its ID and secret only in `cloud/.dev.vars`. Use a separate client for
+production, whose authorized redirect is
+`https://sceneassembly.mzork.com/api/account/callback/google`. Request only
+`openid`, `email`, and `profile`.
+
+Production needs the `DB`, `ASSETS`, and `GENERATION` bindings from
+`cloud/wrangler.jsonc`; `APP_ORIGIN` and `PUBLIC_WORKER_ORIGIN`; Google and
+encryption secrets; and Vercel `ACCOUNT_WORKER_ORIGIN`. Keep
+`AUTH_ADMIN_EMAIL` unset on Vercel. It controls an unrelated legacy SQLite gate;
+the new account pages do not make that gate suitable for serverless deployment.
+
+Apply D1 migrations before deploying the Worker, then verify OAuth through an
+isolated preview app with a working gateway and matching origin/callback before
+connecting the production app. The detailed order and external setup checklist
+are in [`docs/deployment.md`](../deployment.md). Production setup requires user
+credentials and potentially billing consent, and remains later work. Get user
+review and localhost sign-off before any push because `main` deploys
+automatically.
+
+## Recovery and retention
+
+[D1 Time Travel](https://developers.cloudflare.com/d1/reference/time-travel/)
+provides 7 days on Workers Free and 30 days on Workers Paid. It restores the
+database only and cannot restore R2 objects. Define coordinated D1/R2 backups
+and complete a restore exercise before launch.
+
+Configure the private bucket's
+[R2 lifecycle](https://developers.cloudflare.com/r2/buckets/object-lifecycles/)
+to abort incomplete multipart uploads after one day. Do not set permanent asset
+expiry. Application cleanup covers abandoned imports, temporary results,
+deleted objects, and deleted-account prefix rescans; the bucket lifecycle is a
+last-resort multipart cleanup rather than the account retention policy.
+
+## Verification
+
+```bash
 pnpm test:cloud
 pnpm test -- tests/account
 pnpm --dir cloud typecheck
@@ -46,50 +187,9 @@ pnpm lint
 pnpm build
 ```
 
-Cloud tests exercise actual SQLite constraints with a D1-shaped test adapter; real D1 behavior is checked in local Wrangler/browser smoke tests. Google cryptographic tests use generated test keys and mocked Google endpoints; they do not replace the final real OAuth smoke test. Browser testing covers sign-up, persisted session on sign-in, sign-out, and guest navigation.
-
-## Saved connection milestone
-
-Signed-in account pages now manage encrypted connections using the same provider labels as the studio. `ACCOUNT_ENCRYPTION_KEYS` is a JSON object mapping key versions to base64-encoded 32-byte AES keys; `ACCOUNT_ENCRYPTION_VERSION` selects the write key. The local launcher generates a key only when absent and keeps it in gitignored `.dev.vars`. Configure separate production secrets before enabling cloud connections. Keep old versions available while re-encrypting existing rows. Authenticated encryption binds each ciphertext to its owner, provider and key version. Connection replacement increments a revision so running jobs can detect a changed credential.
-
-The shared AccountSurface owns the accent edge, stronger border and brief reduced-motion-aware entrance. Existing studio/header calls to action remain unchanged.
-
-## Private media and local reconciliation
-
-`npm run dev` also sets PUBLIC_WORKER_ORIGIN to the selected local Worker port. In production this must be the HTTPS origin serving the Worker. Reference uploads and asset downloads transfer directly through short-lived Worker capabilities; they do not send file bodies through Vercel. The bucket remains private. Upload access expires after ten minutes; input-read access lasts up to 24 hours and is revoked when its job finishes; download access expires after ten minutes and stops working immediately when its asset is deleted.
-
-Temporary reference storage is separate from the saved library: at most 20 MB per file, 32 retained uploads and 256 MB per account. Active jobs retain their inputs; unused/terminal inputs become eligible for cleanup after 24 hours. Upload rows are tombstoned before object deletion so cleanup cannot race a new acceptance. Job intake checks owner, readiness and expiry in the reservation transaction.
-
-Wrangler does not trigger cron automatically in local development. The dev supervisor invokes the same scheduled reconciliation endpoint once per minute after local schema bootstrap. This is local-only; production uses the configured cron trigger. The local seed script now verifies direct upload, cleanup, authenticated library download and scoped byte-range access.
-
-Wrangler is pinned to 4.113.0 with a compatible runtime date because newer local proxies reproduced a fatal Network connection lost error while serving concurrent account requests. Upstream evidence: [Cloudflare local proxy regression](https://github.com/cloudflare/workers-sdk/issues/15002), [empty fatal proxy error](https://github.com/cloudflare/workers-sdk/issues/15317). Recheck the upstream fix and local smoke suite before upgrading. No runtime secrets or production bindings were changed for this workaround.
-
-## Quota overflow and expiry
-
-The permanent library never exceeds its configured byte limit. Capture protects other accepted jobs' reservations while consuming its own. If an output does not fit, its bytes remain privately downloadable as a temporary result for 24 hours, with an explicit deadline in the shared result/library UI. Free space and resume the same job to promote those bytes; neither promotion nor saving an already known result requires another provider call. Native providers may be disabled or their connection removed after generation without preventing an already persisted result from being saved.
-
-Aggregate output is capped at 1 GB per job, with at most three active jobs per account and 100 across the service. Temporary reference uploads also have a 10 GB service-wide cap. These caps bound outstanding work; they do not replace per-model limit verification. Expiry tombstones temporary assets, revokes reads and releases reservations; permanent assets remain unchanged. Local emulation creates migration 0005 automatically on its next request; production must apply migrations explicitly. The retention journal precedes the asset insert within one atomic D1 batch, which is why it has no immediate foreign key.
-
-## Studio account execution
-
-The invisible AccountSessionProvider refreshes session/connection metadata and owner-scoped jobs. useAccountStore is memory-only and clears account results on identity changes. Shared submission helpers bind mutations to the initiating account, so switching accounts during an upload cannot attach the old draft to the new account. Intake retries retain the same token and reference IDs after an uncertain response. Guest stores are never used for cloud jobs.
-
-All studio image/video workspaces now use the shared cloud submission and result components. The existing key dialog includes encrypted account connections above clearly labeled browser-only keys. Browser-only execution remains an explicit choice for a signed-in user; errors and quota rejection never silently switch execution modes. Pollinations background execution requires an account-saved Pollinations key for its current API. Native adapters remain off unless individually enabled with CLOUD_GENERATION_PROVIDERS; see the capability record before enabling any in production.
-
-Common image feature prompt expansion is shared by guest and account requests. Video account results reuse LastFrameActions. Synchronous image engines stage bytes before metadata commit; Check for a saved output looks only for a persisted file and cannot issue another paid call. Inline-input providers accept at most 12 MB of references per job. Inline base64 responses are bounded to 24 MB; provider-specific output-limit verification is still required.
-
-For a credential-free studio image smoke test, set DEV_FAKE_GENERATION=1 in the gitignored cloud/.dev.vars and restart npm run dev. Sign into the local account, save a dummy Kie connection through the existing key dialog, select a Kie image model and submit. The local adapter waits before returning the fixture, so navigate away while Generating and verify Saved later in the account library. This mode is compile-time local-only and does not call a vendor; real Google sign-in and real provider credentials remain separate checks. Turn the flag off before testing real provider behavior.
-
-## Account and object deletion
-
-The dedicated account pages offer permanent account deletion through the existing confirmation dialog pattern. Deletion immediately revokes sessions, connections, metadata and media access in a single D1 transaction. Guest browser stores remain on the device. R2 removal follows asynchronously through a persistent cleanup queue; deleted account prefixes are rescanned for 24 hours to collect late provider writes. A subsequent Google sign-in creates a fresh account ID and storage prefix. Jobs already accepted by a provider may still incur a charge, which the confirmation states explicitly.
-
-Ordinary asset deletion also journals R2 cleanup before revoking reads. Failed object deletes remain retryable without restoring the asset or its byte usage. Migration 0006 supplies cleanup journals with no account foreign key because they must outlive the deleted account. Tests cover independent sessions, account isolation, failed deletes, pagination and late writes. The local browser smoke test deleted only the seeded test account, verified guest state, then signed in to an empty library with no saved connections.
-
-## Reuse from the existing library
-
-Signed-in users choose Cloud account or This browser inside the existing Library and contextual image picker. Both cloud entry points share the same paginated grid and account storage meter. Image selection downloads only the chosen private file, runs the canonical reference conversion and inserts it into the current draft. Owner/epoch checks discard the operation if identity changes. Browser gallery persistence is unchanged. The nested delete confirmation is portaled above the library dialog.
-
-Queued jobs offer Cancel queued job. Cancellation atomically wins before the provider submission claim, or returns a conflict and keeps tracking work that has already started. Repeating a successful cancellation does not release storage twice. This is not a guarantee of vendor-side cancellation after submission.
-
-Verified in the local browser: cloud/browser source separation, cloud deletion confirmation, image-only picker, and successful fixture insertion into a video draft. No vendor generation was invoked. The local seed waits up to 90 seconds because fake generation itself deliberately takes ten seconds, then verifies the private full and ranged downloads.
+Cloud tests use SQLite behind a D1-shaped adapter. Google tests generate keys
+and mock Google endpoints. The local fake generation is compile-only and calls
+no vendor. Release verification still requires real Google OAuth and one
+credentialed end-to-end job for each enabled provider, including background
+completion after closing the browser, private download, spend classification,
+and failure/reconciliation behavior.

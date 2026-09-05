@@ -7,7 +7,7 @@
 ![Next.js](https://img.shields.io/badge/Next.js-16-black?style=for-the-badge&logo=next.js)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-blue?style=for-the-badge&logo=typescript)
 
-An open-source, multi-engine studio for generating, editing, and composing images—and creating video—with Google Gemini, fal.ai, Kie.ai, Pollinations FLUX, and Cloudflare Workers AI. Bring your own provider credentials, choose the engine that fits the job, and keep all configuration in your browser.
+An open-source, multi-engine studio for generating, editing, and composing images—and creating video—with Google Gemini, fal.ai, Kie.ai, Pollinations FLUX, and Cloudflare Workers AI. Bring your own provider credentials and choose the engine that fits the job. Guest credentials are stored in the browser; an optional Google account service can encrypt saved connections and keep jobs, media, and spend history in Cloudflare.
 
 > **Scene Assembly was formerly called Nano Banana UI.** The repository URL retains the former slug during the transition; the product itself is provider-neutral.
 
@@ -47,11 +47,12 @@ fal.ai has a separate, static catalog of exactly nine curated and verified video
 
 Seven of them also take **two source images** — a first and a last frame — and generate the motion between them. Veo 3.1 Standard and Fast run this on fal's dedicated `first-last-frame-to-video` endpoints; Seedance 2.0 (both tiers), Kling 3 (both tiers), and Wan 2.7 accept a closing frame alongside the opening one on their image-to-video endpoints. Only the two MiniMax Hailuo 2.3 models are opening-frame only, so they drop out of the picker in this mode.
 
-Both providers create tab-local, in-memory jobs. For fal, the app uses the [asynchronous queue](https://fal.ai/docs/documentation/model-apis/inference/queue) to submit, check status, retrieve results, and cancel. Polling stops at success/failure or after 15 minutes; the app never auto-resubmits, and job history is not restored after a reload. Download completed media promptly because provider URLs are temporary.
+Browser-only execution for both providers creates tab-local, in-memory jobs. For fal, the app uses the [asynchronous queue](https://fal.ai/docs/documentation/model-apis/inference/queue) to submit, check status, retrieve results, and cancel. Polling stops at success/failure or after 15 minutes; the app never auto-resubmits, and job history is not restored after a reload. Download completed media promptly because provider URLs are temporary.
 
 ### 🎯 Studio Features
 
 - **API connections dialog** — manage Gemini, fal, Kie, and Cloudflare credentials in one place (stored in browser `localStorage`)
+- **Optional cloud account** — when the separate service is configured, dedicated Google-first `/sign-in` and `/sign-up` pages can save encrypted connections, background jobs, a private 1 GB library, and a separate account spend ledger. Signing in never uploads browser keys or library files; each import is explicit and preserves the browser original
 - **Spend page** — every finished generation is recorded in your browser with its cost, labelled exact or estimated, and rolled up by provider, model, and day at `/spend`. Runware reports exact costs; Gemini is priced from its token usage; fal and Kie are estimated from their pricing and credit-balance endpoints; free engines record as free
 - **Full-screen lightbox** — preview generated images before download
 - **AI-generated example prompts** — one-click "Gen Example" with a meta-prompt tooltip
@@ -68,7 +69,7 @@ Both providers create tab-local, in-memory jobs. For fal, the app uses the [asyn
 
 ### Prerequisites
 
-- Node.js 22.5+ (the optional account gate uses the built-in `node:sqlite`)
+- Node.js 24+ (the account-service tests use the built-in `node:sqlite`)
 - pnpm 10.32+ (enabled through Corepack)
 - **For Gemini modes**: a [Google AI Studio API key](https://aistudio.google.com/apikey)
 - **For Cloudflare FLUX** (optional): a [Cloudflare Workers AI token](https://dash.cloudflare.com/?to=/:account/ai/workers-ai) and Account ID
@@ -89,8 +90,10 @@ instead of consuming your Gemini quota:
 cp .env.example .env.local   # then fill in HF_TOKEN
 ```
 
-This is the one credential the app holds server-side; every other key stays in
-your browser. It is never exposed to the client, and there is **no rate limit or
+This app-owned credential stays server-side and is never exposed to the client.
+Guest provider keys remain in the browser; when the optional account service is
+enabled, provider keys a signed-in user explicitly saves are encrypted by that
+service. There is **no rate limit or
 usage cap** — if you deploy publicly, the token is spent on behalf of every
 anonymous visitor. Per-request token counts and an estimated session cost are
 shown in the Connections panel.
@@ -120,7 +123,7 @@ Open [http://localhost:3000](http://localhost:3000), connect your API credential
 4. **Kie.ai** — paste your Kie key; it is validated against your Kie credit endpoint before save
 5. **Cloudflare Workers AI** — enter Account ID and API token (saved immediately)
 
-Provider credentials, including the fal key, persist in this browser’s `localStorage`. They are not synced between browsers or devices; clear the saved connection when using a shared computer.
+Guest provider credentials, including the fal key, persist in this browser’s `localStorage`. They are not synced between browsers or devices; clear the saved connection when using a shared computer. If the optional account service is enabled, a signed-in user can separately save an encrypted account connection or explicitly import a browser key. Imports use an if-absent write, so they do not overwrite a connection already saved from another device, and the browser copy remains intact.
 
 ### Generating Images
 
@@ -211,14 +214,16 @@ scene-assembly/
 
 ## 🔒 Security
 
-- API keys and provider credentials are stored in browser `localStorage` only — except `HF_TOKEN`, which is app-owned, server-side, and never sent to the client
+- Guest API keys and provider credentials are stored in browser `localStorage`. Active guest requests may send them through the app's Next.js provider routes, which proxy the request without persisting the key
+- `HF_TOKEN` is app-owned and server-side. Account connections are a separate opt-in path: provider keys are encrypted in D1 with versioned AES keys, and account reads return masked metadata rather than plaintext
 - Micro-AI prompts keep a static system message and pass user text as a separate `user` message, instructed to treat it as content rather than instructions; every completion is pattern-validated before use, and anything that fails falls back rather than reaching the UI
-- Credentials are sent to the respective provider APIs through Next.js API routes
-- fal keys are not logged or stored server-side; each active request supplies its own key
+- Guest requests that require a server proxy send the active credential through a Next.js provider route; account background jobs resolve the encrypted connection inside the Worker
+- Guest fal keys are not logged or persisted server-side; each active guest request supplies its own key. A separately saved account key follows the encrypted account-connection path
 - fal request payload history is disabled, while uploaded references and generated outputs remain on fal’s public CDN for their configured one-day and seven-day retention periods
-- Kie keys are never logged or stored server-side; only the active browser request uses them
-- This app has no **server-side** storage of jobs or media, and no accounts. Generated results are stored **locally in your own browser** via IndexedDB so they outlive the provider URLs, which expire; saved prompts live in `localStorage`. Both stay in your browser profile until you clear them — use **Library → Clear library** on a shared machine
-- Provider-hosted output URLs remain temporary; the local copy is what makes a result durable
+- Guest Kie keys are not logged or persisted server-side; only the active guest request uses them. A separately saved account key follows the encrypted account-connection path
+- Guest jobs and generated media are stored **locally in your own browser** via IndexedDB; saved prompts live in `localStorage`. Both stay in that browser profile until you clear them — use **Library → Clear library** on a shared machine
+- When the optional account service is enabled, signed-in background jobs run through a Cloudflare Workflow and save private media to R2. The cloud library and account spend ledger are separate from the browser library and browser ledger
+- Cloud account support is implemented but is not enabled on the production site yet. All eight background-provider flags default off until each provider has passed a credentialed production-like check; no real provider calls or production OAuth/resource setup have been completed
 
 ## ✅ Verification
 
@@ -231,10 +236,10 @@ pnpm build
 ## 🚢 Deployment
 
 The live demo runs on Vercel and redeploys on every push to `main`. Server-side
-timeline rendering and the account gate are both off there and stay off — see
-[`docs/deployment.md`](docs/deployment.md) for the environment variables, why
-those two are disabled on serverless, and the single-box path that still
-supports them.
+timeline rendering and the optional Cloudflare account service are currently
+off in production, so guest use is unchanged. See
+[`docs/deployment.md`](docs/deployment.md) for the deployment boundary and the
+account-service launch checklist.
 
 ## 🤝 Contributing
 

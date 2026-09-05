@@ -19,10 +19,13 @@ Set on the Vercel project (Production + Preview), not in the repo:
 | `HF_BASE_URL` | no | Overrides the OpenAI-compatible endpoint the micro-AI tier calls. |
 | `AUTH_ADMIN_EMAIL` | **must stay unset** | See [The auth gate](#the-auth-gate-off-on-vercel) — the account store cannot survive on serverless as written. |
 | `TIMELINE_FFMPEG_PATH` | **must stay unset** | See [Server-side export](#server-side-export-off-on-vercel). |
+| `ACCOUNT_WORKER_ORIGIN` | no, until account launch | HTTPS origin of the separately deployed account Worker. Leave unset until that Worker, its migrations, and OAuth have been verified; guest routes keep working while it is absent. |
 
-Everything else — Gemini, fal, Kie, Cloudflare credentials — is supplied by each
-visitor in their own browser and never reaches the server, so there is nothing
-to configure for those.
+Guest Gemini, fal, Kie, and Cloudflare credentials are supplied by each visitor
+and kept in browser storage. Active guest requests may proxy a credential
+through a Next.js provider route, but the route does not persist it. The
+optional account Worker instead stores credentials encrypted; its variables and
+secrets are documented below.
 
 ## Server-side export (off on Vercel)
 
@@ -68,25 +71,117 @@ on Vercel and on a box:
 `/api/timeline/render`. It must stay unset here: the account store is SQLite via
 `node:sqlite` writing to a local file (`lib/auth/db.ts`), and a serverless
 filesystem is per-instance and ephemeral — accounts and sessions would vanish
-between invocations and differ between concurrent instances. There are also no
-sign-in or sign-up routes in the app yet, so turning it on today would lock the
-gated routes with no way through.
+between invocations and differ between concurrent instances. The dedicated
+`/sign-in` and `/sign-up` pages belong to the separate optional Cloudflare
+account service. They do not supply sessions for this legacy gate, so setting
+`AUTH_ADMIN_EMAIL` on Vercel would still lock its protected routes.
 
-Enabling it on Vercel means moving `lib/auth/db.ts` to a hosted database first
-(a Vercel Marketplace Postgres, or any driver-based store) and adding the
-sign-in routes. Until then the app is open, exactly as the unset default
-intends.
+Enabling the legacy gate on Vercel still requires moving `lib/auth/db.ts` to a
+hosted database and integrating its own session path. Until then the app is
+open, exactly as the unset default intends.
 
 ## Uploads
 
 `/api/fal/upload`, `/api/kie/upload`, and `/api/timeline/render` take multipart
-bodies. Vercel Functions accept request bodies up to 100 MB, which is *below*
-the app's own `MAX_UPLOAD_BYTES` ceiling of 512 MiB in
+bodies. Consult Vercel's current
+[Functions limits](https://vercel.com/docs/functions/limitations) before
+changing these paths; the current documented Function request/response payload
+limit is 4.5 MB, smaller than the app's own `MAX_UPLOAD_BYTES` ceiling of 512 MiB in
 `app/api/timeline/render/route.ts`. That mismatch is inert while server render
 is off, but it is the first thing to reconcile if the follow-up above happens —
 the platform will reject the request long before the route's own check runs.
 (The equivalent trap on the VPS was nginx's 1 MB `client_max_body_size` default;
 same failure, different ceiling.)
+
+Account uploads and downloads avoid this path. The Next gateway carries only
+bounded JSON metadata; short-lived capabilities transfer file bytes directly to
+the private R2-bound Worker.
+
+## Optional Cloudflare account service (not launched)
+
+The account implementation uses a Cloudflare Worker, D1, a private R2 bucket,
+and a `GenerationWorkflow` binding. It provides Google-first `/sign-in` and
+`/sign-up`, encrypted account connections, durable background jobs, explicit
+browser-asset/key imports, a fixed 1 GB permanent library, and a separate
+account spend ledger. Guest use remains available and there are no new global
+account calls to action.
+
+The code supports fal, Kie, Runware, Atlas, Comet, Gemini, Cloudflare, and
+Pollinations background adapters. Production support is deliberately opt-in via
+`CLOUD_GENERATION_PROVIDERS`; its default is empty. Do not enable an adapter
+until a real credentialed submission, reconciliation, capture, download, and
+cost-label check has passed in the target environment. No real vendor request,
+production Google OAuth setup, or production Cloudflare resource setup has been
+completed for this worktree.
+
+### Production runbook
+
+The person performing setup needs Cloudflare, Google Cloud, Vercel, and provider
+credentials, and may need to accept billing. Never put secret values in tracked
+files.
+
+1. Create a D1 database and R2 bucket, then replace the placeholder D1 ID in
+   `cloud/wrangler.jsonc`. Keep the binding names exactly `DB`, `ASSETS`, and
+   `GENERATION`; the Workflow class is `GenerationWorkflow`. The R2 bucket must
+   remain private.
+2. Configure the Worker variables `APP_ORIGIN=<target app HTTPS origin>`
+   and `PUBLIC_WORKER_ORIGIN=<worker HTTPS origin>`. Keep the checked-in cron and
+   the Workflow binding; production reconciliation runs every five minutes.
+   The config disables invocation logs because media
+   capabilities live in private URL paths.
+3. Configure Worker secrets `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`,
+   `ACCOUNT_ENCRYPTION_KEYS`, and `ACCOUNT_ENCRYPTION_VERSION`. The encryption
+   key map is JSON from version strings to base64-encoded 32-byte AES keys; keep
+   old versions during rotation.
+4. Create a Google OAuth Web application and authorize
+   `https://sceneassembly.mzork.com/api/account/callback/google`. Request only
+   `openid`, `email`, and `profile`, and complete the consent-screen requirements.
+5. Apply every checked-in migration (`0001` through `0010`) in order **before**
+   deploying the Worker, because the Worker immediately queries the current schema:
+
+   ```bash
+   pnpm --dir cloud exec wrangler d1 migrations apply scene-assembly-accounts --remote
+   pnpm --dir cloud exec wrangler deploy
+   ```
+
+6. First verify through an isolated preview app connected with
+   `ACCOUNT_WORKER_ORIGIN`, using that preview's exact `APP_ORIGIN` and Google
+   callback in a separate environment. OAuth needs this working app gateway;
+   Worker health alone cannot verify login. Check real Google sign-in, private
+   direct upload/download, range download, and one provider at a time. Add only the verified provider
+   names to `CLOUD_GENERATION_PROVIDERS`; the all-provider value is
+   `fal,kie,runware,atlas,comet,gemini,cloudflare,pollinations`, but it is not a
+   launch default.
+7. After verification, apply the tested configuration to the production
+   resources with `APP_ORIGIN=https://sceneassembly.mzork.com` and the production
+   callback. Set production Vercel `ACCOUNT_WORKER_ORIGIN` to the healthy Worker
+   origin, redeploy the web app, and repeat the login/download smoke check.
+   `PUBLIC_WORKER_ORIGIN` belongs to the Worker;
+   `ACCOUNT_WORKER_ORIGIN` belongs to Vercel.
+
+Get explicit user review and localhost sign-off before pushing. A push to
+`main` deploys the web app automatically.
+
+### Capacity, recovery, and lifecycle setup
+
+The 1 GB permanent quota is fixed. Intake currently reserves 64 MB for an image
+job and 256 MB for a video job; these are placeholders that need measurements
+from real provider outputs before launch. The 20 MB reference-file, 12 MB inline
+reference, 24 MB inline response, 1 GB job-output/import, concurrency, and rate
+limits are application safety bounds rather than verified model entitlements.
+New intake is blocked while that account has a retained temporary overflow, and
+the global 100-job bound counts retained temporary results after their active
+job slots are released. Replays of already accepted jobs remain available;
+permanent assets are never evicted. Record measured payloads and provider and
+platform limits in the deployment plan before enabling each adapter.
+
+[D1 Time Travel](https://developers.cloudflare.com/d1/reference/time-travel/)
+retains 7 days on Workers Free and 30 days on Workers Paid. It restores D1 only;
+it cannot restore R2 media. Before launch, define a coordinated D1-and-R2 backup
+procedure and complete a restore exercise. Configure an
+[R2 object lifecycle](https://developers.cloudflare.com/r2/buckets/object-lifecycles/)
+to abort incomplete multipart uploads after one day. Do not add a blanket asset
+expiry rule: permanent account assets must remain until the user deletes them.
 
 ## Self-hosting (the former VPS path)
 
