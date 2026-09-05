@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'sonner';
 import { useState } from 'react';
 import AccountSessionProvider from '@/components/account/AccountSessionProvider';
+import JobQueueOverlay from '@/components/account/JobQueueOverlay';
 import FalJobsProvider from '@/components/FalJobsProvider';
 import KieJobsProvider from '@/components/KieJobsProvider';
 
@@ -25,10 +26,15 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <KieJobsProvider>
         <FalJobsProvider>{children}</FalJobsProvider>
       </KieJobsProvider>
+      {/* Mounted once, outside the page tree: background jobs outlive the page
+          that started them, so the indicator cannot live on that page. */}
+      <JobQueueOverlay />
       </AccountSessionProvider>
       <Toaster
         theme="dark"
-        position="bottom-right"
+        // Toasts moved off bottom-right when the job queue card claimed that
+        // corner: a transient toast must not sit on top of standing status.
+        position="top-right"
         toastOptions={{
           style: {
             background: 'var(--background-elevated)',

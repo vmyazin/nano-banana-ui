@@ -27,6 +27,13 @@
       "request": "launch",
       "command": "ACCOUNT_WORKER_PORT=8799 DEV_FAKE_GENERATION=1 npm run dev -- --port 3099",
       "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "Job queue overlay smoke test",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "ACCOUNT_WORKER_PORT=8801 DEV_FAKE_GENERATION=1 npm run dev -- --port 3101",
+      "cwd": "${workspaceFolder}"
     }
   ]
 }

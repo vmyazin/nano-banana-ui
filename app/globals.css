@@ -16,6 +16,11 @@
      more of the existing teal hue than setup and result panels. The textarea
      stays on --background-elevated so the section, not both layers, leads. */
   --prompt-surface: hsl(var(--tint-hue) 42% 8.8%);
+  /* Floating status that sits over the page rather than in it. Lighter than any
+     in-page surface so it reads as above the layout, and desaturated toward grey
+     because at this lightness the teal cast the darker surfaces carry would read
+     as a colour rather than a neutral. */
+  --surface-overlay: hsl(var(--tint-hue) 10% 16%);
   --surface: hsl(var(--tint) / 0.02);
   --surface-hover: hsl(var(--tint) / 0.045);
   --foreground: #ecf5f5;

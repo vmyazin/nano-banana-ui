@@ -2,9 +2,8 @@
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import ConfirmDialog from '@/components/ConfirmDialog';
-import type { CloudJobState, CloudJobView } from '@/lib/account/contracts';
-const labels:Record<CloudJobState,string>={queued:'Queued',submitting:'Starting',running:'Generating',saving:'Saving',saved:'Saved',needs_attention:'Needs attention',failed:'Failed',cancelled:'Cancelled'};
-const tones:Record<CloudJobState,string>={queued:'text-sky-300',submitting:'text-sky-300',running:'text-violet-300',saving:'text-cyan-300',saved:'text-emerald-300',needs_attention:'text-amber-300',failed:'text-red-300',cancelled:'text-[var(--foreground-muted)]'};
+import type { CloudJobView } from '@/lib/account/contracts';
+import { JOB_STATE_LABELS as labels, JOB_STATE_TONES as tones } from '@/lib/account/job-status';
 const stopTrackingDescription='The provider may still finish and charge for this job. Scene Assembly will stop checking and saving new outputs. Existing saved assets remain; temporary downloads keep their existing deadline. Check the provider history before starting another generation.';
 export default function CloudJobList({jobs,onResume,onCancel,onDismiss,busy=false,limit=5}:{jobs:CloudJobView[];onResume:(id:string)=>void;onCancel?:(id:string)=>void;onDismiss?:(id:string)=>void;busy?:boolean;limit?:number}) {
   const [dismissing,setDismissing]=useState<CloudJobView|null>(null);
