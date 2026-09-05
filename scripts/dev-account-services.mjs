@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { existsSync, copyFileSync, readFileSync, writeFileSync } from 'node:fs';
 
@@ -12,7 +13,8 @@ if (!existsSync('cloud/node_modules/wrangler/bin/wrangler.js')) {
 }
 if (!existsSync('cloud/.dev.vars')) copyFileSync('cloud/.dev.vars.example', 'cloud/.dev.vars');
 // Keep the OAuth origin aligned with the actual web port. Never change real credentials.
-const localVars = readFileSync('cloud/.dev.vars', 'utf8').replace(/^APP_ORIGIN=.*$/m, `APP_ORIGIN=http://localhost:${port}`);
+let localVars = readFileSync('cloud/.dev.vars', 'utf8').replace(/^APP_ORIGIN=.*$/m, `APP_ORIGIN=http://localhost:${port}`);
+if (!/^ACCOUNT_ENCRYPTION_KEYS=/m.test(localVars)) localVars += `\nACCOUNT_ENCRYPTION_KEYS='${JSON.stringify({ '1': randomBytes(32).toString('base64') })}'\nACCOUNT_ENCRYPTION_VERSION=1\n`;
 writeFileSync('cloud/.dev.vars', localVars);
 const children = [];
 let stopping = false;

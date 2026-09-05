@@ -47,3 +47,9 @@ pnpm build
 ```
 
 Cloud tests exercise actual SQLite constraints with a D1-shaped test adapter; real D1 behavior is checked in local Wrangler/browser smoke tests. Google cryptographic tests use generated test keys and mocked Google endpoints; they do not replace the final real OAuth smoke test. Browser testing covers sign-up, persisted session on sign-in, sign-out, and guest navigation.
+
+## Saved connection milestone
+
+Signed-in account pages now manage encrypted connections using the same provider labels as the studio. `ACCOUNT_ENCRYPTION_KEYS` is a JSON object mapping key versions to base64-encoded 32-byte AES keys; `ACCOUNT_ENCRYPTION_VERSION` selects the write key. The local launcher generates a key only when absent and keeps it in gitignored `.dev.vars`. Configure separate production secrets before enabling cloud connections. Keep old versions available while re-encrypting existing rows. Authenticated encryption binds each ciphertext to its owner, provider and key version. Connection replacement increments a revision so running jobs can detect a changed credential.
+
+The shared AccountSurface owns the accent edge, stronger border and brief reduced-motion-aware entrance. Existing studio/header calls to action remain unchanged.

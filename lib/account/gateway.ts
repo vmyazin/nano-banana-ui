@@ -9,7 +9,7 @@ export async function accountGateway(request: Request): Promise<Response> {
   const incoming = new URL(request.url);
   const allowed = new Set(['session', 'sign-in/google', 'callback/google', 'sign-out', 'local-sign-in']);
   const path = incoming.pathname.slice('/api/account/'.length);
-  if (!allowed.has(path)) return new Response(null, { status: 404 });
+  if (!allowed.has(path) && !/^connections(?:\/(?:gemini|fal|kie|runware|atlas|comet|cloudflare))?$/.test(path)) return new Response(null, { status: 404 });
   const headers = new Headers();
   for (const name of ['cookie', 'origin', 'content-type']) {
     const value = request.headers.get(name);
@@ -26,7 +26,7 @@ export async function accountGateway(request: Request): Promise<Response> {
         const { value, done } = await reader.read();
         if (done) break;
         length += value.byteLength;
-        if (length > 2048) { await reader.cancel(); return new Response(null, { status: 413 }); }
+        if (length > (path === 'connections' ? 8192 : 2048)) { await reader.cancel(); return new Response(null, { status: 413 }); }
         chunks.push(value);
       }
     }

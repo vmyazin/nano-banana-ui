@@ -1,3 +1,4 @@
+import { connectionRoutes } from './connections';
 import { LOCAL_SCHEMA } from './schema';
 import { cookie, cookieName, hash, isLocal, json, randomToken, readCookie, returnPath, validOrigin, type Env } from './security';
 import { googleAuthorization, googleEnabled, googleIdentity } from './google';
@@ -15,7 +16,9 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
     }
     const url = new URL(request.url);
     const path = url.pathname;
-    if (request.method === 'POST' && request.headers.get('origin') !== env.APP_ORIGIN) return json({ error: 'Request origin is not allowed.' }, 403);
+    if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method) && request.headers.get('origin') !== env.APP_ORIGIN) return json({ error: 'Request origin is not allowed.' }, 403);
+    const connectionResponse = await connectionRoutes(request, env);
+    if (connectionResponse) return connectionResponse;
     if (path === '/health' && request.method === 'GET') return json({ ok: true });
     if (path === '/api/account/session' && request.method === 'GET') return json({ account: await currentAccount(request, env), googleEnabled: googleEnabled(env), localSignIn: isLocal(env) && Boolean(env.DEV_ACCOUNT_EMAIL) });
     if (path === '/api/account/sign-out' && request.method === 'POST') {

@@ -3,3 +3,4 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const GET = accountGateway;
 export const POST = accountGateway;
+export const DELETE = accountGateway;

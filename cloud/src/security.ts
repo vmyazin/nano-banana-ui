@@ -5,6 +5,8 @@ export interface Env {
   GOOGLE_CLIENT_ID?: string;
   GOOGLE_CLIENT_SECRET?: string;
   DEV_ACCOUNT_EMAIL?: string;
+  ACCOUNT_ENCRYPTION_KEYS?: string;
+  ACCOUNT_ENCRYPTION_VERSION?: string;
 }
 export function isLocal(env: Env): boolean {
   return typeof __LOCAL_DEV__ !== 'undefined' && __LOCAL_DEV__ === true

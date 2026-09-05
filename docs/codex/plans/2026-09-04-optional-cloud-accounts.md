@@ -87,3 +87,7 @@ Implemented dedicated sign-in/sign-up pages, same-origin account gateway, Google
 Validation: 127 application test files / 1,485 tests passed; 15 cloud auth tests passed; root and Worker typechecks passed; lint passed with two existing warnings; production build passed with existing legacy database tracing warning; Wrangler deploy dry-run succeeded. Browser smoke verified signup, persisted session, signout and a 390px mobile viewport. ES2018 TypeScript target resolves pre-existing dotAll-regex test errors revealed by typechecking; worktree-local Turbopack root prevents another checkout's dependencies being used.
 
 The auth portion of task 3 is implemented, with real Google smoke remaining. Task 2 has D1/Worker local emulation; R2/Workflows follow next. Latest instructions authorize incremental commits, but no push/deployment.
+
+## Milestone record — encrypted connections
+
+Implemented masked connection listing, authenticated encryption with versioned keys, owner-scoped deletion and revision-aware resolution. Account pages reuse provider registry labels, the existing confirmation dialog, and a shared accent surface. Verified 19 cloud tests, both typechecks and focused lint; local browser smoke saved and removed a dummy connection through D1. Real key/provider validation is still pending.

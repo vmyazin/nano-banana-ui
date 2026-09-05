@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, ArrowRight, Check, LogOut } from 'lucide-react';
+import { AccountSurface } from './AccountSurface';
+import AccountConnections from './AccountConnections';
 import { BrandWordmark } from '@/components/BrandMark';
 
 interface Account { id: string; name: string; email: string }
@@ -64,21 +66,21 @@ export default function AccountAccess({ mode }: { mode: 'sign-in' | 'sign-up' })
         <BrandWordmark className="h-8 w-auto text-[var(--foreground)]" />
       </Link>
       <div className="mx-auto flex min-h-[75vh] max-w-md flex-col justify-center py-12">
-        <p className="eyebrow mb-4">YOUR CREATIVE SPACE</p>
+        <p className="eyebrow mb-4 text-[var(--brand-accent)]">YOUR CREATIVE SPACE</p>
         <h1 className="text-3xl font-semibold tracking-tight text-[var(--foreground)] sm:text-4xl">
           {session?.account ? 'You’re signed in.' : signup ? 'Make yourself at home.' : 'Welcome back.'}
         </h1>
         <p className="mt-4 text-base leading-relaxed text-[var(--foreground-muted)]">
           {session?.account ? 'Your Scene Assembly account is ready.' : signup ? 'Create your Scene Assembly account with Google.' : 'Sign in to your Scene Assembly account with Google.'}
         </p>
-        <section aria-label="Account access" className="mt-8 rounded-2xl border border-[var(--border)] bg-[var(--background-elevated)] p-6">
+        <AccountSurface label="Account access" className="mt-8">
           {loading ? <p role="status" className="text-sm text-[var(--foreground-muted)]">Checking your account…</p> : session?.account ? (
             <>
               <div className="flex items-center gap-3">
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-400/10 text-emerald-400"><Check size={20} aria-hidden="true" /></span>
                 <div className="min-w-0"><p className="truncate font-medium">{session.account.name}</p><p className="break-all text-sm text-[var(--foreground-muted)]">{session.account.email}</p></div>
               </div>
-              <p className="mt-5 text-sm leading-relaxed text-[var(--foreground-muted)]">For now, generated assets and provider connections stay in this browser. Cloud saving is coming next.</p>
+              <p className="mt-5 text-sm leading-relaxed text-[var(--foreground-muted)]">Manage your saved connections below. Generated assets still stay in this browser while cloud saving is being added.</p>
               <Link href="/" className="btn-primary mt-6 flex w-full justify-center">Open the studio <ArrowRight size={16} aria-hidden="true" /></Link>
               <button type="button" disabled={busy} onClick={() => void act('sign-out')} className="btn-secondary mt-3 flex w-full justify-center"><LogOut size={15} aria-hidden="true" />{busy ? 'Signing out…' : 'Sign out'}</button>
             </>
@@ -93,7 +95,8 @@ export default function AccountAccess({ mode }: { mode: 'sign-in' | 'sign-up' })
             </>
           )}
           {error && <p role="alert" className="mt-4 text-sm leading-relaxed text-[var(--neon-pink)]">{error}</p>}
-        </section>
+        </AccountSurface>
+        {session?.account && <AccountConnections key={session.account.id} />}
         {!session?.account && <p className="mt-6 text-center text-sm text-[var(--foreground-muted)]">{signup ? 'Already have an account?' : 'New to Scene Assembly?'}{' '}<Link className="text-[var(--foreground)] underline underline-offset-4" href={signup ? '/sign-in' : '/sign-up'}>{signup ? 'Sign in' : 'Create an account'}</Link></p>}
         <Link href="/" className="mx-auto mt-8 inline-flex items-center gap-2 text-sm text-[var(--foreground-muted)] hover:text-[var(--foreground)]"><ArrowLeft size={15} aria-hidden="true" />Continue as a guest</Link>
       </div>

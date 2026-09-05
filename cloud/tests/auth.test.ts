@@ -1,5 +1,6 @@
 import { DatabaseSync } from 'node:sqlite';
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
+import { adapter } from './database';
 import { handleRequest } from '../src/index';
 import { cookieName, hash, returnPath, type Env } from '../src/security';
 import { googleIdentity } from '../src/google';
@@ -7,21 +8,7 @@ vi.mock('../src/google', async importOriginal => ({ ...await importOriginal<obje
 
 let db: DatabaseSync;
 let env: Env;
-function adapter(db: DatabaseSync) {
-  function prepare(query: string) {
-    let values: unknown[] = [];
-    return {
-      bind(...args: unknown[]) { values = args; return this; },
-      async run() { return db.prepare(query).run(...values as []); },
-      async first() { return db.prepare(query).get(...values as []) ?? null; },
-    };
-  }
-  return { prepare, async batch(statements: { run(): Promise<unknown> }[]) {
-    db.exec('BEGIN');
-    try { const results = []; for (const s of statements) results.push(await s.run()); db.exec('COMMIT'); return results; }
-    catch (e) { db.exec('ROLLBACK'); throw e; }
-  } } as unknown as D1Database;
-}
+
 function request(path: string, method = 'GET', cookies = '', body = '{}', origin = env.APP_ORIGIN) {
   return handleRequest(new Request(`http://localhost:8791/api/account/${path}`, { method, headers: { origin, cookie: cookies }, ...(method === 'POST' ? { body } : {}) }), env);
 }
