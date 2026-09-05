@@ -30,3 +30,22 @@ it('offers cancellation only before submission, including a queued click target'
   fireEvent.click(screen.getByRole('button',{name:'Cancel queued job'}));
   expect(onCancel).toHaveBeenCalledWith('job-0');
 });
+
+it('requires confirmation before stopping an attention job and hides the action in other states',()=>{
+  const onDismiss=vi.fn();
+  const jobs:CloudJobView[]=['needs_attention','queued','running'].map((state,index)=>({id:`dismiss-${index}`,provider:'gemini',request,state:state as CloudJobView['state'],errorCode:state==='needs_attention'?'submission_ambiguous':null,createdAt:1,updatedAt:1}));
+  render(<CloudJobList jobs={jobs} onResume={vi.fn()} onDismiss={onDismiss}/>);
+  expect(screen.getAllByRole('button',{name:'Stop tracking this job'})).toHaveLength(1);
+  fireEvent.click(screen.getByRole('button',{name:'Stop tracking this job'}));
+  expect(onDismiss).not.toHaveBeenCalled();
+  expect(screen.getByRole('alertdialog')).toHaveTextContent('The provider may still finish and charge for this job.');
+  fireEvent.click(screen.getByRole('button',{name:'Stop tracking'}));
+  expect(onDismiss).toHaveBeenCalledWith('dismiss-0');
+});
+
+it('labels an explicitly dismissed failure as tracking stopped',()=>{
+  const job:CloudJobView={id:'dismissed',provider:'gemini',request,state:'failed',errorCode:'tracking_stopped',createdAt:1,updatedAt:1};
+  render(<CloudJobList jobs={[job]} onResume={vi.fn()}/>);
+  expect(screen.getByText('Tracking stopped')).toBeInTheDocument();
+  expect(screen.getByText(/provider may still have finished or charged/)).toBeInTheDocument();
+});

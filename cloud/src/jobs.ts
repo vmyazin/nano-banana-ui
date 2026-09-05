@@ -7,6 +7,12 @@ export const MAX_ACTIVE_JOBS = 3;
 export const MAX_GLOBAL_ACTIVE_JOBS = 100;
 export const IMAGE_RESERVATION = 64_000_000;
 export const VIDEO_RESERVATION = 256_000_000;
+// Stopping tracking releases a job slot, but its temporary bytes still occupy
+// overflow storage until retained-file cleanup succeeds.
+const GLOBAL_OCCUPIED_SLOTS = `(SELECT COALESCE(SUM(active_jobs),0) FROM account_storage) +
+  (SELECT COUNT(DISTINCT j.id) FROM account_jobs j JOIN account_assets a ON a.job_id=j.id
+   JOIN account_asset_retention r ON r.asset_id=a.id WHERE j.reservation_accounted=0)`;
+const OWNER_OVERFLOW = `SELECT 1 FROM account_assets a JOIN account_asset_retention r ON r.asset_id=a.id WHERE a.user_id=? AND a.deleted=0`;
 export interface JobRow {
   id: string; user_id: string; provider: CloudJobRequest['provider']; request_json: string; state: CloudJobState;
   connection_id: string | null; connection_revision: number | null; provider_task: string | null;
@@ -43,15 +49,16 @@ export async function acceptJob(env: Env, owner: string, token: string, request:
   await env.DB.batch([
     env.DB.prepare('INSERT OR IGNORE INTO account_storage (user_id) VALUES (?)').bind(owner),
     env.DB.prepare(`INSERT OR IGNORE INTO account_jobs (id,user_id,request_token,request_digest,connection_id,connection_revision,provider,request_json,reservation_bytes,created_at,updated_at)
-      SELECT ?,?,?,?,?,?,?,?,?,?,? FROM account_storage WHERE user_id = ? AND used_bytes + reserved_bytes + ? <= limit_bytes AND active_jobs < ? AND (SELECT COALESCE(SUM(active_jobs),0) FROM account_storage) < ${MAX_GLOBAL_ACTIVE_JOBS} AND (SELECT COUNT(*) FROM account_uploads WHERE user_id=? AND state='ready' AND expires_at>? AND id IN (SELECT value FROM json_each(?)))=?`)
-      .bind(id, owner, token, digest, connection?.id ?? null, connection?.revision ?? null, request.provider, JSON.stringify(request), reservation, now, now, owner, reservation, MAX_ACTIVE_JOBS, owner, now, references, request.referenceIds.length),
+      SELECT ?,?,?,?,?,?,?,?,?,?,? FROM account_storage WHERE user_id = ? AND used_bytes + reserved_bytes + ? <= limit_bytes AND active_jobs < ? AND (${GLOBAL_OCCUPIED_SLOTS}) < ${MAX_GLOBAL_ACTIVE_JOBS} AND NOT EXISTS (${OWNER_OVERFLOW}) AND (SELECT COUNT(*) FROM account_uploads WHERE user_id=? AND state='ready' AND expires_at>? AND id IN (SELECT value FROM json_each(?)))=?`)
+      .bind(id, owner, token, digest, connection?.id ?? null, connection?.revision ?? null, request.provider, JSON.stringify(request), reservation, now, now, owner, reservation, MAX_ACTIVE_JOBS, owner, owner, now, references, request.referenceIds.length),
     env.DB.prepare('UPDATE account_storage SET reserved_bytes = reserved_bytes + ?, active_jobs = active_jobs + 1 WHERE user_id = ? AND EXISTS (SELECT 1 FROM account_jobs WHERE id = ? AND reservation_accounted = 0)').bind(reservation, owner, id),
     env.DB.prepare('UPDATE account_jobs SET reservation_accounted = 1 WHERE id = ?').bind(id),
     env.DB.prepare('INSERT OR IGNORE INTO account_job_inputs (job_id,upload_id) SELECT ?,id FROM account_uploads WHERE user_id=? AND id IN (SELECT value FROM json_each(?)) AND EXISTS (SELECT 1 FROM account_jobs WHERE id=?)').bind(id,owner,references,id),
   ]);
   const row = await env.DB.prepare('SELECT * FROM account_jobs WHERE user_id = ? AND request_token = ?').bind(owner, token).first<JobRow>();
   if (!row) {
-    const global=await env.DB.prepare('SELECT COALESCE(SUM(active_jobs),0) AS active FROM account_storage').first<{active:number}>();
+    if(await env.DB.prepare(OWNER_OVERFLOW).bind(owner).first())throw new AccountError('Resolve your temporary results before starting another cloud job. Download and delete them, wait for their displayed expiry, or free space and resume jobs still awaiting saving.',409,'temporary_results');
+    const global=await env.DB.prepare(`SELECT ${GLOBAL_OCCUPIED_SLOTS} AS active`).first<{active:number}>();
     if((global?.active??0)>=MAX_GLOBAL_ACTIVE_JOBS)throw new AccountError('Background generation is busy. Try again shortly or explicitly choose browser-only generation.',503,'service_capacity');
     throw new AccountError('Your account needs more available storage or fewer active jobs. Free space or wait for a job to finish.', 409, 'capacity');
   }
@@ -81,6 +88,19 @@ export async function cancelQueuedJob(env: Env, id: string, owner: string): Prom
   if (!job) return null;
   if (job.state === 'cancelled') return job;
   throw new AccountError('This generation has already started and remains tracked.', 409, 'generation_started');
+}
+/** Stop tracking only while a job is waiting for an explicit account decision. */
+export async function dismissAttentionJob(env: Env, id: string, owner: string): Promise<JobRow | null> {
+  const now = Date.now();
+  await env.DB.batch([
+    env.DB.prepare(`UPDATE account_storage SET reserved_bytes = reserved_bytes - (SELECT reservation_bytes FROM account_jobs WHERE id = ?), active_jobs = active_jobs - 1
+      WHERE user_id = (SELECT user_id FROM account_jobs WHERE id = ? AND user_id = ? AND reservation_accounted = 1 AND deleted = 0 AND state = 'needs_attention')`).bind(id, id, owner),
+    env.DB.prepare("UPDATE account_jobs SET state = 'failed', error_code = 'tracking_stopped', reservation_accounted = 0, updated_at = ? WHERE id = ? AND user_id = ? AND deleted = 0 AND state = 'needs_attention'").bind(now, id, owner),
+  ]);
+  const job = await getJob(env, id, owner);
+  if (!job) return null;
+  if (job.state === 'failed' && job.error_code === 'tracking_stopped') return job;
+  throw new AccountError('This generation is no longer waiting for a tracking decision.', 409, 'tracking_state_changed');
 }
 export async function dispatchJob(env: Env, job: JobRow) {
   if (!env.GENERATION) throw new Error('Workflow binding is unavailable');

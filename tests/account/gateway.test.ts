@@ -39,12 +39,15 @@ describe('account gateway', () => {
     expect((await accountGateway(new Request('https://app.test/api/account/admin'))).status).toBe(404);
     expect((await accountGateway(new Request('https://app.test/api/account/sign-in/google', { method: 'POST', body: 'x'.repeat(2049) }))).status).toBe(413);
   });
-  it('forwards the explicit job cancellation route and rejects adjacent actions', async () => {
+  it('forwards explicit job lifecycle routes, preserves retry timing, and rejects adjacent actions', async () => {
     vi.stubEnv('ACCOUNT_WORKER_ORIGIN', 'https://accounts.test');
-    const fetcher=vi.fn().mockResolvedValue(Response.json({job:{id:'job-1',state:'cancelled'}}));vi.stubGlobal('fetch',fetcher);
-    const response=await accountGateway(new Request('https://app.test/api/account/jobs/job-1/cancel',{method:'POST',headers:{origin:'https://app.test','X-Account-Id':'owner'}}));
-    expect(response.status).toBe(200);
+    const fetcher=vi.fn().mockResolvedValue(Response.json({error:'Busy.'},{status:429,headers:{'Retry-After':'12'}}));vi.stubGlobal('fetch',fetcher);
+    for(const action of ['cancel','dismiss']){
+      const response=await accountGateway(new Request(`https://app.test/api/account/jobs/job-1/${action}`,{method:'POST',headers:{origin:'https://app.test','X-Account-Id':'owner'}}));
+      expect(response.status).toBe(429);expect(response.headers.get('retry-after')).toBe('12');
+    }
     expect(String(fetcher.mock.calls[0][0])).toBe('https://accounts.test/api/account/jobs/job-1/cancel');
+    expect(String(fetcher.mock.calls[1][0])).toBe('https://accounts.test/api/account/jobs/job-1/dismiss');
     expect((await accountGateway(new Request('https://app.test/api/account/jobs/job-1/retry',{method:'POST'}))).status).toBe(404);
   });
   it('rejects plaintext upstreams in production', async () => {
@@ -52,4 +55,15 @@ describe('account gateway', () => {
     vi.stubEnv('ACCOUNT_WORKER_ORIGIN', 'http://localhost:8797');
     expect((await accountGateway(new Request('https://app.test/api/account/session'))).status).toBe(503);
   });
+});
+
+it('forwards bounded import metadata and account spend requests',async()=>{
+  process.env.ACCOUNT_WORKER_ORIGIN='https://worker.example.test';
+  vi.stubGlobal('fetch',vi.fn(async()=>Response.json({ok:true})));
+  for(const [path,method] of [['imports','POST'],['imports/fixture-id','DELETE'],['spend?cursor=1:gemini-fixture','GET'],['spend/all','DELETE']] as const){
+    const response=await accountGateway(new Request(`https://app.example.test/api/account/${path}`,{method,headers:{Origin:'https://app.example.test','X-Account-Id':'owner'},...(method==='POST'?{body:JSON.stringify({metadata:{prompt:'x'.repeat(3000)}})}:{})}));
+    expect(response.status).toBe(200);
+  }
+  const oversized=await accountGateway(new Request('https://app.example.test/api/account/imports',{method:'POST',body:'x'.repeat(32769)}));
+  expect(oversized.status).toBe(413);
 });

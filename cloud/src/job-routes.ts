@@ -2,7 +2,7 @@ import { mediaAccess } from './media';
 export { byteRange } from './range';
 import { currentAccount } from './sessions';
 import { json, type Env } from './security';
-import { acceptJob, AccountError, cancelQueuedJob, dispatchJob, getJob, jobView, type JobRow } from './jobs';
+import { acceptJob, AccountError, cancelQueuedJob, dismissAttentionJob, dispatchJob, getJob, jobView, type JobRow } from './jobs';
 import { adapterFor, validateRequest } from './providers';
 import { assetView, deleteAsset, getAsset } from './assets';
 
@@ -30,7 +30,7 @@ export async function jobRoutes(request:Request,env:Env):Promise<Response|null>{
       const rows=await env.DB.prepare('SELECT * FROM account_jobs WHERE user_id = ? AND deleted = 0 ORDER BY created_at DESC LIMIT 100').bind(account.id).all<JobRow>();
       return json({accountId:account.id,jobs:rows.results.map(jobView)});
     }
-    const jobMatch=path.match(/^\/api\/account\/jobs\/([a-zA-Z0-9-]+)(\/(?:resume|cancel))?$/);
+    const jobMatch=path.match(/^\/api\/account\/jobs\/([a-zA-Z0-9-]+)(\/(?:resume|cancel|dismiss))?$/);
     if(jobMatch){
       const job=await getJob(env,jobMatch[1],account.id);if(!job)return json({error:'Job not found.'},404);
       if(request.method==='GET'&&!jobMatch[2])return json({job:jobView(job)});
@@ -38,6 +38,11 @@ export async function jobRoutes(request:Request,env:Env):Promise<Response|null>{
         const cancelled=await cancelQueuedJob(env,job.id,account.id);
         if(!cancelled)return json({error:'Job not found.'},404);
         return json({job:jobView(cancelled)});
+      }
+      if(request.method==='POST'&&jobMatch[2]==='/dismiss'){
+        const dismissed=await dismissAttentionJob(env,job.id,account.id);
+        if(!dismissed)return json({error:'Job not found.'},404);
+        return json({job:jobView(dismissed)});
       }
       if(request.method==='POST'&&jobMatch[2]==='/resume'){
         if(job.state==='needs_attention'&&!job.provider_task&&!job.result_json){
@@ -48,7 +53,8 @@ export async function jobRoutes(request:Request,env:Env):Promise<Response|null>{
           }
         }
         if(job.state!=='needs_attention'||(!job.provider_task&&!job.result_json))return json({error:'This submission needs provider reconciliation before it can be resumed.'},409);
-        await env.DB.prepare("UPDATE account_jobs SET state = ?, workflow_attempt = workflow_attempt + 1, dispatched = 0, error_code = NULL WHERE id = ? AND state = 'needs_attention'").bind(job.result_json?'saving':'running',job.id).run();
+        const claimed=await env.DB.prepare("UPDATE account_jobs SET state = ?, workflow_attempt = workflow_attempt + 1, dispatched = 0, error_code = NULL WHERE id = ? AND state = 'needs_attention'").bind(job.result_json?'saving':'running',job.id).run();
+        if(!claimed.meta.changes)return json({error:'This generation is no longer waiting for a tracking decision.',code:'tracking_state_changed'},409);
         const resumed=await getJob(env,job.id,account.id);
         if(resumed)await dispatchJob(env,resumed).catch(()=>{});
         return json({job:jobView(resumed!)},202);

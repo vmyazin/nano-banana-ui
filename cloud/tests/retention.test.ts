@@ -83,6 +83,20 @@ describe('bounded quota overflow',()=>{
     expect(await getAsset(env,`${permanent.id}-0`,'owner')).not.toBeNull();
     expect(db.prepare('SELECT used_bytes,reserved_bytes,active_jobs FROM account_storage').get()).toMatchObject({used_bytes:4,reserved_bytes:0,active_jobs:0});
   });
+  it('continues deleting retained assets after one R2 failure and retries its tombstone',async()=>{
+    const first=await newJob('retention-failure-one'),second=await newJob('retention-failure-two');
+    db.exec('UPDATE account_storage SET limit_bytes=1');
+    await expect(captureResult(env,first,await result(first.id))).rejects.toMatchObject({code:'storage_full'});
+    await expect(captureResult(env,second,await result(second.id))).rejects.toMatchObject({code:'storage_full'});
+    db.exec('UPDATE account_asset_retention SET expires_at=0');
+    const remove=env.ASSETS!.delete.bind(env.ASSETS!);
+    vi.spyOn(env.ASSETS!,'delete').mockRejectedValueOnce(new Error('R2 unavailable')).mockImplementation(remove);
+    await cleanupRetainedAssets(env);
+    expect(db.prepare('SELECT COUNT(*) AS n FROM account_asset_retention').get()?.n).toBe(1);
+    expect([await env.ASSETS!.head(`accounts/owner/jobs/${first.id}/0`),await env.ASSETS!.head(`accounts/owner/jobs/${second.id}/0`)].filter(Boolean)).toHaveLength(1);
+    await cleanupRetainedAssets(env);
+    expect(db.prepare('SELECT COUNT(*) AS n FROM account_asset_retention').get()?.n).toBe(0);
+  });
   it('does not overwrite a terminal job status on a late completion',async()=>{
     const job=await newJob('terminal-status-token');await finishJob(env,job.id,'cancelled');await finishJob(env,job.id,'saved');
     expect((await getJob(env,job.id))?.state).toBe('cancelled');

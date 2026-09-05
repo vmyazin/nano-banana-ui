@@ -1,4 +1,4 @@
-import type { Feature } from '@/types';
+import type { Feature } from '../../types';
 
 // Dependency-free engine metadata + capability gating. Safe to import from both
 // client components and server routes (no provider SDKs here).

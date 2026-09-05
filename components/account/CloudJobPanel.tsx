@@ -19,7 +19,7 @@ export default function CloudJobPanel({provider,modelId,mediaType,inputMode,onCo
   const pending=useRef(false),[busy,setBusy]=useState(false);
   const active=jobs.some(j=>['queued','submitting','running','saving'].includes(j.state));
   async function download(asset:CloudAsset){setDownloading(asset.id);try{await downloadAccountAsset(asset);}catch(error){setError(error instanceof Error?error.message:'Download failed.');}finally{setDownloading(null);}}
-  async function changeJob(id:string,action:'resume'|'cancel'){
+  async function changeJob(id:string,action:'resume'|'cancel'|'dismiss'){
     if(pending.current)return;
     const {session,epoch}=useAccountStore.getState(),owner=session?.account?.id;
     if(!owner)return;
@@ -33,7 +33,7 @@ export default function CloudJobPanel({provider,modelId,mediaType,inputMode,onCo
   }
   return <AccountSurface label="Account generation results" className="flex min-h-[420px] flex-col gap-4">
     <div><h3 className="display flex items-center gap-2 text-base font-semibold"><Cloud size={17} className="text-cyan-300" aria-hidden="true"/>Result</h3><p className="mt-1 text-xs text-[var(--foreground-muted)]">Saved to your account when complete. You can leave this page.</p></div>
-    <CloudJobList jobs={jobs} busy={busy} onResume={id=>void changeJob(id,'resume')} onCancel={id=>void changeJob(id,'cancel')} />
+    <CloudJobList jobs={jobs} busy={busy} onResume={id=>void changeJob(id,'resume')} onCancel={id=>void changeJob(id,'cancel')} onDismiss={id=>void changeJob(id,'dismiss')} />
     <TemporaryAssetNotice assets={assets} />
     {mediaType==='image'?<ResultStack items={assets.map(a=>({id:a.id,src:`/api/account/assets/${a.id}/content`,mimeType:a.mimeType,label:a.expiresAt?'Temporary result':undefined}))} isGenerating={active} pendingLabel="Your background job is running." downloadingId={downloading} onDownload={item=>{const asset=assets.find(a=>a.id===item.id);if(asset)return download(asset);}} emptyState={<p className="p-5 text-center text-sm text-[var(--foreground-muted)]">Your saved images will appear here.</p>}/>:assets[0]?<><video controls crossOrigin="anonymous" src={`/api/account/assets/${assets[0].id}/content`} className="w-full rounded-xl bg-black"/><button type="button" disabled={Boolean(downloading)} onClick={()=>void download(assets[0])} className="btn-secondary justify-center"><Download size={16} aria-hidden="true"/>Download video</button></>:<div className="flex flex-1 flex-col items-center justify-center gap-3 text-sm text-[var(--foreground-muted)]">{active&&<Loader2 className="animate-spin text-cyan-300" aria-hidden="true"/>}{active?'Your background video job is running.':'Your saved video will appear here.'}</div>}
     {mediaType==='video'&&assets[0]&&<LastFrameActions key={assets[0].id} videoUrl={`/api/account/assets/${assets[0].id}/content`} filenameBase={downloadFilenameBase({prompt:assets[0].metadata.prompt,mediaType:'video',provider,modelId})} onContinue={onContinueFromFrame}/>}

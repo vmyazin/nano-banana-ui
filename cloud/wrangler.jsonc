@@ -9,5 +9,7 @@
   "d1_databases": [{ "binding": "DB", "database_name": "scene-assembly-accounts", "database_id": "00000000-0000-0000-0000-000000000000", "migrations_dir": "migrations" }],
   "r2_buckets": [{ "binding": "ASSETS", "bucket_name": "scene-assembly-assets" }],
   "workflows": [{ "binding": "GENERATION", "name": "scene-assembly-generation", "class_name": "GenerationWorkflow" }],
+  // File capabilities live in URL paths. Do not retain request URLs in invocation logs.
+  "observability": { "enabled": true, "logs": { "invocation_logs": false } },
   "triggers": { "crons": ["*/5 * * * *"] }
 }

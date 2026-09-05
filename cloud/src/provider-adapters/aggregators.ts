@@ -74,6 +74,6 @@ export const aggregatorAdapter: GenerationAdapter = {
     if (result.state === 'error') return {state: 'failed'};
     if (result.state !== 'success') return {state: 'running'};
     if (!result.urls.length) throw new Error('Missing output');
-    return {state: 'success', result: {sources: result.urls.map(url => ({url}))}};
+    return {state: 'success', result: {sources: result.urls.map(url => ({url})), ...(result.cost !== undefined ? {cost: result.cost} : {})}};
   },
 };

@@ -7,6 +7,7 @@ vi.mock('@/lib/kie/browser', () => ({ fetchKieCredits: vi.fn().mockResolvedValue
 import SpendPage from '@/app/spend/page';
 import type { SpendEntry } from '@/lib/spend/ledger';
 import { useAppStore } from '@/store/useAppStore';
+import { useAccountStore } from '@/store/useAccountStore';
 import { useSpendStore } from '@/store/useSpendStore';
 
 function entry(overrides: Partial<SpendEntry>): SpendEntry {
@@ -29,6 +30,7 @@ describe('SpendPage', () => {
     localStorage.clear();
     useSpendStore.setState({ entries: [], hasHydrated: true });
     useAppStore.setState({ kieApiKey: '', hasHydrated: true });
+    useAccountStore.getState().applySession({ account: null, googleEnabled: true, localSignIn: false, providers: [], connections: [] });
   });
 
   it('explains what gets recorded when the ledger is empty', () => {

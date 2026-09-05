@@ -11,12 +11,13 @@ export async function connectionRoutes(request: Request, env: Env): Promise<Resp
   if (request.method === 'POST' && path === '/api/account/connections') {
     const text = await request.text();
     if (text.length > 8192) return json({ error: 'Connection is too large.' }, 413);
-    let body: { provider?: unknown; apiKey?: unknown; accountId?: unknown };
+    let body: { provider?: unknown; apiKey?: unknown; accountId?: unknown; ifAbsent?: unknown };
     try { body = JSON.parse(text); } catch { return json({ error: 'Invalid connection.' }, 400); }
+    if (body?.ifAbsent !== undefined && typeof body.ifAbsent !== 'boolean') return json({ error: 'Invalid connection mode.' }, 400);
     if (!body || !PROVIDERS.includes(body.provider as Provider) || typeof body.apiKey !== 'string' || body.apiKey.trim().length < 8 || body.apiKey.length > 4096 || /[\r\n]/.test(body.apiKey)) return json({ error: 'Choose a provider and enter its API key.' }, 400);
     if (body.provider === 'cloudflare' && (typeof body.accountId !== 'string' || !/^[a-f0-9]{32}$/i.test(body.accountId))) return json({ error: 'Enter the Cloudflare account ID.' }, 400);
-    await saveConnection(env, account.id, body.provider as Provider, { apiKey: body.apiKey.trim(), ...(body.provider === 'cloudflare' ? { accountId: body.accountId as string } : {}) });
-    return json({ connections: await listConnections(env, account.id) });
+    const inserted = await saveConnection(env, account.id, body.provider as Provider, { apiKey: body.apiKey.trim(), ...(body.provider === 'cloudflare' ? { accountId: body.accountId as string } : {}) }, { ifAbsent: body.ifAbsent === true });
+    return json({ connections: await listConnections(env, account.id), ...(body.ifAbsent === true ? { import: { provider: body.provider, status: inserted ? 'inserted' : 'skipped' } } : {}) });
   }
   if (request.method === 'DELETE') {
     const provider = path.slice('/api/account/connections/'.length);

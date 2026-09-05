@@ -4,9 +4,9 @@
  * never throws, and answers `unknown` for anything it cannot price. Pure, so a
  * fixture response is all a test needs.
  */
-import type { KieJob } from '@/lib/kie/types';
-import type { MicroAiUsage } from '@/lib/micro-ai/models';
-import type { ProviderModel } from '@/lib/providers/types';
+import type { KieJob } from '../kie/types';
+import type { MicroAiUsage } from '../micro-ai/models';
+import type { ProviderModel } from '../providers/types';
 
 import type { SpendEntry, SpendSource } from './ledger';
 import {
@@ -32,6 +32,8 @@ export function resolveGemini(args: {
   usage?: GeminiUsage | null;
   resolution?: string;
   inputImages: number;
+  /** Number of image outputs in this response. Usage metadata already covers all outputs. */
+  outputImages?: number;
 }): SpendFigure {
   const { usage } = args;
   if (usage && Number.isFinite(usage.outputTokens) && usage.outputTokens > 0) {
@@ -43,11 +45,14 @@ export function resolveGemini(args: {
       quantity: { unit: 'token', value: promptTokens + usage.outputTokens },
     };
   }
+  const outputImages = Number.isInteger(args.outputImages) && args.outputImages! > 0 ? args.outputImages! : 1;
+  const firstImage = geminiResolutionCost(args.resolution, args.inputImages);
+  const additionalImages = geminiResolutionCost(args.resolution, 0) * (outputImages - 1);
   return {
-    costUsd: geminiResolutionCost(args.resolution, args.inputImages),
+    costUsd: firstImage + additionalImages,
     confidence: 'estimated',
     source: 'catalog-rate',
-    quantity: { unit: 'image', value: 1 },
+    quantity: { unit: 'image', value: outputImages },
   };
 }
 
@@ -60,7 +65,8 @@ export function resolveRunware(cost: number | undefined): SpendFigure {
 
 export function resolveCatalogRate(
   model: ProviderModel | undefined,
-  durationSeconds?: number
+  durationSeconds?: number,
+  outputImages = 1
 ): SpendFigure {
   const rate = model?.rate;
   if (!rate) return unknownFigure('catalog-rate');
@@ -73,11 +79,12 @@ export function resolveCatalogRate(
       quantity: { unit: 'second', value: durationSeconds },
     };
   }
+  const quantity = rate.per === 'image' && Number.isInteger(outputImages) && outputImages > 0 ? outputImages : 1;
   return {
-    costUsd: rate.usd,
+    costUsd: rate.usd * quantity,
     confidence: 'estimated',
     source: 'catalog-rate',
-    quantity: { unit: rate.per, value: 1 },
+    quantity: { unit: rate.per, value: quantity },
   };
 }
 
@@ -105,14 +112,17 @@ export function resolveFalEstimate(estimate: FalEstimate | null | undefined): Sp
 }
 
 /** fal's own list price for the run, used when the estimate call could not answer. */
-export function resolveFalCatalog(endpointId: string, controls: FalRunControls): SpendFigure {
+export function resolveFalCatalog(endpointId: string, controls: FalRunControls, outputImages = 1): SpendFigure {
   const published = falPublishedCost(endpointId, controls);
   if (!published) return unknownFigure('estimate-api');
+  const quantity = published.unit === 'image' && Number.isInteger(outputImages) && outputImages > 0
+    ? outputImages
+    : published.quantity;
   return {
-    costUsd: published.costUsd,
+    costUsd: published.costUsd * quantity / published.quantity,
     confidence: 'estimated',
     source: 'catalog-rate',
-    quantity: { unit: published.unit, value: published.quantity },
+    quantity: { unit: published.unit, value: quantity },
   };
 }
 
@@ -125,10 +135,12 @@ export function resolveFalRun(args: {
   estimate: FalEstimate | null | undefined;
   endpointId: string;
   controls: FalRunControls;
+  /** Applied only to the published per-image fallback, never a response total. */
+  outputImages?: number;
 }): SpendFigure {
   const figure = resolveFalEstimate(args.estimate);
   if (figure.costUsd !== null) return figure;
-  return resolveFalCatalog(args.endpointId, args.controls);
+  return resolveFalCatalog(args.endpointId, args.controls, args.outputImages);
 }
 
 export function resolveKieDelta(args: {

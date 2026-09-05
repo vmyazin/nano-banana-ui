@@ -1,5 +1,5 @@
 // lib/spend/ledger.ts
-import { ENGINES, type EngineId } from '@/lib/engines/registry';
+import { ENGINES, type EngineId } from '../engines/registry';
 
 export type SpendKind = 'image' | 'video' | 'helper';
 export type SpendConfidence = 'exact' | 'estimated' | 'unknown';

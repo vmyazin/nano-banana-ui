@@ -29,7 +29,9 @@ export async function cleanupRetainedAssets(env:Env) {
   // metadata needed to retry on the next scheduled pass.
   const tombstones=await env.DB.prepare('SELECT a.id,a.object_key FROM account_assets a JOIN account_asset_retention r ON r.asset_id=a.id WHERE a.deleted=1 LIMIT 100').all<{id:string;object_key:string}>();
   for(const row of tombstones.results){
-    await env.ASSETS?.delete(row.object_key);
-    await env.DB.prepare('DELETE FROM account_asset_retention WHERE asset_id=?').bind(row.id).run();
+    try{
+      await env.ASSETS.delete(row.object_key);
+      await env.DB.prepare('DELETE FROM account_asset_retention WHERE asset_id=?').bind(row.id).run();
+    }catch{/* Keep this retention tombstone and continue with the remaining rows. */}
   }
 }

@@ -77,19 +77,24 @@ export async function uploadRoutes(request:Request,env:Env):Promise<Response|nul
       const deleted=await env.DB.prepare(`UPDATE account_uploads SET state='deleted' WHERE id=? AND NOT EXISTS
         (SELECT 1 FROM account_job_inputs i JOIN account_jobs j ON j.id=i.job_id WHERE i.upload_id=? AND j.deleted=0 AND j.state NOT IN ('saved','failed','cancelled'))`).bind(upload.id,upload.id).run();
       if(!deleted.meta.changes)return json({error:'An active job still needs this reference.'},409);
-      await env.ASSETS?.delete(upload.object_key);return json({ok:true});
+      await env.ASSETS?.delete(upload.object_key).catch(()=>{});return json({ok:true});
     }
   }
   return json({error:'Not found.'},404);
 }
 export async function cleanupUploads(env:Env) {
+  if(!env.ASSETS)return; // Missing bindings must not discard the deletion journal.
   // Tombstone first: new intake cannot attach a file while cleanup deletes it.
-  const rows=await env.DB.prepare(`UPDATE account_uploads SET state='deleted' WHERE expires_at<? AND state!='deleted' AND NOT EXISTS
+  await env.DB.prepare(`UPDATE account_uploads SET state='deleted' WHERE expires_at<? AND state!='deleted' AND NOT EXISTS
     (SELECT 1 FROM account_job_inputs i JOIN account_jobs j ON j.id=i.job_id WHERE i.upload_id=account_uploads.id AND j.deleted=0 AND j.state NOT IN ('saved','failed','cancelled'))
-    RETURNING object_key`).bind(Date.now()).all<{object_key:string}>();
-  for(const row of rows.results)await env.ASSETS?.delete(row.object_key);
+    `).bind(Date.now()).run();
   // Retain tombstones until deletion succeeds, so storage failures can retry.
   const tombstones=await env.DB.prepare("SELECT id,object_key FROM account_uploads WHERE state='deleted' LIMIT 100").all<{id:string;object_key:string}>();
-  for(const row of tombstones.results){await env.ASSETS?.delete(row.object_key);await env.DB.prepare("DELETE FROM account_uploads WHERE id=? AND state='deleted'").bind(row.id).run();}
+  for(const row of tombstones.results){
+    try{
+      await env.ASSETS?.delete(row.object_key);
+      await env.DB.prepare("DELETE FROM account_uploads WHERE id=? AND state='deleted'").bind(row.id).run();
+    }catch{/* Keep this tombstone and continue so one R2 failure cannot starve cleanup. */}
+  }
   await env.DB.prepare('DELETE FROM account_media_tokens WHERE expires_at<=?').bind(Date.now()).run();
 }

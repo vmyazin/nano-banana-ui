@@ -1,72 +1,61 @@
 'use client';
 
-import { Suspense, useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useQueryState } from 'nuqs';
 
 import { BrandWordmark } from '@/components/BrandMark';
+import ConfirmDialog from '@/components/ConfirmDialog';
 import SegmentedToggleGroup from '@/components/SegmentedToggleGroup';
-import SpendBreakdown from '@/components/spend/SpendBreakdown';
-import SpendDailyChart from '@/components/spend/SpendDailyChart';
-import SpendLedger from '@/components/spend/SpendLedger';
-import SpendSummary from '@/components/spend/SpendSummary';
+import AccountSpend from '@/components/spend/AccountSpend';
+import SpendReport from '@/components/spend/SpendReport';
 import { fetchKieCredits } from '@/lib/kie/browser';
-import { providerLabel, type SpendProvider } from '@/lib/spend/ledger';
-import { byDay, byModel, byProvider, inRange, isSpendRange, SPEND_RANGES, toCsv, totals } from '@/lib/spend/rollup';
+import { isSpendRange, SPEND_RANGES } from '@/lib/spend/rollup';
+import { useAccountStore } from '@/store/useAccountStore';
 import { useAppStore } from '@/store/useAppStore';
 import { useSpendStore } from '@/store/useSpendStore';
+
+type SpendSource = 'account' | 'browser';
 
 function SpendView() {
   const [rangeParam, setRangeParam] = useQueryState('range');
   const range = isSpendRange(rangeParam) ? rangeParam : 'month';
-
-  const entries = useSpendStore((state) => state.entries);
+  const accountStatus = useAccountStore((state) => state.status);
+  const ownerId = useAccountStore((state) => state.session?.account?.id ?? null);
+  const accountEpoch = useAccountStore((state) => state.epoch);
+  const localEntries = useSpendStore((state) => state.entries);
   const hasHydrated = useSpendStore((state) => state.hasHydrated);
-  const remove = useSpendStore((state) => state.remove);
-  const clear = useSpendStore((state) => state.clear);
+  const removeLocal = useSpendStore((state) => state.remove);
+  const clearLocal = useSpendStore((state) => state.clear);
   const kieApiKey = useAppStore((state) => state.kieApiKey);
+  const [sourceChoice, setSourceChoice] = useState<{ scope: string; source: SpendSource } | null>(null);
+  const [clearIntent, setClearIntent] = useState<{
+    source: SpendSource;
+    scope: string;
+    clear: () => void | Promise<void>;
+  } | null>(null);
+  const [now] = useState(() => Date.now());
+  const accountScope = `${ownerId ?? 'guest'}:${accountEpoch}`;
+  const source: SpendSource = ownerId && sourceChoice?.scope === accountScope ? sourceChoice.source : ownerId ? 'account' : 'browser';
+  const activeClearIntent = clearIntent?.scope === accountScope && clearIntent.source === source ? clearIntent : null;
 
   useEffect(() => {
     useAppStore.persist.rehydrate();
     void useSpendStore.persist.rehydrate();
   }, []);
 
-  // Reset to undefined happens by deriving from kieApiKey below, rather than
-  // setting state synchronously in the effect body (react-hooks/set-state-in-effect).
   const [fetchedKieCredits, setFetchedKieCredits] = useState<number | null | undefined>(undefined);
   useEffect(() => {
-    if (!kieApiKey) return;
+    if (!kieApiKey || source !== 'browser') return;
     let cancelled = false;
     void fetchKieCredits(kieApiKey).then((credits) => {
       if (!cancelled) setFetchedKieCredits(credits);
     });
-    return () => {
-      cancelled = true;
-    };
-  }, [kieApiKey]);
+    return () => { cancelled = true; };
+  }, [kieApiKey, source]);
   const kieCredits = kieApiKey ? fetchedKieCredits : undefined;
 
-  const [providerFilter, setProviderFilter] = useState<SpendProvider | 'all'>('all');
-  // Read once per mount rather than during render (react-hooks/purity forbids
-  // Date.now() in the render body); day-granularity rollups don't need finer freshness.
-  const [now] = useState(() => Date.now());
-  const scoped = useMemo(() => inRange(entries, range, now), [entries, range, now]);
-  const shown = providerFilter === 'all' ? scoped : scoped.filter((entry) => entry.provider === providerFilter);
-  const providersPresent = [...new Set(scoped.map((entry) => entry.provider))];
-
-  const exportCsv = () => {
-    const blob = new Blob([toCsv(shown)], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement('a');
-    anchor.href = url;
-    anchor.download = `scene-assembly-spend-${range}.csv`;
-    anchor.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const clearLedger = () => {
-    if (window.confirm('Clear every recorded run from this browser? This cannot be undone.')) clear();
-  };
+  const waitingForSession = accountStatus === 'loading' && !ownerId;
 
   return (
     <div className="min-h-screen relative w-full overflow-x-clip">
@@ -83,9 +72,17 @@ function SpendView() {
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <h1 className="display text-2xl">Spend</h1>
-            <p className="field-hint mt-1">What your generations cost, recorded in this browser. Estimates use published rates.</p>
+            <p className="field-hint mt-1">What your generations cost. Estimates use published rates.</p>
           </div>
-          <div className="w-full sm:w-auto sm:min-w-[22rem]">
+          <div className="w-full space-y-2 sm:w-auto sm:min-w-[22rem]">
+            {ownerId && (
+              <SegmentedToggleGroup
+                label="Spend source"
+                options={[{ value: 'account', label: 'Cloud account' }, { value: 'browser', label: 'This browser' }]}
+                value={source}
+                onChange={(value) => setSourceChoice({ scope: accountScope, source: value as SpendSource })}
+              />
+            )}
             <SegmentedToggleGroup
               label="Range"
               options={SPEND_RANGES}
@@ -95,61 +92,54 @@ function SpendView() {
           </div>
         </div>
 
-        {!hasHydrated ? (
-          <div className="flex items-center justify-center py-16">
-            <div className="loading-spinner" />
+        {waitingForSession ? (
+          <div className="flex items-center justify-center py-16"><div className="loading-spinner" /></div>
+        ) : accountStatus === 'unavailable' && ownerId && source === 'account' ? (
+          <div role="alert" className="glass-card border-[var(--neon-pink)]/35 p-6 text-center">
+            <p className="text-[var(--foreground)]">Account spend is temporarily unavailable.</p>
+            <p className="field-hint mt-2">Your browser ledger remains separate and can be selected above.</p>
           </div>
-        ) : scoped.length === 0 ? (
-          <section className="glass-card p-6 text-center">
-            <p className="text-[var(--foreground)]">Nothing recorded yet for this range.</p>
-            <p className="field-hint mt-2">
-              Every finished image, video, and helper task is filed here with its cost. Failed runs are never billed and never listed.
-            </p>
-            <Link href="/" className="btn-primary mt-4 inline-flex">Open the studio</Link>
-          </section>
+        ) : source === 'account' && ownerId ? (
+          <AccountSpend ownerId={ownerId} range={range} now={now} onClearRequest={(clear) => setClearIntent({ source: 'account', scope: accountScope, clear })} />
         ) : (
           <>
-            <SpendSummary totals={totals(scoped)} kieCredits={kieCredits} />
-            <SpendDailyChart days={byDay(scoped, range, now)} />
-            <div className="grid gap-4 md:grid-cols-2">
-              <SpendBreakdown title="By provider" rows={byProvider(scoped)} />
-              <SpendBreakdown title="By model" rows={byModel(scoped)} />
-            </div>
-            <section className="glass-card p-3.5 md:p-4">
-              <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-                <h2 className="field-label">Ledger</h2>
-                <div className="flex flex-wrap items-center gap-2">
-                  <label className="field-hint" htmlFor="spend-provider-filter">Provider</label>
-                  <select
-                    id="spend-provider-filter"
-                    value={providerFilter}
-                    onChange={(event) => setProviderFilter(event.target.value as SpendProvider | 'all')}
-                  >
-                    <option value="all">All</option>
-                    {providersPresent.map((provider) => (
-                      <option key={provider} value={provider}>{providerLabel(provider)}</option>
-                    ))}
-                  </select>
-                  <button type="button" onClick={exportCsv} className="btn-secondary">Export CSV</button>
-                  <button type="button" onClick={clearLedger} className="btn-secondary">Clear ledger</button>
-                </div>
+            {accountStatus === 'unavailable' && !ownerId && (
+              <div role="alert" className="rounded-xl border border-[var(--neon-violet)]/30 bg-[var(--neon-violet)]/5 px-4 py-3 text-sm">
+                <p className="text-[var(--foreground)]">Account status could not be checked. Showing this browser&apos;s separate spend ledger.</p>
               </div>
-              <SpendLedger entries={shown} onRemove={remove} />
-            </section>
+            )}
+            <SpendReport
+              source="browser"
+              entries={localEntries}
+              range={range}
+              now={now}
+              loading={!hasHydrated}
+              kieCredits={kieCredits}
+              onRemove={removeLocal}
+              onClearRequest={() => setClearIntent({ source: 'browser', scope: accountScope, clear: clearLocal })}
+            />
           </>
         )}
-
-        <p className="field-hint text-center">Stored in this browser only. Clearing site data clears the ledger.</p>
       </main>
+
+      <ConfirmDialog
+        open={Boolean(activeClearIntent)}
+        title={activeClearIntent?.source === 'account' ? 'Clear account spend history?' : 'Clear this browser ledger?'}
+        description={activeClearIntent?.source === 'account'
+          ? 'This permanently removes every spend record in your account on every device. Provider billing records are unaffected.'
+          : 'This removes every recorded run from this browser. This cannot be undone.'}
+        confirmLabel="Clear ledger"
+        onConfirm={() => {
+          const intent = activeClearIntent;
+          setClearIntent(null);
+          if (intent) void intent.clear();
+        }}
+        onCancel={() => setClearIntent(null)}
+      />
     </div>
   );
 }
 
 export default function SpendPage() {
-  // Suspense boundary required because the view reads the URL via nuqs.
-  return (
-    <Suspense fallback={null}>
-      <SpendView />
-    </Suspense>
-  );
+  return <Suspense fallback={null}><SpendView /></Suspense>;
 }

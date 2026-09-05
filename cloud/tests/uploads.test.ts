@@ -1,5 +1,5 @@
 import { DatabaseSync } from 'node:sqlite';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { adapter } from './database';
 import { memoryBucket } from './bucket';
 import { LOCAL_SCHEMA } from '../src/schema';
@@ -13,7 +13,7 @@ beforeEach(()=>{
   db=new DatabaseSync(':memory:');db.exec(LOCAL_SCHEMA);db.exec("INSERT INTO account_users VALUES ('owner','google','test@example.test','Test',1),('other','google2','other@example.test','Other',1)");
   env={DB:adapter(db),ASSETS:memoryBucket().bucket,APP_ORIGIN:'http://localhost:3097',PUBLIC_WORKER_ORIGIN:'http://localhost:8797'};
 });
-afterEach(()=>db.close());
+afterEach(()=>{vi.restoreAllMocks();db.close();});
 const uploadRequest=(url:string,bytes=new Uint8Array([1,2,3]),origin=env.APP_ORIGIN)=>new Request(url,{method:'PUT',headers:{Origin:origin,'Content-Type':'image/png'},body:bytes});
 async function ready(){const upload=await reserveUpload(env,'owner',3,'image/png');expect((await publicMedia(uploadRequest(upload.url),env))?.status).toBe(200);return upload;}
 const request=(ids:string[])=>({provider:'local-test' as const,modelId:'local-test',mediaType:'image' as const,inputMode:'image' as const,prompt:'Reference test',values:{},referenceIds:ids});
@@ -56,6 +56,19 @@ describe('private reference staging',()=>{
     expect(await env.ASSETS!.head(`accounts/owner/inputs/${upload.id}`)).not.toBeNull();
     await finishJob(env,job.id,'saved');await cleanupUploads(env);
     expect(await env.ASSETS!.head(`accounts/owner/inputs/${upload.id}`)).toBeNull();
+  });
+  it('keeps a failed deletion tombstone while cleaning later uploads and expired capabilities',async()=>{
+    const first=await ready(),second=await ready();
+    db.exec('UPDATE account_uploads SET expires_at=0; UPDATE account_media_tokens SET expires_at=0');
+    const remove=env.ASSETS!.delete.bind(env.ASSETS!);
+    vi.spyOn(env.ASSETS!,'delete').mockRejectedValueOnce(new Error('R2 unavailable')).mockImplementation(remove);
+    await cleanupUploads(env);
+    const remaining=db.prepare("SELECT id FROM account_uploads WHERE state='deleted'").all().map(row=>row.id);
+    expect(remaining).toHaveLength(1);
+    expect(db.prepare('SELECT COUNT(*) AS n FROM account_media_tokens').get()?.n).toBe(0);
+    expect([await env.ASSETS!.head(`accounts/owner/inputs/${first.id}`),await env.ASSETS!.head(`accounts/owner/inputs/${second.id}`)].filter(Boolean)).toHaveLength(1);
+    await cleanupUploads(env);
+    expect(db.prepare('SELECT COUNT(*) AS n FROM account_uploads').get()?.n).toBe(0);
   });
   it('provides revocable scoped downloads with ranges and no account cookies',async()=>{
     const job=await acceptJob(env,'owner','download-access-token',request([])),key=`accounts/owner/jobs/${job.id}/0`;

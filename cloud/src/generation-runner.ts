@@ -1,3 +1,4 @@
+import { recordAccountSpend } from './spend';
 import type { Env } from './security';
 import { AccountError, finishJob, getJob, setJobState, type JobRow } from './jobs';
 import { captureResult, type ProviderResult } from './assets';
@@ -83,5 +84,8 @@ export async function runGeneration(env:Env,jobId:string,step:DurableStep,overri
   }catch(error){
     const current=await getJob(env,jobId);
     if(current&&!['saved','failed','cancelled'].includes(current.state))await setJobState(env,jobId,'needs_attention',error instanceof AccountError&&error.code==='storage_full'?'storage_full':current.result_json?'save_failed':current.provider_task?'tracking_interrupted':'submission_ambiguous');
+  }finally{
+    const completed=await getJob(env,jobId).catch(()=>null);
+    if(completed)await recordAccountSpend(env,completed);
   }
 }

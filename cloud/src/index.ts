@@ -1,29 +1,39 @@
+import { reconcileSpend, spendRoutes } from './spend';
 import { enabledProviders } from './providers';
 import { listConnections } from './vault';
 import { publicMedia, uploadRoutes, cleanupUploads } from './uploads';
 import { cleanupRetainedAssets } from './retention';
-import { cleanupObjects } from './cleanup';
+import { cleanupObjects, cleanupTerminalJobObjects } from './cleanup';
 import { lifecycleRoutes } from './lifecycle';
 import { jobRoutes } from './job-routes';
 import { dispatchJob, type JobRow } from './jobs';
 import { connectionRoutes } from './connections';
-import { LOCAL_SCHEMA } from './schema';
+import { JOB_OBJECT_CLEANUP_SCHEMA, LOCAL_SCHEMA } from './schema';
 import { cookie, cookieName, hash, isLocal, json, randomToken, readCookie, returnPath, validOrigin, type Env } from './security';
 import { googleAuthorization, googleEnabled, googleIdentity } from './google';
 import { createSession, currentAccount, revokeSession } from './sessions';
+import { cleanupImports, importRoutes, publicImportMedia } from './imports';
+import { applyIngress, cleanupExpiredIngress } from './ingress';
 
 interface OAuthAttempt { verifier: string; nonce: string; return_to: string }
 const bootstrapped = new WeakSet<object>();
 export async function handleRequest(request: Request, env: Env): Promise<Response> {
   try {
     if (!validOrigin(env)) return json({ error: 'Account service is not configured.' }, 503);
+    // The local shortcut must stay absent even before production migrations exist.
+    if(new URL(request.url).pathname==='/api/account/local-sign-in'&&!isLocal(env))return json({error:'Not found.'},404);
     if (isLocal(env) && !bootstrapped.has(env.DB)) {
       // D1 exec expects individual statements; bootstrap is development-only.
-      await env.DB.batch(LOCAL_SCHEMA.split(';').filter(s => s.trim()).map(s => env.DB.prepare(s)));
+      await env.DB.batch(`${LOCAL_SCHEMA}\n${JOB_OBJECT_CLEANUP_SCHEMA}`.split(';').filter(s => s.trim()).map(s => env.DB.prepare(s)));
       bootstrapped.add(env.DB);
     }
+    const ingress = await applyIngress(request, env);
+    if (ingress.response) return ingress.response;
+    request = ingress.request;
     const mediaResponse = await publicMedia(request,env);
     if(mediaResponse)return mediaResponse;
+    const importMediaResponse = await publicImportMedia(request,env);
+    if(importMediaResponse)return importMediaResponse;
     const url = new URL(request.url);
     const path = url.pathname;
     if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method) && request.headers.get('origin') !== env.APP_ORIGIN) return json({ error: 'Request origin is not allowed.' }, 403);
@@ -31,10 +41,14 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
     if(expectedOwner&&(await currentAccount(request,env))?.id!==expectedOwner)return json({error:'Your account changed. Refresh before continuing.'},409);
     const uploadResponse = await uploadRoutes(request,env);
     if(uploadResponse)return uploadResponse;
+    const importResponse = await importRoutes(request,env);
+    if(importResponse)return importResponse;
     const lifecycleResponse=await lifecycleRoutes(request,env);
     if(lifecycleResponse)return lifecycleResponse;
     const jobResponse = await jobRoutes(request, env);
     if (jobResponse) return jobResponse;
+    const spendResponse=await spendRoutes(request,env);
+    if(spendResponse)return spendResponse;
     const connectionResponse = await connectionRoutes(request, env);
     if (connectionResponse) return connectionResponse;
     if (path === '/health' && request.method === 'GET') return json({ ok: true });
@@ -91,18 +105,31 @@ function redirect(location: string, cookies: string[]) {
   cookies.forEach(value => headers.append('Set-Cookie', value));
   return new Response(null, { status: 303, headers });
 }
+export async function runScheduledMaintenance(env:Env) {
+  const tasks:Array<()=>Promise<unknown>>=[
+    async()=>{
+      const pending=await env.DB.prepare("SELECT * FROM account_jobs WHERE dispatched = 0 AND deleted = 0 AND state IN ('queued','running','saving') LIMIT 50").all<JobRow>();
+      for(const job of pending.results)await dispatchJob(env,job).catch(()=>{});
+    },
+    ()=>reconcileSpend(env),
+    ()=>cleanupUploads(env),
+    ()=>cleanupRetainedAssets(env),
+    ()=>cleanupImports(env),
+    ()=>cleanupTerminalJobObjects(env),
+    ()=>cleanupObjects(env),
+    ()=>cleanupExpiredIngress(env),
+    ()=>env.DB.prepare('DELETE FROM account_oauth WHERE expires_at <= ?').bind(Date.now()).run(),
+    ()=>env.DB.prepare('DELETE FROM account_sessions WHERE expires_at <= ?').bind(Date.now()).run(),
+  ];
+  // Each journal is independently durable. A failed subsystem must not prevent
+  // unrelated expirations and deletion queues from making progress this pass.
+  for(const task of tasks)await task().catch(()=>{});
+}
+
 const worker = {
   fetch: handleRequest,
   async scheduled(_event: ScheduledController, env: Env) {
-    const pending = await env.DB.prepare("SELECT * FROM account_jobs WHERE dispatched = 0 AND deleted = 0 AND state IN ('queued','running','saving') LIMIT 50").all<JobRow>();
-    for (const job of pending.results) await dispatchJob(env, job).catch(() => {});
-    await cleanupUploads(env);
-    await cleanupRetainedAssets(env);
-    await cleanupObjects(env);
-    await env.DB.batch([
-      env.DB.prepare('DELETE FROM account_oauth WHERE expires_at <= ?').bind(Date.now()),
-      env.DB.prepare('DELETE FROM account_sessions WHERE expires_at <= ?').bind(Date.now()),
-    ]);
+    await runScheduledMaintenance(env);
   },
 };
 

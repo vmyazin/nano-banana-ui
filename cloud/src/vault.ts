@@ -31,11 +31,15 @@ export async function listConnections(env: Env, owner: string) {
   const result = await env.DB.prepare('SELECT id, provider, revision, hint, updated_at AS updatedAt FROM account_connections WHERE user_id = ? ORDER BY provider').bind(owner).all();
   return result.results;
 }
-export async function saveConnection(env: Env, owner: string, provider: Provider, secret: Secret) {
+export async function saveConnection(env: Env, owner: string, provider: Provider, secret: Secret, options: { ifAbsent?: boolean } = {}) {
   const encrypted = await encryptSecret(env, owner, provider, secret);
-  await env.DB.prepare(`INSERT INTO account_connections (id, user_id, provider, ciphertext, nonce, key_version, hint, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(user_id, provider) DO UPDATE SET ciphertext = excluded.ciphertext, nonce = excluded.nonce, key_version = excluded.key_version, hint = excluded.hint, updated_at = excluded.updated_at, revision = account_connections.revision + 1`)
+  const conflict = options.ifAbsent
+    ? 'ON CONFLICT(user_id, provider) DO NOTHING'
+    : 'ON CONFLICT(user_id, provider) DO UPDATE SET ciphertext = excluded.ciphertext, nonce = excluded.nonce, key_version = excluded.key_version, hint = excluded.hint, updated_at = excluded.updated_at, revision = account_connections.revision + 1';
+  const result = await env.DB.prepare(`INSERT INTO account_connections (id, user_id, provider, ciphertext, nonce, key_version, hint, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ${conflict}`)
     .bind(crypto.randomUUID(), owner, provider, encrypted.ciphertext, encrypted.nonce, encrypted.key_version, secret.apiKey.slice(-4), Date.now()).run();
+  return (result.meta?.changes ?? 0) > 0;
 }
 export async function resolveConnection(env: Env, owner: string, connectionId: string, revision?: number) {
   const row = await env.DB.prepare('SELECT * FROM account_connections WHERE id = ? AND user_id = ?').bind(connectionId, owner).first<Connection>();

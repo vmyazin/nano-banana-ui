@@ -6,6 +6,8 @@ import { ArrowLeft, ArrowRight, Check, LogOut } from 'lucide-react';
 import { AccountSurface } from './AccountSurface';
 import AccountLibrary from './AccountLibrary';
 import AccountConnections from './AccountConnections';
+import AccountAssetImport from './AccountAssetImport';
+import AccountKeyImport from './AccountKeyImport';
 import AccountDeletion from './AccountDeletion';
 import { BrandWordmark } from '@/components/BrandMark';
 
@@ -76,7 +78,7 @@ export default function AccountAccess({ mode, signInFailed=false }: { mode: 'sig
           {accountStatus==='unavailable'&&<p role="alert" className="mt-4 text-sm text-amber-300">Account service is temporarily unavailable. Please try again shortly.</p>}
           {error && <p role="alert" className="mt-4 text-sm leading-relaxed text-[var(--neon-pink)]">{error}</p>}
         </AccountSurface>
-        {session?.account && <div key={session.account.id}><AccountLibrary localTest={session.localSignIn} ownerId={session.account.id} /><AccountConnections /><AccountDeletion ownerId={session.account.id}/></div>}
+        {session?.account && <div key={session.account.id}><AccountLibrary localTest={session.localSignIn} ownerId={session.account.id} /><AccountConnections /><AccountKeyImport ownerId={session.account.id}/><AccountAssetImport ownerId={session.account.id}/><AccountDeletion ownerId={session.account.id}/></div>}
         {!session?.account && <p className="mt-6 text-center text-sm text-[var(--foreground-muted)]">{signup ? 'Already have an account?' : 'New to Scene Assembly?'}{' '}<Link className="text-[var(--foreground)] underline underline-offset-4" href={signup ? '/sign-in' : '/sign-up'}>{signup ? 'Sign in' : 'Create an account'}</Link></p>}
         <Link href="/" className="mx-auto mt-8 inline-flex items-center gap-2 text-sm text-[var(--foreground-muted)] hover:text-[var(--foreground)]"><ArrowLeft size={15} aria-hidden="true" />{session?.account?'Return to the studio':'Continue as a guest'}</Link>
       </div>

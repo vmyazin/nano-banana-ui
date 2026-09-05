@@ -12,6 +12,7 @@ const providers = ENGINES.map(engine => [engine.id, engine.label] as const);
 interface Connection { id: string; provider: string; revision: number; hint: string }
 export default function AccountConnections({initialProvider='gemini'}:{initialProvider?:string}) {
   const ownerId=useAccountStore(state=>state.session?.account?.id);
+  const connectionRevision=useAccountStore(state=>(state.session?.connections||[]).map(connection=>`${connection.id}:${connection.revision}`).join(','));
   const [connections, setConnections] = useState<Connection[]>([]);
   const [provider, setProvider] = useState<string>(initialProvider);
   const [apiKey, setApiKey] = useState('');
@@ -28,7 +29,7 @@ export default function AccountConnections({initialProvider='gemini'}:{initialPr
       if(!controller.signal.aborted)setConnections(data.connections);
     }).catch(error => { if (!controller.signal.aborted) setError(error instanceof Error ? error.message : 'Could not load connections.'); });
     return () => controller.abort();
-  }, [ownerId]);
+  }, [ownerId,connectionRevision]);
   async function update(method: 'POST' | 'DELETE', removeProvider?: string) {
     setBusy(true); setError(null); setNotice(null);
     try {

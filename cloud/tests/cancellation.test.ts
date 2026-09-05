@@ -2,8 +2,9 @@ import { DatabaseSync } from 'node:sqlite';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { adapter } from './database';
 import { LOCAL_SCHEMA } from '../src/schema';
-import { acceptJob, cancelQueuedJob, getJob, IMAGE_RESERVATION } from '../src/jobs';
+import { acceptJob, cancelQueuedJob, dismissAttentionJob, getJob, IMAGE_RESERVATION } from '../src/jobs';
 import { jobRoutes } from '../src/job-routes';
+import { handleRequest } from '../src/index';
 import { runGeneration, type DurableStep } from '../src/generation-runner';
 import { hash, type Env } from '../src/security';
 import type { GenerationAdapter } from '../src/providers';
@@ -24,6 +25,12 @@ afterEach(()=>{vi.restoreAllMocks();db.close();});
 
 function cancelRequest(id:string,owner:keyof typeof sessions='owner'){
   return jobRoutes(new Request(`http://localhost:8797/api/account/jobs/${id}/cancel`,{method:'POST',headers:{cookie:`sa_session=${sessions[owner]}`}}),env);
+}
+function dismissRequest(id:string,owner:keyof typeof sessions='owner'){
+  return jobRoutes(new Request(`http://localhost:8797/api/account/jobs/${id}/dismiss`,{method:'POST',headers:{cookie:`sa_session=${sessions[owner]}`}}),env);
+}
+function resumeRequest(id:string){
+  return jobRoutes(new Request(`http://localhost:8797/api/account/jobs/${id}/resume`,{method:'POST',headers:{cookie:`sa_session=${sessions.owner}`}}),env);
 }
 async function fixture(token='cancel-job-token-123456'){return acceptJob(env,'owner',token,request);}
 
@@ -83,6 +90,83 @@ describe('queued job cancellation',()=>{
     }else{
       expect(cancelResult.status).toBe('rejected');
       expect(claimResult.status==='fulfilled'&&claimResult.value.meta.changes).toBe(1);
+      expect(db.prepare('SELECT reserved_bytes,active_jobs FROM account_storage WHERE user_id=?').get('owner')).toMatchObject({reserved_bytes:IMAGE_RESERVATION,active_jobs:1});
+    }
+  });
+});
+
+describe('attention job dismissal',()=>{
+  async function attention(token='attention-job-token-123456'){
+    const job=await fixture(token);
+    await env.DB.prepare("UPDATE account_jobs SET state='needs_attention',error_code='submission_ambiguous' WHERE id=?").bind(job.id).run();
+    return job;
+  }
+
+  it('stops tracking and releases quota exactly once, including repeated dismissal',async()=>{
+    const job=await attention();
+    const first=await dismissRequest(job.id),second=await dismissRequest(job.id);
+    expect(first?.status).toBe(200);expect(second?.status).toBe(200);
+    expect((await first!.json()).job).toMatchObject({id:job.id,state:'failed',errorCode:'tracking_stopped'});
+    expect((await second!.json()).job).toMatchObject({id:job.id,state:'failed',errorCode:'tracking_stopped'});
+    expect(db.prepare('SELECT reserved_bytes,active_jobs FROM account_storage WHERE user_id=?').get('owner')).toMatchObject({reserved_bytes:0,active_jobs:0});
+  });
+
+  it('returns 404 for another owner and leaves the job tracked',async()=>{
+    const job=await attention();
+    const response=await dismissRequest(job.id,'other');
+    expect(response?.status).toBe(404);
+    expect((await getJob(env,job.id))?.state).toBe('needs_attention');
+    expect(db.prepare('SELECT reserved_bytes,active_jobs FROM account_storage WHERE user_id=?').get('owner')).toMatchObject({reserved_bytes:IMAGE_RESERVATION,active_jobs:1});
+  });
+
+  it('does not dismiss queued or actively tracked jobs',async()=>{
+    const queued=await fixture('dismiss-queued-token-123456');
+    const running=await fixture('dismiss-running-token-123456');
+    await env.DB.prepare("UPDATE account_jobs SET state='running',provider_task=? WHERE id=?").bind(JSON.stringify({id:'active-task'}),running.id).run();
+    for(const job of [queued,running]){
+      const response=await dismissRequest(job.id);
+      expect(response?.status).toBe(409);
+      expect((await response!.json()).code).toBe('tracking_state_changed');
+    }
+    expect((await getJob(env,queued.id))?.state).toBe('queued');
+    expect((await getJob(env,running.id))?.state).toBe('running');
+    expect(db.prepare('SELECT reserved_bytes,active_jobs FROM account_storage WHERE user_id=?').get('owner')).toMatchObject({reserved_bytes:2*IMAGE_RESERVATION,active_jobs:2});
+  });
+
+  it('rejects cross-origin dismissal before changing the job',async()=>{
+    const job=await attention();
+    const response=await handleRequest(new Request(`http://localhost:8797/api/account/jobs/${job.id}/dismiss`,{method:'POST',headers:{origin:'https://outside.example',cookie:`sa_session=${sessions.owner}`}}),env);
+    expect(response.status).toBe(403);
+    expect((await getJob(env,job.id))?.state).toBe('needs_attention');
+  });
+
+  it('preserves existing temporary assets and makes later workflows provider-free',async()=>{
+    const job=await attention();const expiry=Date.now()+60_000;
+    await env.DB.batch([
+      env.DB.prepare('INSERT INTO account_assets (id,user_id,job_id,object_key,kind,mime_type,bytes,metadata_json,created_at) VALUES (?,?,?,?,?,?,?,?,?)').bind(`${job.id}-0`,'owner',job.id,`accounts/owner/jobs/${job.id}/0`,'image','image/png',3,job.request_json,1),
+      env.DB.prepare('INSERT INTO account_asset_retention (asset_id,expires_at) VALUES (?,?)').bind(`${job.id}-0`,expiry),
+    ]);
+    await dismissAttentionJob(env,job.id,'owner');
+    const provider:GenerationAdapter={recover:vi.fn(),submit:vi.fn(),poll:vi.fn()};
+    await runGeneration(env,job.id,step,provider);
+    expect(provider.recover).not.toHaveBeenCalled();expect(provider.submit).not.toHaveBeenCalled();expect(provider.poll).not.toHaveBeenCalled();
+    expect(db.prepare('SELECT deleted FROM account_assets WHERE id=?').get(`${job.id}-0`)).toMatchObject({deleted:0});
+    expect(db.prepare('SELECT expires_at FROM account_asset_retention WHERE asset_id=?').get(`${job.id}-0`)).toMatchObject({expires_at:expiry});
+    expect(db.prepare('SELECT COUNT(*) AS n FROM account_object_deletions').get()).toMatchObject({n:0});
+  });
+
+  it('lets either resume or dismissal claim attention without stale overwrites',async()=>{
+    const job=await attention();
+    await env.DB.prepare('UPDATE account_jobs SET provider_task=? WHERE id=?').bind(JSON.stringify({id:'provider-task'}),job.id).run();
+    const [dismissed,resumed]=await Promise.all([dismissRequest(job.id),resumeRequest(job.id)]);
+    expect([dismissed?.status,resumed?.status].sort()).toEqual([200,409]);
+    const row=await getJob(env,job.id);
+    expect(['failed','running']).toContain(row?.state);
+    if(row?.state==='failed'){
+      expect(row.error_code).toBe('tracking_stopped');
+      expect(db.prepare('SELECT reserved_bytes,active_jobs FROM account_storage WHERE user_id=?').get('owner')).toMatchObject({reserved_bytes:0,active_jobs:0});
+    }else{
+      expect(row?.error_code).toBeNull();
       expect(db.prepare('SELECT reserved_bytes,active_jobs FROM account_storage WHERE user_id=?').get('owner')).toMatchObject({reserved_bytes:IMAGE_RESERVATION,active_jobs:1});
     }
   });

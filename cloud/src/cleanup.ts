@@ -1,11 +1,60 @@
 import type { Env } from './security';
 
+export const TERMINAL_JOB_OBJECT_GRACE_MS = 86_400_000;
+export const TERMINAL_JOB_OBJECT_RESCAN_MS = 600_000;
+export const TERMINAL_JOB_OBJECT_RESCAN_WINDOW_MS = 3_600_000;
+// Mirrors assets.MAX_JOB_OUTPUTS. Importing it here would create the runtime
+// assets -> cleanup -> assets cycle at the deletion chokepoint.
+export const TERMINAL_JOB_OBJECTS_PER_JOB = 8;
+const TERMINAL_JOB_SEED_LIMIT = 100;
+// Eight keys per job leave room in cleanupObjects' 100-object batch.
+const TERMINAL_JOB_SCAN_LIMIT = 12;
+
 export async function deleteQueuedObject(env:Env,key:string) {
   if(!env.ASSETS)return;
   try{
     await env.ASSETS.delete(key);
     await env.DB.prepare('DELETE FROM account_object_deletions WHERE object_key=?').bind(key).run();
   }catch{/* The durable queue retries next pass. Reads are already revoked. */}
+}
+
+interface TerminalJobCleanup {
+  job_id:string;
+  user_id:string;
+  next_check_at:number;
+  cleanup_until:number;
+}
+
+/**
+ * Provider staging and final asset keys share this bounded layout. Terminal
+ * jobs are journaled once, then rescanned after a 24-hour recovery grace so a
+ * late R2 completion cannot become a permanent unmetered object.
+ */
+export async function cleanupTerminalJobObjects(env:Env,now=Date.now()) {
+  if(!env.ASSETS)return;
+  await env.DB.prepare(`INSERT OR IGNORE INTO account_job_object_cleanup (job_id,next_check_at,cleanup_until)
+    SELECT id,updated_at+?,updated_at+?+? FROM account_jobs j
+    WHERE state IN ('saved','failed','cancelled')
+      AND NOT EXISTS (SELECT 1 FROM account_job_object_cleanup c WHERE c.job_id=j.id)
+    ORDER BY updated_at ASC LIMIT ${TERMINAL_JOB_SEED_LIMIT}`)
+    .bind(TERMINAL_JOB_OBJECT_GRACE_MS,TERMINAL_JOB_OBJECT_GRACE_MS,TERMINAL_JOB_OBJECT_RESCAN_WINDOW_MS).run();
+  const due=await env.DB.prepare(`SELECT c.job_id,j.user_id,c.next_check_at,c.cleanup_until
+    FROM account_job_object_cleanup c JOIN account_jobs j ON j.id=c.job_id
+    WHERE c.next_check_at IS NOT NULL AND c.next_check_at<=?
+      AND j.state IN ('saved','failed','cancelled')
+    ORDER BY c.next_check_at,c.job_id LIMIT ${TERMINAL_JOB_SCAN_LIMIT}`).bind(now).all<TerminalJobCleanup>();
+  for(const job of due.results){
+    const next=now>=job.cleanup_until?null:Math.min(job.cleanup_until,now+TERMINAL_JOB_OBJECT_RESCAN_MS);
+    const statements=[];
+    for(let index=0;index<TERMINAL_JOB_OBJECTS_PER_JOB;index++){
+      const key=`accounts/${job.user_id}/jobs/${job.job_id}/${index}`;
+      statements.push(env.DB.prepare(`INSERT OR IGNORE INTO account_object_deletions (object_key,created_at)
+        SELECT ?,? WHERE NOT EXISTS (SELECT 1 FROM account_assets WHERE object_key=? AND deleted=0)`)
+        .bind(key,now,key));
+    }
+    statements.push(env.DB.prepare('UPDATE account_job_object_cleanup SET next_check_at=? WHERE job_id=?').bind(next,job.job_id));
+    await env.DB.batch(statements);
+  }
 }
 
 export async function cleanupObjects(env:Env) {
