@@ -103,3 +103,11 @@ Validation: 31 cloud tests passed (including quota races, ambiguous acceptance, 
 Added cloud/src/provider-adapters/queued.ts to reuse existing fal/Kie transports and catalogs. Encrypted connections resolve by owner and saved revision at execution time. Intake validates model/settings before submission; text-only adapters remain explicitly disabled unless CLOUD_GENERATION_PROVIDERS is configured. This is partial task 6, not all-provider launch coverage. Capability evidence and remaining limits are recorded in ../cloud-provider-capabilities.md.
 
 Verification: 37 cloud tests pass, including native Kie submit/status, revoked connection rejection and a fal SDK upstream failure making exactly one network request. Worker typecheck and production bundle dry-run pass. Real provider calls were not made.
+
+## Milestone record — private input staging and direct media
+
+Implemented cloud/src/uploads.ts, media.ts and range.ts plus migration 0004. Native fal/Kie adapters can consume persisted references; immutable request references attach in the quota/intake transaction. Media capabilities scope access to one upload, active-job input, or saved asset. Account library file transfers now bypass Vercel's body/response limits. Added the reusable lib/account/client.ts transport boundary. No studio submission handlers changed in this milestone.
+
+Validation: 42 cloud tests passed, including cross-owner denial, concurrent temporary quota reservations, byte limits, immutable ready uploads, active-input retention and revoked downloads. Root typecheck and existing account gateway tests passed; Wrangler production bundle succeeded. Real local seed verified direct upload and deletion plus private ranged download; browser displayed the library image. Pinned Wrangler after reproducing its reported newer proxy crash; local cron now runs through the dev supervisor.
+
+Still required: account-aware studio submission, library/import integration, aggregate output limits and cleanup beyond input staging, all-provider coverage, real OAuth/provider configuration and release verification. Existing task checkboxes remain incomplete until the whole task's acceptance criteria are met.

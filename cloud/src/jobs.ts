@@ -25,6 +25,8 @@ export async function getJob(env: Env, id: string, owner?: string) {
 }
 export async function acceptJob(env: Env, owner: string, token: string, request: CloudJobRequest): Promise<JobRow> {
   if (!/^[a-zA-Z0-9_-]{16,128}$/.test(token)) throw new AccountError('Invalid submission token.', 400, 'invalid_token');
+  if(new Set(request.referenceIds).size!==request.referenceIds.length)throw new AccountError('Duplicate references are not supported.',400,'invalid_references');
+  const references=JSON.stringify(request.referenceIds);
   const digest = await hash(canonical(request));
   const existing = await env.DB.prepare('SELECT * FROM account_jobs WHERE user_id = ? AND request_token = ?').bind(owner, token).first<JobRow>();
   if (existing) { if (existing.request_digest !== digest || existing.deleted) throw new AccountError('Submission token already used.', 409, 'token_conflict'); return existing; }
@@ -35,10 +37,11 @@ export async function acceptJob(env: Env, owner: string, token: string, request:
   await env.DB.batch([
     env.DB.prepare('INSERT OR IGNORE INTO account_storage (user_id) VALUES (?)').bind(owner),
     env.DB.prepare(`INSERT OR IGNORE INTO account_jobs (id,user_id,request_token,request_digest,connection_id,connection_revision,provider,request_json,reservation_bytes,created_at,updated_at)
-      SELECT ?,?,?,?,?,?,?,?,?,?,? FROM account_storage WHERE user_id = ? AND used_bytes + reserved_bytes + ? <= limit_bytes AND active_jobs < ?`)
-      .bind(id, owner, token, digest, connection?.id ?? null, connection?.revision ?? null, request.provider, JSON.stringify(request), reservation, now, now, owner, reservation, MAX_ACTIVE_JOBS),
+      SELECT ?,?,?,?,?,?,?,?,?,?,? FROM account_storage WHERE user_id = ? AND used_bytes + reserved_bytes + ? <= limit_bytes AND active_jobs < ? AND (SELECT COUNT(*) FROM account_uploads WHERE user_id=? AND state='ready' AND expires_at>? AND id IN (SELECT value FROM json_each(?)))=?`)
+      .bind(id, owner, token, digest, connection?.id ?? null, connection?.revision ?? null, request.provider, JSON.stringify(request), reservation, now, now, owner, reservation, MAX_ACTIVE_JOBS, owner, now, references, request.referenceIds.length),
     env.DB.prepare('UPDATE account_storage SET reserved_bytes = reserved_bytes + ?, active_jobs = active_jobs + 1 WHERE user_id = ? AND EXISTS (SELECT 1 FROM account_jobs WHERE id = ? AND reservation_accounted = 0)').bind(reservation, owner, id),
     env.DB.prepare('UPDATE account_jobs SET reservation_accounted = 1 WHERE id = ?').bind(id),
+    env.DB.prepare('INSERT OR IGNORE INTO account_job_inputs (job_id,upload_id) SELECT ?,id FROM account_uploads WHERE user_id=? AND id IN (SELECT value FROM json_each(?)) AND EXISTS (SELECT 1 FROM account_jobs WHERE id=?)').bind(id,owner,references,id),
   ]);
   const row = await env.DB.prepare('SELECT * FROM account_jobs WHERE user_id = ? AND request_token = ?').bind(owner, token).first<JobRow>();
   if (!row) throw new AccountError('Your account needs more available storage or fewer active jobs. Free space or wait for a job to finish.', 409, 'capacity');

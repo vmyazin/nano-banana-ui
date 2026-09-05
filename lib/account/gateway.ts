@@ -9,7 +9,7 @@ export async function accountGateway(request: Request): Promise<Response> {
   const incoming = new URL(request.url);
   const allowed = new Set(['session', 'sign-in/google', 'callback/google', 'sign-out', 'local-sign-in']);
   const path = incoming.pathname.slice('/api/account/'.length);
-  if (!allowed.has(path) && !/^(?:jobs(?:\/[a-zA-Z0-9-]+(?:\/resume)?)?|assets(?:\/[a-zA-Z0-9-]+(?:\/content)?)?|storage)$/.test(path) && !/^connections(?:\/(?:gemini|fal|kie|runware|atlas|comet|cloudflare))?$/.test(path)) return new Response(null, { status: 404 });
+  if (!allowed.has(path) && !/^(?:jobs(?:\/[a-zA-Z0-9-]+(?:\/resume)?)?|assets(?:\/[a-zA-Z0-9-]+(?:\/(?:content|access))?)?|uploads(?:\/[a-zA-Z0-9-]+)?|storage)$/.test(path) && !/^connections(?:\/(?:gemini|fal|kie|runware|atlas|comet|cloudflare))?$/.test(path)) return new Response(null, { status: 404 });
   const headers = new Headers();
   for (const name of ['cookie', 'origin', 'content-type', 'range']) {
     const value = request.headers.get(name);

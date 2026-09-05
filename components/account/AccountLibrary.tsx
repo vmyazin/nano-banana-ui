@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Cloud, RefreshCw, Trash2 } from 'lucide-react';
 import ResultStack from '@/components/ResultStack';
 import ConfirmDialog from '@/components/ConfirmDialog';
+import { accountAssetUrl } from '@/lib/account/client';
 import { convertedForDownload } from '@/lib/image/download-format';
 import { useAppStore } from '@/store/useAppStore';
 import type { CloudAsset, CloudJobState, CloudJobView } from '@/lib/account/contracts';
@@ -46,7 +47,7 @@ export default function AccountLibrary({ localTest }: {localTest:boolean}) {
   }
   async function download(asset:CloudAsset){
     try{
-      const response=await fetch(`/api/account/assets/${asset.id}/content`);
+      const response=await fetch(await accountAssetUrl(asset.id),{credentials:'omit',referrerPolicy:'no-referrer'});
       if(!response.ok)throw new Error('Could not download this asset.');
       const original=await response.blob();
       const blob=asset.kind==='image'?await convertedForDownload(original,useAppStore.getState().imageFormat):original;

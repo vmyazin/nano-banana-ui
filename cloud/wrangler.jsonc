@@ -2,7 +2,8 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "scene-assembly-accounts",
   "main": "src/entry.ts",
-  "compatibility_date": "2026-09-01",
+  // Pinned with Wrangler 4.113: later local proxies currently crash on connection loss.
+  "compatibility_date": "2026-07-20",
   "define": { "__LOCAL_DEV__": "false" },
   "vars": { "APP_ORIGIN": "https://sceneassembly.mzork.com" },
   "d1_databases": [{ "binding": "DB", "database_name": "scene-assembly-accounts", "database_id": "00000000-0000-0000-0000-000000000000", "migrations_dir": "migrations" }],

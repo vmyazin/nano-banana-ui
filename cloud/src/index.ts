@@ -1,3 +1,4 @@
+import { publicMedia, uploadRoutes, cleanupUploads } from './uploads';
 import { jobRoutes } from './job-routes';
 import { dispatchJob, type JobRow } from './jobs';
 import { connectionRoutes } from './connections';
@@ -16,9 +17,13 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
       await env.DB.batch(LOCAL_SCHEMA.split(';').filter(s => s.trim()).map(s => env.DB.prepare(s)));
       bootstrapped.add(env.DB);
     }
+    const mediaResponse = await publicMedia(request,env);
+    if(mediaResponse)return mediaResponse;
     const url = new URL(request.url);
     const path = url.pathname;
     if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method) && request.headers.get('origin') !== env.APP_ORIGIN) return json({ error: 'Request origin is not allowed.' }, 403);
+    const uploadResponse = await uploadRoutes(request,env);
+    if(uploadResponse)return uploadResponse;
     const jobResponse = await jobRoutes(request, env);
     if (jobResponse) return jobResponse;
     const connectionResponse = await connectionRoutes(request, env);
@@ -79,6 +84,7 @@ const worker = {
   async scheduled(_event: ScheduledController, env: Env) {
     const pending = await env.DB.prepare("SELECT * FROM account_jobs WHERE dispatched = 0 AND deleted = 0 AND state IN ('queued','running','saving') LIMIT 50").all<JobRow>();
     for (const job of pending.results) await dispatchJob(env, job).catch(() => {});
+    await cleanupUploads(env);
     await env.DB.batch([
       env.DB.prepare('DELETE FROM account_oauth WHERE expires_at <= ?').bind(Date.now()),
       env.DB.prepare('DELETE FROM account_sessions WHERE expires_at <= ?').bind(Date.now()),

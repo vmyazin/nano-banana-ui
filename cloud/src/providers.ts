@@ -34,7 +34,6 @@ export function validateRequest(env:Env,value:unknown):CloudJobRequest {
   const r=value as Partial<CloudJobRequest>;
   if(typeof r.prompt!=='string'||!r.prompt.trim()||r.prompt.length>20000||typeof r.modelId!=='string'||r.modelId.length>256||!['image','video'].includes(r.mediaType||'')||!['text','image','frames','reference'].includes(r.inputMode||'')||!Array.isArray(r.referenceIds)||r.referenceIds.length>16||r.referenceIds.some(id=>typeof id!=='string'||id.length>128)||!r.values||typeof r.values!=='object'||Array.isArray(r.values)||Object.keys(r.values).length>64||Object.values(r.values).some(v=>!['string','boolean','number'].includes(typeof v)||typeof v==='number'&&!Number.isFinite(v)||typeof v==='string'&&v.length>2048))throw new AccountError('Invalid generation settings.',400,'invalid_request');
   adapterFor(env,r.provider!);
-  if(r.referenceIds.length)throw new AccountError('Cloud reference uploads are not enabled yet.',409,'references_unavailable');
   if(r.provider==='fal'||r.provider==='kie')validateQueuedRequest(r as CloudJobRequest);
   return {provider:r.provider!,modelId:r.modelId,mediaType:r.mediaType as 'image'|'video',inputMode:r.inputMode as CloudJobRequest['inputMode'],prompt:r.prompt.trim(),values:r.values,referenceIds:r.referenceIds};
 }

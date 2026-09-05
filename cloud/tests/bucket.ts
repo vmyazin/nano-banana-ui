@@ -3,7 +3,7 @@ export function memoryBucket() {
   const result = (key:string) => { const item=objects.get(key); return item?{key,size:item.bytes.length,httpMetadata:{contentType:item.contentType},body:new Blob([item.bytes as BlobPart]).stream()}:null; };
   const bucket={
     async head(key:string){return result(key);},
-    async get(key:string){return result(key);},
+    async get(key:string,options?:{range?:{offset:number;length:number}}){const item=result(key);if(item&&options?.range){const bytes=objects.get(key)!.bytes.slice(options.range.offset,options.range.offset+options.range.length);item.body=new Blob([bytes]).stream();}return item;},
     async delete(key:string){objects.delete(key);},
     async createMultipartUpload(key:string,options:{httpMetadata:{contentType:string}}){
       const parts=new Map<number,Uint8Array>();

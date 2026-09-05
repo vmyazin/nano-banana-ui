@@ -1,3 +1,5 @@
+import { mediaAccess } from './media';
+export { byteRange } from './range';
 import { currentAccount } from './sessions';
 import { json, type Env } from './security';
 import { acceptJob, AccountError, dispatchJob, getJob, jobView, type JobRow } from './jobs';
@@ -50,30 +52,16 @@ export async function jobRoutes(request:Request,env:Env):Promise<Response|null>{
       const page=rows.results.slice(0,50), last=page.at(-1);
       return json({assets:page.map(assetView),nextCursor:rows.results.length>50&&last?`${last.created_at}:${last.id}`:null});
     }
-    const assetMatch=path.match(/^\/api\/account\/assets\/([a-zA-Z0-9-]+)(\/content)?$/);
+    const assetMatch=path.match(/^\/api\/account\/assets\/([a-zA-Z0-9-]+)(\/(?:content|access))?$/);
     if(assetMatch){
       const asset=await getAsset(env,assetMatch[1],account.id);if(!asset)return json({error:'Asset not found.'},404);
       if(request.method==='DELETE'&&!assetMatch[2]){await deleteAsset(env,asset.id,account.id);return json({ok:true});}
-      if(request.method==='GET'&&assetMatch[2]){
-        const range=byteRange(request.headers.get('range'),asset.bytes);
-        if(range==='invalid')return new Response(null,{status:416,headers:{'Content-Range':`bytes */${asset.bytes}`,'Cache-Control':'no-store'}});
-        const object=await env.ASSETS?.get(asset.object_key,range?{range}:undefined);
-        if(!object)return json({error:'File is temporarily unavailable.'},503);
-        const headers=new Headers({'Cache-Control':'private, no-store','Content-Type':asset.mime_type,'X-Content-Type-Options':'nosniff','Accept-Ranges':'bytes','Content-Length':String(range?.length??object.size)});
-        if(range)headers.set('Content-Range',`bytes ${range.offset}-${range.offset+range.length-1}/${object.size}`);
-        return new Response(object.body,{status:range?206:200,headers});
+      if(request.method==='POST'&&assetMatch[2]==='/access')return json(await mediaAccess(env,account.id,asset.id,'download'));
+      if(request.method==='GET'&&assetMatch[2]==='/content'){
+        const access=await mediaAccess(env,account.id,asset.id,'download');
+        return new Response(null,{status:302,headers:{Location:access.url,'Cache-Control':'private, no-store','Referrer-Policy':'no-referrer'}});
       }
     }
     return json({error:'Not found.'},404);
   }catch(error){if(error instanceof AccountError)return json({error:error.message,code:error.code},error.status);if(error instanceof SyntaxError)return json({error:'Invalid request.'},400);throw error;}
-}
-
-export function byteRange(value:string|null,size:number):{offset:number;length:number}|'invalid'|null {
-  if(!value)return null;
-  const match=value.match(/^bytes=(\d*)-(\d*)$/);
-  if(!match||(!match[1]&&!match[2]))return 'invalid';
-  if(!match[1]){const suffix=Number(match[2]);if(!Number.isSafeInteger(suffix)||suffix<=0)return 'invalid';const length=Math.min(size,suffix);return {offset:size-length,length};}
-  const offset=Number(match[1]),end=match[2]?Math.min(Number(match[2]),size-1):size-1;
-  if(!Number.isSafeInteger(offset)||!Number.isSafeInteger(end)||offset<0||offset>=size||end<offset)return 'invalid';
-  return {offset,length:end-offset+1};
 }

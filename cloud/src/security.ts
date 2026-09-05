@@ -1,5 +1,6 @@
 declare const __LOCAL_DEV__: boolean;
 export interface Env {
+  PUBLIC_WORKER_ORIGIN?: string;
   /** Opt-in only after provider contract and credentialed smoke verification. */
   CLOUD_GENERATION_PROVIDERS?: string;
   DB: D1Database;

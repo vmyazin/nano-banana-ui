@@ -27,12 +27,12 @@ async function fetchOutput(url:string):Promise<Response> {
   }
   throw new AccountError('Provider returned too many redirects.',502,'result_location');
 }
-export async function writeOutput(env:Env,key:string,body:ReadableStream<Uint8Array>|Uint8Array,mimeType:string) {
+export async function writeOutput(env:Env,key:string,body:ReadableStream<Uint8Array>|Uint8Array,mimeType:string,maxBytes=MAX_OUTPUT_BYTES) {
   if(!env.ASSETS)throw new Error('Asset storage is unavailable');
   if(!/^(image\/(png|jpeg|webp|avif)|video\/(mp4|webm))$/.test(mimeType))throw new AccountError('Unsupported generated file type.',502,'result_type');
   let length=0;
   const input=body instanceof Uint8Array ? new ReadableStream<Uint8Array>({start(controller){controller.enqueue(body);controller.close();}}) : body;
-  const bounded=input.pipeThrough(new TransformStream<Uint8Array,Uint8Array>({transform(chunk,controller){length+=chunk.byteLength;if(length>MAX_OUTPUT_BYTES)throw new AccountError('Generated file exceeds the supported transfer limit.',502,'result_size');controller.enqueue(chunk);}}));
+  const bounded=input.pipeThrough(new TransformStream<Uint8Array,Uint8Array>({transform(chunk,controller){length+=chunk.byteLength;if(length>maxBytes)throw new AccountError('Generated file exceeds the supported transfer limit.',502,'result_size');controller.enqueue(chunk);}}));
   // R2.put needs known length for a stream. Multipart keeps memory bounded and
   // leaves the object invisible until all parts have been uploaded.
   const upload=await env.ASSETS.createMultipartUpload(key,{httpMetadata:{contentType:mimeType}});
