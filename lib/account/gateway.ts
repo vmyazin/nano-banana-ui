@@ -8,9 +8,9 @@ export async function accountGateway(request: Request): Promise<Response> {
     return Response.json({ error: 'Account service is not configured.' }, { status: 503 });
   }
   const incoming = new URL(request.url);
-  const allowed = new Set(['session', 'sign-in/google', 'callback/google', 'sign-out', 'local-sign-in']);
+  const allowed = new Set(['session', 'profile', 'sign-in/google', 'callback/google', 'sign-out', 'local-sign-in']);
   const path = incoming.pathname.slice('/api/account/'.length);
-  if (!allowed.has(path) && !/^(?:jobs(?:\/[a-zA-Z0-9-]+(?:\/resume)?)?|assets(?:\/[a-zA-Z0-9-]+(?:\/(?:content|access))?)?|uploads(?:\/[a-zA-Z0-9-]+)?|storage)$/.test(path) && !/^connections(?:\/(?:gemini|fal|kie|runware|atlas|comet|cloudflare))?$/.test(path)) return new Response(null, { status: 404 });
+  if (!allowed.has(path) && !/^(?:jobs(?:\/[a-zA-Z0-9-]+(?:\/resume)?)?|assets(?:\/[a-zA-Z0-9-]+(?:\/(?:content|access))?)?|uploads(?:\/[a-zA-Z0-9-]+)?|storage)$/.test(path) && !/^connections(?:\/(?:gemini|fal|kie|runware|atlas|comet|cloudflare|pollinations))?$/.test(path)) return new Response(null, { status: 404 });
   const headers = new Headers();
   for (const name of ['cookie', 'origin', 'content-type', 'range', 'x-account-id']) {
     const value = request.headers.get(name);

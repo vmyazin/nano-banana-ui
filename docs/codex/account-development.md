@@ -29,7 +29,7 @@ The Worker uses oauth4webapi for code exchange and OIDC claim/signature validati
 
 ## Cloudflare / Vercel setup (not yet performed)
 
-Create the D1 database and replace the placeholder database ID in `cloud/wrangler.jsonc`. Apply `cloud/migrations/0001_accounts.sql` with Wrangler D1 migrations before enabling the Worker. Production never auto-bootstraps schema. Configure APP_ORIGIN to the canonical HTTPS app origin. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET as Worker secrets. Configure ACCOUNT_WORKER_ORIGIN in Vercel to the Worker HTTPS origin.
+Create the D1 database and replace the placeholder database ID in `cloud/wrangler.jsonc`. Apply all checked-in `cloud/migrations/` with Wrangler D1 migrations before enabling the Worker. Production never auto-bootstraps schema. Configure APP_ORIGIN to the canonical HTTPS app origin. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET as Worker secrets. Configure ACCOUNT_WORKER_ORIGIN in Vercel to the Worker HTTPS origin.
 
 The Next.js gateway allows only account routes and forwards cookies/origin/content-type, never user-ID headers. It preserves redirects and separate Set-Cookie headers and disables caching. Google returns to the app origin through that gateway. Missing backend configuration returns a friendly account-unavailable response without affecting guest routes. Keep AUTH_ADMIN_EMAIL unset: it controls an unrelated legacy local-database gate.
 
@@ -79,3 +79,9 @@ All studio image/video workspaces now use the shared cloud submission and result
 Common image feature prompt expansion is shared by guest and account requests. Video account results reuse LastFrameActions. Synchronous image engines stage bytes before metadata commit; Check for a saved output looks only for a persisted file and cannot issue another paid call. Inline-input providers accept at most 12 MB of references per job. Inline base64 responses are bounded to 24 MB; provider-specific output-limit verification is still required.
 
 For a credential-free studio image smoke test, set DEV_FAKE_GENERATION=1 in the gitignored cloud/.dev.vars and restart npm run dev. Sign into the local account, save a dummy Kie connection through the existing key dialog, select a Kie image model and submit. The local adapter waits before returning the fixture, so navigate away while Generating and verify Saved later in the account library. This mode is compile-time local-only and does not call a vendor; real Google sign-in and real provider credentials remain separate checks. Turn the flag off before testing real provider behavior.
+
+## Account and object deletion
+
+The dedicated account pages offer permanent account deletion through the existing confirmation dialog pattern. Deletion immediately revokes sessions, connections, metadata and media access in a single D1 transaction. Guest browser stores remain on the device. R2 removal follows asynchronously through a persistent cleanup queue; deleted account prefixes are rescanned for 24 hours to collect late provider writes. A subsequent Google sign-in creates a fresh account ID and storage prefix. Jobs already accepted by a provider may still incur a charge, which the confirmation states explicitly.
+
+Ordinary asset deletion also journals R2 cleanup before revoking reads. Failed object deletes remain retryable without restoring the asset or its byte usage. Migration 0006 supplies cleanup journals with no account foreign key because they must outlive the deleted account. Tests cover independent sessions, account isolation, failed deletes, pagination and late writes. The local browser smoke test deleted only the seeded test account, verified guest state, then signed in to an empty library with no saved connections.

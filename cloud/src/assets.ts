@@ -2,6 +2,7 @@ import type { CloudAsset, CloudJobRequest } from '../../lib/account/contracts';
 import { AccountError, type JobRow } from './jobs';
 import type { Env } from './security';
 import { AVAILABLE_CAPACITY, OVERFLOW_TTL_MS, promoteTemporaryAsset } from './retention';
+import { deleteQueuedObject } from './cleanup';
 
 export const MAX_OUTPUT_BYTES = 1_000_000_000;
 export const MAX_JOB_OUTPUTS = 8;
@@ -90,15 +91,22 @@ export async function captureResult(env:Env,job:JobRow,result:ProviderResult) {
         SELECT ?,?,?,?,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM account_jobs WHERE id = ? AND deleted = 0 AND state NOT IN ('failed','cancelled'))`)
         .bind(id,job.user_id,job.id,key,request.mediaType,object.httpMetadata?.contentType||source.mimeType||'application/octet-stream',object.size,job.request_json,Date.now(),job.id),
     ]);
+    // A concurrent deletion can win after this transfer started. Queue the
+    // newly finished object too, even if an earlier delete already drained.
+    const visible=await env.DB.prepare('SELECT id FROM account_assets WHERE id=? AND deleted=0').bind(id).first();
+    if(!visible){
+      await env.DB.prepare('INSERT OR IGNORE INTO account_object_deletions (object_key,created_at) VALUES (?,?)').bind(key,Date.now()).run();
+    }
   }
   const temporary=await env.DB.prepare('SELECT 1 FROM account_asset_retention r JOIN account_assets a ON a.id=r.asset_id WHERE a.job_id=? AND a.deleted=0 LIMIT 1').bind(job.id).first();
   if(temporary)throw new AccountError('Free space and resume saving. These results are temporarily downloadable for 24 hours.',409,'storage_full');
 }
 export async function deleteAsset(env:Env,id:string,owner:string) {
   await env.DB.batch([
+    env.DB.prepare('INSERT OR IGNORE INTO account_object_deletions (object_key,created_at) SELECT object_key,? FROM account_assets WHERE id=? AND user_id=?').bind(Date.now(),id,owner),
     env.DB.prepare('UPDATE account_storage SET used_bytes = used_bytes - COALESCE((SELECT bytes FROM account_assets WHERE id = ? AND user_id = ? AND deleted = 0 AND NOT EXISTS (SELECT 1 FROM account_asset_retention WHERE asset_id=?)),0) WHERE user_id = ?').bind(id,owner,id,owner),
     env.DB.prepare('UPDATE account_assets SET deleted = 1 WHERE id = ? AND user_id = ?').bind(id,owner),
   ]);
   const row=await env.DB.prepare('SELECT object_key FROM account_assets WHERE id = ? AND user_id = ? AND deleted = 1').bind(id,owner).first<{object_key:string}>();
-  if(row && env.ASSETS)await env.ASSETS.delete(row.object_key);
+  if(row)await deleteQueuedObject(env,row.object_key);
 }

@@ -3,6 +3,15 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { accountGateway } from '@/lib/account/gateway';
 afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
 describe('account gateway', () => {
+  it('forwards account deletion and every saved provider removal through the fixed backend',async()=>{
+    vi.stubEnv('ACCOUNT_WORKER_ORIGIN','https://accounts.test');
+    const fetcher=vi.fn().mockResolvedValue(Response.json({ok:true}));vi.stubGlobal('fetch',fetcher);
+    for(const path of ['profile','connections/pollinations']){
+      expect((await accountGateway(new Request(`https://app.test/api/account/${path}`,{method:'DELETE',headers:{origin:'https://app.test','X-Account-Id':'owner'}}))).status).toBe(200);
+    }
+    expect(fetcher.mock.calls[0][1].headers.get('X-Account-Id')).toBe('owner');
+    expect(fetcher.mock.calls[0][1].method).toBe('DELETE');
+  });
   it('fails gracefully with no backend and does not require guest authentication', async () => {
     vi.stubEnv('ACCOUNT_WORKER_ORIGIN', '');
     const response=await accountGateway(new Request('https://app.test/api/account/session'));

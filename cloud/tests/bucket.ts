@@ -4,7 +4,12 @@ export function memoryBucket() {
   const bucket={
     async head(key:string){return result(key);},
     async get(key:string,options?:{range?:{offset:number;length:number}}){const item=result(key);if(item&&options?.range){const bytes=objects.get(key)!.bytes.slice(options.range.offset,options.range.offset+options.range.length);item.body=new Blob([bytes]).stream();}return item;},
-    async delete(key:string){objects.delete(key);},
+    async delete(key:string|string[]){for(const item of Array.isArray(key)?key:[key])objects.delete(item);},
+    async list(options:{prefix?:string;limit?:number;cursor?:string}={}){
+      const keys=[...objects.keys()].sort().filter(key=>key.startsWith(options.prefix||'')&&(!options.cursor||key>options.cursor));
+      const page=keys.slice(0,options.limit||1000),truncated=page.length<keys.length;
+      return {objects:page.map(key=>result(key)),truncated,...(truncated?{cursor:page.at(-1)}:{}),delimitedPrefixes:[]};
+    },
     async createMultipartUpload(key:string,options:{httpMetadata:{contentType:string}}){
       const parts=new Map<number,Uint8Array>();
       return {

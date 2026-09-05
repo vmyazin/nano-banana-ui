@@ -2,6 +2,8 @@ import { enabledProviders } from './providers';
 import { listConnections } from './vault';
 import { publicMedia, uploadRoutes, cleanupUploads } from './uploads';
 import { cleanupRetainedAssets } from './retention';
+import { cleanupObjects } from './cleanup';
+import { lifecycleRoutes } from './lifecycle';
 import { jobRoutes } from './job-routes';
 import { dispatchJob, type JobRow } from './jobs';
 import { connectionRoutes } from './connections';
@@ -29,6 +31,8 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
     if(expectedOwner&&(await currentAccount(request,env))?.id!==expectedOwner)return json({error:'Your account changed. Refresh before continuing.'},409);
     const uploadResponse = await uploadRoutes(request,env);
     if(uploadResponse)return uploadResponse;
+    const lifecycleResponse=await lifecycleRoutes(request,env);
+    if(lifecycleResponse)return lifecycleResponse;
     const jobResponse = await jobRoutes(request, env);
     if (jobResponse) return jobResponse;
     const connectionResponse = await connectionRoutes(request, env);
@@ -94,6 +98,7 @@ const worker = {
     for (const job of pending.results) await dispatchJob(env, job).catch(() => {});
     await cleanupUploads(env);
     await cleanupRetainedAssets(env);
+    await cleanupObjects(env);
     await env.DB.batch([
       env.DB.prepare('DELETE FROM account_oauth WHERE expires_at <= ?').bind(Date.now()),
       env.DB.prepare('DELETE FROM account_sessions WHERE expires_at <= ?').bind(Date.now()),

@@ -32,7 +32,9 @@ export async function runGeneration(env:Env,jobId:string,step:DurableStep,overri
       if(current.state!=='queued')throw new Error('submission_ambiguous');
       const claimed=await env.DB.prepare("UPDATE account_jobs SET state = 'submitting', updated_at = ? WHERE id = ? AND state = 'queued' AND deleted = 0").bind(Date.now(),jobId).run();
       if(!claimed.meta.changes)throw new Error('submission_ambiguous');
-      const result=await adapter().submit(env,current);
+      // Workflow errors may be persisted by the platform. Do not hand it raw
+      // vendor response bodies or request details that could contain a key.
+      const result=await adapter().submit(env,current).catch(()=>{throw new Error('Provider submission could not be confirmed');});
       if(!result.handle&&!result.result)throw new Error('submission_ambiguous');
       await env.DB.prepare("UPDATE account_jobs SET provider_task = ?, result_json = ?, state = ?, updated_at = ? WHERE id = ? AND deleted = 0 AND state NOT IN ('saved','failed','cancelled')")
         .bind(result.handle?JSON.stringify(result.handle):null,result.result?JSON.stringify(result.result):null,result.result?'saving':'running',Date.now(),jobId).run();
@@ -44,7 +46,7 @@ export async function runGeneration(env:Env,jobId:string,step:DurableStep,overri
       if(!job.provider_task)throw new Error('submission_ambiguous');
       const outcome=await step.do(`poll-${attempt}`,SAFE,async()=>{
         const current=await getJob(env,jobId);if(!current)return 'deleted';
-        const status=await adapter().poll(env,current,JSON.parse(current.provider_task!) as ProviderHandle);
+        const status=await adapter().poll(env,current,JSON.parse(current.provider_task!) as ProviderHandle).catch(()=>{throw new Error('Provider status could not be read');});
         if(status.state==='failed'){await finishJob(env,jobId,'failed','provider_failed');return 'failed';}
         if(status.state==='success'){
           if(!status.result)throw new Error('Missing result');
@@ -70,7 +72,7 @@ export async function runGeneration(env:Env,jobId:string,step:DurableStep,overri
         // serializable outcome instead of relying on a custom Error surviving
         // the Workflow boundary with its prototype and code intact.
         if(error instanceof AccountError&&error.code==='storage_full')return 'storage_full';
-        throw error;
+        throw new Error('Output transfer could not finish');
       }
       await finishJob(env,jobId,'saved');
       return 'saved';
