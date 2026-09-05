@@ -19,13 +19,13 @@ export function useCloudWorkspace(provider:CloudProvider) {
   const uncertain=status==='unavailable'&&!session;
   const cloud=signedIn&&browserOwner!==owner||uncertain&&!guestOverride;
   const enabled=Boolean(session?.providers?.includes(provider));
-  const connected=Boolean(session?.connections?.some(c=>c.provider===provider)||provider==='pollinations');
+  const connected=Boolean(session?.connections?.some(c=>c.provider===provider));
   async function perform(request:Omit<CloudJobRequest,'provider'|'referenceIds'>,files:File[]) {
     if(!owner||!cloud)throw new Error('Your account changed. Review the generation before starting it.');
     const current=await refreshAccount();
     if(current.account?.id!==owner)throw new Error('Your account changed. Review the generation before starting it.');
     if(!current.providers.includes(provider))throw new Error('Background generation is not available for this provider yet. You can explicitly choose browser-only generation below.');
-    if(!current.connections.some(c=>c.provider===provider)&&provider!=='pollinations')throw new Error('Save this provider connection in your account before starting a background job.');
+    if(!current.connections.some(c=>c.provider===provider))throw new Error('Save this provider connection in your account before starting a background job.');
     const signature=JSON.stringify(request);
     let attempt=pending.current;
     if(!attempt||attempt.owner!==owner||attempt.signature!==signature||attempt.files.length!==files.length||files.some((file,i)=>file!==attempt!.files[i])){

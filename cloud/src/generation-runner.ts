@@ -17,6 +17,15 @@ export async function runGeneration(env:Env,jobId:string,step:DurableStep,overri
     await step.do('submit',SINGLE,async()=>{
       const current=await getJob(env,jobId);
       if(!current||current.provider_task||current.result_json)return;
+      // A synchronous response may have reached R2 before D1 was committed.
+      // Recover that object even though repeating the paid call is forbidden.
+      if(current.state!=='queued' && adapter.recover){
+        const recovered=await adapter.recover(env,current);
+        if(recovered){
+          await env.DB.prepare("UPDATE account_jobs SET result_json=?,state='saving',updated_at=? WHERE id=? AND deleted=0").bind(JSON.stringify(recovered),Date.now(),jobId).run();
+          return;
+        }
+      }
       // On replay after a process loss, submitting is ambiguous. Never charge again.
       if(current.state!=='queued')throw new Error('submission_ambiguous');
       const claimed=await env.DB.prepare("UPDATE account_jobs SET state = 'submitting', updated_at = ? WHERE id = ? AND state = 'queued' AND deleted = 0").bind(Date.now(),jobId).run();

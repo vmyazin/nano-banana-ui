@@ -39,6 +39,7 @@ const VIDEO_SIZES: Record<string, string> = {
 };
 
 interface CometImageEnvelope {
+  output_format?: string;
   data?: Array<{ url?: string; b64_json?: string }>;
   error?: { message?: string };
 }
@@ -85,7 +86,7 @@ export async function cometGenerateImage(request: ImageRequest): Promise<ImageRe
   const first = payload.data?.[0];
   // GPT image models answer with base64 and ignore response_format; others hand
   // back a URL. Take whichever arrived.
-  if (first?.b64_json) return { base64: first.b64_json, mimeType: 'image/png' };
+  if (first?.b64_json) return { base64: first.b64_json, mimeType: payload.output_format === 'jpeg' ? 'image/jpeg' : payload.output_format === 'webp' ? 'image/webp' : 'image/png' };
   if (first?.url) return { url: first.url };
   throw new ProviderError('CometAPI accepted the request but returned no image.', 502, 'comet');
 }
@@ -168,8 +169,8 @@ export async function cometPollVideo(args: { apiKey: string; taskId: string }): 
 export function dataUrlToBlob(dataUrl: string): Blob {
   const [header, encoded] = dataUrl.split(',');
   const mime = /data:([^;]+)/.exec(header)?.[1] ?? 'image/png';
-  const binary = Buffer.from(encoded ?? '', 'base64');
-  return new Blob([new Uint8Array(binary)], { type: mime });
+  const binary = Uint8Array.from(atob(encoded ?? ''), char => char.charCodeAt(0));
+  return new Blob([binary], { type: mime });
 }
 
 export const cometAdapter: ProviderAdapter = {

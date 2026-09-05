@@ -9,6 +9,7 @@ import { runGeneration } from '../src/generation-runner';
 import { atlasPollVideo } from '../../lib/providers/atlas';
 import type { Env } from '../src/security';
 import type { CloudJobRequest } from '../../lib/account/contracts';
+import { memoryBucket } from './bucket';
 
 let db: DatabaseSync, env: Env;
 const request: CloudJobRequest = {provider:'runware', modelId:'runware:400@1', mediaType:'image', inputMode:'text', prompt:'A product photograph', values:{aspectRatio:'16:9'}, referenceIds:[]};
@@ -21,6 +22,27 @@ beforeEach(async () => {
 afterEach(() => {vi.unstubAllGlobals(); db.close();});
 
 describe('durable aggregator adapters', () => {
+  it('submits Comet video form fields and polls its returned task ID',async()=>{
+    env.CLOUD_GENERATION_PROVIDERS='comet';await saveConnection(env,'owner','comet',{apiKey:'comet-test-secret'});
+    const fetchMock=vi.fn().mockResolvedValueOnce(Response.json({id:'comet-task',status:'queued'})).mockResolvedValueOnce(Response.json({status:'completed',video_url:'https://filesystem.site/result.mp4'}));vi.stubGlobal('fetch',fetchMock);
+    const r:CloudJobRequest={...request,provider:'comet',modelId:'seedance-2-5',mediaType:'video',values:{durationSeconds:6,size:'720p · 16:9'}};
+    validateRequest(env,r);const job=await acceptJob(env,'owner','comet-video-token',r),provider=adapterFor(env,'comet');
+    const result=await provider.submit(env,job);
+    expect(result.handle).toEqual({id:'comet-task'});
+    const form=fetchMock.mock.calls[0][1].body as FormData;
+    expect(form.get('seconds')).toBe('6');expect(form.get('size')).toBe('1280x720');
+    expect(await provider.poll(env,job,result.handle!)).toMatchObject({state:'success',result:{sources:[{url:'https://filesystem.site/result.mp4'}]}});
+  });
+  it('stages Comet base64 with its documented output MIME and supports recovery',async()=>{
+    env.CLOUD_GENERATION_PROVIDERS='comet';env.ASSETS=memoryBucket().bucket;await saveConnection(env,'owner','comet',{apiKey:'comet-test-secret'});
+    const fetchMock=vi.fn().mockResolvedValue(Response.json({output_format:'jpeg',data:[{b64_json:'AQID'}]}));vi.stubGlobal('fetch',fetchMock);
+    const r:CloudJobRequest={...request,provider:'comet',modelId:'gpt-image-2'};
+    validateRequest(env,r);const job=await acceptJob(env,'owner','comet-image-token',r),provider=adapterFor(env,'comet');
+    const result=await provider.submit(env,job);
+    expect(result.result?.sources[0]).toMatchObject({mimeType:'image/jpeg',objectKey:`accounts/owner/jobs/${job.id}/0`});
+    expect(await provider.recover!(env,job)).toEqual(result.result);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
   it('submits async images with the shared payload and polls the same UUID', async () => {
     const fetchMock = vi.fn().mockResolvedValueOnce(Response.json({data:[]})).mockResolvedValueOnce(Response.json({data:[{imageURL:'https://im.runware.ai/result.jpg',cost:0.03}]}));
     vi.stubGlobal('fetch', fetchMock);

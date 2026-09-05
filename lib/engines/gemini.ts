@@ -15,6 +15,9 @@ export interface EngineResult {
 interface GeminiOpts {
   prompt?: string;
   images?: string[]; // base64 (already stripped of data: prefix)
+  referenceImages?: Array<{data: string; mimeType: string}>;
+  /** Durable callers must never inherit the SDK's default paid retries. */
+  singleAttempt?: boolean;
   config?: {
     aspectRatio?: string;
     imageSize?: string;
@@ -26,13 +29,14 @@ interface GeminiOpts {
 const MODEL = 'gemini-3-pro-image-preview';
 
 export async function geminiGenerate(opts: GeminiOpts): Promise<EngineResult> {
-  const ai = new GoogleGenAI({ apiKey: opts.apiKey });
+  const ai = new GoogleGenAI({ apiKey: opts.apiKey, ...(opts.singleAttempt ? {httpOptions:{retryOptions:{attempts:1}}} : {}) });
 
   const promptParts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> = [];
   if (opts.prompt) promptParts.push({ text: opts.prompt });
   for (const img of opts.images || []) {
     promptParts.push({ inlineData: { mimeType: 'image/png', data: img } });
   }
+  for (const reference of opts.referenceImages || []) promptParts.push({inlineData:reference});
 
   // Generation params must be nested under `config` (not spread at top level),
   // or @google/genai silently ignores imageConfig/tools.
@@ -54,10 +58,14 @@ export async function geminiGenerate(opts: GeminiOpts): Promise<EngineResult> {
   });
 
   let imageData: string | null = null;
+  let mimeType = 'image/png';
   const parts = response.candidates?.[0]?.content?.parts;
   if (parts) {
     for (const part of parts) {
-      if (part.inlineData?.data) imageData = part.inlineData.data;
+      if (part.inlineData?.data) {
+        imageData = part.inlineData.data;
+        mimeType = part.inlineData.mimeType || 'image/png';
+      }
     }
   }
 
@@ -74,5 +82,5 @@ export async function geminiGenerate(opts: GeminiOpts): Promise<EngineResult> {
       ? { promptTokens: meta.promptTokenCount ?? 0, outputTokens: meta.candidatesTokenCount }
       : undefined;
 
-  return { imageData, mimeType: 'image/png', usage };
+  return { imageData, mimeType, usage };
 }

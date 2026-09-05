@@ -1,6 +1,7 @@
 import type { CloudJobRequest, CloudJobState, CloudJobView } from '../../lib/account/contracts';
 import { hash, type Env } from './security';
 import type { Provider } from './vault';
+import { MAX_INLINE_INPUT_BYTES } from './limits';
 export const FREE_BYTES = 1_000_000_000;
 export const MAX_ACTIVE_JOBS = 3;
 export const IMAGE_RESERVATION = 64_000_000;
@@ -30,8 +31,12 @@ export async function acceptJob(env: Env, owner: string, token: string, request:
   const digest = await hash(canonical(request));
   const existing = await env.DB.prepare('SELECT * FROM account_jobs WHERE user_id = ? AND request_token = ?').bind(owner, token).first<JobRow>();
   if (existing) { if (existing.request_digest !== digest || existing.deleted) throw new AccountError('Submission token already used.', 409, 'token_conflict'); return existing; }
-  const connection = ['pollinations', 'local-test'].includes(request.provider) ? null : await env.DB.prepare('SELECT id, revision FROM account_connections WHERE user_id = ? AND provider = ?').bind(owner, request.provider as Provider).first<{ id: string; revision: number }>();
-  if (!connection && !['pollinations', 'local-test'].includes(request.provider)) throw new AccountError('Save this provider connection in your account first.', 409, 'connection_required');
+  if (request.provider === 'gemini' || request.provider === 'comet') {
+    const inputs = await env.DB.prepare('SELECT COALESCE(SUM(expected_bytes),0) AS bytes FROM account_uploads WHERE user_id=? AND id IN (SELECT value FROM json_each(?))').bind(owner,references).first<{bytes:number}>();
+    if ((inputs?.bytes ?? 0) > MAX_INLINE_INPUT_BYTES) throw new AccountError('This provider accepts up to 12 MB of reference images per background job. Use smaller images.',400,'inline_input_size');
+  }
+  const connection = request.provider === 'local-test' ? null : await env.DB.prepare('SELECT id, revision FROM account_connections WHERE user_id = ? AND provider = ?').bind(owner, request.provider as Provider).first<{ id: string; revision: number }>();
+  if (!connection && request.provider !== 'local-test') throw new AccountError('Save this provider connection in your account first.', 409, 'connection_required');
   const id = crypto.randomUUID(), now = Date.now();
   const reservation = request.mediaType === 'video' ? VIDEO_RESERVATION : IMAGE_RESERVATION;
   await env.DB.batch([

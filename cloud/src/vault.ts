@@ -1,6 +1,6 @@
 import type { Env } from './security';
 
-export const PROVIDERS = ['gemini', 'fal', 'kie', 'runware', 'atlas', 'comet', 'cloudflare'] as const;
+export const PROVIDERS = ['gemini', 'fal', 'kie', 'runware', 'atlas', 'comet', 'cloudflare', 'pollinations'] as const;
 export type Provider = typeof PROVIDERS[number];
 export interface Secret { apiKey: string; accountId?: string }
 interface Envelope { ciphertext: string; nonce: string; key_version: string }

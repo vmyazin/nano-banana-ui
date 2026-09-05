@@ -2,6 +2,11 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { useCloudWorkspace } from '@/lib/account/useCloudWorkspace';
+import { SINGLE_IMAGE_MODELS } from '@/lib/account/models';
+import { featureImagePrompt } from '@/lib/image/feature-prompt';
+import CloudExecutionNotice from '@/components/account/CloudExecutionNotice';
+import CloudJobPanel from '@/components/account/CloudJobPanel';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useMutation } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -158,11 +163,12 @@ function isSafeFalMediaUrl(value: string) {
 
 interface EngineSelectorProps {
   engines: EngineMeta[];
+  accountMode?: boolean;
   activeEngineId: EngineId;
   onSelect: (engineId: EngineId) => void;
 }
 
-function EngineSelector({ engines, activeEngineId, onSelect }: EngineSelectorProps) {
+function EngineSelector({ engines, activeEngineId, onSelect, accountMode = false }: EngineSelectorProps) {
   if (engines.length <= 1) return null;
 
   return (
@@ -179,7 +185,7 @@ function EngineSelector({ engines, activeEngineId, onSelect }: EngineSelectorPro
               key={engine.id}
               type="button"
               onClick={() => onSelect(engine.id)}
-              title={engine.blurb}
+              title={accountMode && engine.id === 'pollinations' ? 'Background generation uses your saved Pollinations key and provider balance.' : engine.blurb}
               className={`inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full border transition-colors ${
                 active
                   ? 'border-[var(--neon-cyan)] text-[var(--neon-cyan)] bg-[var(--neon-cyan)]/10'
@@ -188,7 +194,7 @@ function EngineSelector({ engines, activeEngineId, onSelect }: EngineSelectorPro
             >
               <ProviderLogo provider={engine.id} size={13} />
               {engine.label}
-              {engine.free && (
+              {engine.free && !(accountMode && engine.id === 'pollinations') && (
                 <span className="text-[0.62rem] uppercase tracking-wide text-emerald-400">
                   Free
                 </span>
@@ -279,6 +285,10 @@ export default function GenerationInterface({ feature, apiKey, onBack, onOpenCon
   // themselves from the engine registry, so only the model-picking ones answer here.
   const activeModelId = activeProviderModel ?? (storeEngine === 'fal' ? FAL_IMAGE_MODEL.id : undefined);
 
+  const cloudWorkspace = useCloudWorkspace(activeEngine.id);
+  const cloudModelId = activeProviderModel ?? (activeEngine.id === 'fal' ? FAL_IMAGE_MODEL.id : activeEngine.id === 'gemini' || activeEngine.id === 'cloudflare' || activeEngine.id === 'pollinations' ? SINGLE_IMAGE_MODELS[activeEngine.id] : activeEngine.id);
+  const cloudInputMode = feature.requiresImage ? 'image' : 'text';
+  const [cloudSubmitting, setCloudSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   /**
    * Finished results, newest first. Not cleared anywhere on purpose:
@@ -424,27 +434,7 @@ export default function GenerationInterface({ feature, apiKey, onBack, onOpenCon
 
   const generateMutation = useMutation({
     mutationFn: async (): Promise<{ dataUrl: string; ext: string; mimeType: string; usage?: EngineUsage; cost?: number }> => {
-      // Tailor the prompt to the feature.
-      let finalPrompt = prompt;
-      if (feature.id === 'social-media-thumbnail') {
-        finalPrompt = `Create a VIRAL YouTube/Social Media thumbnail with these elements:
-- DRAMATIC, eye-catching scene with shocked/surprised facial expression
-- BIG, BOLD text overlays with key phrases (use vibrant colors like yellow, red, white)
-- Arrows, circles, or highlighting elements pointing to important parts
-- High contrast and saturated colors for maximum impact
-- Professional editing style that screams "CLICK ME!"
-- Energy and urgency in the composition
-
-User's custom requirements: ${prompt}
-
-Style: Photorealistic, professional thumbnail editing, viral content aesthetics`;
-      } else if (feature.id === 'style-transfer') {
-        if (images.length === 2) {
-          finalPrompt = prompt || 'Apply the artistic style and aesthetic from the first image to the content and composition of the second image. Preserve the subject matter of the second image while adopting the color palette, brushstrokes, texture, and artistic techniques of the first image.';
-        } else if (images.length === 1) {
-          finalPrompt = prompt || 'Transform this image into an artistic masterpiece. Apply creative stylization while maintaining the core composition and subject matter.';
-        }
-      }
+      const finalPrompt = featureImagePrompt(feature.id, prompt, images.length);
 
       if (activeEngine.id === 'fal') {
         generationAbortRef.current?.abort();
@@ -628,14 +618,14 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
   };
 
   // Derived view state from the mutation.
-  const isGenerating = generateMutation.isPending;
+  const isGenerating = generateMutation.isPending || cloudSubmitting;
   const newestResult = results[0] ?? null;
   // Feeds the format control's "Auto → …" hint, so it names the real outcome
   // for these bytes rather than assuming a PNG source.
   const generatedMimeType = newestResult?.mimeType ?? 'image/png';
   const displayError =
     error ||
-    (generateMutation.error instanceof Error &&
+    (!cloudWorkspace.cloud && generateMutation.error instanceof Error &&
     !(generateMutation.error instanceof LocalFalCancellation)
       ? generateMutation.error.message
       : null);
@@ -652,7 +642,7 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
       : undefined;
   const costLine =
     activeEngine.id === 'pollinations'
-      ? 'Free · Pollinations (FLUX)'
+      ? cloudWorkspace.cloud ? 'Provider usage rates apply · Pollinations (FLUX)' : 'Free · Pollinations (FLUX)'
       : activeEngine.id === 'cloudflare'
         ? 'Free daily tier · FLUX.1 [schnell]'
         : activeEngine.id === 'fal'
@@ -665,7 +655,8 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
     generateRef.current = () => generateMutation.mutate();
   });
 
-  const handleGenerate = () => {
+  const handleGenerate = async () => {
+    if (cloudWorkspace.checking || cloudSubmitting) return;
     // A deliberate press is a fresh start: it drops any queued attempt and hands
     // back the full retry budget.
     autoRetry.reset();
@@ -677,6 +668,31 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
     }
     if (feature.requiresImage && images.length === 0) {
       setError('Please upload at least one image');
+      return;
+    }
+    if (cloudWorkspace.cloud) {
+      if (!cloudWorkspace.connected) {
+        setError(`Save your ${activeEngine.label} connection in your account first.`);
+        onOpenConnections(activeEngine.id);
+        return;
+      }
+      const operation = generationOperationRef.current;
+      setError(null);
+      setCloudSubmitting(true);
+      try {
+        const cloudPrompt = featureImagePrompt(feature.id, prompt, references.length) || 'Edit this image while preserving its subject and composition.';
+        const values: Record<string,string|number|boolean> = activeEngine.id === 'fal'
+          ? {aspect_ratio:config.aspectRatio ?? 'auto',resolution:config.imageSize ?? '1K',enable_web_search:Boolean(config.useGoogleSearch)}
+          : activeProvider || activeEngine.id === 'pollinations'
+            ? {aspectRatio:config.aspectRatio ?? '16:9'}
+            : activeEngine.id === 'cloudflare' ? {}
+              : {aspectRatio:config.aspectRatio ?? '16:9',imageSize:config.imageSize ?? '1K',useGoogleSearch:Boolean(config.useGoogleSearch)};
+        await cloudWorkspace.submit({modelId:cloudModelId,mediaType:'image',inputMode:cloudInputMode,prompt:cloudPrompt,values},feature.requiresImage ? references.map(reference => reference.file) : []);
+      } catch (caught) {
+        if (mountedRef.current && generationOperationRef.current === operation) setError(caught instanceof Error ? caught.message : 'Could not confirm this background job.');
+      } finally {
+        if (mountedRef.current) setCloudSubmitting(false);
+      }
       return;
     }
     if (activeEngine.id === 'cloudflare' && !hasCfCreds) {
@@ -851,6 +867,7 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
         engineSelector={
           <EngineSelector
             engines={availableEngines}
+        accountMode={cloudWorkspace.cloud}
             activeEngineId={activeEngine.id}
             onSelect={handleEngineSelect}
           />
@@ -892,9 +909,12 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
 
       <EngineSelector
         engines={availableEngines}
+        accountMode={cloudWorkspace.cloud}
         activeEngineId={activeEngine.id}
         onSelect={handleEngineSelect}
       />
+
+      <CloudExecutionNotice workspace={cloudWorkspace} />
 
       {/* Same shape as the Model card in the Kie and fal workspaces: a select
           of what this provider serves, with the vendor's own description of the
@@ -1163,7 +1183,7 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
           {/* Generate Button */}
           <button
             onClick={handleGenerate}
-            disabled={isGenerating}
+            disabled={isGenerating || cloudWorkspace.checking}
             className="btn-primary w-full py-3 text-base flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isGenerating ? (
@@ -1200,7 +1220,7 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
         </motion.div>
 
         {/* Output Section */}
-        <motion.div
+        {cloudWorkspace.cloud ? <CloudJobPanel provider={activeEngine.id} modelId={cloudModelId} mediaType="image" inputMode={cloudInputMode} /> : <motion.div
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
           className="glass-card p-4 space-y-3"
@@ -1231,7 +1251,7 @@ Style: Photorealistic, professional thumbnail editing, viral content aesthetics`
               </div>
             }
           />
-        </motion.div>
+        </motion.div>}
       </div>
     </div>
   );

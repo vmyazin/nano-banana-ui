@@ -3,7 +3,7 @@ export { byteRange } from './range';
 import { currentAccount } from './sessions';
 import { json, type Env } from './security';
 import { acceptJob, AccountError, dispatchJob, getJob, jobView, type JobRow } from './jobs';
-import { validateRequest } from './providers';
+import { adapterFor, validateRequest } from './providers';
 import { assetView, deleteAsset, getAsset } from './assets';
 
 export async function jobRoutes(request:Request,env:Env):Promise<Response|null>{
@@ -35,6 +35,13 @@ export async function jobRoutes(request:Request,env:Env):Promise<Response|null>{
       const job=await getJob(env,jobMatch[1],account.id);if(!job)return json({error:'Job not found.'},404);
       if(request.method==='GET'&&!jobMatch[2])return json({job:jobView(job)});
       if(request.method==='POST'&&jobMatch[2]){
+        if(job.state==='needs_attention'&&!job.provider_task&&!job.result_json){
+          const result=await adapterFor(env,job.provider).recover?.(env,job);
+          if(result){
+            job.result_json=JSON.stringify(result);
+            await env.DB.prepare("UPDATE account_jobs SET result_json=? WHERE id=? AND state='needs_attention' AND deleted=0").bind(job.result_json,job.id).run();
+          }
+        }
         if(job.state!=='needs_attention'||(!job.provider_task&&!job.result_json))return json({error:'This submission needs provider reconciliation before it can be resumed.'},409);
         await env.DB.prepare("UPDATE account_jobs SET state = ?, workflow_attempt = workflow_attempt + 1, dispatched = 0, error_code = NULL WHERE id = ? AND state = 'needs_attention'").bind(job.result_json?'saving':'running',job.id).run();
         const resumed=await getJob(env,job.id,account.id);

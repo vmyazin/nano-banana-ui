@@ -8,7 +8,7 @@ import { useAccountStore } from '@/store/useAccountStore';
 import { accountChanged, refreshAccount } from '@/lib/account/session';
 import { AccountSurface } from './AccountSurface';
 
-const providers = ENGINES.filter(engine => engine.requiresApiKey).map(engine => [engine.id, engine.label] as const);
+const providers = ENGINES.map(engine => [engine.id, engine.label] as const);
 interface Connection { id: string; provider: string; revision: number; hint: string }
 export default function AccountConnections({initialProvider='gemini'}:{initialProvider?:string}) {
   const ownerId=useAccountStore(state=>state.session?.account?.id);

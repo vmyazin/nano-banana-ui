@@ -2,6 +2,14 @@
 
 Status: implementation in progress. Reviewed 2026-09-04. This records evidence and gaps; it is not a claim that every provider is enabled.
 
+## Follow-up implementation status — 2026-09-05
+
+This supersedes the implementation gaps in the initial table below. All eight engines now have Worker adapters: fal/Kie/Runware/Atlas use persisted handles; Comet uses video handles or synchronous image results; Gemini/Cloudflare/Pollinations stage synchronous outputs. All studio image/video workspaces use the shared account submit and results boundary. Production enablement still defaults off, and credentialed verification, maximum output sizes and retention remain outstanding.
+
+The installed Google SDK documents `httpOptions.retryOptions.attempts: 1` as disabling retries. A mocked HTTP 503 test confirms one network call. Reference MIME is preserved; total inline inputs are capped at 12 MB before acceptance, and inline base64 outputs at 24 MB to bound Worker memory. These are app limits, not vendor guarantees. A result that reached R2 before its D1 commit can be recovered without repeating generation. A response lost before R2 remains ambiguous. Pollinations streams its response instead of making a base64 copy.
+
+Current [Pollinations authentication docs](https://github.com/pollinations/pollinations/blob/main/gen.pollinations.ai/src/docs/apidocs-recipes.md) require a bearer key on generation endpoints. Account execution uses the encrypted key and `gen.pollinations.ai/image`; the original guest endpoint remains unchanged. Its public model metadata returned 403 from this environment, so live service verification is unresolved. Current [Comet image docs](https://apidoc.cometapi.com/api/image/openai/images) return `output_format`; the shared parser now preserves JPEG/WebP instead of labelling every base64 result PNG. [Comet video status](https://apidoc.cometapi.com/api/video/seedance/query) provides a task ID and expiring result URL. The existing catalog model IDs are retained; no model migration was included.
+
 ## Recovery contract
 
 A client submission token deduplicates our intake, not the vendor's paid request. Persist submission intent before making the vendor call; persist its task handle immediately after acceptance. A lost acceptance response is ambiguous unless the vendor supplies a documented reconciliation mechanism. Never infer deduplication from a task UUID alone. Polling and copying existing results can retry; paid submission cannot.

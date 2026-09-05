@@ -21,7 +21,9 @@ export async function cloudflareGenerate(opts: CloudflareOpts): Promise<EngineRe
     body: JSON.stringify({ prompt: opts.prompt, steps: 8 }),
   });
 
-  const data = await res.json().catch(() => null);
+  const data = await res.json().catch(() => null) as {
+    success?: boolean; errors?: Array<{message?: string}>; result?: {image?: string}; image?: string;
+  } | null;
   if (!res.ok || (data && data.success === false)) {
     const msg =
       data?.errors?.[0]?.message ||

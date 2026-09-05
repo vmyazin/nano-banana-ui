@@ -15,20 +15,27 @@ const DIMS: Record<string, [number, number]> = {
 interface PollinationsOpts {
   prompt: string;
   aspectRatio?: string;
+  /** Omitted preserves the existing guest endpoint. */
+  apiKey?: string;
 }
 
-export async function pollinationsGenerate(opts: PollinationsOpts): Promise<EngineResult> {
+export async function pollinationsResponse(opts: PollinationsOpts): Promise<Response> {
   const [width, height] = DIMS[opts.aspectRatio ?? '1:1'] ?? [1024, 1024];
   const seed = Math.floor(Math.random() * 2_000_000_000);
   const url =
-    `https://image.pollinations.ai/prompt/${encodeURIComponent(opts.prompt)}` +
+    `${opts.apiKey ? 'https://gen.pollinations.ai/image/' : 'https://image.pollinations.ai/prompt/'}${encodeURIComponent(opts.prompt)}` +
     `?width=${width}&height=${height}&model=flux&nologo=true&seed=${seed}`;
 
-  const res = await fetch(url);
+  const res = await fetch(url, opts.apiKey ? {headers:{Authorization:`Bearer ${opts.apiKey}`},redirect:'error'} : undefined);
   if (!res.ok) {
     throw new Error(`Pollinations returned ${res.status}. The free service may be busy — try again.`);
   }
 
+  return res;
+}
+
+export async function pollinationsGenerate(opts: PollinationsOpts): Promise<EngineResult> {
+  const res = await pollinationsResponse(opts);
   const buf = Buffer.from(await res.arrayBuffer());
   if (buf.length < 100) {
     throw new Error('Pollinations returned an empty image. Please try again.');
