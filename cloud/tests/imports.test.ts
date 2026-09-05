@@ -29,7 +29,7 @@ const route=(path:string,method='GET')=>importRoutes(new Request(`http://localho
 
 beforeEach(async()=>{
   db=new DatabaseSync(':memory:');db.exec(LOCAL_SCHEMA);
-  db.exec("INSERT INTO account_users VALUES ('owner','google','test@example.test','Test',1),('other','google2','other@example.test','Other',1)");
+  db.exec("INSERT INTO account_users (id,google_subject,email,name,created_at) VALUES ('owner','google','test@example.test','Test',1),('other','google2','other@example.test','Other',1)");
   bucketState=memoryBucket();
   env={DB:adapter(db),ASSETS:bucketState.bucket,APP_ORIGIN:'http://localhost:3097',PUBLIC_WORKER_ORIGIN:'http://localhost:8797'};
   cookie=(await createSession(env,{subject:'google',email:'test@example.test',name:'Test'})).split(';')[0];

@@ -15,7 +15,7 @@ let db: DatabaseSync, env: Env;
 const request: CloudJobRequest = {provider:'runware', modelId:'runware:400@1', mediaType:'image', inputMode:'text', prompt:'A product photograph', values:{aspectRatio:'16:9'}, referenceIds:[]};
 beforeEach(async () => {
   db = new DatabaseSync(':memory:'); db.exec(LOCAL_SCHEMA);
-  db.exec("INSERT INTO account_users VALUES ('owner','google','test@example.test','Test',1)");
+  db.exec("INSERT INTO account_users (id,google_subject,email,name,created_at) VALUES ('owner','google','test@example.test','Test',1)");
   env = {DB:adapter(db), APP_ORIGIN:'http://localhost:3097', CLOUD_GENERATION_PROVIDERS:'runware,atlas', ACCOUNT_ENCRYPTION_VERSION:'1', ACCOUNT_ENCRYPTION_KEYS:JSON.stringify({'1':btoa('x'.repeat(32))})};
   await saveConnection(env,'owner','runware',{apiKey:'local-test-secret'});
 });

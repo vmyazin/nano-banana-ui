@@ -16,7 +16,7 @@ let db: DatabaseSync, env: Env;
 const request: CloudJobRequest = {provider:'gemini', modelId:'gemini-3-pro-image-preview', mediaType:'image', inputMode:'text', prompt:'A product photo', values:{imageSize:'1K'},referenceIds:[]};
 const step:DurableStep = {do:async(_name,_config,fn)=>fn(),sleep:async()=>{}};
 beforeEach(async () => {
-  db=new DatabaseSync(':memory:');db.exec(LOCAL_SCHEMA);db.exec("INSERT INTO account_users VALUES ('owner','google','test@example.test','Test',1)");
+  db=new DatabaseSync(':memory:');db.exec(LOCAL_SCHEMA);db.exec("INSERT INTO account_users (id,google_subject,email,name,created_at) VALUES ('owner','google','test@example.test','Test',1)");
   env={DB:adapter(db),ASSETS:memoryBucket().bucket,APP_ORIGIN:'http://localhost:3097',CLOUD_GENERATION_PROVIDERS:'gemini,cloudflare',ACCOUNT_ENCRYPTION_VERSION:'1',ACCOUNT_ENCRYPTION_KEYS:JSON.stringify({'1':btoa('x'.repeat(32))})};
   await saveConnection(env,'owner','gemini',{apiKey:'test-gemini-secret'});
 });

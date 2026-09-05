@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, Check, LogOut, RefreshCw, WalletCards } from 'lucide-react';
+import { ArrowRight, LogOut, RefreshCw, WalletCards } from 'lucide-react';
+import AccountAvatar from './AccountAvatar';
 import AccountAssetImport from './AccountAssetImport';
 import AccountConnections from './AccountConnections';
 import AccountDeletion from './AccountDeletion';
@@ -102,7 +103,7 @@ export default function AccountDashboard() {
         <AccountSurface label="Account overview" className="mt-8">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex min-w-0 items-center gap-3">
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-emerald-400/10 text-emerald-400"><Check size={20} aria-hidden="true" /></span>
+              <AccountAvatar name={account.name} picture={account.picture} />
               <div className="min-w-0"><p className="truncate font-medium text-[var(--foreground)]">{account.name}</p><p className="break-all text-sm text-[var(--foreground-muted)]">{account.email}</p></div>
             </div>
             <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap lg:justify-end">

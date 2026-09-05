@@ -71,6 +71,26 @@ describe('account pages', () => {
     expect(screen.getByRole('link', { name: 'View spend' })).toHaveAttribute('href', '/spend');
   });
 
+  it('shows the Google photo and recovers from a failed photo when its URL changes', () => {
+    const picture = 'https://lh3.googleusercontent.com/a/first';
+    useAccountStore.getState().applySession({ ...signedInSession, account: { ...owner, picture } });
+    render(<AccountPage />);
+    const avatar = screen.getByRole('img', { name: "Ada Creator's profile photo" });
+    expect(avatar).toHaveAttribute('src', picture);
+    fireEvent.error(avatar);
+    expect(screen.queryByRole('img', { name: "Ada Creator's profile photo" })).toBeNull();
+    expect(screen.getByText('Ada Creator')).toBeInTheDocument();
+    act(() => useAccountStore.getState().applySession({ ...signedInSession, account: { ...owner, picture: 'https://lh3.googleusercontent.com/a/new' } }));
+    expect(screen.getByRole('img', { name: "Ada Creator's profile photo" })).toHaveAttribute('src', 'https://lh3.googleusercontent.com/a/new');
+  });
+
+  it.each([null, 'https://unrelated.example.test/avatar.png'])('keeps the identity visible without loading an unavailable or unsupported photo', picture => {
+    useAccountStore.getState().applySession({ ...signedInSession, account: { ...owner, picture } });
+    render(<AccountPage />);
+    expect(screen.queryByRole('img', { name: "Ada Creator's profile photo" })).toBeNull();
+    expect(screen.getByText('Ada Creator')).toBeInTheDocument();
+  });
+
   it('redirects signed-in visitors away from both authentication entry points', async () => {
     signedIn();
     const view = render(await SignInPage({ searchParams: Promise.resolve({}) }));

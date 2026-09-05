@@ -10,7 +10,7 @@ import type { Env } from '../src/security';
 import type { GenerationAdapter } from '../src/providers';
 const step:DurableStep={do:async(_name,_config,fn)=>fn(),sleep:async()=>{}};
 let db:DatabaseSync,env:Env;
-beforeEach(()=>{db=new DatabaseSync(':memory:');db.exec(LOCAL_SCHEMA);db.exec("INSERT INTO account_users VALUES ('owner','google','test@example.test','Test',1)");env={DB:adapter(db),ASSETS:memoryBucket().bucket,APP_ORIGIN:'http://localhost:3097'};});
+beforeEach(()=>{db=new DatabaseSync(':memory:');db.exec(LOCAL_SCHEMA);db.exec("INSERT INTO account_users (id,google_subject,email,name,created_at) VALUES ('owner','google','test@example.test','Test',1)");env={DB:adapter(db),ASSETS:memoryBucket().bucket,APP_ORIGIN:'http://localhost:3097'};});
 afterEach(()=>db.close());
 const job=()=>acceptJob(env,'owner','workflow-test-token',{provider:'local-test',modelId:'local-test',mediaType:'image',inputMode:'text',prompt:'test',values:{},referenceIds:[]});
 describe('background generation and capture',()=>{

@@ -10,7 +10,7 @@ const request: CloudJobRequest = { provider: 'local-test', modelId: 'local-test'
 let db: DatabaseSync, env: Env;
 beforeEach(() => {
   db = new DatabaseSync(':memory:'); db.exec(LOCAL_SCHEMA);
-  db.exec("INSERT INTO account_users VALUES ('owner','google-owner','owner@example.test','Owner',1),('other','google-other','other@example.test','Other',1)");
+  db.exec("INSERT INTO account_users (id,google_subject,email,name,created_at) VALUES ('owner','google-owner','owner@example.test','Owner',1),('other','google-other','other@example.test','Other',1)");
   env = { DB: adapter(db), APP_ORIGIN: 'http://localhost:3097' };
 });
 afterEach(() => db.close());

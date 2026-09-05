@@ -7,7 +7,7 @@ import type { Env } from '../src/security';
 import type { CloudJobRequest } from '../../lib/account/contracts';
 let db: DatabaseSync, env: Env;
 const request: CloudJobRequest = { provider: 'local-test', modelId: 'local-test', mediaType: 'image', inputMode: 'text', prompt: 'A local test', values: {}, referenceIds: [] };
-beforeEach(() => { db = new DatabaseSync(':memory:'); db.exec(LOCAL_SCHEMA); db.exec("INSERT INTO account_users VALUES ('owner','google','test@example.test','Test',1)"); env = { DB: adapter(db), APP_ORIGIN: 'http://localhost:3097' }; });
+beforeEach(() => { db = new DatabaseSync(':memory:'); db.exec(LOCAL_SCHEMA); db.exec("INSERT INTO account_users (id,google_subject,email,name,created_at) VALUES ('owner','google','test@example.test','Test',1)"); env = { DB: adapter(db), APP_ORIGIN: 'http://localhost:3097' }; });
 afterEach(() => db.close());
 describe('durable job intake', () => {
   it('accepts one job for concurrent repeated submissions and reserves exactly once', async () => {

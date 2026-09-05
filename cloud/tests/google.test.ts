@@ -26,7 +26,16 @@ async function mockGoogle(overrides = {}, corrupt = false) {
 }
 const exchange = () => googleIdentity(env, new URL('https://app.example.test/api/account/callback/google?code=code&state=state'), 'state', 'verifier', 'nonce');
 describe('Google OIDC verification', () => {
-  it('accepts a signed matching identity', async () => { await mockGoogle(); expect(await exchange()).toEqual({ subject: 'google-subject', email: 'creator@example.test', name: 'Creator' }); });
+  it('accepts a signed matching identity', async () => { await mockGoogle(); expect(await exchange()).toEqual({ subject: 'google-subject', email: 'creator@example.test', name: 'Creator', picture: null }); });
   it.each([{ aud: 'another-client' }, { iss: 'https://evil.test' }, { nonce: 'wrong' }, { exp: 1 }, { email_verified: false }])('rejects invalid claims %j', async claims => { await mockGoogle(claims); await expect(exchange()).rejects.toThrow(); });
-  it('rejects an invalid signature', async () => { await mockGoogle({}, true); await expect(exchange()).rejects.toThrow(); });
+  it('retains the profile photo from a verified Google token', async () => {
+    const picture = 'https://lh3.googleusercontent.com/a/profile=s96-c';
+    await mockGoogle({ picture });
+    expect((await exchange()).picture).toBe(picture);
+  });
+  it.each(['http://lh3.googleusercontent.com/a', 'https://googleusercontent.com.evil.test/a', 'https://evil.test/a', 'javascript:alert(1)', 'https://user@lh3.googleusercontent.com/a', 42, 'https://lh3.googleusercontent.com/' + 'x'.repeat(2048)])('ignores unsupported profile photo %s', async picture => {
+    await mockGoogle({ picture });
+    expect((await exchange()).picture).toBeNull();
+  });
+  it('rejects an invalid signature' , async () => { await mockGoogle({}, true); await expect(exchange()).rejects.toThrow(); });
 });

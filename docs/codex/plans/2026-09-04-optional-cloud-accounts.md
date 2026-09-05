@@ -1,5 +1,30 @@
 # Optional accounts and durable cloud generation — implementation plan
 
+## Follow-up decision — 2026-09-05 Google account avatar
+
+User requested the Google profile photo in the existing account overview.
+Boundary: validated picture claim in `cloud/src/google.ts`, nullable user photo
+in `cloud/src/sessions.ts`, migration `0011_account_avatar.sql`, and idempotent
+local bootstrap in `cloud/src/index.ts`/`schema.ts`. Share URL validation through
+`lib/account/profile-picture.ts`; expose the optional field in
+`store/useAccountStore.ts` and render it through reusable
+`components/account/AccountAvatar.tsx` in `AccountDashboard.tsx`.
+Keep the current circle size and subdued color, fall back on missing/failed
+photos, and refresh the stored photo on Google sign-in. Do not modify guest
+studio layout, permissions/scopes, provider behavior, or existing account data.
+Verify signed-claim validation, old-schema upgrade and profile updates through
+Worker tests; UI photo/error/recovery through account tests; both typechecks,
+focused lint, and a real Google sign-in/browser image load. No deploy or push.
+
+Verification: 1,553 application tests and 136 Worker tests passed, both
+typechecks and focused lint passed. A real returning Google sign-in populated
+the photo; browser inspection confirmed the 44 × 44 image loaded. Existing
+local schema upgrade and concurrent first requests are covered. Old Worker
+test fixtures now name their user columns explicitly so nullable schema
+additions do not change fixture semantics. Delegation was attempted but the
+worker service rejected it at its task limit; the parent implemented and
+verified this follow-up directly.
+
 ## Follow-up decision — 2026-09-05 local Google OAuth verified
 
 This updates task 10 and supersedes the earlier popup-blocked setup note.

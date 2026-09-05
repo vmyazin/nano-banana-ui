@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type { CloudAsset, CloudJobView, CloudProvider } from '@/lib/account/contracts';
 
-export interface AccountIdentity { id:string; name:string; email:string }
+export interface AccountIdentity { id:string; name:string; email:string; picture?:string|null }
 export interface AccountConnection { id:string;provider:string;revision:number;hint:string }
 export interface AccountSession {
   account:AccountIdentity|null;googleEnabled:boolean;localSignIn:boolean;

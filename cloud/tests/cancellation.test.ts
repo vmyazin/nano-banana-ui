@@ -17,7 +17,7 @@ const sessions={owner:'owner-session-token-123456789012345',other:'other-session
 
 beforeEach(async()=>{
   db=new DatabaseSync(':memory:');db.exec(LOCAL_SCHEMA);
-  db.exec("INSERT INTO account_users VALUES ('owner','google-owner','owner@example.test','Owner',1),('other','google-other','other@example.test','Other',1)");
+  db.exec("INSERT INTO account_users (id,google_subject,email,name,created_at) VALUES ('owner','google-owner','owner@example.test','Owner',1),('other','google-other','other@example.test','Other',1)");
   env={DB:adapter(db),APP_ORIGIN:'http://localhost:3097'};
   for(const [owner,token] of Object.entries(sessions))await env.DB.prepare('INSERT INTO account_sessions VALUES (?,?,?)').bind(await hash(token),owner,Date.now()+60_000).run();
 });

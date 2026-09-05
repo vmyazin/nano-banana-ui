@@ -20,7 +20,7 @@ let db:DatabaseSync,env:Env;
 beforeEach(()=>{
   db=new DatabaseSync(':memory:');
   db.exec(`${LOCAL_SCHEMA}\n${JOB_OBJECT_CLEANUP_SCHEMA}`);
-  db.exec("INSERT INTO account_users VALUES ('owner','google','test@example.test','Test',1)");
+  db.exec("INSERT INTO account_users (id,google_subject,email,name,created_at) VALUES ('owner','google','test@example.test','Test',1)");
   env={DB:adapter(db),ASSETS:memoryBucket().bucket,APP_ORIGIN:'http://localhost:3097',PUBLIC_WORKER_ORIGIN:'http://localhost:8797'};
 });
 afterEach(()=>db.close());

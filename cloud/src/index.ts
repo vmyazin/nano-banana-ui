@@ -8,7 +8,7 @@ import { lifecycleRoutes } from './lifecycle';
 import { jobRoutes } from './job-routes';
 import { dispatchJob, type JobRow } from './jobs';
 import { connectionRoutes } from './connections';
-import { JOB_OBJECT_CLEANUP_SCHEMA, LOCAL_SCHEMA } from './schema';
+import { bootstrapLocalSchema } from './schema';
 import { cookie, cookieName, hash, isLocal, json, randomToken, readCookie, returnPath, validOrigin, type Env } from './security';
 import { googleAuthorization, googleEnabled, googleIdentity } from './google';
 import { createSession, currentAccount, revokeSession } from './sessions';
@@ -16,16 +16,20 @@ import { cleanupImports, importRoutes, publicImportMedia } from './imports';
 import { applyIngress, cleanupExpiredIngress } from './ingress';
 
 interface OAuthAttempt { verifier: string; nonce: string; return_to: string }
-const bootstrapped = new WeakSet<object>();
+const bootstrapped = new WeakMap<object, Promise<void>>();
 export async function handleRequest(request: Request, env: Env): Promise<Response> {
   try {
     if (!validOrigin(env)) return json({ error: 'Account service is not configured.' }, 503);
     // The local shortcut must stay absent even before production migrations exist.
     if(new URL(request.url).pathname==='/api/account/local-sign-in'&&!isLocal(env))return json({error:'Not found.'},404);
-    if (isLocal(env) && !bootstrapped.has(env.DB)) {
-      // D1 exec expects individual statements; bootstrap is development-only.
-      await env.DB.batch(`${LOCAL_SCHEMA}\n${JOB_OBJECT_CLEANUP_SCHEMA}`.split(';').filter(s => s.trim()).map(s => env.DB.prepare(s)));
-      bootstrapped.add(env.DB);
+    if (isLocal(env)) {
+      // Share the upgrade across simultaneous first requests; retry after a failure.
+      let ready = bootstrapped.get(env.DB);
+      if (!ready) {
+        ready = bootstrapLocalSchema(env.DB).catch(error => { bootstrapped.delete(env.DB); throw error; });
+        bootstrapped.set(env.DB, ready);
+      }
+      await ready;
     }
     const ingress = await applyIngress(request, env);
     if (ingress.response) return ingress.response;

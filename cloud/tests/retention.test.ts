@@ -10,7 +10,7 @@ import type { Env } from '../src/security';
 import { runGeneration, type DurableStep } from '../src/generation-runner';
 
 let db:DatabaseSync,env:Env;
-beforeEach(()=>{db=new DatabaseSync(':memory:');db.exec(LOCAL_SCHEMA);db.exec("INSERT INTO account_users VALUES ('owner','google','test@example.test','Test',1)");env={DB:adapter(db),ASSETS:memoryBucket().bucket,APP_ORIGIN:'http://localhost:3097'};});
+beforeEach(()=>{db=new DatabaseSync(':memory:');db.exec(LOCAL_SCHEMA);db.exec("INSERT INTO account_users (id,google_subject,email,name,created_at) VALUES ('owner','google','test@example.test','Test',1)");env={DB:adapter(db),ASSETS:memoryBucket().bucket,APP_ORIGIN:'http://localhost:3097'};});
 afterEach(()=>{vi.unstubAllGlobals();db.close();});
 const newJob=(token:string)=>acceptJob(env,'owner',token,{provider:'local-test',modelId:'fixture',mediaType:'image',inputMode:'text',prompt:'Quota test',values:{},referenceIds:[]});
 async function result(id:string,bytes=4){const key=`accounts/owner/jobs/${id}/0`;await writeOutput(env,key,new Uint8Array(bytes).fill(1),'image/png');return {sources:[{objectKey:key,mimeType:'image/png'}]};}
@@ -30,7 +30,7 @@ describe('bounded quota overflow',()=>{
     expect((await getJob(env,job.id))?.state).toBe('saved');
   });
   it('enforces the service-wide cap independently of an account having free space',async()=>{
-    db.exec("INSERT INTO account_users VALUES ('other','other-google','other@example.test','Other',1); INSERT INTO account_storage (user_id,active_jobs) VALUES ('other',100)");
+    db.exec("INSERT INTO account_users (id,google_subject,email,name,created_at) VALUES ('other','other-google','other@example.test','Other',1); INSERT INTO account_storage (user_id,active_jobs) VALUES ('other',100)");
     await expect(newJob('global-capacity-token')).rejects.toMatchObject({code:'service_capacity',status:503});
     expect(db.prepare('SELECT COUNT(*) AS n FROM account_jobs').get()?.n).toBe(0);
   });

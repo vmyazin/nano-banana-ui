@@ -13,7 +13,7 @@ let db:DatabaseSync, env:Env;
 const model=KIE_MODELS.find(m=>m.mediaType==='image'&&m.variants.some(v=>v.inputMode==='text'))!;
 const request:CloudJobRequest={provider:'kie',modelId:model.id,mediaType:'image',inputMode:'text',prompt:'A studio product photo',values:{},referenceIds:[]};
 beforeEach(async()=>{
-  db=new DatabaseSync(':memory:');db.exec(LOCAL_SCHEMA);db.exec("INSERT INTO account_users VALUES ('owner','google','test@example.test','Test',1)");
+  db=new DatabaseSync(':memory:');db.exec(LOCAL_SCHEMA);db.exec("INSERT INTO account_users (id,google_subject,email,name,created_at) VALUES ('owner','google','test@example.test','Test',1)");
   env={DB:adapter(db),APP_ORIGIN:'http://localhost:3097',CLOUD_GENERATION_PROVIDERS:'kie,fal',ACCOUNT_ENCRYPTION_VERSION:'1',ACCOUNT_ENCRYPTION_KEYS:JSON.stringify({'1':btoa('x'.repeat(32))})};
   await saveConnection(env,'owner','kie',{apiKey:'test-provider-secret'});
 });

@@ -4,6 +4,8 @@ import { adapter } from './database';
 import { handleRequest } from '../src/index';
 import { cookieName, hash, returnPath, type Env } from '../src/security';
 import { googleIdentity } from '../src/google';
+import { createSession } from '../src/sessions';
+import { bootstrapLocalSchema } from '../src/schema';
 vi.mock('../src/google', async importOriginal => ({ ...await importOriginal<object>(), googleIdentity: vi.fn() }));
 
 let db: DatabaseSync;
@@ -17,6 +19,26 @@ beforeEach(() => { db = new DatabaseSync(':memory:'); env = { DB: adapter(db), A
 afterEach(() => db.close());
 
 describe('account boundary', () => {
+  it('upgrades pre-avatar local users without losing records and can bootstrap again', async () => {
+    db.exec("CREATE TABLE account_users (id TEXT PRIMARY KEY, google_subject TEXT NOT NULL UNIQUE, email TEXT NOT NULL, name TEXT NOT NULL, created_at INTEGER NOT NULL); INSERT INTO account_users VALUES ('existing', 'subject', 'existing@example.test', 'Existing', 1)");
+    const responses = await Promise.all([request('session'), request('session')]);
+    expect(responses.map(response => response.status)).toEqual([200, 200]);
+    await bootstrapLocalSchema(env.DB);
+    expect(db.prepare('SELECT id, picture FROM account_users').get()).toEqual({ id: 'existing', picture: null });
+  });
+  it('persists, refreshes and clears the Google photo for the same subject', async () => {
+    await request('session');
+    const identity = { subject: 'photo-owner', email: 'photo@example.test', name: 'Photo', picture: 'https://lh3.googleusercontent.com/a/first' };
+    const session = (await createSession(env, identity)).split(';')[0];
+    const first = (await (await request('session', 'GET', session)).json()).account;
+    expect(first.picture).toBe(identity.picture);
+    await createSession(env, { ...identity, picture: 'https://lh3.googleusercontent.com/a/updated' });
+    const updated = (await (await request('session', 'GET', session)).json()).account;
+    expect(updated.id).toBe(first.id);
+    expect(updated.picture).toBe('https://lh3.googleusercontent.com/a/updated');
+    await createSession(env, { ...identity, picture: null });
+    expect((await (await request('session', 'GET', session)).json()).account.picture).toBeNull();
+  });
   it('bootstraps empty local storage; sessions persist and sign-out revokes', async () => {
     expect((await (await request('session')).json()).account).toBeNull();
     const login = await request('local-sign-in', 'POST');

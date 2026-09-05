@@ -33,7 +33,7 @@ ACCOUNT_WORKER_PORT=8798 npm run dev -- --port 3098
 The launcher copies `cloud/.dev.vars.example` to the gitignored
 `cloud/.dev.vars` when needed, aligns `APP_ORIGIN`, creates a local encryption
 key only when one is absent, and sets `PUBLIC_WORKER_ORIGIN`. Migrations `0001`
-through `0010` are represented in the development-only zero-seed bootstrap,
+through `0011` are represented in the development-only zero-seed bootstrap,
 which runs on first request. Each worktree has separate `.wrangler` state.
 
 The launcher starts the Next app and local Wrangler Worker in one command. It
@@ -92,6 +92,13 @@ retained the session after a fresh page load, signed out, and signed back in.
 The original local test account and its saved data remained separate. These
 checks use local D1/R2/Workflow services and do not verify production cookies,
 cross-device storage, or native provider generation.
+
+Google profile photos are refreshed from verified identity claims at sign-in.
+Migration `0011` adds a nullable photo field, and local bootstrap upgrades
+existing databases without clearing saved data. Existing Google accounts need
+one new sign-in to populate it. The shared account avatar keeps the original
+44 px circle and falls back to a neutral user icon if the photo is missing or
+fails to load; only HTTPS Google profile image hosts are accepted.
 
 ## Implemented behavior
 

@@ -148,7 +148,7 @@ files.
 4. Create a Google OAuth Web application and authorize
    `https://sceneassembly.mzork.com/api/account/callback/google`. Request only
    `openid`, `email`, and `profile`, and complete the consent-screen requirements.
-5. Apply every checked-in migration (`0001` through `0010`) in order **before**
+5. Apply every checked-in migration (`0001` through `0011`) in order **before**
    deploying the Worker, because the Worker immediately queries the current schema:
 
    ```bash
