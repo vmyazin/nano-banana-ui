@@ -39,7 +39,7 @@ export const FEATURES: Feature[] = [
     name: 'Text to Image Generation',
     description: 'Transform your ideas into stunning visuals instantly. Generate photorealistic images from simple text descriptions - from interior design to fantasy landscapes.',
     icon: '✨',
-    thumbnail: '/thumbnails/nano-banana.png',
+    thumbnail: '/thumbnails/desert-cat.jpg',
     category: 'generation',
     requiresImage: false,
     requiresMultipleImages: false,
