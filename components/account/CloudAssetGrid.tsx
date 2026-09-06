@@ -16,6 +16,28 @@ import { useAccountStore } from '@/store/useAccountStore';
 import { useDraftStore } from '@/store/useDraftStore';
 import TemporaryAssetNotice from './TemporaryAssetNotice';
 
+/**
+ * A saved clip is its own thumbnail: nothing stores a still for it, so the only
+ * poster available is the clip's own opening frame. `preload="none"` never
+ * fetched enough to paint one, which left every video card as the same black
+ * rectangle. Metadata alone still leaves Safari blank, so the source carries a
+ * `#t=` fragment — the element seeks there and paints that frame. Both wait for
+ * the card to reach the viewport, so a library page does not pull every clip's
+ * header at once, and it is the `src` swap that re-runs the load: a `preload`
+ * raised after the fact is only advisory.
+ */
+function ClipPlayer({src,label}:{src:string;label:string}){
+  const player=useRef<HTMLVideoElement>(null);const [shown,setShown]=useState(false);
+  useEffect(()=>{
+    const node=player.current;
+    // jsdom has no observer, and a viewer without one still deserves a poster.
+    if(!node||typeof IntersectionObserver==='undefined'){setShown(true);return;}
+    const observer=new IntersectionObserver(entries=>{if(entries.some(entry=>entry.isIntersecting)){setShown(true);observer.disconnect();}},{rootMargin:'200px'});
+    observer.observe(node);return()=>observer.disconnect();
+  },[]);
+  return <video ref={player} controls preload={shown?'metadata':'none'} crossOrigin="anonymous" aria-label={label} src={shown?`${src}#t=0.1`:src} className="h-full w-full"/>;
+}
+
 export default function CloudAssetGrid({assets,ownerId,mode='browse',referenceLimit=8,columns=2,onUsedReference,onChanged}: {
   assets:CloudAsset[];ownerId:string;mode?:'browse'|'pick-image';referenceLimit?:number;
   /** Widest column count at desktop. The overlay stays at two because it sits
@@ -66,7 +88,7 @@ export default function CloudAssetGrid({assets,ownerId,mode='browse',referenceLi
               </button>:
               // eslint-disable-next-line @next/next/no-img-element
               <img loading="lazy" src={`/api/account/assets/${asset.id}/content`} alt={asset.metadata.prompt||'Saved cloud image'} className="h-full w-full object-contain"/>:
-            <video controls preload="none" crossOrigin="anonymous" aria-label={asset.metadata.prompt||'Saved cloud video'} src={`/api/account/assets/${asset.id}/content`} className="h-full w-full"/>}
+            <ClipPlayer src={`/api/account/assets/${asset.id}/content`} label={asset.metadata.prompt||'Saved cloud video'}/>}
         </div>
         <div><p className={`line-clamp-2 font-medium text-[var(--foreground)] ${dense?'text-[0.8125rem] leading-snug':'text-sm'}`}>{asset.metadata.prompt||'Untitled result'}</p><p className={`mt-1 text-cyan-200 ${dense?'text-[0.625rem]':'text-xs'}`}>{asset.metadata.provider} · {asset.kind} · {formatAccountBytes(asset.bytes)}{asset.expiresAt?' · Temporary':''}</p></div>
         <div className={`flex flex-wrap ${dense?'gap-1.5':'gap-2'}`}>

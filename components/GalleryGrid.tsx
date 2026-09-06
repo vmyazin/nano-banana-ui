@@ -204,7 +204,9 @@ export default function GalleryGrid({
                 /* eslint-disable-next-line @next/next/no-img-element */
                 <img src={preview} alt={titleOf(record)} className="h-full w-full object-contain" />
               ) : record.kind === 'video' && record.sourceUrl ? (
-                <video src={record.sourceUrl} controls preload="metadata" className="h-full w-full" />
+                /* Same `#t=` seek as the cloud grid: metadata alone leaves some
+                   browsers on a blank frame instead of the clip's opening one. */
+                <video src={`${record.sourceUrl}#t=0.1`} controls preload="metadata" className="h-full w-full" />
               ) : (
                 <p className="px-4 text-center text-xs text-[var(--foreground-subtle)]">
                   This result was not kept and its provider link has expired.
