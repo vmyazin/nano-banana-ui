@@ -22,9 +22,6 @@ vi.mock('@/components/account/AccountConnections', () => ({ default: () => <sect
 vi.mock('@/components/account/AccountKeyImport', () => ({
   default: ({ ownerId }: { ownerId: string }) => <section>Key import for {ownerId}</section>,
 }));
-vi.mock('@/components/account/AccountAssetImport', () => ({
-  default: ({ ownerId }: { ownerId: string }) => <section>Asset import for {ownerId}</section>,
-}));
 vi.mock('@/components/account/AccountDeletion', () => ({
   default: ({ ownerId }: { ownerId: string }) => <section>Deletion for {ownerId}</section>,
 }));
@@ -74,16 +71,18 @@ describe('account pages', () => {
     expect(screen.queryByText('Import from this browser')).toBeNull();
   });
 
-  it('reveals the browser import panels from the rail once this device has something to import', () => {
+  it('opens the import picker from the rail once this device has something to import', () => {
     useAppStore.setState({ apiKey: 'gemini-key-value' });
     signedIn();
     render(<AccountPage />);
 
+    // The rail keeps the summary; choosing happens in a dialog, because a
+    // 300px column cannot show a device's worth of files.
     expect(screen.getByText('Import from this browser')).toBeInTheDocument();
-    expect(screen.queryByText('Key import for owner-1')).toBeNull();
+    expect(screen.queryByRole('dialog', { name: 'Import from this browser' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Review 1 item' }));
-    expect(screen.getByText('Key import for owner-1')).toBeInTheDocument();
-    expect(screen.getByText('Asset import for owner-1')).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Import from this browser' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Provider keys/ })).toBeInTheDocument();
   });
 
   it('shows the Google photo and recovers from a failed photo when its URL changes', () => {

@@ -1,9 +1,7 @@
 'use client';
 
-import { CloudUpload, Film, Image as ImageIcon } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ENGINES } from '@/lib/engines/registry';
-import { formatAccountBytes } from '@/lib/account/use-library';
+
 import {
   AccountAssetImportError,
   accountImportClientId,
@@ -14,25 +12,36 @@ import {
 import type { GalleryRecord } from '@/lib/gallery/storage';
 import { useAccountStore } from '@/store/useAccountStore';
 import { useGalleryStore } from '@/store/useGalleryStore';
-import { AccountSurface } from './AccountSurface';
 
-type ItemStatus = 'ready' | 'uploading' | 'imported' | 'error';
-const labels = new Map<string, string>(ENGINES.map(engine => [engine.id, engine.label]));
+export type ImportItemStatus = 'ready' | 'uploading' | 'imported' | 'error';
 
-function recordTitle(record: GalleryRecord) {
+export function importRecordTitle(record: GalleryRecord) {
   return record.slug?.replaceAll('-', ' ') || record.prompt || `${record.kind} result`;
 }
 
-export default function AccountAssetImport({ ownerId, onImported }: { ownerId: string; onImported?: () => void }) {
+/**
+ * The browser → cloud transfer, separated from whatever renders it.
+ *
+ * The loop and its guards used to live inside the panel that drew the list. The
+ * picker dialog replaced that list, and moving this wholesale rather than
+ * rewriting it keeps the parts that are easy to get wrong and were paid for
+ * once already: the stable per-file client id that makes a retry idempotent,
+ * the terminal-failure restart, and the owner/epoch check between every file so
+ * a session change mid-transfer stops the batch instead of writing one
+ * account's bytes into another's library.
+ */
+export function useBrowserAssetImport(ownerId: string, onImported?: () => void) {
   const records = useGalleryStore(state => state.records);
   const hydrated = useGalleryStore(state => state.hydrated);
   const epoch = useAccountStore(state => state.epoch);
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [statuses, setStatuses] = useState<Record<string, ItemStatus>>({});
+  const [statuses, setStatuses] = useState<Record<string, ImportItemStatus>>({});
   const [restartable, setRestartable] = useState<Set<string>>(new Set());
   const [busyScope, setBusyScope] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [completedCount, setCompletedCount] = useState(0);
+  const [batchSize, setBatchSize] = useState(0);
   const running = useRef(false);
   const mounted = useRef(true);
   const controller = useRef<AbortController | null>(null);
@@ -58,6 +67,10 @@ export default function AccountAssetImport({ ownerId, onImported }: { ownerId: s
     (total, record) => total + (selected.has(record.id) && statuses[record.id] !== 'imported' ? record.blob.size : 0),
     0
   );
+  const selectedCount = eligible.reduce(
+    (total, record) => total + (selected.has(record.id) && statuses[record.id] !== 'imported' ? 1 : 0),
+    0
+  );
 
   function identityMatches(capturedEpoch: number) {
     const account = useAccountStore.getState();
@@ -73,6 +86,16 @@ export default function AccountAssetImport({ ownerId, onImported }: { ownerId: s
     setError(null);
   }
 
+  function selectAll(ids: string[]) {
+    setSelected(new Set(ids));
+    setError(null);
+  }
+
+  function clearSelection() {
+    setSelected(new Set());
+    setError(null);
+  }
+
   function restart(record: GalleryRecord) {
     const attempt = startNewAccountImportAttempt(ownerId, record.id);
     setRestartable(current => {
@@ -83,6 +106,11 @@ export default function AccountAssetImport({ ownerId, onImported }: { ownerId: s
     setStatuses(current => ({ ...current, [record.id]: 'ready' }));
     setSelected(current => new Set(current).add(record.id));
     setError(attempt.persisted ? null : 'This new attempt is ready, but this browser could not save it for resume after a reload. Keep this tab open and retry here if needed.');
+  }
+
+  /** Stops the batch after the file in flight; finished files stay imported. */
+  function cancel() {
+    controller.current?.abort();
   }
 
   async function submit() {
@@ -98,6 +126,8 @@ export default function AccountAssetImport({ ownerId, onImported }: { ownerId: s
     let failed = 0;
     let terminalFailure = false;
     const batch = eligible.filter(item => selected.has(item.id) && statuses[item.id] !== 'imported');
+    setBatchSize(batch.length);
+    setCompletedCount(0);
     try {
       for (const record of batch) {
         if (!identityMatches(capturedEpoch) || abortController.signal.aborted) break;
@@ -112,6 +142,7 @@ export default function AccountAssetImport({ ownerId, onImported }: { ownerId: s
           );
           if (!identityMatches(capturedEpoch)) break;
           completed += 1;
+          setCompletedCount(completed);
           setStatuses(current => ({ ...current, [record.id]: 'imported' }));
           setSelected(current => {
             const next = new Set(current);
@@ -143,47 +174,9 @@ export default function AccountAssetImport({ ownerId, onImported }: { ownerId: s
     }
   }
 
-  return <AccountSurface label="Import browser assets" className="mt-5">
-    <div className="flex items-start gap-3">
-      <span className="rounded-xl border border-cyan-400/25 bg-gradient-to-br from-cyan-400/15 to-violet-400/15 p-2.5 text-cyan-300">
-        <CloudUpload size={19} aria-hidden="true" />
-      </span>
-      <div>
-        <h2 className="text-lg font-semibold">Import browser assets</h2>
-        <p className="mt-1 text-sm leading-relaxed text-[var(--foreground-muted)]">Choose local files to add to your private cloud library. Originals remain on this device.</p>
-      </div>
-    </div>
-    <div className="mt-4 rounded-xl border border-violet-400/20 bg-violet-400/5 px-4 py-3 text-xs leading-relaxed text-[var(--foreground-muted)]">
-      <p>1 GB included, shared with files already in your cloud library.</p>
-      <p className="mt-1">Keep this tab open during transfer. Your browser must send these saved bytes.</p>
-    </div>
-    {!hydrated ? <p role="status" className="mt-5 text-sm text-[var(--foreground-muted)]">Checking this browser for saved files…</p> : eligible.length === 0 ? <p className="mt-5 text-sm text-[var(--foreground-muted)]">No eligible local files are available to import.</p> : <form className="mt-5" onSubmit={event => { event.preventDefault(); void submit(); }}>
-      <fieldset disabled={busy} className="space-y-2">
-        <legend className="sr-only">Browser assets to import</legend>
-        {eligible.map(record => {
-          const status = statuses[record.id] ?? 'ready';
-          const title = recordTitle(record);
-          return <div key={record.id} className="rounded-xl border border-[var(--border-hover)] px-4 py-3 transition-colors hover:border-cyan-400/35">
-            <label aria-label={`${title}, ${status}`} className="flex min-h-8 items-center gap-3">
-            <input type="checkbox" checked={selected.has(record.id)} disabled={status === 'uploading' || status === 'imported' || restartable.has(record.id)} onChange={() => toggle(record.id)} className="size-4 accent-cyan-400" />
-            <span className="text-cyan-300">{record.kind === 'image' ? <ImageIcon size={17} aria-hidden="true" /> : <Film size={17} aria-hidden="true" />}</span>
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-sm font-medium">{title}</span>
-              <span className="block text-xs text-[var(--foreground-muted)]">{labels.get(record.provider) ?? record.provider} · {formatAccountBytes(record.blob.size)}</span>
-            </span>
-            <span className={`text-xs capitalize ${status === 'imported' ? 'text-emerald-300' : status === 'error' ? 'text-red-300' : status === 'uploading' ? 'text-cyan-300' : 'text-[var(--foreground-muted)]'}`}>{status}</span>
-            </label>
-            {restartable.has(record.id) && <button type="button" className="btn-secondary mt-3 w-full justify-center text-xs" onClick={() => restart(record)}>{`Start new import attempt for ${title}`}</button>}
-          </div>;
-        })}
-      </fieldset>
-      <div className="mt-4 flex items-center justify-between gap-3 text-sm">
-        <span className="text-[var(--foreground-muted)]">Selected: {formatAccountBytes(selectedBytes)}</span>
-        <button type="submit" disabled={busy || selectedBytes === 0} className="btn-primary min-h-11 px-5">{busy ? 'Importing…' : 'Import selected'}</button>
-      </div>
-    </form>}
-    {hasLinkOnly && <p className="mt-4 text-xs leading-relaxed text-[var(--foreground-muted)]">Some videos are links only. Choose Keep in the browser library first so the original file is available to import.</p>}
-    {notice && <p role="status" className="mt-4 text-sm text-emerald-300">{notice}</p>}
-    {error && <p role="alert" className="mt-4 text-sm text-red-300">{error}</p>}
-  </AccountSurface>;
+  return {
+    eligible, hydrated, hasLinkOnly, selected, statuses, restartable,
+    busy, error, notice, selectedBytes, selectedCount, completedCount, batchSize,
+    toggle, selectAll, clearSelection, restart, submit, cancel,
+  };
 }

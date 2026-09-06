@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import AccountAssetImport from '@/components/account/AccountAssetImport';
+import BrowserImportDialog from '@/components/account/BrowserImportDialog';
 import { resetAccountImportAttemptsForTests } from '@/lib/account/import';
 import type { GalleryRecord } from '@/lib/gallery/storage';
 import { useAccountStore } from '@/store/useAccountStore';
@@ -44,7 +44,7 @@ function completed(id = 'import-1') {
   return { id, state: 'completed', assetId: id, expiresAt: 99 };
 }
 
-describe('AccountAssetImport', () => {
+describe('BrowserImportDialog', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     localStorage.clear();
@@ -61,11 +61,11 @@ describe('AccountAssetImport', () => {
       .mockResolvedValueOnce(json(completed()));
     vi.stubGlobal('fetch', fetchMock);
 
-    render(<AccountAssetImport ownerId="owner-1" />);
+    render(<BrowserImportDialog open ownerId="owner-1" storage={null} onClose={() => {}} />);
     expect(screen.getByRole('checkbox', { name: /cyan city, ready/i })).not.toBeChecked();
     expect(fetchMock).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('checkbox', { name: /cyan city, ready/i }));
-    fireEvent.click(screen.getByRole('button', { name: 'Import selected' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Import \d+ file/ }));
 
     await screen.findByText('imported');
     expect(screen.getByRole('checkbox', { name: /unselected image, ready/i })).not.toBeChecked();
@@ -82,6 +82,36 @@ describe('AccountAssetImport', () => {
     expect(useGalleryStore.getState().records[0]).toBe(original);
   });
 
+  it('blocks an import that would not fit and names the overage', () => {
+    // The Worker would accept files until the quota ran out and reject the
+    // rest, leaving a half-imported batch and spent upload bandwidth, so the
+    // dialog refuses before anything is sent.
+    const original = useGalleryStore.getState().records[0];
+    const free = (original.blob?.size ?? 0) - 1;
+    render(<BrowserImportDialog open ownerId="owner-1" storage={{ limitBytes: 1000, usedBytes: 1000 - free, reservedBytes: 0, activeJobs: 0 }} onClose={() => {}} />);
+    fireEvent.click(screen.getByRole('checkbox', { name: /cyan city, ready/i }));
+
+    expect(screen.getByRole('button', { name: /^Import 1 file/ })).toBeDisabled();
+    expect(screen.getByText(/over the space left in your account/)).toBeInTheDocument();
+  });
+
+  it('refuses to close while a transfer is running', async () => {
+    // The copy promises the tab stays open; the dialog has to mean it, because
+    // unmounting aborts the files that have not been sent yet.
+    const fetchMock = vi.fn().mockReturnValue(new Promise(() => {}));
+    vi.stubGlobal('fetch', fetchMock);
+    const onClose = vi.fn();
+    render(<BrowserImportDialog open ownerId="owner-1" storage={null} onClose={onClose} />);
+    fireEvent.click(screen.getByRole('checkbox', { name: /cyan city, ready/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^Import 1 file/ }));
+
+    await screen.findByText('uploading');
+    expect(screen.getByRole('button', { name: 'Close' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Stop importing' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
   it('retries an uncertain begin response with the identical stable ID and body', async () => {
     const calls: Array<[RequestInfo | URL, RequestInit | undefined]> = [];
     const fetchMock = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
@@ -90,11 +120,11 @@ describe('AccountAssetImport', () => {
       return json(completed(), 201);
     });
     vi.stubGlobal('fetch', fetchMock);
-    render(<AccountAssetImport ownerId="owner-1" />);
+    render(<BrowserImportDialog open ownerId="owner-1" storage={null} onClose={() => {}} />);
     fireEvent.click(screen.getByRole('checkbox', { name: /cyan city, ready/i }));
-    fireEvent.click(screen.getByRole('button', { name: 'Import selected' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Import \d+ file/ }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Retry the selected files');
-    fireEvent.click(screen.getByRole('button', { name: 'Import selected' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Import \d+ file/ }));
 
     await screen.findByText('imported');
     expect(calls).toHaveLength(2);
@@ -105,9 +135,9 @@ describe('AccountAssetImport', () => {
   it('skips the direct upload when begin reports the import already completed', async () => {
     const fetchMock = vi.fn().mockResolvedValue(json(completed(), 201));
     vi.stubGlobal('fetch', fetchMock);
-    render(<AccountAssetImport ownerId="owner-1" />);
+    render(<BrowserImportDialog open ownerId="owner-1" storage={null} onClose={() => {}} />);
     fireEvent.click(screen.getByRole('checkbox', { name: /cyan city, ready/i }));
-    fireEvent.click(screen.getByRole('button', { name: 'Import selected' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Import \d+ file/ }));
     await screen.findByText('imported');
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
@@ -118,15 +148,15 @@ describe('AccountAssetImport', () => {
     const fetchMock = vi.fn().mockReturnValue(pending);
     vi.stubGlobal('fetch', fetchMock);
     useGalleryStore.setState({ records: [record(), record({ id: 'browser-image-2', slug: 'second-image' })] });
-    const { rerender } = render(<AccountAssetImport ownerId="owner-1" />);
+    const { rerender } = render(<BrowserImportDialog open ownerId="owner-1" storage={null} onClose={() => {}} />);
     fireEvent.click(screen.getByRole('checkbox', { name: /cyan city, ready/i }));
     fireEvent.click(screen.getByRole('checkbox', { name: /second image, ready/i }));
-    fireEvent.click(screen.getByRole('button', { name: 'Import selected' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Import \d+ file/ }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
     const firstSignal = fetchMock.mock.calls[0][1]?.signal as AbortSignal;
 
     act(() => owner('owner-2'));
-    rerender(<AccountAssetImport ownerId="owner-2" />);
+    rerender(<BrowserImportDialog open ownerId="owner-2" storage={null} onClose={() => {}} />);
     expect(firstSignal.aborted).toBe(true);
     resolveBegin?.(json({ id: 'import-1', state: 'pending', assetId: null, expiresAt: 99, url: 'https://upload.test/one' }, 201));
     await act(async () => { await Promise.resolve(); });
@@ -139,7 +169,7 @@ describe('AccountAssetImport', () => {
       record({ id: 'remote-video', kind: 'video', slug: 'remote-video', blob: undefined, sourceUrl: 'https://video.test/file.mp4', mimeType: 'video/mp4', bytes: 0 }),
     ] });
     vi.stubGlobal('fetch', vi.fn());
-    render(<AccountAssetImport ownerId="owner-1" />);
+    render(<BrowserImportDialog open ownerId="owner-1" storage={null} onClose={() => {}} />);
     expect(screen.getByText('No eligible local files are available to import.')).toBeInTheDocument();
     expect(screen.getByText(/Choose Keep in the browser library first/)).toBeInTheDocument();
     expect(screen.queryByRole('checkbox')).toBeNull();
@@ -154,18 +184,18 @@ describe('AccountAssetImport', () => {
         : json(completed(), 201);
     });
     vi.stubGlobal('fetch', fetchMock);
-    const first = render(<AccountAssetImport ownerId="owner-1" />);
+    const first = render(<BrowserImportDialog open ownerId="owner-1" storage={null} onClose={() => {}} />);
     fireEvent.click(screen.getByRole('checkbox', { name: /cyan city, ready/i }));
-    fireEvent.click(screen.getByRole('button', { name: 'Import selected' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Import \d+ file/ }));
 
     const restart = await screen.findByRole('button', { name: 'Start new import attempt for cyan city' });
     const originalId = JSON.parse(bodies[0]).clientImportId;
     fireEvent.click(restart);
     first.unmount();
     resetAccountImportAttemptsForTests();
-    render(<AccountAssetImport ownerId="owner-1" />);
+    render(<BrowserImportDialog open ownerId="owner-1" storage={null} onClose={() => {}} />);
     fireEvent.click(screen.getByRole('checkbox', { name: /cyan city, ready/i }));
-    fireEvent.click(screen.getByRole('button', { name: 'Import selected' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Import \d+ file/ }));
 
     await screen.findByText('imported');
     const retryId = JSON.parse(bodies[1]).clientImportId;
@@ -182,12 +212,12 @@ describe('AccountAssetImport', () => {
       return json(completed(), 201);
     });
     vi.stubGlobal('fetch', fetchMock);
-    render(<AccountAssetImport ownerId="owner-1" />);
+    render(<BrowserImportDialog open ownerId="owner-1" storage={null} onClose={() => {}} />);
     fireEvent.click(screen.getByRole('checkbox', { name: /cyan city, ready/i }));
-    fireEvent.click(screen.getByRole('button', { name: 'Import selected' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Import \d+ file/ }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Retry the selected files');
     expect(screen.queryByRole('button', { name: /Start new import attempt/ })).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'Import selected' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Import \d+ file/ }));
     await screen.findByText('imported');
     expect(JSON.parse(bodies[1]).clientImportId).toBe(JSON.parse(bodies[0]).clientImportId);
   });

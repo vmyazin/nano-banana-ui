@@ -10,8 +10,7 @@ import LibraryFilters, { type LibraryFilterId } from './LibraryFilters';
 import AccountAvatar from './AccountAvatar';
 import AccountConnections from './AccountConnections';
 import AccountDeletion from './AccountDeletion';
-import AccountKeyImport from './AccountKeyImport';
-import AccountAssetImport from './AccountAssetImport';
+import BrowserImportDialog from './BrowserImportDialog';
 import { accountRequest } from '@/lib/account/client';
 import { browserKeyCandidates } from '@/lib/account/key-import';
 import { isImportableGalleryRecord } from '@/lib/account/import';
@@ -60,7 +59,7 @@ export default function AccountConsole({
 }) {
   const ownerId = account.id;
   const [filter, setFilter] = useState<LibraryFilterId>('all');
-  const [showImports, setShowImports] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionBusy, setActionBusy] = useState(false);
 
@@ -196,21 +195,25 @@ export default function AccountConsole({
               {browserFiles.length > 0 && `${browserFiles.length} ${browserFiles.length === 1 ? 'file' : 'files'} (${size(browserBytes)})`}
               {' found on this device. Originals remain here.'}
             </p>
-            <button type="button" aria-expanded={showImports} onClick={() => setShowImports(current => !current)} className="btn-secondary mt-2.5 flex w-full justify-center">
-              {showImports ? 'Hide imports' : `Review ${pendingImports} item${pendingImports === 1 ? '' : 's'}`}
+            {/* The picker needs far more room than 300px, so the rail keeps the
+                summary and hands the choosing to a dialog. */}
+            <button type="button" onClick={() => setImporting(true)} className="btn-secondary mt-2.5 flex w-full justify-center">
+              {`Review ${pendingImports} item${pendingImports === 1 ? '' : 's'}`}
             </button>
-            {showImports && (
-              <div className="mt-3 space-y-3 [&>section]:mt-0">
-                <AccountKeyImport ownerId={ownerId} />
-                <AccountAssetImport ownerId={ownerId} onImported={library.refresh} />
-              </div>
-            )}
           </RailBlock>
         )}
 
         <div className="mt-5 border-t border-[var(--border)] pt-4">
           <AccountDeletion ownerId={ownerId} variant="rail" />
         </div>
+
+        <BrowserImportDialog
+          open={importing}
+          ownerId={ownerId}
+          storage={storage}
+          onClose={() => setImporting(false)}
+          onImported={library.refresh}
+        />
       </aside>
 
       <div className="min-w-0 p-5 sm:p-6">
