@@ -10,14 +10,17 @@ import { useAccountStore } from '@/store/useAccountStore';
 import { useAppStore } from '@/store/useAppStore';
 
 /**
- * Where one provider's key is kept, and the single button that changes it.
+ * The action that changes where one provider's key is kept.
  *
- * Signed in, Save & close puts every key in both places, so this control is an
- * exit from that default rather than the route to it: the common case renders a
- * badge and a Remove button, and "Save to account" appears only for a provider
- * previously opted out.
+ * Signed in, Save & close puts every key in both places, so this button is an
+ * exit from that default rather than the route to it: the common case renders
+ * nothing, "Remove from account" appears once the account holds the key, and
+ * "Save to account" appears only for a provider previously opted out. Sits in
+ * the card's header, opposite the title — `ConnectionStorageBadge` renders the
+ * matching status line under the field, from the same store state, so the two
+ * never disagree even though this is the only one of the pair that acts.
  */
-export default function ConnectionStorageControl({
+export function ConnectionStorageButton({
   provider,
   apiKey,
   accountId,
@@ -93,24 +96,42 @@ export default function ConnectionStorageControl({
     </button>
   ) : null;
 
-  const badge = (
-    <p className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-[var(--foreground-subtle)]">
-      {key && (
-        <span className="inline-flex items-center gap-1.5">
-          <MonitorSmartphone size={13} aria-hidden="true" />On this device
-        </span>
+  if (!button && !error) return null;
+
+  return (
+    <div className="flex flex-col items-end gap-1">
+      {button}
+      {error && (
+        <p role="alert" className="text-right text-xs text-red-300">
+          {error}
+        </p>
       )}
-      {key && (connection || optedOut) && <span aria-hidden="true">·</span>}
-      {connection ? (
-        <span className="inline-flex items-center gap-1.5 text-emerald-300">
-          <Lock size={13} aria-hidden="true" />Encrypted in your account
-          {!key && <span className="font-mono"> · ends ··{connection.hint}</span>}
-        </span>
-      ) : optedOut ? (
-        <span>Not in your account</span>
-      ) : null}
-    </p>
+    </div>
   );
+}
+
+/**
+ * Where one provider's key is kept, rendered under its field.
+ *
+ * Purely a reflection of the account connection list and the opt-out flag —
+ * it holds no state of its own — so it can never drift from what
+ * `ConnectionStorageButton` just did once that write lands.
+ */
+export function ConnectionStorageBadge({
+  provider,
+  apiKey,
+}: {
+  provider: ImportableProvider;
+  apiKey: string;
+}) {
+  const ownerId = useAccountStore((state) => state.session?.account?.id);
+  const connection = useAccountStore((state) =>
+    (state.session?.connections ?? []).find((entry) => entry.provider === provider)
+  );
+  const optedOut = useAppStore((state) => state.accountKeyOptOuts.includes(provider));
+
+  const key = apiKey.trim();
+  if (!ownerId || (!connection && !key)) return null;
 
   const note = !key && connection
     ? 'Cloud jobs use it already. Browser-only runs need a key on this device.'
@@ -119,13 +140,24 @@ export default function ConnectionStorageControl({
       : null;
 
   return (
-    <>
-      {button}
-      <div className="space-y-1.5">
-        {badge}
-        {note && <p className="text-xs leading-snug text-[var(--foreground-subtle)]">{note}</p>}
-        {error && <p role="alert" className="text-xs text-red-300">{error}</p>}
-      </div>
-    </>
+    <div className="space-y-1.5">
+      <p className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-[var(--foreground-subtle)]">
+        {key && (
+          <span className="inline-flex items-center gap-1.5">
+            <MonitorSmartphone size={13} aria-hidden="true" />On this device
+          </span>
+        )}
+        {key && (connection || optedOut) && <span aria-hidden="true">·</span>}
+        {connection ? (
+          <span className="inline-flex items-center gap-1.5 text-emerald-300">
+            <Lock size={13} aria-hidden="true" />Encrypted in your account
+            {!key && <span className="font-mono"> · ends ··{connection.hint}</span>}
+          </span>
+        ) : optedOut ? (
+          <span>Not in your account</span>
+        ) : null}
+      </p>
+      {note && <p className="text-xs leading-snug text-[var(--foreground-subtle)]">{note}</p>}
+    </div>
   );
 }

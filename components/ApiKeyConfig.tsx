@@ -5,13 +5,15 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Key, Eye, EyeOff, AlertCircle, X, Loader2, Check, Volume2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAccountStore } from '@/store/useAccountStore';
-import AccountConnections from '@/components/account/AccountConnections';
+import { ConnectionStorageBadge, ConnectionStorageButton } from '@/components/account/ConnectionStorageControl';
 import { useAppStore } from '@/store/useAppStore';
 import MicroAiUsagePanel from '@/components/MicroAiUsagePanel';
 import { setChimeEnabled } from '@/lib/notify/chime';
 import ProviderLogo from '@/components/ProviderLogo';
 import { useAccessibleDialog } from '@/hooks/useAccessibleDialog';
 import type { EngineId } from '@/lib/engines/registry';
+import { pendingConnectionWrites, syncPendingConnections } from '@/lib/account/connection-sync';
+import { accountChanged, refreshAccount } from '@/lib/account/session';
 import { KEY_SOURCES } from '@/lib/providers/key-source';
 import type { ProviderId } from '@/lib/providers/types';
 
@@ -86,6 +88,7 @@ function ProviderCard({
   urlLabel,
   className,
   highlighted = false,
+  storage,
   children,
 }: {
   provider: EngineId;
@@ -98,6 +101,8 @@ function ProviderCard({
   className?: string;
   /** The card the dialog was opened for: a cyan two-pixel edge, not a tint. */
   highlighted?: boolean;
+  /** The provider's storage badge and button. Absent for a guest. */
+  storage?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
@@ -105,15 +110,18 @@ function ProviderCard({
       data-provider={provider}
       className={`flex flex-col gap-2.5 rounded-xl bg-[var(--surface)] p-4 ${highlighted ? 'border-2 border-[var(--neon-cyan)]' : 'border border-[var(--border)]'} ${className ?? ''}`}
     >
-      <h3 className="field-label flex flex-wrap items-center gap-x-2 gap-y-1.5">
-        <ProviderLogo provider={provider} size={22} />
-        {name}
-        {connected && (
-          <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-1.5 py-px text-xs font-medium text-emerald-300">
-            <Check size={13} /> Connected
-          </span>
-        )}
-      </h3>
+      <div className="flex items-start justify-between gap-2">
+        <h3 className="field-label flex flex-wrap items-center gap-x-2 gap-y-1.5">
+          <ProviderLogo provider={provider} size={22} />
+          {name}
+          {connected && (
+            <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-1.5 py-px text-xs font-medium text-emerald-300">
+              <Check size={13} /> Connected
+            </span>
+          )}
+        </h3>
+        {storage}
+      </div>
       <p className="field-hint">
         {description} {linkPrefix}{' '}
         <a
@@ -407,6 +415,47 @@ export default function ApiKeyConfig({ open, onOpenChange, focusProvider }: ApiK
     }
   };
 
+  /**
+   * Signed in, closing with Save puts every changed key in the account too, so
+   * a cloud job works the moment a key is pasted. Reading from the store rather
+   * than the inputs is deliberate: a key that failed validation was never
+   * written there, so it is never uploaded.
+   */
+  const syncAccountKeys = async (operationId: number) => {
+    const owner = useAccountStore.getState().session?.account?.id;
+    if (!owner) return;
+    const state = useAppStore.getState();
+    const pending = pendingConnectionWrites(
+      {
+        apiKey: state.apiKey, cfToken: state.cfToken, cfAccountId: state.cfAccountId,
+        kieApiKey: state.kieApiKey, falApiKey: state.falApiKey, runwareApiKey: state.runwareApiKey,
+        atlasApiKey: state.atlasApiKey, cometApiKey: state.cometApiKey,
+      },
+      useAccountStore.getState().session?.connections ?? [],
+      state.accountKeyOptOuts
+    );
+    if (pending.length === 0) return;
+
+    // Captured before the await so a mid-flight sign-out or account switch
+    // (which bumps `epoch`) cannot have this stale write's result applied to
+    // the account that is signed in by the time it resolves.
+    const capturedEpoch = useAccountStore.getState().epoch;
+    const failed = await syncPendingConnections(pending, owner);
+    if (!isOperationCurrent(operationId)) return;
+    const accountState = useAccountStore.getState();
+    if (accountState.epoch !== capturedEpoch || accountState.session?.account?.id !== owner) return;
+
+    accountChanged();
+    void refreshAccount().catch(() => {});
+    if (failed.length > 0) {
+      toast.error(
+        failed.length === 1
+          ? 'One key could not be saved to your account. It is still on this device.'
+          : `${failed.length} keys could not be saved to your account. They are still on this device.`
+      );
+    }
+  };
+
   // Validate + save the Gemini key (if entered), then close. Cloudflare creds
   // are already persisted as they're typed.
   const handleSave = async () => {
@@ -451,6 +500,8 @@ export default function ApiKeyConfig({ open, onOpenChange, focusProvider }: ApiK
       setValidationError('');
       setKieValidationError('');
       setFalValidationError('');
+      await syncAccountKeys(operationId);
+      if (!isOperationCurrent(operationId)) return;
       onOpenChange(false);
     } finally {
       if (saveOperationRef.current === operationId) {
@@ -545,7 +596,6 @@ export default function ApiKeyConfig({ open, onOpenChange, focusProvider }: ApiK
             </header>
 
             <div className="dialog-scroll-region min-h-0 flex-1 overflow-y-auto px-3.5 py-3.5 sm:px-4">
-              {account&&<div className="mb-5"><AccountConnections key={`${account.id}:${focusProvider}`} initialProvider={focusProvider} /><h3 className="mt-6 font-semibold">Browser-only connections</h3><p className="mt-1 text-sm text-[var(--foreground-muted)]">The keys below stay on this device and are used only when you choose browser-only generation.</p></div>}
               <div className="grid gap-4 sm:grid-cols-2">
                 {/* Google Gemini */}
                 <ProviderCard
@@ -557,6 +607,7 @@ export default function ApiKeyConfig({ open, onOpenChange, focusProvider }: ApiK
                   linkPrefix="Get a key at"
                   href="https://aistudio.google.com/apikey"
                   urlLabel="aistudio.google.com/apikey"
+                  storage={<ConnectionStorageButton provider="gemini" apiKey={keyInput} />}
                 >
                   <SecretInput
                     ariaLabel="Gemini API key"
@@ -573,6 +624,7 @@ export default function ApiKeyConfig({ open, onOpenChange, focusProvider }: ApiK
                     disabled={isValidating}
                   />
                   {validationError && <FieldError message={validationError} />}
+                  <ConnectionStorageBadge provider="gemini" apiKey={keyInput} />
                 </ProviderCard>
 
                 {/* Kie.ai */}
@@ -585,6 +637,7 @@ export default function ApiKeyConfig({ open, onOpenChange, focusProvider }: ApiK
                   linkPrefix="Get a key at"
                   href="https://kie.ai/"
                   urlLabel="kie.ai"
+                  storage={<ConnectionStorageButton provider="kie" apiKey={kieKeyInput} />}
                 >
                   <SecretInput
                     ariaLabel="Kie API key"
@@ -601,6 +654,7 @@ export default function ApiKeyConfig({ open, onOpenChange, focusProvider }: ApiK
                     disabled={isValidating}
                   />
                   {kieValidationError && <FieldError message={kieValidationError} />}
+                  <ConnectionStorageBadge provider="kie" apiKey={kieKeyInput} />
                 </ProviderCard>
 
                 {/* fal.ai */}
@@ -613,6 +667,7 @@ export default function ApiKeyConfig({ open, onOpenChange, focusProvider }: ApiK
                   linkPrefix="Get a key at"
                   href="https://fal.ai/dashboard/keys"
                   urlLabel="fal.ai/dashboard/keys"
+                  storage={<ConnectionStorageButton provider="fal" apiKey={falKeyInput} />}
                 >
                   <SecretInput
                     ariaLabel="fal API key"
@@ -629,6 +684,7 @@ export default function ApiKeyConfig({ open, onOpenChange, focusProvider }: ApiK
                     disabled={isValidating}
                   />
                   {falValidationError && <FieldError message={falValidationError} alert />}
+                  <ConnectionStorageBadge provider="fal" apiKey={falKeyInput} />
                 </ProviderCard>
 
                 {/* Cloudflare Workers AI — two fields, so it takes the full
@@ -645,6 +701,7 @@ export default function ApiKeyConfig({ open, onOpenChange, focusProvider }: ApiK
                   href="https://dash.cloudflare.com/profile/api-tokens"
                   urlLabel="dash.cloudflare.com/profile/api-tokens"
                   className="sm:order-1 sm:col-span-2"
+                  storage={<ConnectionStorageButton provider="cloudflare" apiKey={cfToken} accountId={cfAccountId} />}
                 >
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div className="space-y-1.5">
@@ -683,6 +740,7 @@ export default function ApiKeyConfig({ open, onOpenChange, focusProvider }: ApiK
                       </div>
                     </div>
                   </div>
+                  <ConnectionStorageBadge provider="cloudflare" apiKey={cfToken} />
                 </ProviderCard>
 
                 {/* The aggregators. These save as you type like Cloudflare
@@ -701,6 +759,7 @@ export default function ApiKeyConfig({ open, onOpenChange, focusProvider }: ApiK
                     linkPrefix="Get a key at"
                     href={aggregator.href}
                     urlLabel={aggregator.urlLabel}
+                    storage={<ConnectionStorageButton provider={aggregator.id} apiKey={providerKeys[aggregator.id]} />}
                   >
                     <SecretInput
                       ariaLabel={`${aggregator.name} API key`}
@@ -718,6 +777,7 @@ export default function ApiKeyConfig({ open, onOpenChange, focusProvider }: ApiK
                       }
                       disabled={isValidating}
                     />
+                    <ConnectionStorageBadge provider={aggregator.id} apiKey={providerKeys[aggregator.id]} />
                   </ProviderCard>
                 ))}
 
@@ -750,7 +810,9 @@ export default function ApiKeyConfig({ open, onOpenChange, focusProvider }: ApiK
 
             <footer className="dialog-safe-footer flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-t border-[var(--border)] px-3.5 py-3 sm:px-4">
               <p className="field-hint max-w-md">
-                {account?'Browser-only keys stay on this device. Account connections above are encrypted on the server and save separately.':'Credentials live in this browser’s local storage and go straight to each provider — never to our servers beyond proxying the request.'}
+                {account
+                  ? 'Signed in, so your keys are kept on this device and encrypted in your account, where cloud jobs can use them.'
+                  : 'Credentials live in this browser’s local storage and go straight to each provider — never to our servers beyond proxying the request.'}
               </p>
               <button
                 onClick={handleSave}
