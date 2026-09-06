@@ -5,6 +5,7 @@ import { useMemo, useState } from 'react';
 
 import SpendBreakdown from '@/components/spend/SpendBreakdown';
 import SpendDailyChart from '@/components/spend/SpendDailyChart';
+import SpendEmptyPreview from '@/components/spend/SpendEmptyPreview';
 import SpendLedger from '@/components/spend/SpendLedger';
 import SpendSummary from '@/components/spend/SpendSummary';
 import { providerLabel, type SpendEntry, type SpendProvider } from '@/lib/spend/ledger';
@@ -70,30 +71,24 @@ export default function SpendReport({
         </div>
       )}
 
-      {cloud && (
-        <div className="rounded-xl border border-[var(--neon-violet)]/30 bg-[var(--neon-violet)]/5 px-4 py-3 text-sm">
-          <p className="text-[var(--foreground)]">
-            Totals, charts, and CSV cover {entries.length} loaded account record{entries.length === 1 ? '' : 's'}.
-            {hasOlder ? ' Load older records to include more history.' : ' All account history is loaded.'}
-          </p>
-        </div>
-      )}
-
       {scoped.length === 0 ? (
-        <section className="glass-card p-6 text-center">
-          <p className="text-[var(--foreground)]">Nothing recorded yet for this range.</p>
-          <p className="field-hint mt-2">
-            {cloud
-              ? 'Finished and failed account runs can appear here when provider billing information is available. A failed or interrupted save may still be billed by the provider.'
-              : 'Every finished image, video, and helper task is filed here with its cost. A provider may still bill an accepted run if saving or delivery later fails.'}
-          </p>
-          {!cloud && <Link href="/" className="btn-primary mt-4 inline-flex">Open the studio</Link>}
-          {cloud && hasOlder && onLoadOlder && (
-            <button type="button" onClick={onLoadOlder} disabled={loadingOlder} className="btn-secondary mt-4">
-              {loadingOlder ? 'Loading…' : 'Load older records'}
-            </button>
-          )}
-        </section>
+        <>
+          <section className="glass-card p-6 text-center">
+            <p className="text-[var(--foreground)]">{entries.length === 0 ? 'Nothing recorded yet.' : 'Nothing recorded yet for this range.'}</p>
+            <p className="field-hint mt-2">
+              {cloud
+                ? 'Finished and failed account runs can appear here when provider billing information is available. A failed or interrupted save may still be billed by the provider.'
+                : 'Every finished image, video, and helper task is filed here with its cost. A provider may still bill an accepted run if saving or delivery later fails.'}
+            </p>
+            {!cloud && <Link href="/" className="btn-primary mt-4 inline-flex">Open the studio</Link>}
+            {cloud && hasOlder && onLoadOlder && (
+              <button type="button" onClick={onLoadOlder} disabled={loadingOlder} className="btn-secondary mt-4">
+                {loadingOlder ? 'Loading…' : 'Load older records'}
+              </button>
+            )}
+          </section>
+          {entries.length === 0 && <SpendEmptyPreview />}
+        </>
       ) : (
         <>
           <SpendSummary totals={totals(scoped)} kieCredits={cloud ? undefined : kieCredits} />
@@ -134,7 +129,9 @@ export default function SpendReport({
       )}
 
       <p className="field-hint text-center">
-        {cloud ? 'Account spend is available on every signed-in device.' : 'Stored in this browser only. Clearing site data clears the ledger.'}
+        {cloud
+          ? 'Your spend is available on any computer or phone you sign in to.'
+          : 'Stored in this browser only. Clearing site data clears the ledger. Sign in to access your spend on any computer or phone you use.'}
       </p>
     </>
   );

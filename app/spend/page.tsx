@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useQueryState } from 'nuqs';
 
@@ -28,7 +28,6 @@ function SpendView() {
   const removeLocal = useSpendStore((state) => state.remove);
   const clearLocal = useSpendStore((state) => state.clear);
   const kieApiKey = useAppStore((state) => state.kieApiKey);
-  const [sourceChoice, setSourceChoice] = useState<{ scope: string; source: SpendSource } | null>(null);
   const [clearIntent, setClearIntent] = useState<{
     source: SpendSource;
     scope: string;
@@ -36,7 +35,12 @@ function SpendView() {
   } | null>(null);
   const [now] = useState(() => Date.now());
   const accountScope = `${ownerId ?? 'guest'}:${accountEpoch}`;
-  const source: SpendSource = ownerId && sourceChoice?.scope === accountScope ? sourceChoice.source : ownerId ? 'account' : 'browser';
+  const source: SpendSource = ownerId ? 'account' : 'browser';
+  const [accountEmpty, setAccountEmpty] = useState<{ scope: string; empty: boolean } | null>(null);
+  const onAccountEmptyChange = useCallback((empty: boolean) => setAccountEmpty({ scope: accountScope, empty }), [accountScope]);
+  const hasAnyEntries = source === 'browser'
+    ? localEntries.length > 0
+    : accountEmpty?.scope === accountScope && !accountEmpty.empty;
   const activeClearIntent = clearIntent?.scope === accountScope && clearIntent.source === source ? clearIntent : null;
 
   useEffect(() => {
@@ -68,28 +72,22 @@ function SpendView() {
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-7xl space-y-4 px-6 py-6 sm:px-8 md:px-12 lg:px-16">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h1 className="display text-2xl">Spend</h1>
-            <p className="field-hint mt-1">What your generations cost. Estimates use published rates.</p>
+      <main className="mx-auto w-full max-w-7xl space-y-4 px-6 py-10 sm:px-8 md:px-12 md:py-14 lg:px-16">
+        <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
+          <div className="max-w-2xl">
+            <h1 className="display text-3xl font-semibold tracking-tight text-[var(--foreground)] sm:text-4xl">Spend</h1>
+            <p className="mt-3 text-base leading-relaxed text-[var(--foreground-muted)]">What your generations cost. Estimates use published rates.</p>
           </div>
-          <div className="w-full space-y-2 sm:w-auto sm:min-w-[22rem]">
-            {ownerId && (
+          {hasAnyEntries && (
+            <div className="w-full sm:w-auto sm:min-w-[22rem]">
               <SegmentedToggleGroup
-                label="Spend source"
-                options={[{ value: 'account', label: 'Cloud account' }, { value: 'browser', label: 'This browser' }]}
-                value={source}
-                onChange={(value) => setSourceChoice({ scope: accountScope, source: value as SpendSource })}
+                label="Range"
+                options={SPEND_RANGES}
+                value={range}
+                onChange={(value) => void setRangeParam(value === 'month' ? null : String(value))}
               />
-            )}
-            <SegmentedToggleGroup
-              label="Range"
-              options={SPEND_RANGES}
-              value={range}
-              onChange={(value) => void setRangeParam(value === 'month' ? null : String(value))}
-            />
-          </div>
+            </div>
+          )}
         </div>
 
         {waitingForSession ? (
@@ -97,10 +95,16 @@ function SpendView() {
         ) : accountStatus === 'unavailable' && ownerId && source === 'account' ? (
           <div role="alert" className="glass-card border-[var(--neon-pink)]/35 p-6 text-center">
             <p className="text-[var(--foreground)]">Account spend is temporarily unavailable.</p>
-            <p className="field-hint mt-2">Your browser ledger remains separate and can be selected above.</p>
+            <p className="field-hint mt-2">Try again in a moment. Your browser ledger is kept separately and is unaffected.</p>
           </div>
         ) : source === 'account' && ownerId ? (
-          <AccountSpend ownerId={ownerId} range={range} now={now} onClearRequest={(clear) => setClearIntent({ source: 'account', scope: accountScope, clear })} />
+          <AccountSpend
+            ownerId={ownerId}
+            range={range}
+            now={now}
+            onClearRequest={(clear) => setClearIntent({ source: 'account', scope: accountScope, clear })}
+            onEmptyChange={onAccountEmptyChange}
+          />
         ) : (
           <>
             {accountStatus === 'unavailable' && !ownerId && (

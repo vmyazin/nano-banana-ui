@@ -51,18 +51,47 @@ describe('account spend', () => {
     owner();
   });
 
-  it('prefers the signed-in account and keeps the browser ledger separate', async () => {
+  it('shows only the signed-in account ledger without a source toggle', async () => {
     vi.mocked(accountRequest).mockResolvedValue({ accountId: 'owner-1', entries: [entry('cloud', 'Cloud record')], nextCursor: null });
     render(<SpendPage />);
 
     expect(await screen.findByText('Cloud record')).toBeInTheDocument();
+    expect(screen.getByRole('radiogroup', { name: 'Range' })).toBeInTheDocument();
     expect(screen.queryByText('Browser record')).toBeNull();
-    expect(screen.getByRole('radio', { name: 'Cloud account' })).toHaveAttribute('aria-checked', 'true');
-
-    fireEvent.click(screen.getByRole('radio', { name: 'This browser' }));
-    expect(await screen.findByText('Browser record')).toBeInTheDocument();
-    expect(screen.queryByText('Cloud record')).toBeNull();
+    expect(screen.queryByRole('radio', { name: 'Cloud account' })).toBeNull();
+    expect(screen.queryByRole('radio', { name: 'This browser' })).toBeNull();
     expect(useSpendStore.getState().entries.map((item) => item.id)).toEqual(['guest']);
+  });
+
+  it('hides the range selector until something has been recorded', async () => {
+    useAccountStore.getState().applySession({ account: null, googleEnabled: true, localSignIn: false, providers: [], connections: [] });
+    useSpendStore.setState({ entries: [], hasHydrated: true });
+    render(<SpendPage />);
+
+    expect(screen.getByText('Nothing recorded yet.')).toBeInTheDocument();
+    expect(screen.getByText('Per day')).toBeInTheDocument();
+    expect(screen.queryByRole('radiogroup', { name: 'Range' })).toBeNull();
+
+    useSpendStore.setState({ entries: [entry('guest', 'Browser record')] });
+    expect(await screen.findByRole('radiogroup', { name: 'Range' })).toBeInTheDocument();
+  });
+
+  it('hides the range selector for an account with no records', async () => {
+    vi.mocked(accountRequest).mockResolvedValue({ accountId: 'owner-1', entries: [], nextCursor: null });
+    render(<SpendPage />);
+
+    expect(await screen.findByText('Nothing recorded yet.')).toBeInTheDocument();
+    expect(screen.getByText('Per day')).toBeInTheDocument();
+    expect(screen.queryByRole('radiogroup', { name: 'Range' })).toBeNull();
+  });
+
+  it('shows the browser ledger for guests without a source toggle', () => {
+    useAccountStore.getState().applySession({ account: null, googleEnabled: true, localSignIn: false, providers: [], connections: [] });
+    render(<SpendPage />);
+
+    expect(screen.getByText('Browser record')).toBeInTheDocument();
+    expect(screen.queryByRole('radio', { name: 'Cloud account' })).toBeNull();
+    expect(accountRequest).not.toHaveBeenCalled();
   });
 
   it('discards a pending read after logout and aborts it when the owner changes', async () => {
@@ -84,7 +113,7 @@ describe('account spend', () => {
     expect(screen.queryByText('Stale cloud record')).toBeNull();
   });
 
-  it('appends and deduplicates older pages while stating the loaded scope', async () => {
+  it('appends and deduplicates older pages', async () => {
     vi.mocked(accountRequest).mockImplementation(async (path) => {
       if (path === 'spend') return { accountId: 'owner-1', entries: [entry('new', 'Newest')], nextCursor: '100:old' };
       if (path === 'spend?cursor=100%3Aold') return {
@@ -96,11 +125,12 @@ describe('account spend', () => {
     });
     render(<SpendPage />);
 
-    expect(await screen.findByText(/Totals, charts, and CSV cover 1 loaded account record/)).toBeInTheDocument();
+    expect(await screen.findByText('Newest')).toBeInTheDocument();
+    expect(screen.queryByText(/loaded account record/)).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Load older records' }));
 
     expect(await screen.findByText('Older')).toBeInTheDocument();
-    expect(screen.getByText(/cover 2 loaded account records/)).toHaveTextContent('All account history is loaded.');
+    expect(screen.queryByRole('button', { name: 'Load older records' })).toBeNull();
     expect(within(screen.getByRole('table', { name: 'Ledger' })).getAllByRole('row')).toHaveLength(3);
   });
 
