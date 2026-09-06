@@ -1,8 +1,9 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import ConnectionStorageControl from '@/components/account/ConnectionStorageControl';
 import { removeConnection, saveBrowserKey } from '@/lib/account/connection-sync';
+import { accountChanged, refreshAccount } from '@/lib/account/session';
 import { useAccountStore, type AccountConnection } from '@/store/useAccountStore';
 import { useAppStore } from '@/store/useAppStore';
 
@@ -88,6 +89,35 @@ describe('ConnectionStorageControl', () => {
       )
     );
     expect(useAppStore.getState().accountKeyOptOuts).toEqual([]);
+  });
+
+  it('ignores a stale removal result once a different account has signed in', async () => {
+    signIn([gemini()]);
+    let resolveRemoval: (value: { connections: AccountConnection[] }) => void = () => {};
+    vi.mocked(removeConnection).mockReturnValueOnce(
+      new Promise((resolve) => { resolveRemoval = resolve; })
+    );
+    render(<ConnectionStorageControl provider="gemini" apiKey="AIzaSyLocal" />);
+    fireEvent.click(screen.getByRole('button', { name: /Remove from account/ }));
+    await waitFor(() => expect(removeConnection).toHaveBeenCalledWith('gemini', 'owner-1'));
+
+    // A different account signs in before the removal resolves. This bumps
+    // `epoch`, so the pending request's identity no longer matches.
+    act(() => {
+      useAccountStore.getState().applySession({
+        account: { id: 'owner-2', name: 'Other', email: 'other@example.test' },
+        googleEnabled: true, localSignIn: false, providers: [], connections: [],
+      });
+    });
+
+    await act(async () => {
+      resolveRemoval({ connections: [] });
+      await Promise.resolve();
+    });
+
+    expect(useAppStore.getState().accountKeyOptOuts).toEqual([]);
+    expect(accountChanged).not.toHaveBeenCalled();
+    expect(refreshAccount).not.toHaveBeenCalled();
   });
 
   it('keeps the connection and reports the failure when removal fails', async () => {

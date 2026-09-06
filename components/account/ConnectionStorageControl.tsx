@@ -38,18 +38,30 @@ export default function ConnectionStorageControl({
   const key = apiKey.trim();
   if (!ownerId || (!connection && !key)) return null;
 
+  // `accountKeyOptOuts` is a flat, device-global store field — it is not
+  // cleared on sign-out — so a write that resolves after the signed-in
+  // account has changed must not touch it: that would leak one account's
+  // removal into another account that never asked for it.
+  function identityMatches(capturedEpoch: number) {
+    const state = useAccountStore.getState();
+    return state.epoch === capturedEpoch && state.session?.account?.id === ownerId;
+  }
+
   async function run(action: () => Promise<unknown>, thenOptOut: boolean) {
     if (busy) return;
     setBusy(true);
     setError(null);
+    const capturedEpoch = useAccountStore.getState().epoch;
     try {
       await action();
+      if (!identityMatches(capturedEpoch)) return;
       // The flag flips only after the write lands, so a failed removal does not
       // leave the provider opted out of a connection it still has.
       setOptOut(provider, thenOptOut);
       accountChanged();
       void refreshAccount().catch(() => {});
     } catch (cause) {
+      if (!identityMatches(capturedEpoch)) return;
       setError(cause instanceof Error && cause.message ? cause.message : 'Please try again.');
     } finally {
       setBusy(false);
