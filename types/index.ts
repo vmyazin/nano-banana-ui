@@ -73,7 +73,7 @@ export const FEATURES: Feature[] = [
     name: 'Real-Time Search Visualization',
     description: 'Generate images powered by live Google Search data. Create visualizations of current weather, stock trends, sports scores, news events, and real-world information with up-to-date accuracy.',
     icon: '🔍',
-    thumbnail: '/thumbnails/weather-forecast.png',
+    thumbnail: '/thumbnails/weather-forecast.jpg',
     category: 'generation',
     requiresImage: false,
     requiresMultipleImages: false,
