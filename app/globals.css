@@ -284,12 +284,12 @@ body::after {
   transition: filter 0.2s ease, box-shadow 0.2s ease, transform 0.1s ease;
 }
 
-.btn-primary:hover {
+.btn-primary:hover:not(:disabled) {
   filter: brightness(1.08);
   box-shadow: var(--glow-cyan);
 }
 
-.btn-primary:active {
+.btn-primary:active:not(:disabled) {
   transform: translateY(1px);
 }
 
@@ -311,9 +311,23 @@ body::after {
   transition: border-color 0.2s ease, background 0.2s ease;
 }
 
-.btn-secondary:hover {
+.btn-secondary:hover:not(:disabled) {
   background: var(--surface-hover);
   border-color: var(--border-hover);
+}
+
+/*
+ * Disabled buttons carried no styling at all: a disabled primary kept its full
+ * cyan fill and still lit up on hover, so it read as the loudest thing on the
+ * screen while doing nothing. Stated once here rather than per button, because
+ * every surface that disables one had the same problem.
+ */
+.btn-primary:disabled,
+.btn-secondary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  filter: none;
+  box-shadow: none;
 }
 
 /* Inputs — hairline border, calm focus ring in cyan */
