@@ -11,6 +11,7 @@ import AccountAvatar from './AccountAvatar';
 import AccountConnections from './AccountConnections';
 import AccountDeletion from './AccountDeletion';
 import BrowserImportDialog from './BrowserImportDialog';
+import ApiKeyConfig from '@/components/ApiKeyConfig';
 import { accountRequest } from '@/lib/account/client';
 import { browserKeyCandidates } from '@/lib/account/key-import';
 import { isImportableGalleryRecord } from '@/lib/account/import';
@@ -60,6 +61,7 @@ export default function AccountConsole({
   const ownerId = account.id;
   const [filter, setFilter] = useState<LibraryFilterId>('all');
   const [importing, setImporting] = useState(false);
+  const [managingKeys, setManagingKeys] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionBusy, setActionBusy] = useState(false);
 
@@ -145,6 +147,7 @@ export default function AccountConsole({
   const visibleJobs = filter === 'active' ? activeJobs : attentionJobs;
 
   return (
+    <>
     <div className="mt-8 grid items-start gap-0 overflow-hidden rounded-2xl border border-[var(--border-hover)] bg-[var(--background-elevated)] lg:grid-cols-[300px_minmax(0,1fr)]">
       <aside aria-label="Account settings" className="border-b border-[var(--border)] bg-[hsl(var(--tint-hue)_42%_8.8%/0.45)] p-5 lg:min-h-[40rem] lg:border-b-0 lg:border-r">
         <div className="flex items-center gap-2.5">
@@ -206,7 +209,7 @@ export default function AccountConsole({
         </RailBlock>
 
         <RailBlock>
-          <AccountConnections variant="rail" />
+          <AccountConnections onManage={() => setManagingKeys(true)} />
         </RailBlock>
 
         {/* Absent, not empty: an account with nothing staged on this device has
@@ -317,5 +320,8 @@ export default function AccountConsole({
         )}
       </div>
     </div>
+
+    <ApiKeyConfig open={managingKeys} onOpenChange={setManagingKeys} />
+    </>
   );
 }
