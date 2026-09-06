@@ -1,13 +1,18 @@
 'use client';
 
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { CloudUpload, Loader2, Lock, MonitorSmartphone } from 'lucide-react';
 
+import ConfirmDialog from '@/components/ConfirmDialog';
 import { removeConnection, saveBrowserKey } from '@/lib/account/connection-sync';
 import type { ImportableProvider } from '@/lib/account/key-import';
 import { accountChanged, refreshAccount } from '@/lib/account/session';
+import { ENGINES } from '@/lib/engines/registry';
 import { useAccountStore } from '@/store/useAccountStore';
 import { useAppStore } from '@/store/useAppStore';
+
+const providerLabel = (provider: string) => ENGINES.find((engine) => engine.id === provider)?.label ?? provider;
 
 /**
  * The action that changes where one provider's key is kept.
@@ -37,6 +42,7 @@ export function ConnectionStorageButton({
   const setOptOut = useAppStore((state) => state.setAccountKeyOptOut);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState(false);
 
   const key = apiKey.trim();
   if (!ownerId || (!connection && !key)) return null;
@@ -73,12 +79,19 @@ export function ConnectionStorageButton({
 
   const save = () => run(() => saveBrowserKey({ provider, apiKey: key, ...(accountId ? { accountId } : {}) }, ownerId), false);
   const remove = () => run(() => removeConnection(provider, ownerId), true);
+  const name = providerLabel(provider);
 
+  // The vault is write-only (spec: "Storage semantics: copy, not move"), so in
+  // the row-4 state (spec's card-states table) the account's copy is the only
+  // copy — a stray click here would destroy it with no way back. A confirm
+  // step, not a second undo, is the only honest guard for a delete that
+  // cannot be reversed.
   const button = connection ? (
     <button
       type="button"
       disabled={busy}
-      onClick={() => void remove()}
+      onClick={() => setConfirming(true)}
+      aria-label={`Remove from account: ${name}`}
       className="btn-secondary shrink-0 gap-1.5 px-2 py-1 text-xs disabled:opacity-50"
     >
       {busy ? <Loader2 size={13} className="animate-spin motion-reduce:animate-none" aria-hidden="true" /> : null}
@@ -89,6 +102,7 @@ export function ConnectionStorageButton({
       type="button"
       disabled={busy}
       onClick={() => void save()}
+      aria-label={`Save to account: ${name}`}
       className="btn-secondary shrink-0 gap-1.5 border-[var(--neon-cyan)]/30 px-2 py-1 text-xs text-[var(--neon-cyan)] disabled:opacity-50"
     >
       {busy ? <Loader2 size={13} className="animate-spin motion-reduce:animate-none" aria-hidden="true" /> : <CloudUpload size={13} aria-hidden="true" />}
@@ -102,9 +116,23 @@ export function ConnectionStorageButton({
     <div className="flex flex-col items-end gap-1">
       {button}
       {error && (
-        <p role="alert" className="text-right text-xs text-red-300">
+        <p role="alert" className="max-w-[9.5rem] text-right text-xs text-red-300">
           {error}
         </p>
+      )}
+      {confirming && typeof document !== 'undefined' && createPortal(
+        <ConfirmDialog
+          open
+          title="Remove this connection?"
+          description="Jobs that still need this key may stop. Your existing saved assets remain available."
+          confirmLabel="Remove connection"
+          onConfirm={() => {
+            setConfirming(false);
+            void remove();
+          }}
+          onCancel={() => setConfirming(false)}
+        />,
+        document.body
       )}
     </div>
   );

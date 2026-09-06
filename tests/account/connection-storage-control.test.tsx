@@ -52,13 +52,21 @@ describe('ConnectionStorageControl', () => {
     expect(screen.getByText(/9c1d/)).toBeInTheDocument();
     expect(screen.getByText(/Browser-only runs need a key on this device/)).toBeInTheDocument();
     expect(screen.queryByText('On this device')).not.toBeInTheDocument();
+    // The vault is write-only, so this is the one state where the account's
+    // copy cannot be recovered if removed — the button must still be offered,
+    // but only behind the confirm.
+    fireEvent.click(screen.getByRole('button', { name: /Remove from account/ }));
+    expect(screen.getByRole('alertdialog', { name: 'Remove this connection?' })).toBeInTheDocument();
+    expect(removeConnection).not.toHaveBeenCalled();
   });
 
   it('offers Save to account only for a provider that was opted out', () => {
     signIn();
     useAppStore.setState({ accountKeyOptOuts: ['gemini'] });
     render(<><ConnectionStorageButton provider="gemini" apiKey="AIzaSyLocal" /><ConnectionStorageBadge provider="gemini" apiKey="AIzaSyLocal" /></>);
+    expect(screen.getByText('On this device')).toBeInTheDocument();
     expect(screen.getByText('Not in your account')).toBeInTheDocument();
+    expect(screen.getByText('Kept off your account, so cloud jobs cannot use it.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Save to account/ })).toBeInTheDocument();
   });
 
@@ -73,8 +81,18 @@ describe('ConnectionStorageControl', () => {
     signIn([gemini()]);
     render(<><ConnectionStorageButton provider="gemini" apiKey="AIzaSyLocal" /><ConnectionStorageBadge provider="gemini" apiKey="AIzaSyLocal" /></>);
     fireEvent.click(screen.getByRole('button', { name: /Remove from account/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Remove connection' }));
     await waitFor(() => expect(removeConnection).toHaveBeenCalledWith('gemini', 'owner-1'));
     expect(useAppStore.getState().accountKeyOptOuts).toEqual(['gemini']);
+  });
+
+  it('cancelling the confirm leaves the connection untouched', () => {
+    signIn([gemini()]);
+    render(<><ConnectionStorageButton provider="gemini" apiKey="AIzaSyLocal" /><ConnectionStorageBadge provider="gemini" apiKey="AIzaSyLocal" /></>);
+    fireEvent.click(screen.getByRole('button', { name: /Remove from account/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    expect(removeConnection).not.toHaveBeenCalled();
   });
 
   it('saving clears the opt-out and sends the key that is on screen', async () => {
@@ -99,6 +117,7 @@ describe('ConnectionStorageControl', () => {
     );
     render(<><ConnectionStorageButton provider="gemini" apiKey="AIzaSyLocal" /><ConnectionStorageBadge provider="gemini" apiKey="AIzaSyLocal" /></>);
     fireEvent.click(screen.getByRole('button', { name: /Remove from account/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Remove connection' }));
     await waitFor(() => expect(removeConnection).toHaveBeenCalledWith('gemini', 'owner-1'));
 
     // A different account signs in before the removal resolves. This bumps
@@ -125,6 +144,7 @@ describe('ConnectionStorageControl', () => {
     vi.mocked(removeConnection).mockRejectedValueOnce(new Error('Network unavailable.'));
     render(<><ConnectionStorageButton provider="gemini" apiKey="AIzaSyLocal" /><ConnectionStorageBadge provider="gemini" apiKey="AIzaSyLocal" /></>);
     fireEvent.click(screen.getByRole('button', { name: /Remove from account/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Remove connection' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Network unavailable.');
     expect(useAppStore.getState().accountKeyOptOuts).toEqual([]);
   });
