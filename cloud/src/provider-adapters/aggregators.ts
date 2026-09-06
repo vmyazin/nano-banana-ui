@@ -32,9 +32,9 @@ export function validateAggregatorRequest(r: CloudJobRequest) {
     if (!capability) return invalid(`${model.label} does not accept images for ${describeMode(r.inputMode)}.`);
     if (r.inputMode === 'frames' && count !== 2) return invalid('First and last frame needs exactly two images: the frame the clip opens on, then the one it ends on.');
     if (count > capability.maxImages) return invalid(`${model.label} takes up to ${capability.maxImages} input image${capability.maxImages === 1 ? '' : 's'}. Remove ${count - capability.maxImages}.`);
-    // The Atlas and Comet background transports were wired for one image, not
-    // a pair of frames, so this guard predates the catalog offering two.
-    if (r.provider !== 'runware' && count > 1) return invalid(`${providerLabel} background jobs currently accept one input image, so first-and-last-frame runs are not available there yet.`);
+    // Comet's video route takes a single `input_reference`; Atlas maps a second
+    // image to `last_image`, so only Comet is held to one.
+    if (r.provider === 'comet' && count > 1) return invalid('Comet background jobs accept one input image, so first-and-last-frame runs are not available there yet.');
   }
   const {aspectRatio, size, durationSeconds} = r.values;
   if (aspectRatio !== undefined && !['1:1','16:9','9:16','4:3','3:4','3:2','2:3','21:9'].includes(String(aspectRatio))) return invalid(`"${String(aspectRatio)}" is not an aspect ratio ${model.label} accepts.`);

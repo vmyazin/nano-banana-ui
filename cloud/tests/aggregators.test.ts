@@ -55,9 +55,9 @@ describe('durable aggregator adapters', () => {
     expect(await provider.poll(env,job,handle!)).toMatchObject({state:'success',result:{sources:[{url:'https://im.runware.ai/result.jpg'}]}});
     expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual([{taskType:'getResponse',taskUUID:handle!.id}]);
   });
-  it('names what was wrong when an Atlas first-and-last-frame job is rejected', () => {
+  it('accepts an Atlas first-and-last-frame pair and names what was wrong otherwise', () => {
     const frames={...request,provider:'atlas' as const,modelId:'bytedance/seedance-2.0-mini/image-to-video',mediaType:'video' as const,inputMode:'frames' as const,referenceIds:['first','last'],values:{}};
-    expect(() => validateRequest(env,frames)).toThrow(/Atlas Cloud background jobs currently accept one input image/);
+    expect(() => validateRequest(env,frames)).not.toThrow();
     expect(() => validateRequest(env,{...frames,referenceIds:['first']})).toThrow(/exactly two images/);
     expect(() => validateRequest(env,{...frames,inputMode:'image' as const,referenceIds:['first'],values:{size:'imaginary'}})).toThrow(/"imaginary" is not an output size/);
   });
