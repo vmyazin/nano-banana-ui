@@ -6,6 +6,7 @@ import { RefreshCw } from 'lucide-react';
 import AccountConsole from './AccountConsole';
 import AccountPageShell from './AccountPageShell';
 import { AccountSurface } from './AccountSurface';
+import ApiKeyConfig from '@/components/ApiKeyConfig';
 import { accountChanged, refreshAccount } from '@/lib/account/session';
 import { useAccountStore } from '@/store/useAccountStore';
 
@@ -17,6 +18,13 @@ export default function AccountDashboard() {
   const scope = `${session?.account?.id ?? 'guest'}:${epoch}`;
   const [busyScope, setBusyScope] = useState<string | null>(null);
   const [errorState, setErrorState] = useState<{ scope: string; message: string } | null>(null);
+  // Held here rather than inside `AccountConsole`: that component remounts on
+  // its `key` below, which changes whenever `accountChanged()`/`refreshAccount()`
+  // fires — exactly what the dialog's own storage buttons do on every save or
+  // remove. State that lived inside it was destroyed by the click that just
+  // used it, closing the dialog under the user. Owning it here, outside the
+  // keyed element, survives that remount.
+  const [managingKeys, setManagingKeys] = useState(false);
   const busy = busyScope === scope;
   const error = errorState?.scope === scope ? errorState.message : null;
   const account = status === 'ready' ? session?.account ?? null : null;
@@ -100,7 +108,9 @@ export default function AccountDashboard() {
         busy={busy}
         error={error}
         onSignOut={() => void signOut(account.id, epoch)}
+        onManageKeys={() => setManagingKeys(true)}
       />
+      <ApiKeyConfig open={managingKeys} onOpenChange={setManagingKeys} />
     </AccountPageShell>
   );
 }

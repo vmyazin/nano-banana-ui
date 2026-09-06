@@ -11,7 +11,6 @@ import AccountAvatar from './AccountAvatar';
 import AccountConnections from './AccountConnections';
 import AccountDeletion from './AccountDeletion';
 import BrowserImportDialog from './BrowserImportDialog';
-import ApiKeyConfig from '@/components/ApiKeyConfig';
 import { accountRequest } from '@/lib/account/client';
 import { browserKeyCandidates } from '@/lib/account/key-import';
 import { isImportableGalleryRecord } from '@/lib/account/import';
@@ -51,17 +50,25 @@ export default function AccountConsole({
   busy,
   error,
   onSignOut,
+  onManageKeys,
 }: {
   account: AccountIdentity;
   localTest?: boolean;
   busy: boolean;
   error: string | null;
   onSignOut: () => void;
+  /**
+   * Opens the connections dialog. Lives in the parent, outside this
+   * component's remount key, because `accountChanged()`/`refreshAccount()` —
+   * fired by the dialog's own storage buttons — can bump that key and
+   * remount this whole console. State owned here would be discarded along
+   * with it, closing the dialog out from under the click that just used it.
+   */
+  onManageKeys: () => void;
 }) {
   const ownerId = account.id;
   const [filter, setFilter] = useState<LibraryFilterId>('all');
   const [importing, setImporting] = useState(false);
-  const [managingKeys, setManagingKeys] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionBusy, setActionBusy] = useState(false);
 
@@ -147,7 +154,6 @@ export default function AccountConsole({
   const visibleJobs = filter === 'active' ? activeJobs : attentionJobs;
 
   return (
-    <>
     <div className="mt-8 grid items-start gap-0 overflow-hidden rounded-2xl border border-[var(--border-hover)] bg-[var(--background-elevated)] lg:grid-cols-[300px_minmax(0,1fr)]">
       <aside aria-label="Account settings" className="border-b border-[var(--border)] bg-[hsl(var(--tint-hue)_42%_8.8%/0.45)] p-5 lg:min-h-[40rem] lg:border-b-0 lg:border-r">
         <div className="flex items-center gap-2.5">
@@ -209,7 +215,7 @@ export default function AccountConsole({
         </RailBlock>
 
         <RailBlock>
-          <AccountConnections onManage={() => setManagingKeys(true)} />
+          <AccountConnections onManage={onManageKeys} />
         </RailBlock>
 
         {/* Absent, not empty: an account with nothing staged on this device has
@@ -320,8 +326,5 @@ export default function AccountConsole({
         )}
       </div>
     </div>
-
-    <ApiKeyConfig open={managingKeys} onOpenChange={setManagingKeys} />
-    </>
   );
 }
