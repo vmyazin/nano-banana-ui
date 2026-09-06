@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { accountRequest } from './client';
+import { isActiveJob } from './job-status';
 import type { CloudAsset, CloudAssetCounts, CloudJobView } from './contracts';
 
 /** Values that narrow the asset query itself. Job-state filters live in the
@@ -27,6 +28,8 @@ export function useAccountLibrary(ownerId:string,kind:LibraryKind='all') {
   const [cursor,setCursor]=useState<string|null>(null);
   const [nextCursor,setNextCursor]=useState<string|null>(null);
   const [loading,setLoading]=useState(true);
+  // Read by the poll timer without restarting it on every page of results.
+  const latestJobs=useRef<CloudJobView[]>([]);
   useEffect(()=>{
     const controller=new AbortController();let running=false;
     const filters=[
@@ -48,11 +51,18 @@ export function useAccountLibrary(ownerId:string,kind:LibraryKind='all') {
         // keep their numbers while the grid below them reloads.
         // Defaulted at the boundary: a truncated or unexpected payload should
         // leave the page empty, not hand `undefined` to the render.
-        if(!controller.signal.aborted){setJobs(jobPage?.jobs??[]);setAssets(assetPage?.assets??[]);setNextCursor(assetPage?.nextCursor??null);if(assetPage?.counts)setCounts(assetPage.counts);setStorage(quota?.storage??null);setError(null);}
+        if(!controller.signal.aborted){latestJobs.current=jobPage?.jobs??[];setJobs(latestJobs.current);setAssets(assetPage?.assets??[]);setNextCursor(assetPage?.nextCursor??null);if(assetPage?.counts)setCounts(assetPage.counts);setStorage(quota?.storage??null);setError(null);}
       }catch(error){if(!controller.signal.aborted)setError(error instanceof Error&&error.message?error.message:'Could not load your cloud library.');}
       finally{running=false;if(!controller.signal.aborted)setLoading(false);}
     }
-    void refresh();const timer=setInterval(()=>void refresh(),5000);
+    // Same rule as the session provider: every tick while a job is in flight,
+    // a slow heartbeat otherwise, nothing for a hidden tab.
+    let lastRead=0;
+    const tick=()=>{
+      if(document.visibilityState==='hidden')return;
+      if(latestJobs.current.some(isActiveJob)||Date.now()-lastRead>=30000){lastRead=Date.now();void refresh();}
+    };
+    lastRead=Date.now();void refresh();const timer=setInterval(tick,5000);
     return()=>{controller.abort();clearInterval(timer);};
   },[revision,cursor,ownerId,kind]);
   function page(value:string|null){
