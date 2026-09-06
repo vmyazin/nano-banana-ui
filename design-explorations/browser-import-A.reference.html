@@ -1,0 +1,162 @@
+<!--
+  REFERENCE — browser → cloud import, variant A ("Full-width picker dialog")
+  Source exploration: design-explorations/browser-import.html
+  Brand: Scene Assembly (see design-explorations/_brand.md)
+  Manifest: design-explorations/browser-import-A.manifest.md
+  Date: 2026-09-05
+
+  Single source of truth for the parity diff. Renders standalone.
+  Fixture: the reporting device — 89 importable files (107.6 MB), 7 provider
+  keys, 4 saved connections, against a 1 GB quota that is 41% used.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Browser import — variant A reference</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@500;600&display=swap" rel="stylesheet" />
+  <style>
+    /* ============ VARIANT A · FULL-WIDTH PICKER DIALOG ============
+       Scene Assembly product tokens (app/globals.css). Shared shell pieces
+       live under .sa-; this variant's own rules under .va-. Extracted from
+       the four-up exploration, carrying only what variant A renders.
+    */
+:root {
+      --sa-bg: #081012; --sa-elev: #0e191b; --sa-prompt: #0d1d20;
+      --sa-ink: #ecf5f5; --sa-mute: #8fa5a7; --sa-subtle: #7a8d8f;
+      --sa-cyan: #00fff9; --sa-violet: #bd00ff; --sa-magenta: #ff006e; --sa-yellow: #ffed4e;
+      --sa-line: rgba(194,232,240,0.075); --sa-line-2: rgba(194,232,240,0.17);
+      --sa-sans: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      --sa-mono: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+    body { margin: 0; min-height: 100vh; }
+    .sa-app { background: var(--sa-bg); color: var(--sa-ink); font-family: var(--sa-sans); font-size: 14px; letter-spacing: -0.011em; line-height: 1.45; }
+    .sa-app * { box-sizing: border-box; }
+    .sa-app h1,.sa-app h2,.sa-app h3,.sa-app h4 { margin: 0; letter-spacing: -0.03em; }
+    .sa-app p { margin: 0; }
+    .sa-app ul { margin: 0; padding: 0; list-style: none; }
+    .sa-btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; height: 32px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--sa-line-2); background: var(--sa-elev); color: var(--sa-ink); font-size: 13px; font-weight: 500; white-space: nowrap; }
+    .sa-btn-primary { border-color: transparent; background: var(--sa-cyan); color: var(--sa-bg); font-weight: 600; }
+    .sa-mini { height: 26px; padding: 0 9px; font-size: 11.5px; }
+    .sa-label { font-family: var(--sa-mono); font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--sa-subtle); }
+    .sa-thumb { border-radius: 8px; border: 1px solid var(--sa-line); background: #000709 linear-gradient(135deg, rgba(0,255,249,0.18), rgba(189,0,255,0.14) 55%, rgba(255,0,110,0.16)); }
+    .sa-thumb.v { background: #000709 linear-gradient(135deg, rgba(189,0,255,0.24), rgba(0,102,255,0.16) 60%, rgba(0,255,249,0.12)); }
+    .sa-thumb.y { background: #000709 linear-gradient(135deg, rgba(255,237,78,0.14), rgba(0,255,249,0.1)); }
+    .sa-box { width: 15px; height: 15px; flex: none; border-radius: 4px; border: 1px solid var(--sa-line-2); }
+    .sa-box.on { background: var(--sa-cyan); border-color: var(--sa-cyan); }
+    .sa-box.some { background: linear-gradient(to bottom, var(--sa-cyan) 50%, transparent 50%); border-color: var(--sa-cyan); }
+    .sa-budget { display: flex; height: 7px; border-radius: 999px; overflow: hidden; background: rgba(255,255,255,0.08); }
+    .sa-budget .used { background: rgba(143,165,167,0.55); }
+    .sa-budget .add { background: var(--sa-cyan); }
+    .sa-rail { width: 300px; flex: none; border-right: 1px solid var(--sa-line); background: rgba(13,29,32,0.45); padding: 18px 16px; }
+    .sa-shell { display: flex; align-items: stretch; min-height: 520px; }
+    .sa-main { flex: 1; min-width: 0; padding: 18px 20px; }
+
+    /* ---------------- A · full-width dialog ---------------- */
+    .va-stage { position: relative; min-height: 560px; padding: 18px 20px; }
+    .va-behind { filter: blur(3px); opacity: 0.35; pointer-events: none; }
+    .va-scrim { position: absolute; inset: 0; background: rgba(0,0,0,0.72); display: flex; align-items: center; justify-content: center; padding: 18px; }
+    .va-modal { width: 100%; max-width: 760px; border: 1px solid var(--sa-line-2); border-radius: 14px; background: var(--sa-elev); overflow: hidden; box-shadow: 0 30px 80px -30px rgba(0,0,0,0.9); }
+    .va-modal-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; padding: 16px 18px; border-bottom: 1px solid var(--sa-line); }
+    .va-modal-head h3 { font-size: 16px; font-weight: 600; }
+    .va-modal-head p { margin-top: 4px; font-size: 12.5px; color: var(--sa-mute); max-width: 460px; line-height: 1.5; }
+    .va-tabs { display: flex; gap: 2px; padding: 12px 18px 0; }
+    .va-tab { padding: 6px 11px; border-radius: 8px; font-family: var(--sa-mono); font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--sa-subtle); }
+    .va-tab.on { background: var(--sa-cyan); color: var(--sa-bg); font-weight: 600; }
+    .va-tools { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 18px; }
+    .va-tools .grp { display: flex; gap: 6px; }
+    .va-grid { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 10px; padding: 0 18px 14px; max-height: 260px; overflow: hidden; position: relative; }
+    .va-file { border: 1px solid var(--sa-line); border-radius: 10px; padding: 7px; background: rgba(13,29,32,0.6); }
+    .va-file.sel { border-color: var(--sa-cyan); box-shadow: 0 0 0 1px var(--sa-cyan); }
+    .va-file .sa-thumb { aspect-ratio: 4/3; }
+    .va-file .row { display: flex; align-items: center; gap: 6px; margin-top: 7px; }
+    .va-file b { min-width: 0; flex: 1; font-size: 11.5px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .va-file span { font-family: var(--sa-mono); font-size: 9.5px; color: var(--sa-subtle); }
+    .va-fade { padding: 0 18px; font-family: var(--sa-mono); font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--sa-subtle); }
+    .va-foot { border-top: 1px solid var(--sa-line); padding: 13px 18px; background: rgba(8,16,18,0.6); }
+    .va-foot-top { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+    .va-foot-top b { font-size: 13px; font-weight: 500; }
+    .va-foot-top .acts { display: flex; gap: 8px; }
+    .va-legend { display: flex; gap: 16px; margin-top: 8px; font-size: 11px; color: var(--sa-subtle); }
+    .va-legend i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 5px; }
+
+    @media (max-width: 1000px) {
+      .sa-shell { display: block; }
+      .sa-rail { width: auto; border-right: 0; border-bottom: 1px solid var(--sa-line); }
+      .va-grid { grid-template-columns: repeat(3, minmax(0,1fr)); }
+    }
+  </style>
+</head>
+<body>
+<div class="sa-app va-stage">
+  <div class="va-behind">
+    <div class="sa-shell">
+  <aside class="sa-rail">
+    <div class="sa-label">Saved connections <span style="float:right">4</span></div>
+    <ul style="margin-top:9px">
+      <li style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--sa-line);font-size:12.5px"><span style="color:var(--sa-yellow)">&#9679;</span><b style="flex:1;font-weight:500">Atlas Cloud</b><span style="font-family:var(--sa-mono);font-size:10px;color:var(--sa-subtle)">&middot;&middot;b4cf</span></li>
+      <li style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--sa-line);font-size:12.5px"><span style="color:var(--sa-violet)">&#9679;</span><b style="flex:1;font-weight:500">CometAPI</b><span style="font-family:var(--sa-mono);font-size:10px;color:var(--sa-subtle)">&middot;&middot;7jK1</span></li>
+      <li style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--sa-line);font-size:12.5px"><span style="color:var(--sa-magenta)">&#9679;</span><b style="flex:1;font-weight:500">fal.ai &middot; Nano Banana 2</b><span style="font-family:var(--sa-mono);font-size:10px;color:var(--sa-subtle)">&middot;&middot;50fa</span></li>
+      <li style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--sa-line);font-size:12.5px"><span style="color:var(--sa-yellow)">&#9679;</span><b style="flex:1;font-weight:500">Google Gemini</b><span style="font-family:var(--sa-mono);font-size:10px;color:var(--sa-subtle)">&middot;&middot;jUtA</span></li>
+    </ul>
+    <span class="sa-btn" style="width:100%;margin-top:11px">+ Add provider key</span>
+    <div style="margin-top:16px;border-top:1px solid var(--sa-line);padding-top:14px">
+      <div class="sa-label">Import from this browser <span style="float:right">96</span></div>
+      <p style="margin-top:8px;font-size:11px;color:var(--sa-subtle);line-height:1.5">7 provider keys and 89 files (107.6 MB) found on this device.</p>
+      <span class="sa-btn" style="width:100%;margin-top:10px">Review 96 items</span>
+    </div>
+  </aside>
+    </div>
+  </div>
+  <div class="va-scrim">
+    <div class="va-modal">
+      <div class="va-modal-head">
+        <div>
+          <h3>Import from this browser</h3>
+          <p>Choose local files to add to your private cloud library. Originals remain on this device.</p>
+        </div>
+        <span class="sa-btn sa-mini">Close</span>
+      </div>
+      <div class="va-tabs">
+        <span class="va-tab on">Files 89</span>
+        <span class="va-tab">Provider keys 7</span>
+      </div>
+      <div class="va-tools">
+        <div class="grp">
+          <span class="sa-btn sa-mini">Select all</span>
+          <span class="sa-btn sa-mini">Images 71</span>
+          <span class="sa-btn sa-mini">Video 18</span>
+        </div>
+        <span style="font-family:var(--sa-mono);font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:var(--sa-subtle)">Newest first</span>
+      </div>
+      <div class="va-grid">
+        <div class="va-file sel"><div class="sa-thumb"></div><div class="row"><span class="sa-box on"></span><b>espresso-cup-walnut</b></div><div class="row" style="margin-top:3px"><span>gemini &middot; 2.4 MB</span></div></div>
+        <div class="va-file sel"><div class="sa-thumb v"></div><div class="row"><span class="sa-box on"></span><b>arcade-dolly-4s</b></div><div class="row" style="margin-top:3px"><span>fal &middot; 18.7 MB</span></div></div>
+        <div class="va-file"><div class="sa-thumb y"></div><div class="row"><span class="sa-box"></span><b>headphones-teal-sweep</b></div><div class="row" style="margin-top:3px"><span>kie &middot; 3.1 MB</span></div></div>
+        <div class="va-file sel"><div class="sa-thumb"></div><div class="row"><span class="sa-box on"></span><b>lighthouse-keeper-35mm</b></div><div class="row" style="margin-top:3px"><span>runware &middot; 2.9 MB</span></div></div>
+        <div class="va-file"><div class="sa-thumb v"></div><div class="row"><span class="sa-box"></span><b>watch-orbit-slate</b></div><div class="row" style="margin-top:3px"><span>comet &middot; 22.4 MB</span></div></div>
+        <div class="va-file sel"><div class="sa-thumb y"></div><div class="row"><span class="sa-box on"></span><b>cyanotype-fern</b></div><div class="row" style="margin-top:3px"><span>cloudflare &middot; 1.8 MB</span></div></div>
+        <div class="va-file sel"><div class="sa-thumb"></div><div class="row"><span class="sa-box on"></span><b>skylight-rain-push</b></div><div class="row" style="margin-top:3px"><span>kie &middot; 15.2 MB</span></div></div>
+        <div class="va-file"><div class="sa-thumb"></div><div class="row"><span class="sa-box"></span><b>studio-portrait-v4</b></div><div class="row" style="margin-top:3px"><span>gemini &middot; 2.2 MB</span></div></div>
+      </div>
+      <p class="va-fade">Scrolling &middot; 8 of 89 shown</p>
+      <div class="va-foot">
+        <div class="va-foot-top">
+          <b>62 files selected &middot; 71.4 MB</b>
+          <div class="acts"><span class="sa-btn sa-mini">Cancel</span><span class="sa-btn sa-btn-primary sa-mini">Import 62 files</span></div>
+        </div>
+        <div class="sa-budget" style="margin-top:9px"><i class="used" style="width:41.2%"></i><i class="add" style="width:7.1%"></i></div>
+        <div class="va-legend">
+          <span><i style="background:rgba(143,165,167,0.55)"></i>412.3 MB already saved</span>
+          <span><i style="background:var(--sa-cyan)"></i>71.4 MB selected</span>
+          <span>516.3 MB would remain free</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,835 @@
+<!--
+  EXPLORATION TEMPLATE — explore-design skill
+  Brand: Scene Assembly (DESIGN.md + app/globals.css), light-adapted. See _brand.md.
+
+  How to use:
+  - Brand init (references/brand-init.md) copies this file once per repo to
+    design-explorations/_template.html with the repo's real --brand-* / --accent-* / font values
+    applied; explorations then copy THAT file to design-explorations/<short-name>.html. Only use
+    this neutral file directly as a scan-only fallback when brand init couldn't run.
+  - Replace tokens in the page header
+  - Duplicate the .variant block for each direction (A, B, C, D…)
+  - The .preview-frame is intentionally a clean white surface — variants paint inside it
+  - The page chrome (background, header, labels) stays consistent. Do not restyle it per variant.
+
+  Title:     Importing a browser library into the cloud
+  Source:    components/account/AccountAssetImport.tsx, AccountKeyImport.tsx
+  Data:      browser-import.manifest.md
+  Date:      2026-09-05
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Importing a browser library into the cloud</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@500;600&display=swap" rel="stylesheet" />
+  <style>
+    /* ----------------------------------------------------------------
+       SCENE ASSEMBLY — light adaptation of the repo brand.
+       Source: DESIGN.md ("The Illuminated Workbench") + app/globals.css.
+       The product is a dark teal workbench; the chrome translates that onto
+       light paper — canvas #081012 becomes ink, signal cyan / motion violet /
+       marker yellow become accents, Geist + Geist Mono stay. Quiet enough that
+       a dark variant preview can sit inside it without a fight.
+    ---------------------------------------------------------------- */
+    :root {
+      --brand-50: #e4f2f2;
+      --brand-100: #bfe4e4;
+      --brand-300: #4e8e91;
+      --brand-500: #076c70;   /* signal cyan #00fff9, contrast-fixed for paper */
+      --brand-700: #05494d;
+      --accent-50: #f4e9fd;
+      --accent-500: #7b16aa;  /* motion violet #bd00ff */
+      --accent-700: #5b0f7d;
+      --marker: #ffed4e;      /* marker yellow, used flat on ink only */
+      --magenta: #bd0059;     /* output magenta #ff006e */
+      --ink: #081012;         /* workbench canvas */
+      --ink-soft: #33474a;
+      --ink-mute: #6d8386;
+      --line: #d6e6e6;
+      --line-soft: #e7f0f0;
+      --paper: #ffffff;
+      --bg: #f1f7f7;
+      --font-sans: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      --font-mono: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      --shadow-sm: 0 1px 2px rgba(8, 16, 18, 0.05), 0 1px 1px rgba(8, 16, 18, 0.03);
+      --shadow-md: 0 16px 40px -26px rgba(8, 16, 18, 0.45), 0 2px 6px rgba(8, 16, 18, 0.04);
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      font-family: var(--font-sans);
+      letter-spacing: -0.011em;
+      background: var(--bg);
+      color: var(--ink);
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      line-height: 1.5;
+    }
+
+    .page {
+      max-width: 1320px;
+      margin: 0 auto;
+      padding: 72px 48px 160px;
+    }
+
+    /* ---------- Page header ---------- */
+    .doc-header {
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 40px;
+      margin-bottom: 80px;
+    }
+    .doc-eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      font-weight: 600;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--brand-700);
+      background: var(--brand-50);
+      padding: 6px 12px;
+      border-radius: 999px;
+      margin-bottom: 20px;
+    }
+    .doc-eyebrow::before {
+      content: '';
+      width: 6px;
+      height: 6px;
+      border-radius: 999px;
+      background: var(--brand-500);
+    }
+    .doc-title {
+      font-family: var(--font-sans);
+      font-size: 54px;
+      line-height: 1.02;
+      font-weight: 600;
+      letter-spacing: -0.035em;
+      margin: 0 0 16px;
+      color: var(--ink);
+    }
+    .doc-subtitle {
+      font-size: 19px;
+      color: var(--ink-soft);
+      max-width: 720px;
+      margin: 0 0 32px;
+      line-height: 1.45;
+    }
+    .doc-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 24px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--ink-mute);
+    }
+    .doc-meta > div { display: flex; gap: 6px; }
+    .doc-meta b {
+      color: var(--ink-soft);
+      font-weight: 600;
+    }
+
+    /* ---------- Variant section ---------- */
+    .variant {
+      margin-bottom: 96px;
+    }
+    .variant:last-child { margin-bottom: 0; }
+
+    .variant-head {
+      display: grid;
+      grid-template-columns: 64px 1fr;
+      gap: 20px;
+      align-items: start;
+      margin-bottom: 28px;
+    }
+    .variant-letter {
+      width: 48px;
+      height: 48px;
+      border-radius: 999px;
+      background: var(--ink);
+      color: var(--marker);
+      font-family: var(--font-mono);
+      font-weight: 600;
+      font-size: 19px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      letter-spacing: -0.02em;
+    }
+    .variant-meta h2 {
+      margin: 4px 0 6px;
+      font-size: 25px;
+      font-weight: 600;
+      letter-spacing: -0.03em;
+      color: var(--ink);
+    }
+    .variant-tradeoff {
+      font-size: 15px;
+      color: var(--ink-soft);
+      margin: 0;
+      max-width: 760px;
+    }
+    .variant-tradeoff b {
+      color: var(--brand-500);
+      font-weight: 600;
+    }
+
+    /* ---------- Preview frame ---------- */
+    .preview-frame {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      box-shadow: var(--shadow-md);
+      overflow: hidden;
+      margin-left: 84px;
+      position: relative;
+    }
+    .preview-frame::before {
+      content: '';
+      position: absolute;
+      top: 14px;
+      left: 16px;
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      background: #d5e7e7;
+      box-shadow: 18px 0 0 #d5e7e7, 36px 0 0 #d5e7e7;
+      z-index: 2;
+    }
+    .preview-frame-bar {
+      background: #f5fafa;
+      border-bottom: 1px solid var(--line-soft);
+      padding: 14px 16px 14px 76px;
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--ink-mute);
+      font-weight: 600;
+    }
+    .preview {
+      padding: 0;
+      min-height: 200px;
+    }
+
+    /* ---------- Analysis ---------- */
+    .variant-analysis {
+      margin: 24px 0 0 84px;
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 24px;
+    }
+    .analysis-block {
+      padding: 18px 20px;
+      border: 1px solid var(--line);
+      border-radius: 11px;
+      background: var(--paper);
+    }
+    .analysis-block h4 {
+      margin: 0 0 6px;
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      font-weight: 600;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--brand-500);
+    }
+    .analysis-block.is-risk h4 { color: var(--magenta); }
+    .analysis-block.is-pick h4 { color: var(--accent-700); }
+    .analysis-block p {
+      margin: 0;
+      font-size: 14px;
+      line-height: 1.55;
+      color: var(--ink-soft);
+    }
+
+    /* ---------- Decision row ---------- */
+    .decision {
+      position: relative;
+      overflow: hidden;
+      margin-top: 120px;
+      padding: 40px 48px;
+      background: var(--ink);
+      color: #ecf5f5;
+      border-radius: 16px;
+    }
+    .decision::before {
+      content: '';
+      position: absolute;
+      inset: 0 0 auto;
+      height: 1px;
+      background: linear-gradient(to right, transparent, var(--marker), transparent);
+      opacity: 0.45;
+    }
+    .decision h3 {
+      font-family: var(--font-sans);
+      font-size: 26px;
+      font-weight: 600;
+      letter-spacing: -0.03em;
+      margin: 0 0 8px;
+    }
+    .decision-sub {
+      color: #8fa5a7;
+      font-size: 14px;
+      margin: 0 0 28px;
+    }
+    .decision-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 20px;
+    }
+    .decision-cell b {
+      display: block;
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--marker);
+      margin-bottom: 6px;
+      font-weight: 600;
+    }
+    .decision-cell span {
+      font-size: 15px;
+      color: #ecf5f5;
+      line-height: 1.45;
+    }
+
+    /* ---------- Responsive ---------- */
+    @media (max-width: 900px) {
+      .page { padding: 40px 20px 80px; }
+      .doc-title { font-size: 36px; }
+      .variant-head { grid-template-columns: 48px 1fr; gap: 12px; }
+      .preview-frame { margin-left: 0; }
+      .variant-analysis { margin-left: 0; grid-template-columns: 1fr; }
+    }
+
+    /* ---------- Variant preview reset ----------
+       Anything inside .preview is the variant's own canvas.
+       Use scoped class prefixes per variant (.va-, .vb-, .vc-, .vd-)
+       to avoid cross-bleed of styles between variants.
+    */
+
+    /* ================= VARIANT CANVAS =================
+       Scene Assembly product tokens (app/globals.css), consumed only by the
+       .va-/.vb-/.vc-/.vd- rules below. Shared shell pieces live under .sa-.
+    */
+    .preview {
+      --sa-bg: #081012; --sa-elev: #0e191b; --sa-prompt: #0d1d20;
+      --sa-ink: #ecf5f5; --sa-mute: #8fa5a7; --sa-subtle: #7a8d8f;
+      --sa-cyan: #00fff9; --sa-violet: #bd00ff; --sa-magenta: #ff006e; --sa-yellow: #ffed4e;
+      --sa-line: rgba(194,232,240,0.075); --sa-line-2: rgba(194,232,240,0.17);
+      --sa-sans: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      --sa-mono: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+    .sa-app { background: var(--sa-bg); color: var(--sa-ink); font-family: var(--sa-sans); font-size: 14px; letter-spacing: -0.011em; line-height: 1.45; }
+    .sa-app * { box-sizing: border-box; }
+    .sa-app h1,.sa-app h2,.sa-app h3,.sa-app h4 { margin: 0; letter-spacing: -0.03em; }
+    .sa-app p { margin: 0; }
+    .sa-app ul { margin: 0; padding: 0; list-style: none; }
+    .sa-btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; height: 32px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--sa-line-2); background: var(--sa-elev); color: var(--sa-ink); font-size: 13px; font-weight: 500; white-space: nowrap; }
+    .sa-btn-primary { border-color: transparent; background: var(--sa-cyan); color: var(--sa-bg); font-weight: 600; }
+    .sa-mini { height: 26px; padding: 0 9px; font-size: 11.5px; }
+    .sa-label { font-family: var(--sa-mono); font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--sa-subtle); }
+    .sa-thumb { border-radius: 8px; border: 1px solid var(--sa-line); background: #000709 linear-gradient(135deg, rgba(0,255,249,0.18), rgba(189,0,255,0.14) 55%, rgba(255,0,110,0.16)); }
+    .sa-thumb.v { background: #000709 linear-gradient(135deg, rgba(189,0,255,0.24), rgba(0,102,255,0.16) 60%, rgba(0,255,249,0.12)); }
+    .sa-thumb.y { background: #000709 linear-gradient(135deg, rgba(255,237,78,0.14), rgba(0,255,249,0.1)); }
+    .sa-box { width: 15px; height: 15px; flex: none; border-radius: 4px; border: 1px solid var(--sa-line-2); }
+    .sa-box.on { background: var(--sa-cyan); border-color: var(--sa-cyan); }
+    .sa-box.some { background: linear-gradient(to bottom, var(--sa-cyan) 50%, transparent 50%); border-color: var(--sa-cyan); }
+    .sa-budget { display: flex; height: 7px; border-radius: 999px; overflow: hidden; background: rgba(255,255,255,0.08); }
+    .sa-budget .used { background: rgba(143,165,167,0.55); }
+    .sa-budget .add { background: var(--sa-cyan); }
+    .sa-rail { width: 300px; flex: none; border-right: 1px solid var(--sa-line); background: rgba(13,29,32,0.45); padding: 18px 16px; }
+    .sa-shell { display: flex; align-items: stretch; min-height: 520px; }
+    .sa-main { flex: 1; min-width: 0; padding: 18px 20px; }
+
+    /* ---------------- A · full-width dialog ---------------- */
+    .va-stage { position: relative; min-height: 560px; padding: 18px 20px; }
+    .va-behind { filter: blur(3px); opacity: 0.35; pointer-events: none; }
+    .va-scrim { position: absolute; inset: 0; background: rgba(0,0,0,0.72); display: flex; align-items: center; justify-content: center; padding: 18px; }
+    .va-modal { width: 100%; max-width: 760px; border: 1px solid var(--sa-line-2); border-radius: 14px; background: var(--sa-elev); overflow: hidden; box-shadow: 0 30px 80px -30px rgba(0,0,0,0.9); }
+    .va-modal-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; padding: 16px 18px; border-bottom: 1px solid var(--sa-line); }
+    .va-modal-head h3 { font-size: 16px; font-weight: 600; }
+    .va-modal-head p { margin-top: 4px; font-size: 12.5px; color: var(--sa-mute); max-width: 460px; line-height: 1.5; }
+    .va-tabs { display: flex; gap: 2px; padding: 12px 18px 0; }
+    .va-tab { padding: 6px 11px; border-radius: 8px; font-family: var(--sa-mono); font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--sa-subtle); }
+    .va-tab.on { background: var(--sa-cyan); color: var(--sa-bg); font-weight: 600; }
+    .va-tools { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 18px; }
+    .va-tools .grp { display: flex; gap: 6px; }
+    .va-grid { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 10px; padding: 0 18px 14px; max-height: 260px; overflow: hidden; position: relative; }
+    .va-file { border: 1px solid var(--sa-line); border-radius: 10px; padding: 7px; background: rgba(13,29,32,0.6); }
+    .va-file.sel { border-color: var(--sa-cyan); box-shadow: 0 0 0 1px var(--sa-cyan); }
+    .va-file .sa-thumb { aspect-ratio: 4/3; }
+    .va-file .row { display: flex; align-items: center; gap: 6px; margin-top: 7px; }
+    .va-file b { min-width: 0; flex: 1; font-size: 11.5px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .va-file span { font-family: var(--sa-mono); font-size: 9.5px; color: var(--sa-subtle); }
+    .va-fade { padding: 0 18px; font-family: var(--sa-mono); font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--sa-subtle); }
+    .va-foot { border-top: 1px solid var(--sa-line); padding: 13px 18px; background: rgba(8,16,18,0.6); }
+    .va-foot-top { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+    .va-foot-top b { font-size: 13px; font-weight: 500; }
+    .va-foot-top .acts { display: flex; gap: 8px; }
+    .va-legend { display: flex; gap: 16px; margin-top: 8px; font-size: 11px; color: var(--sa-subtle); }
+    .va-legend i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 5px; }
+
+    /* ---------------- B · batch-first ---------------- */
+    .vb-block { border-top: 1px solid var(--sa-line); margin-top: 16px; padding-top: 14px; }
+    .vb-head { display: flex; align-items: center; justify-content: space-between; }
+    .vb-big { margin-top: 10px; font-size: 22px; font-weight: 600; letter-spacing: -0.035em; }
+    .vb-big span { font-size: 13px; font-weight: 400; color: var(--sa-mute); letter-spacing: -0.01em; }
+    .vb-fit { margin-top: 10px; }
+    .vb-fits { margin-top: 7px; font-size: 11px; color: #6ee7b7; }
+    .vb-actions { margin-top: 12px; display: flex; flex-direction: column; gap: 7px; }
+    .vb-actions .sa-btn { width: 100%; }
+    .vb-link { margin-top: 9px; font-size: 11.5px; color: #7fe9e8; text-align: center; }
+    .vb-keys { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--sa-line); }
+    .vb-keyrow { display: flex; align-items: center; gap: 8px; padding: 6px 0; font-size: 12.5px; }
+    .vb-keyrow b { flex: 1; font-weight: 500; }
+    .vb-keyrow span { font-family: var(--sa-mono); font-size: 10px; color: var(--sa-subtle); }
+    .vb-note { margin-top: 10px; font-size: 11px; line-height: 1.5; color: var(--sa-subtle); }
+
+    /* ---------------- C · grouped accordion ---------------- */
+    .vc-block { border-top: 1px solid var(--sa-line); margin-top: 16px; padding-top: 14px; }
+    .vc-sum { display: flex; align-items: baseline; justify-content: space-between; margin-top: 9px; }
+    .vc-sum b { font-size: 16px; font-weight: 600; letter-spacing: -0.03em; }
+    .vc-sum span { font-size: 11px; color: var(--sa-mute); }
+    .vc-groups { margin-top: 12px; }
+    .vc-g { border-bottom: 1px solid var(--sa-line); }
+    .vc-g-head { display: flex; align-items: center; gap: 9px; padding: 9px 0; font-size: 12.5px; }
+    .vc-g-head b { flex: 1; min-width: 0; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .vc-g-head span { font-family: var(--sa-mono); font-size: 10px; color: var(--sa-subtle); }
+    .vc-g-head em { font-style: normal; color: var(--sa-subtle); font-size: 11px; }
+    .vc-rows { padding: 0 0 9px 24px; }
+    .vc-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; font-size: 11.5px; }
+    .vc-row .sa-thumb { width: 26px; height: 20px; flex: none; }
+    .vc-row b { flex: 1; min-width: 0; font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .vc-row span { font-family: var(--sa-mono); font-size: 9.5px; color: var(--sa-subtle); }
+    .vc-more { padding: 4px 0 0 24px; font-size: 11px; color: #7fe9e8; }
+    .vc-foot { position: sticky; bottom: 0; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--sa-line-2); background: rgba(13,29,32,0.95); }
+    .vc-foot .sa-btn { width: 100%; margin-top: 9px; }
+
+    /* ---------------- D · canvas contact sheet ---------------- */
+    .vd-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+    .vd-head h2 { font-size: 20px; font-weight: 600; }
+    .vd-head p { margin-top: 4px; font-size: 12.5px; color: var(--sa-mute); }
+    .vd-pills { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
+    .vd-pill { padding: 5px 10px; border: 1px solid var(--sa-line-2); border-radius: 999px; font-family: var(--sa-mono); font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--sa-mute); }
+    .vd-pill.on { border-color: transparent; background: var(--sa-cyan); color: var(--sa-bg); font-weight: 600; }
+    .vd-pill.import { border-color: rgba(189,0,255,0.5); color: #d8b4fe; }
+    .vd-sheet { display: grid; grid-template-columns: repeat(5, minmax(0,1fr)); gap: 9px; margin-top: 14px; }
+    .vd-cell { position: relative; border: 1px solid var(--sa-line); border-radius: 9px; overflow: hidden; }
+    .vd-cell .sa-thumb { aspect-ratio: 1; border: 0; border-radius: 0; display: block; }
+    .vd-cell.sel { border-color: var(--sa-cyan); box-shadow: 0 0 0 1px var(--sa-cyan); }
+    .vd-check { position: absolute; top: 6px; left: 6px; }
+    .vd-meta { padding: 6px 7px; background: rgba(8,16,18,0.85); }
+    .vd-meta b { display: block; font-size: 10.5px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .vd-meta span { font-family: var(--sa-mono); font-size: 9px; color: var(--sa-subtle); }
+    .vd-bar { position: sticky; bottom: 0; margin-top: 14px; display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 14px; border: 1px solid var(--sa-line-2); border-radius: 11px; background: rgba(13,29,32,0.96); }
+    .vd-bar b { font-size: 13px; font-weight: 500; }
+    .vd-bar p { font-size: 11px; color: var(--sa-subtle); margin-top: 3px; }
+    .vd-bar .acts { display: flex; gap: 8px; }
+
+    @media (max-width: 1000px) {
+      .sa-shell { display: block; }
+      .sa-rail { width: auto; border-right: 0; border-bottom: 1px solid var(--sa-line); }
+      .va-grid { grid-template-columns: repeat(3, minmax(0,1fr)); }
+      .vd-sheet { grid-template-columns: repeat(3, minmax(0,1fr)); }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+
+    <header class="doc-header">
+      <div class="doc-eyebrow">Design exploration</div>
+      <h1 class="doc-title">Importing a browser library into the cloud</h1>
+      <p class="doc-subtitle">
+        The importer works when a device holds three files. This device holds <b>89 files (107.6&nbsp;MB)
+        and 7 provider keys</b>, and the panel renders every one of them as a checkbox row inside a 300px
+        rail. Four ways to make the real scale workable — same account, same fixtures throughout.
+      </p>
+      <div class="doc-meta">
+        <div><b>Surface</b> Browser &rarr; cloud import</div>
+        <div><b>Source</b> components/account/AccountAssetImport.tsx</div>
+        <div><b>Data</b> browser-import.manifest.md</div>
+        <div><b>Generated</b> 2026-09-05</div>
+        <div><b>Variants</b> 4</div>
+      </div>
+    </header>
+
+    <!-- ===== VARIANT A ===== -->
+    <section class="variant">
+      <div class="variant-head">
+        <div class="variant-letter">A</div>
+        <div class="variant-meta">
+          <h2>Full-width picker dialog</h2>
+          <p class="variant-tradeoff">
+            <b>Optimizes for</b> giving 89 files the room they need — a wide thumbnail picker with select-all,
+            a keys tab, and a running budget against free space. <b>·  Tradeoff</b> importing becomes a
+            separate context you enter and leave, and the rail can no longer show what is waiting.
+          </p>
+        </div>
+      </div>
+      <div class="preview-frame">
+        <div class="preview-frame-bar">Variant A &middot; preview</div>
+        <div class="preview">
+          <div class="sa-app va-stage">
+            <div class="va-behind">
+              <div class="sa-shell">
+            <aside class="sa-rail">
+              <div class="sa-label">Saved connections <span style="float:right">4</span></div>
+              <ul style="margin-top:9px">
+                <li style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--sa-line);font-size:12.5px"><span style="color:var(--sa-yellow)">&#9679;</span><b style="flex:1;font-weight:500">Atlas Cloud</b><span style="font-family:var(--sa-mono);font-size:10px;color:var(--sa-subtle)">&middot;&middot;b4cf</span></li>
+                <li style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--sa-line);font-size:12.5px"><span style="color:var(--sa-violet)">&#9679;</span><b style="flex:1;font-weight:500">CometAPI</b><span style="font-family:var(--sa-mono);font-size:10px;color:var(--sa-subtle)">&middot;&middot;7jK1</span></li>
+                <li style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--sa-line);font-size:12.5px"><span style="color:var(--sa-magenta)">&#9679;</span><b style="flex:1;font-weight:500">fal.ai &middot; Nano Banana 2</b><span style="font-family:var(--sa-mono);font-size:10px;color:var(--sa-subtle)">&middot;&middot;50fa</span></li>
+                <li style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--sa-line);font-size:12.5px"><span style="color:var(--sa-yellow)">&#9679;</span><b style="flex:1;font-weight:500">Google Gemini</b><span style="font-family:var(--sa-mono);font-size:10px;color:var(--sa-subtle)">&middot;&middot;jUtA</span></li>
+              </ul>
+              <span class="sa-btn" style="width:100%;margin-top:11px">+ Add provider key</span>
+              <div style="margin-top:16px;border-top:1px solid var(--sa-line);padding-top:14px">
+                <div class="sa-label">Import from this browser <span style="float:right">96</span></div>
+                <p style="margin-top:8px;font-size:11px;color:var(--sa-subtle);line-height:1.5">7 provider keys and 89 files (107.6 MB) found on this device.</p>
+                <span class="sa-btn" style="width:100%;margin-top:10px">Review 96 items</span>
+              </div>
+            </aside>
+              </div>
+            </div>
+            <div class="va-scrim">
+              <div class="va-modal">
+                <div class="va-modal-head">
+                  <div>
+                    <h3>Import from this browser</h3>
+                    <p>Choose local files to add to your private cloud library. Originals remain on this device.</p>
+                  </div>
+                  <span class="sa-btn sa-mini">Close</span>
+                </div>
+                <div class="va-tabs">
+                  <span class="va-tab on">Files 89</span>
+                  <span class="va-tab">Provider keys 7</span>
+                </div>
+                <div class="va-tools">
+                  <div class="grp">
+                    <span class="sa-btn sa-mini">Select all</span>
+                    <span class="sa-btn sa-mini">Images 71</span>
+                    <span class="sa-btn sa-mini">Video 18</span>
+                  </div>
+                  <span style="font-family:var(--sa-mono);font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:var(--sa-subtle)">Newest first</span>
+                </div>
+                <div class="va-grid">
+                  <div class="va-file sel"><div class="sa-thumb"></div><div class="row"><span class="sa-box on"></span><b>espresso-cup-walnut</b></div><div class="row" style="margin-top:3px"><span>gemini &middot; 2.4 MB</span></div></div>
+                  <div class="va-file sel"><div class="sa-thumb v"></div><div class="row"><span class="sa-box on"></span><b>arcade-dolly-4s</b></div><div class="row" style="margin-top:3px"><span>fal &middot; 18.7 MB</span></div></div>
+                  <div class="va-file"><div class="sa-thumb y"></div><div class="row"><span class="sa-box"></span><b>headphones-teal-sweep</b></div><div class="row" style="margin-top:3px"><span>kie &middot; 3.1 MB</span></div></div>
+                  <div class="va-file sel"><div class="sa-thumb"></div><div class="row"><span class="sa-box on"></span><b>lighthouse-keeper-35mm</b></div><div class="row" style="margin-top:3px"><span>runware &middot; 2.9 MB</span></div></div>
+                  <div class="va-file"><div class="sa-thumb v"></div><div class="row"><span class="sa-box"></span><b>watch-orbit-slate</b></div><div class="row" style="margin-top:3px"><span>comet &middot; 22.4 MB</span></div></div>
+                  <div class="va-file sel"><div class="sa-thumb y"></div><div class="row"><span class="sa-box on"></span><b>cyanotype-fern</b></div><div class="row" style="margin-top:3px"><span>cloudflare &middot; 1.8 MB</span></div></div>
+                  <div class="va-file sel"><div class="sa-thumb"></div><div class="row"><span class="sa-box on"></span><b>skylight-rain-push</b></div><div class="row" style="margin-top:3px"><span>kie &middot; 15.2 MB</span></div></div>
+                  <div class="va-file"><div class="sa-thumb"></div><div class="row"><span class="sa-box"></span><b>studio-portrait-v4</b></div><div class="row" style="margin-top:3px"><span>gemini &middot; 2.2 MB</span></div></div>
+                </div>
+                <p class="va-fade">Scrolling &middot; 8 of 89 shown</p>
+                <div class="va-foot">
+                  <div class="va-foot-top">
+                    <b>62 files selected &middot; 71.4 MB</b>
+                    <div class="acts"><span class="sa-btn sa-mini">Cancel</span><span class="sa-btn sa-btn-primary sa-mini">Import 62 files</span></div>
+                  </div>
+                  <div class="sa-budget" style="margin-top:9px"><i class="used" style="width:41.2%"></i><i class="add" style="width:7.1%"></i></div>
+                  <div class="va-legend">
+                    <span><i style="background:rgba(143,165,167,0.55)"></i>412.3 MB already saved</span>
+                    <span><i style="background:var(--sa-cyan)"></i>71.4 MB selected</span>
+                    <span>516.3 MB would remain free</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="variant-analysis">
+        <div class="analysis-block">
+          <h4>What works</h4>
+          <p>Thumbnails make the choice possible at all — 89 slugs are unreadable, 89 pictures are scannable. The budget bar answers the only question that matters before a transfer: does this fit in what is left of the gigabyte?</p>
+        </div>
+        <div class="analysis-block is-risk">
+          <h4>What risks</h4>
+          <p>A modal that holds a long transfer is a modal you cannot leave, and the copy already warns "keep this tab open". Closing mid-import needs a defined behaviour the current code does not have.</p>
+        </div>
+        <div class="analysis-block is-pick">
+          <h4>Pick this if</h4>
+          <p>People genuinely choose a subset, and picking the right files by eye is worth a dedicated screen.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== VARIANT B ===== -->
+    <section class="variant">
+      <div class="variant-head">
+        <div class="variant-letter">B</div>
+        <div class="variant-meta">
+          <h2>Batch first, per-file second</h2>
+          <p class="variant-tradeoff">
+            <b>Optimizes for</b> the common intent — "put my work in the cloud" — as one button, with the
+            budget shown up front and a per-file picker only for people who want it.
+            <b>·  Tradeoff</b> anyone who wants 3 of 89 files has to go somewhere else to get them, and a
+            partial fit needs a rule for what gets left behind.
+          </p>
+        </div>
+      </div>
+      <div class="preview-frame">
+        <div class="preview-frame-bar">Variant B &middot; preview</div>
+        <div class="preview">
+          <div class="sa-app">
+            <div class="sa-shell">
+            <aside class="sa-rail">
+              <div class="sa-label">Saved connections <span style="float:right">4</span></div>
+              <ul style="margin-top:9px">
+                <li style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--sa-line);font-size:12.5px"><span style="color:var(--sa-yellow)">&#9679;</span><b style="flex:1;font-weight:500">Atlas Cloud</b><span style="font-family:var(--sa-mono);font-size:10px;color:var(--sa-subtle)">&middot;&middot;b4cf</span></li>
+                <li style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--sa-line);font-size:12.5px"><span style="color:var(--sa-violet)">&#9679;</span><b style="flex:1;font-weight:500">CometAPI</b><span style="font-family:var(--sa-mono);font-size:10px;color:var(--sa-subtle)">&middot;&middot;7jK1</span></li>
+                <li style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--sa-line);font-size:12.5px"><span style="color:var(--sa-magenta)">&#9679;</span><b style="flex:1;font-weight:500">fal.ai &middot; Nano Banana 2</b><span style="font-family:var(--sa-mono);font-size:10px;color:var(--sa-subtle)">&middot;&middot;50fa</span></li>
+                <li style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--sa-line);font-size:12.5px"><span style="color:var(--sa-yellow)">&#9679;</span><b style="flex:1;font-weight:500">Google Gemini</b><span style="font-family:var(--sa-mono);font-size:10px;color:var(--sa-subtle)">&middot;&middot;jUtA</span></li>
+              </ul>
+              <span class="sa-btn" style="width:100%;margin-top:11px">+ Add provider key</span>
+              <div class="vb-block">
+                <div class="vb-head"><span class="sa-label">Import from this browser</span></div>
+                <div class="vb-big">107.6 MB <span>&middot; 89 files</span></div>
+                <p style="margin-top:5px;font-size:11.5px;color:var(--sa-subtle);line-height:1.5">Originals remain on this device.</p>
+                <div class="vb-fit">
+                  <div class="sa-budget"><i class="used" style="width:41.2%"></i><i class="add" style="width:10.8%"></i></div>
+                  <p class="vb-fits">All 89 fit &middot; 480 MB would remain free</p>
+                </div>
+                <div class="vb-actions">
+                  <span class="sa-btn sa-btn-primary">Import all 89 files</span>
+                </div>
+                <p class="vb-link">Choose individually &rarr;</p>
+                <p class="vb-note">Keep this tab open during transfer. Your browser must send these saved bytes.</p>
+                <div class="vb-keys">
+                  <div class="sa-label" style="margin-bottom:8px">Provider keys &middot; 5 new</div>
+                  <div class="vb-keyrow"><span class="sa-box on"></span><b>Cloudflare &middot; FLUX</b><span>ready</span></div>
+                  <div class="vb-keyrow"><span class="sa-box on"></span><b>Kie.ai</b><span>ready</span></div>
+                  <div class="vb-keyrow" style="opacity:0.55"><span class="sa-box"></span><b>Google Gemini</b><span>saved</span></div>
+                  <span class="sa-btn" style="width:100%;margin-top:9px">Import 5 keys</span>
+                </div>
+              </div>
+            </aside>
+              <div class="sa-main">
+                <h2 style="font-size:20px;font-weight:600">Cloud library</h2>
+                <p style="margin-top:4px;font-size:12.5px;color:var(--sa-mute)">Everything saved to your private cloud account, newest first.</p>
+                <div class="vd-pills"><span class="vd-pill on">All 24</span><span class="vd-pill" style="border-color:rgba(255,237,78,0.35);color:var(--sa-yellow)">Images 18</span><span class="vd-pill" style="border-color:rgba(189,0,255,0.45);color:#c4b5fd">Video 6</span></div>
+                <div class="vd-sheet" style="grid-template-columns:repeat(4,minmax(0,1fr))">
+                  <div class="vd-cell"><div class="sa-thumb"></div></div>
+                  <div class="vd-cell"><div class="sa-thumb v"></div></div>
+                  <div class="vd-cell"><div class="sa-thumb y"></div></div>
+                  <div class="vd-cell"><div class="sa-thumb"></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="variant-analysis">
+        <div class="analysis-block">
+          <h4>What works</h4>
+          <p>Smallest change to what ships today and the only variant that fits the rail honestly. It answers "will it fit" before asking anyone to choose, and one button covers what most people came to do.</p>
+        </div>
+        <div class="analysis-block is-risk">
+          <h4>What risks</h4>
+          <p>"Import all" is irreversible in bytes: it spends quota, and there is no undo beyond deleting assets one by one. When the library does not fit, this variant has nothing to say without borrowing another variant's picker.</p>
+        </div>
+        <div class="analysis-block is-pick">
+          <h4>Pick this if</h4>
+          <p>The realistic intent is "back all of it up", and per-file curation is the rare case rather than the default.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== VARIANT C ===== -->
+    <section class="variant">
+      <div class="variant-head">
+        <div class="variant-letter">C</div>
+        <div class="variant-meta">
+          <h2>Grouped in the rail</h2>
+          <p class="variant-tradeoff">
+            <b>Optimizes for</b> keeping the importer where it is — 89 rows collapse into six provider
+            groups with tri-state checkboxes, so the rail stays a rail.
+            <b>·  Tradeoff</b> you still cannot see what a file <em>is</em>; picking one specific image
+            means expanding a group and reading slugs in a 300px column.
+          </p>
+        </div>
+      </div>
+      <div class="preview-frame">
+        <div class="preview-frame-bar">Variant C &middot; preview</div>
+        <div class="preview">
+          <div class="sa-app">
+            <div class="sa-shell">
+            <aside class="sa-rail">
+              <div class="sa-label">Saved connections <span style="float:right">4</span></div>
+              <ul style="margin-top:9px">
+                <li style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--sa-line);font-size:12.5px"><span style="color:var(--sa-yellow)">&#9679;</span><b style="flex:1;font-weight:500">Atlas Cloud</b><span style="font-family:var(--sa-mono);font-size:10px;color:var(--sa-subtle)">&middot;&middot;b4cf</span></li>
+                <li style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--sa-line);font-size:12.5px"><span style="color:var(--sa-violet)">&#9679;</span><b style="flex:1;font-weight:500">CometAPI</b><span style="font-family:var(--sa-mono);font-size:10px;color:var(--sa-subtle)">&middot;&middot;7jK1</span></li>
+                <li style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--sa-line);font-size:12.5px"><span style="color:var(--sa-magenta)">&#9679;</span><b style="flex:1;font-weight:500">fal.ai &middot; Nano Banana 2</b><span style="font-family:var(--sa-mono);font-size:10px;color:var(--sa-subtle)">&middot;&middot;50fa</span></li>
+                <li style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--sa-line);font-size:12.5px"><span style="color:var(--sa-yellow)">&#9679;</span><b style="flex:1;font-weight:500">Google Gemini</b><span style="font-family:var(--sa-mono);font-size:10px;color:var(--sa-subtle)">&middot;&middot;jUtA</span></li>
+              </ul>
+              <span class="sa-btn" style="width:100%;margin-top:11px">+ Add provider key</span>
+              <div class="vc-block">
+                <div class="sa-label">Import from this browser <span style="float:right">96</span></div>
+                <div class="vc-sum"><b>36.2 MB selected</b><span>of 107.6 MB</span></div>
+                <div class="sa-budget" style="margin-top:8px"><i class="used" style="width:41.2%"></i><i class="add" style="width:3.6%"></i></div>
+                <div class="vc-groups">
+                  <div class="vc-g">
+                    <div class="vc-g-head"><span class="sa-box some"></span><b>Google Gemini</b><em>41</em><span>52.1 MB</span></div>
+                    <div class="vc-rows">
+                      <div class="vc-row"><span class="sa-box on"></span><div class="sa-thumb"></div><b>espresso-cup-walnut</b><span>2.4 MB</span></div>
+                      <div class="vc-row"><span class="sa-box on"></span><div class="sa-thumb y"></div><b>studio-portrait-v4</b><span>2.2 MB</span></div>
+                      <div class="vc-row"><span class="sa-box"></span><div class="sa-thumb"></div><b>cyanotype-fern</b><span>1.8 MB</span></div>
+                    </div>
+                    <p class="vc-more">Show 38 more &rarr;</p>
+                  </div>
+                  <div class="vc-g"><div class="vc-g-head"><span class="sa-box on"></span><b>fal.ai &middot; Nano Banana 2</b><em>22</em><span>31.4 MB</span></div></div>
+                  <div class="vc-g"><div class="vc-g-head"><span class="sa-box"></span><b>Kie.ai</b><em>18</em><span>18.3 MB</span></div></div>
+                  <div class="vc-g"><div class="vc-g-head"><span class="sa-box"></span><b>Runware</b><em>5</em><span>4.1 MB</span></div></div>
+                  <div class="vc-g"><div class="vc-g-head"><span class="sa-box"></span><b>CometAPI</b><em>3</em><span>1.7 MB</span></div></div>
+                  <div class="vc-g"><div class="vc-g-head"><span class="sa-box some"></span><b>Provider keys</b><em>7</em><span>5 new</span></div></div>
+                </div>
+                <div class="vc-foot">
+                  <p style="font-size:11px;color:var(--sa-subtle);line-height:1.5">Keep this tab open during transfer.</p>
+                  <span class="sa-btn sa-btn-primary">Import 28 items</span>
+                </div>
+              </div>
+            </aside>
+              <div class="sa-main">
+                <h2 style="font-size:20px;font-weight:600">Cloud library</h2>
+                <p style="margin-top:4px;font-size:12.5px;color:var(--sa-mute)">Everything saved to your private cloud account, newest first.</p>
+                <div class="vd-pills"><span class="vd-pill on">All 24</span><span class="vd-pill" style="border-color:rgba(255,237,78,0.35);color:var(--sa-yellow)">Images 18</span><span class="vd-pill" style="border-color:rgba(189,0,255,0.45);color:#c4b5fd">Video 6</span></div>
+                <div class="vd-sheet" style="grid-template-columns:repeat(4,minmax(0,1fr))">
+                  <div class="vd-cell"><div class="sa-thumb"></div></div>
+                  <div class="vd-cell"><div class="sa-thumb v"></div></div>
+                  <div class="vd-cell"><div class="sa-thumb y"></div></div>
+                  <div class="vd-cell"><div class="sa-thumb"></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="variant-analysis">
+        <div class="analysis-block">
+          <h4>What works</h4>
+          <p>Turns 96 rows into six lines without moving anything or inventing a new surface. Provider grouping matches how the records are already labelled, and a tri-state group checkbox is a familiar way to take "all of Gemini" in one move.</p>
+        </div>
+        <div class="analysis-block is-risk">
+          <h4>What risks</h4>
+          <p>It optimises the wrong axis: people remember an image by what it looks like, not by which vendor produced it. Expanded rows are still 11px slugs in a narrow column, and a sticky footer inside an already-scrolling rail is fragile.</p>
+        </div>
+        <div class="analysis-block is-pick">
+          <h4>Pick this if</h4>
+          <p>You want the smallest structural change that makes the current panel survive a real library, and provider is a meaningful way to slice it.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== VARIANT D ===== -->
+    <section class="variant">
+      <div class="variant-head">
+        <div class="variant-letter">D</div>
+        <div class="variant-meta">
+          <h2>Contact sheet in the canvas</h2>
+          <p class="variant-tradeoff">
+            <b>Optimizes for</b> using the widest space already on the page — the import becomes another
+            view of the library, with local files as selectable thumbnails and a sticky action bar.
+            <b>·  Tradeoff</b> it displaces the cloud library while you are choosing, and blurs the line
+            between what is already saved and what is only on this device.
+          </p>
+        </div>
+      </div>
+      <div class="preview-frame">
+        <div class="preview-frame-bar">Variant D &middot; preview</div>
+        <div class="preview">
+          <div class="sa-app">
+            <div class="sa-shell">
+            <aside class="sa-rail">
+              <div class="sa-label">Saved connections <span style="float:right">4</span></div>
+              <ul style="margin-top:9px">
+                <li style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--sa-line);font-size:12.5px"><span style="color:var(--sa-yellow)">&#9679;</span><b style="flex:1;font-weight:500">Atlas Cloud</b><span style="font-family:var(--sa-mono);font-size:10px;color:var(--sa-subtle)">&middot;&middot;b4cf</span></li>
+                <li style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--sa-line);font-size:12.5px"><span style="color:var(--sa-violet)">&#9679;</span><b style="flex:1;font-weight:500">CometAPI</b><span style="font-family:var(--sa-mono);font-size:10px;color:var(--sa-subtle)">&middot;&middot;7jK1</span></li>
+                <li style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--sa-line);font-size:12.5px"><span style="color:var(--sa-magenta)">&#9679;</span><b style="flex:1;font-weight:500">fal.ai &middot; Nano Banana 2</b><span style="font-family:var(--sa-mono);font-size:10px;color:var(--sa-subtle)">&middot;&middot;50fa</span></li>
+                <li style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--sa-line);font-size:12.5px"><span style="color:var(--sa-yellow)">&#9679;</span><b style="flex:1;font-weight:500">Google Gemini</b><span style="font-family:var(--sa-mono);font-size:10px;color:var(--sa-subtle)">&middot;&middot;jUtA</span></li>
+              </ul>
+              <span class="sa-btn" style="width:100%;margin-top:11px">+ Add provider key</span>
+              <div style="margin-top:16px;border-top:1px solid var(--sa-line);padding-top:14px">
+                <div class="sa-label">Import from this browser <span style="float:right">96</span></div>
+                <p style="margin-top:8px;font-size:11px;color:var(--sa-subtle);line-height:1.5">7 provider keys and 89 files (107.6 MB) found on this device.</p>
+                <span class="sa-btn" style="width:100%;margin-top:10px;border-color:rgba(189,0,255,0.5);color:#d8b4fe">Reviewing in the library &rarr;</span>
+              </div>
+            </aside>
+              <div class="sa-main">
+                <div class="vd-head">
+                  <div>
+                    <h2>On this device</h2>
+                    <p>89 files that are not in your cloud library yet. Originals remain on this device.</p>
+                  </div>
+                  <span class="sa-btn sa-mini">Back to cloud library</span>
+                </div>
+                <div class="vd-pills">
+                  <span class="vd-pill import on">On this device 89</span>
+                  <span class="vd-pill">In the cloud 24</span>
+                  <span class="vd-pill" style="border-color:rgba(255,237,78,0.35);color:var(--sa-yellow)">Images 71</span>
+                  <span class="vd-pill" style="border-color:rgba(189,0,255,0.45);color:#c4b5fd">Video 18</span>
+                </div>
+                <div class="vd-sheet">
+                  <div class="vd-cell sel"><span class="vd-check sa-box on"></span><div class="sa-thumb"></div><div class="vd-meta"><b>espresso-cup-walnut</b><span>gemini &middot; 2.4 MB</span></div></div>
+                  <div class="vd-cell sel"><span class="vd-check sa-box on"></span><div class="sa-thumb v"></div><div class="vd-meta"><b>arcade-dolly-4s</b><span>fal &middot; 18.7 MB</span></div></div>
+                  <div class="vd-cell"><span class="vd-check sa-box"></span><div class="sa-thumb y"></div><div class="vd-meta"><b>headphones-teal-sweep</b><span>kie &middot; 3.1 MB</span></div></div>
+                  <div class="vd-cell sel"><span class="vd-check sa-box on"></span><div class="sa-thumb"></div><div class="vd-meta"><b>lighthouse-keeper-35mm</b><span>runware &middot; 2.9 MB</span></div></div>
+                  <div class="vd-cell"><span class="vd-check sa-box"></span><div class="sa-thumb v"></div><div class="vd-meta"><b>watch-orbit-slate</b><span>comet &middot; 22.4 MB</span></div></div>
+                  <div class="vd-cell sel"><span class="vd-check sa-box on"></span><div class="sa-thumb y"></div><div class="vd-meta"><b>cyanotype-fern</b><span>cloudflare &middot; 1.8 MB</span></div></div>
+                  <div class="vd-cell sel"><span class="vd-check sa-box on"></span><div class="sa-thumb"></div><div class="vd-meta"><b>skylight-rain-push</b><span>kie &middot; 15.2 MB</span></div></div>
+                  <div class="vd-cell"><span class="vd-check sa-box"></span><div class="sa-thumb v"></div><div class="vd-meta"><b>timelapse-harbour</b><span>fal &middot; 9.4 MB</span></div></div>
+                  <div class="vd-cell sel"><span class="vd-check sa-box on"></span><div class="sa-thumb"></div><div class="vd-meta"><b>studio-portrait-v4</b><span>gemini &middot; 2.2 MB</span></div></div>
+                  <div class="vd-cell"><span class="vd-check sa-box"></span><div class="sa-thumb y"></div><div class="vd-meta"><b>ferns-blueprint-02</b><span>gemini &middot; 1.9 MB</span></div></div>
+                </div>
+                <div class="vd-bar">
+                  <div>
+                    <b>62 files selected &middot; 71.4 MB</b>
+                    <p>412.3 MB saved &middot; 516.3 MB would remain free &middot; keep this tab open during transfer</p>
+                  </div>
+                  <div class="acts"><span class="sa-btn sa-mini">Select all 89</span><span class="sa-btn sa-btn-primary sa-mini">Import 62 files</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="variant-analysis">
+        <div class="analysis-block">
+          <h4>What works</h4>
+          <p>The importer stops being a form and becomes a library view, which is what it always was. Local and cloud sit in one vocabulary, and a person can see at a glance which of the 89 are worth keeping.</p>
+        </div>
+        <div class="analysis-block is-risk">
+          <h4>What risks</h4>
+          <p>Two libraries in one frame invites the belief that a file on this device is already safe. The distinction has to be carried by a pill and a heading, and if someone misses it they will delete local originals they have not actually uploaded.</p>
+        </div>
+        <div class="analysis-block is-pick">
+          <h4>Pick this if</h4>
+          <p>The account page should have one way of showing media, and importing is a filter over it rather than a separate feature.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== Decision row ===== -->
+    <section class="decision">
+      <h3>How to pick a direction</h3>
+      <p class="decision-sub">All four are drawn at the real scale on this device: 89 files, 107.6 MB, 7 provider keys, against a 1 GB quota that is 41% used.</p>
+      <div class="decision-grid">
+        <div class="decision-cell"><b>Pick A if &rarr;</b><span>Choosing a subset is the real job. A dedicated wide picker, at the cost of a modal that holds a long transfer.</span></div>
+        <div class="decision-cell"><b>Pick B if &rarr;</b><span>Most people want all of it. One button and a fit check, with per-file curation as a link out.</span></div>
+        <div class="decision-cell"><b>Pick C if &rarr;</b><span>Keep it in the rail. Six groups instead of 96 rows, but you still pick by reading, not by looking.</span></div>
+        <div class="decision-cell"><b>Pick D if &rarr;</b><span>One media vocabulary for the page. Import becomes a view of the library, if the local/cloud line can be held.</span></div>
+      </div>
+      <p class="decision-sub" style="margin: 28px 0 0">The pairing worth considering: <b>B in the rail, A on demand</b> — the summary and fit check stay where the eye already is, and "Choose individually" opens the wide picker. It answers the common case in place and the rare one properly, and neither has to pretend a 300px column can show 89 files.</p>
+    </section>
+
+  </main>
+</body>
+</html>
