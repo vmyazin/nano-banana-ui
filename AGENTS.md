@@ -17,6 +17,14 @@
 ## Auto-load routing
 
 - **Cloud library, imports, or spend** → first read `docs/codex/account-development.md`. Reuse `CloudAssetGrid` / `useAccountLibrary` for cloud files, `prepareReferences` for reference insertion, and `SpendReport` with the canonical spend resolvers for either ledger. Import controls read browser stores only after explicit selection; account requests must retain owner/epoch guards because a session can change during a file transfer.
+- **Browser → cloud import, or test data for it** → the picker is
+  `components/account/BrowserImportDialog.tsx` over the `use-asset-import` hook; the hook owns the
+  transfer loop, the stable per-file client id that makes a retry idempotent, and the owner/epoch
+  check between files, so never re-implement the loop in a panel. To get a local library to import,
+  paste `scripts/seed-browser-gallery.js` into DevTools on localhost:3097 — it cannot be a Node
+  script like `seed-account-demo.mjs`, because IndexedDB is scoped to one origin in one browser
+  profile and is unreachable from outside the page.
+
 - **"Background generation is not available for this provider"** → that message is
   configuration, not a missing adapter. `CLOUD_GENERATION_PROVIDERS` in
   `cloud/wrangler.jsonc` is the only gate; `enabledProviders` filters it against
