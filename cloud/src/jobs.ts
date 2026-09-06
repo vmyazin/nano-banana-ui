@@ -102,6 +102,28 @@ export async function dismissAttentionJob(env: Env, id: string, owner: string): 
   if (job.state === 'failed' && job.error_code === 'tracking_stopped') return job;
   throw new AccountError('This generation is no longer waiting for a tracking decision.', 409, 'tracking_state_changed');
 }
+/**
+ * Removes a finished job from the account's list.
+ *
+ * Terminal states only. A job that has not finished still holds a storage
+ * reservation that only `cancelQueuedJob` or `dismissAttentionJob` releases, so
+ * removing one here would leak reserved bytes and an active-job slot with no
+ * row left on screen to release them from.
+ *
+ * Soft delete rather than a real DELETE, because `cleanupTerminalJobObjects`
+ * finds staged provider objects by joining this row and its journal cascades
+ * with it: dropping the row would strand any object the provider writes during
+ * the 24-hour recovery grace, unreachable and unmetered. Every list query
+ * already filters `deleted = 0`, so the job is gone from the UI either way.
+ *
+ * `updated_at` is deliberately left alone. The object cleanup schedules its
+ * grace from that column, and bumping it here would push the sweep 24 hours
+ * past the removal instead of past the generation it belongs to.
+ */
+export async function removeFinishedJob(env: Env, id: string, owner: string): Promise<void> {
+  const removed = await env.DB.prepare("UPDATE account_jobs SET deleted = 1 WHERE id = ? AND user_id = ? AND deleted = 0 AND state IN ('failed','cancelled')").bind(id, owner).run();
+  if (!removed.meta.changes) throw new AccountError('Only a stopped or cancelled generation can be removed from your list.', 409, 'job_not_finished');
+}
 export async function dispatchJob(env: Env, job: JobRow) {
   if (!env.GENERATION) throw new Error('Workflow binding is unavailable');
   const instanceId = `${job.id}-${job.workflow_attempt}`;

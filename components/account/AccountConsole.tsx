@@ -115,6 +115,32 @@ export default function AccountConsole({
     }
   }
 
+  /**
+   * Removal is sequential and shares one busy window, because "Clear" hands
+   * over every id at once: firing them in parallel would race the same account
+   * rows, and routing them back through `jobAction` would drop all but the
+   * first to its own re-entry guard. The owner is re-checked between requests
+   * for the same reason the import loop does it — a session can change partway
+   * through a run of calls. A failure still refreshes, so a partly cleared list
+   * shows what actually remains rather than the rows it started with.
+   */
+  async function removeJobs(ids: string[]) {
+    if (actionBusy) return;
+    setActionBusy(true);
+    setActionError(null);
+    try {
+      for (const id of ids) {
+        if (ownerId !== useAccountStore.getState().session?.account?.id) throw new Error('Your account changed. Try again from the current library.');
+        await accountRequest(`jobs/${id}`, { method: 'DELETE', headers: { 'X-Account-Id': ownerId } });
+      }
+    } catch (reason) {
+      setActionError(reason instanceof Error ? reason.message : 'Please try again.');
+    } finally {
+      if (ownerId === useAccountStore.getState().session?.account?.id) library.refresh();
+      setActionBusy(false);
+    }
+  }
+
   const showingJobs = filter === 'active' || filter === 'attention';
   const visibleJobs = filter === 'active' ? activeJobs : attentionJobs;
 
@@ -249,6 +275,7 @@ export default function AccountConsole({
                 onResume={id => void jobAction(`jobs/${id}/resume`)}
                 onCancel={id => void jobAction(`jobs/${id}/cancel`)}
                 onDismiss={id => void jobAction(`jobs/${id}/dismiss`)}
+                onRemove={ids => void removeJobs(ids)}
               />
             ) : (
               <p className="py-8 text-center text-sm text-[var(--foreground-muted)]">Nothing here right now.</p>

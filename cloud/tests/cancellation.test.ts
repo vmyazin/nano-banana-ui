@@ -29,6 +29,12 @@ function cancelRequest(id:string,owner:keyof typeof sessions='owner'){
 function dismissRequest(id:string,owner:keyof typeof sessions='owner'){
   return jobRoutes(new Request(`http://localhost:8797/api/account/jobs/${id}/dismiss`,{method:'POST',headers:{cookie:`sa_session=${sessions[owner]}`}}),env);
 }
+function removeRequest(id:string,owner:keyof typeof sessions='owner'){
+  return jobRoutes(new Request(`http://localhost:8797/api/account/jobs/${id}`,{method:'DELETE',headers:{cookie:`sa_session=${sessions[owner]}`}}),env);
+}
+function listRequest(owner:keyof typeof sessions='owner'){
+  return jobRoutes(new Request('http://localhost:8797/api/account/jobs',{headers:{cookie:`sa_session=${sessions[owner]}`}}),env);
+}
 function resumeRequest(id:string){
   return jobRoutes(new Request(`http://localhost:8797/api/account/jobs/${id}/resume`,{method:'POST',headers:{cookie:`sa_session=${sessions.owner}`}}),env);
 }
@@ -169,5 +175,66 @@ describe('attention job dismissal',()=>{
       expect(row?.error_code).toBeNull();
       expect(db.prepare('SELECT reserved_bytes,active_jobs FROM account_storage WHERE user_id=?').get('owner')).toMatchObject({reserved_bytes:IMAGE_RESERVATION,active_jobs:1});
     }
+  });
+});
+
+describe('finished job removal',()=>{
+  async function stopped(token='removable-job-token-123456'){
+    const job=await fixture(token);
+    await env.DB.prepare("UPDATE account_jobs SET state='needs_attention',error_code='submission_ambiguous' WHERE id=?").bind(job.id).run();
+    await dismissAttentionJob(env,job.id,'owner');
+    return job;
+  }
+
+  it('removes a stopped job from the list while keeping its row for object cleanup',async()=>{
+    const job=await stopped();
+    const response=await removeRequest(job.id);
+    expect(response?.status).toBe(200);
+    expect((await listRequest().then(r=>r!.json())).jobs).toHaveLength(0);
+    // Soft delete: `cleanupTerminalJobObjects` joins this row to sweep staged
+    // provider objects, so losing it would strand a late R2 write.
+    expect(db.prepare('SELECT deleted,state FROM account_jobs WHERE id=?').get(job.id)).toMatchObject({deleted:1,state:'failed'});
+  });
+
+  it('removes a cancelled job and reports a second removal as gone',async()=>{
+    const job=await fixture('removable-cancelled-token-123456');
+    await cancelQueuedJob(env,job.id,'owner');
+    expect((await removeRequest(job.id))?.status).toBe(200);
+    expect((await removeRequest(job.id))?.status).toBe(404);
+  });
+
+  it('refuses to remove a job that still holds a reservation',async()=>{
+    const queued=await fixture('remove-queued-token-123456');
+    const attention=await fixture('remove-attention-token-123456');
+    await env.DB.prepare("UPDATE account_jobs SET state='needs_attention',error_code='submission_ambiguous' WHERE id=?").bind(attention.id).run();
+    for(const job of [queued,attention]){
+      const response=await removeRequest(job.id);
+      expect(response?.status).toBe(409);
+      expect((await response!.json()).code).toBe('job_not_finished');
+    }
+    expect((await getJob(env,queued.id))?.state).toBe('queued');
+    expect((await getJob(env,attention.id))?.state).toBe('needs_attention');
+    expect(db.prepare('SELECT reserved_bytes,active_jobs FROM account_storage WHERE user_id=?').get('owner')).toMatchObject({reserved_bytes:2*IMAGE_RESERVATION,active_jobs:2});
+  });
+
+  it('returns 404 for another owner and leaves the job listed',async()=>{
+    const job=await stopped();
+    expect((await removeRequest(job.id,'other'))?.status).toBe(404);
+    expect(db.prepare('SELECT deleted FROM account_jobs WHERE id=?').get(job.id)).toMatchObject({deleted:0});
+  });
+
+  it('rejects cross-origin removal before touching the job',async()=>{
+    const job=await stopped();
+    const response=await handleRequest(new Request(`http://localhost:8797/api/account/jobs/${job.id}`,{method:'DELETE',headers:{origin:'https://outside.example',cookie:`sa_session=${sessions.owner}`}}),env);
+    expect(response.status).toBe(403);
+    expect(db.prepare('SELECT deleted FROM account_jobs WHERE id=?').get(job.id)).toMatchObject({deleted:0});
+  });
+
+  it('keeps the assets a removed job saved',async()=>{
+    const job=await stopped('removable-with-asset-token-123456');
+    await env.DB.prepare('INSERT INTO account_assets (id,user_id,job_id,object_key,kind,mime_type,bytes,metadata_json,created_at) VALUES (?,?,?,?,?,?,?,?,?)')
+      .bind(`${job.id}-0`,'owner',job.id,`accounts/owner/jobs/${job.id}/0`,'image','image/png',3,job.request_json,1).run();
+    expect((await removeRequest(job.id))?.status).toBe(200);
+    expect(db.prepare('SELECT deleted FROM account_assets WHERE id=?').get(`${job.id}-0`)).toMatchObject({deleted:0});
   });
 });

@@ -31,9 +31,32 @@ export default function CloudJobPanel({provider,modelId,mediaType,inputMode,onCo
     }catch(error){setError(error instanceof Error?error.message:'Could not update this job.');}
     finally{pending.current=false;setBusy(false);}
   }
+  /** Removal drops the rows locally instead of replacing one, because this panel
+   *  reads the memory-only account store rather than refetching. Sequential and
+   *  under one busy window: "Clear" passes every id at once. */
+  async function removeJobs(ids:string[]){
+    if(pending.current)return;
+    const {session,epoch}=useAccountStore.getState(),owner=session?.account?.id;
+    if(!owner)return;
+    pending.current=true;setBusy(true);setError(null);
+    const removed:string[]=[];
+    try{
+      for(const id of ids){
+        await accountRequest(`jobs/${id}`,{method:'DELETE',headers:{'X-Account-Id':owner}});
+        removed.push(id);
+      }
+    }catch(error){setError(error instanceof Error?error.message:'Could not update this job.');}
+    finally{
+      // Only what the Worker confirmed: a row left on screen after a failure is
+      // recoverable, one hidden from a request that never landed is not.
+      const state=useAccountStore.getState();
+      if(removed.length)state.applyJobs(owner,epoch,state.jobs.filter(job=>!removed.includes(job.id)),state.assets);
+      pending.current=false;setBusy(false);
+    }
+  }
   return <AccountSurface label="Account generation results" className="flex min-h-[420px] flex-col gap-4">
     <div><h3 className="display flex items-center gap-2 text-base font-semibold"><Cloud size={17} className="text-cyan-300" aria-hidden="true"/>Result</h3><p className="mt-1 text-xs text-[var(--foreground-muted)]">Saved to your account when complete. You can leave this page.</p></div>
-    <CloudJobList jobs={jobs} busy={busy} onResume={id=>void changeJob(id,'resume')} onCancel={id=>void changeJob(id,'cancel')} onDismiss={id=>void changeJob(id,'dismiss')} />
+    <CloudJobList jobs={jobs} busy={busy} onResume={id=>void changeJob(id,'resume')} onCancel={id=>void changeJob(id,'cancel')} onDismiss={id=>void changeJob(id,'dismiss')} onRemove={ids=>void removeJobs(ids)} />
     <TemporaryAssetNotice assets={assets} />
     {mediaType==='image'?<ResultStack items={assets.map(a=>({id:a.id,src:`/api/account/assets/${a.id}/content`,mimeType:a.mimeType,label:a.expiresAt?'Temporary result':undefined}))} isGenerating={active} pendingLabel="Your job is running." downloadingId={downloading} onDownload={item=>{const asset=assets.find(a=>a.id===item.id);if(asset)return download(asset);}} emptyState={<p className="p-5 text-center text-sm text-[var(--foreground-muted)]">Your saved images will appear here.</p>}/>:assets[0]?<><video controls crossOrigin="anonymous" src={`/api/account/assets/${assets[0].id}/content`} className="w-full rounded-xl bg-black"/><button type="button" disabled={Boolean(downloading)} onClick={()=>void download(assets[0])} className="btn-secondary justify-center"><Download size={16} aria-hidden="true"/>Download video</button></>:<div className="flex flex-1 flex-col items-center justify-center gap-3 text-sm text-[var(--foreground-muted)]">{active&&<Loader2 className="animate-spin text-cyan-300" aria-hidden="true"/>}{active?'Your background video job is running.':'Your saved video will appear here.'}</div>}
     {mediaType==='video'&&assets[0]&&<LastFrameActions key={assets[0].id} videoUrl={`/api/account/assets/${assets[0].id}/content`} filenameBase={downloadFilenameBase({prompt:assets[0].metadata.prompt,mediaType:'video',provider,modelId})} onContinue={onContinueFromFrame}/>}

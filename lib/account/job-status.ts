@@ -11,3 +11,9 @@ export function isActiveJob(job: Pick<CloudJobView,'state'>) { return ACTIVE.inc
 /** Needs a person: it will not resolve itself, so the overlay keeps showing it
  *  until dismissed rather than letting it scroll away with the finished work. */
 export function needsAttention(job: Pick<CloudJobView,'state'>) { return job.state === 'needs_attention' || job.state === 'failed'; }
+/** Finished and owed nothing further, so the row is only a record: removing it
+ *  takes away no saved asset and no spend entry, both of which outlive the job.
+ *  Terminal states only, mirroring the Worker's own guard — anything earlier
+ *  still holds a storage reservation that cancelling or dismissing must release
+ *  first, and the Worker answers 409 rather than hiding it. */
+export function isRemovableJob(job: Pick<CloudJobView,'state'>) { return job.state === 'failed' || job.state === 'cancelled'; }

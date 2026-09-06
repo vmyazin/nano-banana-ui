@@ -2,7 +2,7 @@ import { mediaAccess } from './media';
 export { byteRange } from './range';
 import { currentAccount } from './sessions';
 import { json, type Env } from './security';
-import { acceptJob, AccountError, cancelQueuedJob, dismissAttentionJob, dispatchJob, getJob, jobView, type JobRow } from './jobs';
+import { acceptJob, AccountError, cancelQueuedJob, dismissAttentionJob, dispatchJob, getJob, jobView, removeFinishedJob, type JobRow } from './jobs';
 import { adapterFor, validateRequest } from './providers';
 import { assetView, deleteAsset, getAsset } from './assets';
 
@@ -34,6 +34,9 @@ export async function jobRoutes(request:Request,env:Env):Promise<Response|null>{
     if(jobMatch){
       const job=await getJob(env,jobMatch[1],account.id);if(!job)return json({error:'Job not found.'},404);
       if(request.method==='GET'&&!jobMatch[2])return json({job:jobView(job)});
+      // Removal is the last step of a finished job, never a way out of a live
+      // one: `removeFinishedJob` rejects anything still holding a reservation.
+      if(request.method==='DELETE'&&!jobMatch[2]){await removeFinishedJob(env,job.id,account.id);return json({ok:true});}
       if(request.method==='POST'&&jobMatch[2]==='/cancel'){
         const cancelled=await cancelQueuedJob(env,job.id,account.id);
         if(!cancelled)return json({error:'Job not found.'},404);
