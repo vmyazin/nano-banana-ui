@@ -25,6 +25,15 @@
   script like `seed-account-demo.mjs`, because IndexedDB is scoped to one origin in one browser
   profile and is unreachable from outside the page.
 
+- **A feature that renders locally but is missing on the deployed site** → suspect the
+  Worker before the component. Vercel deploys `main` automatically while the account
+  Worker is deployed by hand (`cd cloud && npx wrangler deploy`), so the browser can run
+  a commit whose API is not live yet — and a *missing* response field is not an error:
+  the payload still parses and the UI takes its empty branch, which is why the library
+  filter pills and the spend total vanished in production on 2026-09-06 while both were
+  correct on localhost. Compare `npx wrangler deployments list` in `cloud/` with
+  `git log -S<field>` before reading the component. See `docs/deployment.md`.
+
 - **"Background generation is not available for this provider"** → that message is
   configuration, not a missing adapter. `CLOUD_GENERATION_PROVIDERS` in
   `cloud/wrangler.jsonc` is the only gate; `enabledProviders` filters it against

@@ -157,6 +157,29 @@ zero queued object deletions. Native provider execution remains disabled, so
 paid generation, durable provider completion and backup restoration remain
 launch acceptance work.
 
+### Worker redeploy — 2026-09-06 library filters and spend totals
+
+The Worker deploys by hand while the web app deploys automatically on every push
+to `main`. Anything the browser reads from a *new* Worker field therefore
+disappears silently in production until the Worker is redeployed: the response
+still parses, the field is just absent, so the UI takes its empty branch instead
+of erroring. That is what happened here — production ran version
+`2bfca5fe` (built before `ffb1e42`), so `/api/account/assets` returned no
+`counts` and `LibraryFilters` rendered nothing, while `/api/account/spend/totals`
+404'd and the rail read "Unavailable". Both features looked correct locally,
+where `wrangler dev` serves the working tree.
+
+Redeployed `scene-assembly-accounts` from `ef341d6`; live version
+`984eafa3-0c46-4562-bc04-3e17baf0be3b` at 100%. Code-only — no migration (the
+schema was already at 0011), no secret, `vars`, binding, or provider-list change.
+Verified `/health` 200 and both routes answering 401 rather than 404 for an
+unauthenticated caller.
+
+**When a UI element is present locally and missing in production, compare the
+Worker's deployed timestamp against the commit that added the field it reads
+before looking at the component.** `npx wrangler deployments list` in `cloud/`
+gives the former; `git log -S<field>` gives the latter.
+
 ### Follow-up — 2026-09-05 approved account backend deployment
 
 The user approved the account page in response to the request to deploy the
