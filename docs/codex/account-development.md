@@ -115,6 +115,17 @@ only masked metadata, and old versions must remain available during rotation.
 An explicit browser-key import uses an if-absent write, so an existing cloud
 connection wins and the browser original is never removed.
 
+The unified connections dialog (`components/ApiKeyConfig.tsx`) uses a
+different write for a signed-in user: **Save & close** overwrites, syncing
+every provider key that changed on this device to the account, whichever key
+was already saved there. A key is skipped only if it failed validation, the
+provider is in the device's opt-out list, or its last four characters already
+match the stored `hint` — the guard that keeps an unrelated Save & close from
+bumping a connection's revision and failing a job still running on the
+previous one. The key stays on the device either way; the vault is
+write-only and never returned to the browser, so nothing is ever moved out
+from under browser-only generation.
+
 Cloud jobs live only in the account store and never enter guest job stores.
 Submission tokens and immutable request digests make intake idempotent. An
 uncertain dispatch is reconciled without a second paid submission. A queued job

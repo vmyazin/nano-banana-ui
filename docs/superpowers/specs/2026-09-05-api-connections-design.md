@@ -91,6 +91,15 @@ on the old one into `needs_attention`.
 `hint` is `apiKey.slice(-4)` (`cloud/src/vault.ts:40`), already returned by the
 connections list and the session payload. No new endpoint.
 
+**Known limitation: a Cloudflare account-ID-only change never syncs.** The
+guard compares `hint`, which is `cfToken.slice(-4)` — the account ID plays no
+part in it. Editing only the Account ID field and leaving the token as it was
+leaves `hint` unchanged, so `pendingConnectionWrites` sees nothing to sync and
+Save & close silently keeps the account's old account ID. This is accepted as
+a known limitation rather than special-cased: recovery is to press "Remove
+from account" and then "Save to account" again, which re-sends both fields
+unconditionally.
+
 ### The opt-out flag
 
 "Remove from account" must survive the next Save & close, or removing a
