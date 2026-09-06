@@ -18,6 +18,7 @@ import {
   Search,
   Sparkles,
   Type,
+  UserCircle,
   Volume2,
   VolumeX,
   Wallet,
@@ -30,6 +31,7 @@ import { enginesForFeature } from '@/lib/engines/registry';
 import { brand } from '@/lib/brand';
 import { FEATURES, type Feature } from '@/types';
 import type { ProviderMode } from '@/lib/providers/types';
+import { useAccountStore } from '@/store/useAccountStore';
 import { useAppStore } from '@/store/useAppStore';
 import { setChimeEnabled } from '@/lib/notify/chime';
 
@@ -184,6 +186,10 @@ export function CommandPalette({
   const router = useRouter();
   const setVideoEngine = useAppStore((state) => state.setVideoEngine);
   const chimeOnComplete = useAppStore((state) => state.chimeOnComplete);
+  // Mirrors the footer link: only a settled session with nobody in it offers sign-in.
+  const accountStatus = useAccountStore((state) => state.status);
+  const hasAccount = useAccountStore((state) => Boolean(state.session?.account));
+  const signedOut = accountStatus === 'ready' && !hasAccount;
 
   // ⌘K / Ctrl-K toggles the palette.
   useEffect(() => {
@@ -324,6 +330,19 @@ export function CommandPalette({
             <span className="cmd-item-body">
               <span className="cmd-item-title">View spend</span>
               <span className="cmd-item-desc">What your generations have cost</span>
+            </span>
+          </Command.Item>
+          <Command.Item
+            value={signedOut ? 'Sign in' : 'Your account'}
+            keywords={['account', 'profile', 'cloud', 'login', 'sign in', 'connections', 'keys', 'workspace']}
+            onSelect={() => go(() => router.push(signedOut ? '/sign-in' : '/account'))}
+          >
+            <UserCircle size={15} />
+            <span className="cmd-item-body">
+              <span className="cmd-item-title">{signedOut ? 'Sign in' : 'Your account'}</span>
+              <span className="cmd-item-desc">
+                {signedOut ? 'Access your cloud workspace and connections' : 'Cloud workspace, connections, and private library'}
+              </span>
             </span>
           </Command.Item>
           <Command.Item

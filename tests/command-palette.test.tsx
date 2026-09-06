@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 import { CommandPalette } from '@/components/CommandPalette';
+import { useAccountStore } from '@/store/useAccountStore';
 
 // cmdk measures its list with a ResizeObserver, which jsdom doesn't implement.
 class NoopResizeObserver {
@@ -94,6 +95,28 @@ describe('CommandPalette', () => {
     fireEvent.click(screen.getByText('View spend'));
 
     expect(push).toHaveBeenCalledWith('/spend');
+  });
+
+  it('offers the account page to someone signed in', () => {
+    useAccountStore.getState().applySession({
+      account: { id: 'owner-1', name: 'Owner', email: 'owner@example.test' },
+      googleEnabled: true,
+      localSignIn: false,
+      providers: [],
+      connections: [],
+    });
+    renderPalette();
+    fireEvent.click(screen.getByText('Your account'));
+    expect(push).toHaveBeenCalledWith('/account');
+    expect(screen.queryByText('Sign in')).not.toBeInTheDocument();
+  });
+
+  it('offers sign-in instead once the session says there is nobody', () => {
+    useAccountStore.getState().applySession({ account: null, googleEnabled: true, localSignIn: false, providers: [], connections: [] });
+    renderPalette();
+    fireEvent.click(screen.getByText('Sign in'));
+    expect(push).toHaveBeenCalledWith('/sign-in');
+    expect(screen.queryByText('Your account')).not.toBeInTheDocument();
   });
 
   it('keeps a search on the rows that actually match the word', () => {
