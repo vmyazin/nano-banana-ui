@@ -1,6 +1,7 @@
 'use client';
 import { useRef, useState } from 'react';
 import { useAccountStore } from '@/store/useAccountStore';
+import { usePromptLibraryStore } from '@/store/usePromptLibraryStore';
 import { refreshAccount } from './session';
 import { submitAccountJob, uploadAccountReferences } from './client';
 import type { CloudJobRequest, CloudJobView, CloudProvider } from './contracts';
@@ -20,7 +21,10 @@ export function useCloudWorkspace(provider:CloudProvider) {
   const cloud=signedIn&&browserOwner!==owner||uncertain&&!guestOverride;
   const enabled=Boolean(session?.providers?.includes(provider));
   const connected=Boolean(session?.connections?.some(c=>c.provider===provider));
-  async function perform(request:Omit<CloudJobRequest,'provider'|'referenceIds'>,files:File[]) {
+  // libraryPrompt is what the prompt library remembers once the job is accepted.
+  // It defaults to the request prompt, but the image workspace wraps feature
+  // instructions around what was typed and only the typed text belongs in history.
+  async function perform(request:Omit<CloudJobRequest,'provider'|'referenceIds'>,files:File[],libraryPrompt:string) {
     if(!owner||!cloud)throw new Error('Your account changed. Review the generation before starting it.');
     const current=await refreshAccount();
     if(current.account?.id!==owner)throw new Error('Your account changed. Review the generation before starting it.');
@@ -34,14 +38,18 @@ export function useCloudWorkspace(provider:CloudProvider) {
       pending.current=attempt;
     }
     const {job}=await submitAccountJob(attempt.token,attempt.request,undefined,owner);
+    // Same moment as every guest path: the provider has accepted the job. Before
+    // this lived here, each workspace's cloud branch returned before its own
+    // remember() call and signed-in prompts vanished from the library.
+    usePromptLibraryStore.getState().remember(libraryPrompt);
     const state=useAccountStore.getState();
     if(state.session?.account?.id===owner)state.applyJobs(owner,state.epoch,[job,...state.jobs.filter(j=>j.id!==job.id)],state.assets);
     pending.current=null;
     return job;
   }
-  function submit(request:Omit<CloudJobRequest,'provider'|'referenceIds'>,files:File[]){
+  function submit(request:Omit<CloudJobRequest,'provider'|'referenceIds'>,files:File[],libraryPrompt:string=request.prompt){
     if(flight.current)return flight.current;
-    const promise=perform(request,files).finally(()=>{flight.current=null;});
+    const promise=perform(request,files,libraryPrompt).finally(()=>{flight.current=null;});
     flight.current=promise;return promise;
   }
   return {signedIn,cloud,enabled,connected,hasJobs,uncertain,checking:status==='loading'||uncertain&&!guestOverride,unavailable:status==='unavailable',

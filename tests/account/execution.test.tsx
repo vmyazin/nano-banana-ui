@@ -12,6 +12,7 @@ import ProviderVideoWorkspace from '@/components/ProviderVideoWorkspace';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { FEATURES } from '@/types';
 import { useProviderJobsStore } from '@/store/useProviderJobsStore';
+import { usePromptLibraryStore } from '@/store/usePromptLibraryStore';
 const {refresh,upload,submit,guestSubmit}=vi.hoisted(()=>({refresh:vi.fn(),upload:vi.fn(),submit:vi.fn(),guestSubmit:vi.fn()}));
 vi.mock('@/lib/account/session',()=>({refreshAccount:refresh}));
 vi.mock('@/lib/account/client',()=>({uploadAccountReferences:upload,submitAccountJob:submit,accountRequest:vi.fn(),accountAssetUrl:vi.fn()}));
@@ -22,6 +23,7 @@ const job:CloudJobView={id:'account-job',provider:'kie',state:'queued',errorCode
 beforeEach(()=>{
   vi.clearAllMocks();useAccountStore.getState().applySession(session);refresh.mockResolvedValue(session);upload.mockResolvedValue([]);submit.mockResolvedValue({job});
   useKieJobsStore.getState().clearJobs();useDraftStore.getState().reset();useAppStore.setState({kieApiKey:'',kieImageModel:'nano-banana-pro'});
+  usePromptLibraryStore.setState({history:[],favourites:[]});
 });
 describe('account execution and isolation',()=>{
   it('uses the common image workspace account connection without a browser key',async()=>{
@@ -72,6 +74,21 @@ describe('account execution and isolation',()=>{
     expect(submit.mock.calls[0][3]).toBe('owner');
     expect(guestSubmit).not.toHaveBeenCalled();expect(useKieJobsStore.getState().jobs).toHaveLength(0);
     expect(await screen.findByText('Queued')).toBeInTheDocument();
+  });
+  it('remembers a signed-in prompt in the library once the job is accepted',async()=>{
+    render(<KieGenerationWorkspace mediaType="image" inputMode="text" onBack={()=>{}} onOpenConnections={()=>{}}/>);
+    fireEvent.change(screen.getByRole('textbox',{name:'Prompt'}),{target:{value:'Product photo'}});
+    fireEvent.click(screen.getByRole('button',{name:'Generate image'}));
+    await waitFor(()=>expect(submit).toHaveBeenCalledTimes(1));
+    await waitFor(()=>expect(usePromptLibraryStore.getState().history.map(p=>p.text)).toEqual(['Product photo']));
+  });
+  it('remembers the typed text, not the feature-wrapped request, and nothing when the job is refused',async()=>{
+    const {result}=renderHook(()=>useCloudWorkspace('kie'));
+    await act(async()=>{await result.current.submit({...request,prompt:'Create a VIRAL thumbnail: cat'},[],'cat');});
+    expect(usePromptLibraryStore.getState().history.map(p=>p.text)).toEqual(['cat']);
+    submit.mockRejectedValueOnce(new Error('Refused'));
+    await act(async()=>{await expect(result.current.submit({...request,prompt:'never accepted'},[]).catch(e=>{throw e;})).rejects.toThrow('Refused');});
+    expect(usePromptLibraryStore.getState().history.map(p=>p.text)).toEqual(['cat']);
   });
   it('reuses its intake token after a lost response and coalesces double-clicks',async()=>{
     submit.mockRejectedValueOnce(new Error('Response lost')).mockResolvedValue({job});

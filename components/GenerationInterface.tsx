@@ -687,7 +687,7 @@ export default function GenerationInterface({ feature, apiKey, onBack, onOpenCon
             ? {aspectRatio:config.aspectRatio ?? '16:9'}
             : activeEngine.id === 'cloudflare' ? {}
               : {aspectRatio:config.aspectRatio ?? '16:9',imageSize:config.imageSize ?? '1K',useGoogleSearch:Boolean(config.useGoogleSearch)};
-        await cloudWorkspace.submit({modelId:cloudModelId,mediaType:'image',inputMode:cloudInputMode,prompt:cloudPrompt,values},feature.requiresImage ? references.map(reference => reference.file) : []);
+        await cloudWorkspace.submit({modelId:cloudModelId,mediaType:'image',inputMode:cloudInputMode,prompt:cloudPrompt,values},feature.requiresImage ? references.map(reference => reference.file) : [],prompt);
       } catch (caught) {
         if (mountedRef.current && generationOperationRef.current === operation) setError(caught instanceof Error ? caught.message : 'Could not confirm this background job.');
       } finally {
