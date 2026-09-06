@@ -17,3 +17,8 @@ export function needsAttention(job: Pick<CloudJobView,'state'>) { return job.sta
  *  still holds a storage reservation that cancelling or dismissing must release
  *  first, and the Worker answers 409 rather than hiding it. */
 export function isRemovableJob(job: Pick<CloudJobView,'state'>) { return job.state === 'failed' || job.state === 'cancelled'; }
+/** Worth a row of its own. A saved job's output is already a card in the
+ *  library or the result panel, so its row only repeated the prompt with a
+ *  "Saved" tag; everything still running, waiting on a person, or stopped is
+ *  telling the reader something the assets cannot. */
+export function isListedJob(job: Pick<CloudJobView,'state'>) { return job.state !== 'saved'; }
