@@ -111,7 +111,7 @@ function ProviderCard({
       className={`flex flex-col gap-2.5 rounded-xl bg-[var(--surface)] p-4 ${highlighted ? 'border-2 border-[var(--neon-cyan)]' : 'border border-[var(--border)]'} ${className ?? ''}`}
     >
       <div className="flex items-start justify-between gap-2">
-        <h3 className="field-label flex flex-wrap items-center gap-x-2 gap-y-1.5">
+        <h3 className="field-label flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5">
           <ProviderLogo provider={provider} size={22} />
           {name}
           {connected && (
@@ -212,7 +212,6 @@ function safeFalValidationError(value: unknown): string {
 
 export default function ApiKeyConfig({ open, onOpenChange, focusProvider }: ApiKeyConfigProps) {
   const account=useAccountStore(state=>state.session?.account);
-  const accountId=account?.id;
   const savedKey = useAppStore((s) => s.apiKey);
   const chimeOnComplete = useAppStore((s) => s.chimeOnComplete);
   const setApiKey = useAppStore((s) => s.setApiKey);
@@ -539,8 +538,6 @@ export default function ApiKeyConfig({ open, onOpenChange, focusProvider }: ApiK
   useEffect(() => {
     if (!open || !focusProvider) return;
     const frame = requestAnimationFrame(() => {
-      const accountField=accountId?dialogRef.current?.querySelector<HTMLInputElement>('[data-account-key]'):null;
-      if(accountField){accountField.scrollIntoView?.({block:'center'});accountField.focus({preventScroll:true});return;}
       const card = dialogRef.current?.querySelector(`[data-provider="${focusProvider}"]`);
       if (!card) return;
       // Optional call: jsdom (and any host without smooth scrolling) has no
@@ -549,7 +546,7 @@ export default function ApiKeyConfig({ open, onOpenChange, focusProvider }: ApiK
       card.querySelector('input')?.focus({ preventScroll: true });
     });
     return () => cancelAnimationFrame(frame);
-  }, [open, focusProvider, accountId]);
+  }, [open, focusProvider]);
 
   return (
     <AnimatePresence>
@@ -607,7 +604,7 @@ export default function ApiKeyConfig({ open, onOpenChange, focusProvider }: ApiK
                   linkPrefix="Get a key at"
                   href="https://aistudio.google.com/apikey"
                   urlLabel="aistudio.google.com/apikey"
-                  storage={<ConnectionStorageButton provider="gemini" apiKey={keyInput} />}
+                  storage={<ConnectionStorageButton provider="gemini" apiKey={savedKey} />}
                 >
                   <SecretInput
                     ariaLabel="Gemini API key"
@@ -624,7 +621,7 @@ export default function ApiKeyConfig({ open, onOpenChange, focusProvider }: ApiK
                     disabled={isValidating}
                   />
                   {validationError && <FieldError message={validationError} />}
-                  <ConnectionStorageBadge provider="gemini" apiKey={keyInput} />
+                  <ConnectionStorageBadge provider="gemini" apiKey={savedKey} />
                 </ProviderCard>
 
                 {/* Kie.ai */}
@@ -637,7 +634,7 @@ export default function ApiKeyConfig({ open, onOpenChange, focusProvider }: ApiK
                   linkPrefix="Get a key at"
                   href="https://kie.ai/"
                   urlLabel="kie.ai"
-                  storage={<ConnectionStorageButton provider="kie" apiKey={kieKeyInput} />}
+                  storage={<ConnectionStorageButton provider="kie" apiKey={savedKieKey} />}
                 >
                   <SecretInput
                     ariaLabel="Kie API key"
@@ -654,7 +651,7 @@ export default function ApiKeyConfig({ open, onOpenChange, focusProvider }: ApiK
                     disabled={isValidating}
                   />
                   {kieValidationError && <FieldError message={kieValidationError} />}
-                  <ConnectionStorageBadge provider="kie" apiKey={kieKeyInput} />
+                  <ConnectionStorageBadge provider="kie" apiKey={savedKieKey} />
                 </ProviderCard>
 
                 {/* fal.ai */}
@@ -667,7 +664,7 @@ export default function ApiKeyConfig({ open, onOpenChange, focusProvider }: ApiK
                   linkPrefix="Get a key at"
                   href="https://fal.ai/dashboard/keys"
                   urlLabel="fal.ai/dashboard/keys"
-                  storage={<ConnectionStorageButton provider="fal" apiKey={falKeyInput} />}
+                  storage={<ConnectionStorageButton provider="fal" apiKey={savedFalKey} />}
                 >
                   <SecretInput
                     ariaLabel="fal API key"
@@ -684,7 +681,7 @@ export default function ApiKeyConfig({ open, onOpenChange, focusProvider }: ApiK
                     disabled={isValidating}
                   />
                   {falValidationError && <FieldError message={falValidationError} alert />}
-                  <ConnectionStorageBadge provider="fal" apiKey={falKeyInput} />
+                  <ConnectionStorageBadge provider="fal" apiKey={savedFalKey} />
                 </ProviderCard>
 
                 {/* Cloudflare Workers AI — two fields, so it takes the full
