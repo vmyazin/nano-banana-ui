@@ -3,7 +3,7 @@ import { useRef, useState } from 'react';
 import { Cloud, Download, Loader2 } from 'lucide-react';
 import ResultStack from '@/components/ResultStack';
 import LastFrameActions from '@/components/LastFrameActions';
-import { downloadFilenameBase } from '@/lib/download-name';
+import { knownAccountAssetFilenameBase } from '@/lib/account/asset-name';
 import { useAccountStore } from '@/store/useAccountStore';
 import { downloadAccountAsset } from '@/lib/account/download';
 import { accountRequest } from '@/lib/account/client';
@@ -60,7 +60,7 @@ export default function CloudJobPanel({provider,modelId,mediaType,inputMode,onCo
     <CloudJobList jobs={jobs.filter(isListedJob)} busy={busy} onResume={id=>void changeJob(id,'resume')} onCancel={id=>void changeJob(id,'cancel')} onDismiss={id=>void changeJob(id,'dismiss')} onRemove={ids=>void removeJobs(ids)} />
     <TemporaryAssetNotice assets={assets} />
     {mediaType==='image'?<ResultStack items={assets.map(a=>({id:a.id,src:`/api/account/assets/${a.id}/content`,mimeType:a.mimeType,label:a.expiresAt?'Temporary result':undefined}))} isGenerating={active} pendingLabel="Your job is running." downloadingId={downloading} onDownload={item=>{const asset=assets.find(a=>a.id===item.id);if(asset)return download(asset);}} emptyState={<p className="p-5 text-center text-sm text-[var(--foreground-muted)]">Your saved images will appear here.</p>}/>:assets[0]?<><video controls crossOrigin="anonymous" src={`/api/account/assets/${assets[0].id}/content`} className="w-full rounded-xl bg-black"/><button type="button" disabled={Boolean(downloading)} onClick={()=>void download(assets[0])} className="btn-secondary justify-center"><Download size={16} aria-hidden="true"/>Download video</button></>:<div className="flex flex-1 flex-col items-center justify-center gap-3 text-sm text-[var(--foreground-muted)]">{active&&<Loader2 className="animate-spin text-cyan-300" aria-hidden="true"/>}{active?'Your background video job is running.':'Your saved video will appear here.'}</div>}
-    {mediaType==='video'&&assets[0]&&<LastFrameActions key={assets[0].id} videoUrl={`/api/account/assets/${assets[0].id}/content`} filenameBase={downloadFilenameBase({prompt:assets[0].metadata.prompt,mediaType:'video',provider,modelId})} onContinue={onContinueFromFrame}/>}
+    {mediaType==='video'&&assets[0]&&<LastFrameActions key={assets[0].id} videoUrl={`/api/account/assets/${assets[0].id}/content`} filenameBase={knownAccountAssetFilenameBase(assets[0])} onContinue={onContinueFromFrame}/>}
     {error&&<p role="alert" className="text-sm text-red-300">{error}</p>}
   </AccountSurface>;
 }

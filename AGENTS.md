@@ -45,6 +45,12 @@
   submission is not idempotent and an untested adapter fails after the money is
   spent. Any UI that asks for a provider key must read the account connection when
   `cloudWorkspace.cloud` is true, never the browser key.
+- **A cloud asset's download filename** → go through `lib/account/asset-name.ts`, which
+  reuses the guest slug request (`requestPromptSlug`) and `downloadFilenameBase`, so
+  account downloads read `<slug>-<model code>.<ext>` like guest ones. The slug is warmed
+  in `useCloudWorkspace` when the job is accepted and requested lazily on a library
+  download; never name a file after an asset id, and never send the browser Gemini key
+  from the cloud path.
 - **Signed-in generation** → reuse `useCloudWorkspace`, `CloudExecutionNotice`, `CloudJobPanel` and `CloudJobList`; keep account jobs in the memory-only `useAccountStore`, never a guest job store. Pass `storage="account"` to `ConnectionGate` for cloud execution so its key-storage explanation stays accurate. Prompt-library recording for cloud jobs lives in `useCloudWorkspace.submit`, not in the workspace, because every workspace's cloud branch returns early and the four copies of `remember()` below those returns were all skipped.
 - **Accounts, sign-in, or cloud persistence** → first read `docs/codex/account-development.md` and `docs/codex/specs/2026-09-04-optional-cloud-accounts-design.md`. Authentication entry pages live at `/sign-in` and `/sign-up`; signed-in management lives at `/account`, composing the existing account panels. Do not add account calls to action to the existing studio layout. The legacy admin gate is separate because enabling it would block guest routes.
 

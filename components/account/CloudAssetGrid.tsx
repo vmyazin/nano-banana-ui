@@ -10,6 +10,7 @@ import LastFrameActions from '@/components/LastFrameActions';
 import { accountRequest } from '@/lib/account/client';
 import type { CloudAsset } from '@/lib/account/contracts';
 import { downloadAccountAsset } from '@/lib/account/download';
+import { knownAccountAssetFilenameBase } from '@/lib/account/asset-name';
 import { addAccountAssetAsReference } from '@/lib/account/reference';
 import { formatAccountBytes } from '@/lib/account/use-library';
 import { useAccountStore } from '@/store/useAccountStore';
@@ -102,7 +103,7 @@ export default function CloudAssetGrid({assets,ownerId,mode='browse',referenceLi
             <button type="button" disabled={busy!==null} onClick={()=>setRemoving(asset)} aria-label={`Delete ${asset.metadata.prompt||'cloud asset'}`} title="Delete" className={`btn-secondary py-1 text-xs hover:text-red-300 ${dense?'px-1.5':'px-2'}`}><Trash2 size={13} aria-hidden="true"/></button>
           </>}
         </div>
-        {mode==='browse'&&asset.kind==='video'&&<LastFrameActions videoUrl={`/api/account/assets/${asset.id}/content`} filenameBase={`scene-assembly-${asset.id}`} onContinue={onUsedReference}/>}
+        {mode==='browse'&&asset.kind==='video'&&<LastFrameActions videoUrl={`/api/account/assets/${asset.id}/content`} filenameBase={knownAccountAssetFilenameBase(asset)} onContinue={onUsedReference}/>}
       </li>)}</ul>}
     <ImageLightbox
       src={preview?`/api/account/assets/${preview.id}/content`:null}

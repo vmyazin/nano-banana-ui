@@ -2,6 +2,7 @@
 import { useRef, useState } from 'react';
 import { useAccountStore } from '@/store/useAccountStore';
 import { usePromptLibraryStore } from '@/store/usePromptLibraryStore';
+import { warmAccountSlug } from './asset-name';
 import { refreshAccount } from './session';
 import { submitAccountJob, uploadAccountReferences } from './client';
 import type { CloudJobRequest, CloudJobView, CloudProvider } from './contracts';
@@ -42,6 +43,8 @@ export function useCloudWorkspace(provider:CloudProvider) {
     // this lived here, each workspace's cloud branch returned before its own
     // remember() call and signed-in prompts vanished from the library.
     usePromptLibraryStore.getState().remember(libraryPrompt);
+    // Same moment the guest workspaces pin a filename slug to their job.
+    warmAccountSlug(job.id,libraryPrompt);
     const state=useAccountStore.getState();
     if(state.session?.account?.id===owner)state.applyJobs(owner,state.epoch,[job,...state.jobs.filter(j=>j.id!==job.id)],state.assets);
     pending.current=null;
