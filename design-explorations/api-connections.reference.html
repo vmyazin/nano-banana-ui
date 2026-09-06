@@ -1,0 +1,761 @@
+<!--
+  REFERENCE — Unified API connections
+  Brand: Scene Assembly (see design-explorations/_brand.md)
+  Date: 2026-09-05
+
+  Renders standalone. Not an exploration of alternatives: this is the single
+  agreed design, drawn so the card states can be checked against the build.
+
+  Signed in, keys go to both places on Save & close. Fixture drawn: Gemini, Kie
+  and Cloudflare on the default path, fal opted out of the account, Runware
+  saved from another device, Atlas and Comet untouched.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>API connections — unified design reference</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@500;600&display=swap" rel="stylesheet" />
+<style>
+:root {
+  --brand-500: #076c70;
+  --brand-700: #05494d;
+  --accent-500: #7b16aa;
+  --marker: #ffed4e;
+  --magenta: #bd0059;
+  --ink: #081012;
+  --ink-soft: #33474a;
+  --ink-mute: #6d8386;
+  --line: #d6e6e6;
+  --line-soft: #e7f0f0;
+  --paper: #ffffff;
+  --bg: #f1f7f7;
+  --font-sans: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --shadow-md: 0 16px 40px -26px rgba(8,16,18,.45), 0 2px 6px rgba(8,16,18,.04);
+
+  /* Product tokens — the dark app inside the frames */
+  --sa-bg: #081012;
+  --sa-elev: #0e191b;
+  --sa-surface: #0d1d20;
+  --sa-ink: #ecf5f5;
+  --sa-mute: #8fa5a7;
+  --sa-subtle: #7a8d8f;
+  --sa-cyan: #00fff9;
+  --sa-yellow: #ffed4e;
+  --sa-amber: #fbbf6b;
+  --sa-green: #6ee7b7;
+  --sa-line: rgba(194,232,240,.075);
+  --sa-line-2: rgba(194,232,240,.17);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: var(--font-sans);
+  letter-spacing: -.011em;
+  background: var(--bg);
+  color: var(--ink);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+.page { max-width: 1180px; margin: 0 auto; padding: 64px 40px 140px; }
+h1,h2,h3,h4 { margin: 0; letter-spacing: -.03em; }
+p { margin: 0; }
+ul { margin: 0; padding: 0; list-style: none; }
+
+/* ---------- chrome ---------- */
+.doc-eyebrow {
+  display: inline-flex; align-items: center; gap: 9px;
+  font-family: var(--font-mono); font-size: 10.5px; font-weight: 600;
+  letter-spacing: .2em; text-transform: uppercase; color: var(--brand-500);
+}
+.doc-eyebrow::before { content:''; width: 22px; height: 2px; background: var(--brand-500); }
+.doc-title { margin-top: 14px; font-size: 40px; font-weight: 600; line-height: 1.08; }
+.doc-subtitle { margin-top: 12px; max-width: 62ch; font-size: 16px; color: var(--ink-soft); }
+.doc-meta {
+  margin-top: 20px; display: flex; flex-wrap: wrap; gap: 22px;
+  font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .16em;
+  text-transform: uppercase; color: var(--ink-mute);
+}
+.doc-meta b { color: var(--ink); font-weight: 600; }
+
+section.block { margin-top: 68px; }
+.block-head { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+.block-num {
+  font-family: var(--font-mono); font-size: 11px; font-weight: 600;
+  letter-spacing: .18em; color: var(--brand-500);
+}
+.block-head h2 { font-size: 24px; font-weight: 600; }
+.block-lede { margin-top: 10px; max-width: 74ch; font-size: 15px; color: var(--ink-soft); }
+
+.frame {
+  margin-top: 24px; background: var(--paper); border: 1px solid var(--line);
+  border-radius: 14px; box-shadow: var(--shadow-md); overflow: hidden; position: relative;
+}
+.frame::before {
+  content: ''; position: absolute; top: 14px; left: 16px; width: 10px; height: 10px;
+  border-radius: 999px; background: #d5e7e7; box-shadow: 18px 0 0 #d5e7e7, 36px 0 0 #d5e7e7; z-index: 2;
+}
+.frame-bar {
+  background: #f5fafa; border-bottom: 1px solid var(--line-soft);
+  padding: 14px 16px 14px 76px; font-family: var(--font-mono); font-size: 10.5px;
+  letter-spacing: .2em; text-transform: uppercase; color: var(--ink-mute); font-weight: 600;
+}
+.stage { background: var(--sa-bg); padding: 30px; }
+.stage.tight { padding: 22px; }
+
+/* callouts */
+.note {
+  margin-top: 22px; border: 1px solid var(--line); border-radius: 11px;
+  background: var(--paper); padding: 16px 18px;
+}
+.note h4 {
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: .18em;
+  text-transform: uppercase; color: var(--brand-500); font-weight: 600;
+}
+.note.is-cut h4 { color: var(--magenta); }
+.note.is-pick h4 { color: var(--accent-500); }
+.note p { margin-top: 8px; font-size: 14px; color: var(--ink-soft); }
+.note code, .page code {
+  font-family: var(--font-mono); font-size: .88em;
+  background: #e9f2f2; border-radius: 5px; padding: 1px 5px; color: var(--brand-700);
+}
+.grid-notes { margin-top: 22px; display: grid; gap: 14px; grid-template-columns: repeat(3, 1fr); }
+.grid-notes .note { margin-top: 0; }
+
+/* state table */
+table.states { margin-top: 24px; width: 100%; border-collapse: collapse; font-size: 14px; }
+table.states th {
+  text-align: left; padding: 10px 12px; border-bottom: 2px solid var(--ink);
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: .16em;
+  text-transform: uppercase; color: var(--ink-mute); font-weight: 600;
+}
+table.states td { padding: 12px; border-bottom: 1px solid var(--line); vertical-align: top; color: var(--ink-soft); }
+table.states tr:last-child td { border-bottom: none; }
+table.states td:first-child, table.states td:nth-child(2) { text-align: center; width: 58px; font-weight: 600; color: var(--ink); }
+table.states b { color: var(--ink); font-weight: 600; }
+.yes { color: var(--brand-500); }
+.no { color: #b4c6c6; }
+
+/* ---------- product mockup ---------- */
+.app { font-family: var(--font-sans); color: var(--sa-ink); font-size: 14px; }
+.app * { box-sizing: border-box; }
+.app h2, .app h3 { margin: 0; letter-spacing: -.02em; }
+.app p { margin: 0; }
+
+.dialog {
+  max-width: 896px; margin: 0 auto; background: var(--sa-elev);
+  border: 1px solid var(--sa-line-2); border-radius: 14px; overflow: hidden;
+}
+.d-head { display: flex; align-items: flex-start; gap: 12px; padding: 14px 16px; border-bottom: 1px solid var(--sa-line); }
+.d-head .ic { color: var(--sa-cyan); flex: none; margin-top: 2px; }
+.d-head h2 { font-size: 15px; font-weight: 600; }
+.d-head p { font-size: 14px; color: var(--sa-mute); }
+.d-head .x { margin-left: auto; color: var(--sa-subtle); flex: none; }
+.d-body { padding: 14px 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.d-foot {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 14px 16px; border-top: 1px solid var(--sa-line); background: rgba(8,16,18,.4);
+}
+.d-foot p { font-size: 13px; color: var(--sa-mute); max-width: 56ch; }
+
+.card {
+  display: flex; flex-direction: column; gap: 10px;
+  background: var(--sa-surface); border: 1px solid var(--sa-line-2);
+  border-radius: 11px; padding: 15px;
+}
+.card.span { grid-column: 1 / -1; }
+.card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.card-head h3 {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
+  font-size: 14px; font-weight: 600;
+}
+.card-head h3 .mark { color: var(--sa-ink); flex: none; opacity: .92; }
+.pill-ok {
+  display: inline-flex; align-items: center; gap: 4px; border-radius: 999px;
+  border: 1px solid rgba(110,231,183,.25); background: rgba(110,231,183,.1);
+  padding: 1px 7px; font-size: 11px; font-weight: 500; color: var(--sa-green);
+}
+.hint { font-size: 13px; line-height: 1.45; color: var(--sa-mute); }
+.hint a { color: var(--sa-cyan); text-decoration: none; }
+
+.field {
+  position: relative; display: flex; align-items: center;
+  height: 40px; border-radius: 9px; border: 1px solid var(--sa-line-2);
+  background: rgba(8,16,18,.55); padding: 0 38px 0 12px;
+  font-size: 14px; color: var(--sa-ink);
+}
+.field.empty { color: var(--sa-subtle); }
+.field .eye { position: absolute; right: 11px; color: var(--sa-mute); }
+.field-label {
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--sa-subtle); margin-bottom: 6px; display: block;
+}
+.two-up { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+/* the new bits */
+.sbtn {
+  display: inline-flex; align-items: center; gap: 6px; flex: none;
+  height: 26px; padding: 0 9px; border-radius: 8px;
+  border: 1px solid var(--sa-line-2); background: rgba(8,16,18,.5);
+  font-family: var(--font-sans); font-size: 11.5px; font-weight: 500;
+  color: var(--sa-mute); white-space: nowrap; cursor: pointer;
+}
+.sbtn.is-save { border-color: rgba(0,255,249,.3); color: var(--sa-cyan); background: rgba(0,255,249,.07); }
+.sbtn.is-update { border-color: rgba(251,191,107,.35); color: var(--sa-amber); background: rgba(251,191,107,.08); }
+.storage {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px;
+  font-size: 12px; color: var(--sa-subtle);
+}
+.storage .seg { display: inline-flex; align-items: center; gap: 5px; }
+.storage .seg.on-server { color: var(--sa-green); }
+.storage .sep { color: rgba(194,232,240,.22); }
+.storage .tail { font-family: var(--font-mono); font-size: 11px; }
+.aside-line { font-size: 12.5px; line-height: 1.4; color: var(--sa-subtle); }
+.btn-primary {
+  display: inline-flex; align-items: center; justify-content: center;
+  height: 38px; padding: 0 18px; border-radius: 9px; border: none;
+  background: var(--sa-cyan); color: var(--sa-bg); font-size: 14px; font-weight: 600; flex: none;
+}
+.tier { display: flex; flex-direction: column; gap: 6px; }
+
+/* rail mockups */
+.rail-row { display: grid; grid-template-columns: 300px 44px 300px; align-items: center; gap: 0; justify-content: center; }
+.rail {
+  background: hsl(190 42% 8.8% / .8); border: 1px solid var(--sa-line-2);
+  border-radius: 12px; padding: 16px;
+}
+.rail-label {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: .18em;
+  text-transform: uppercase; color: var(--sa-subtle);
+}
+.rail li {
+  display: flex; align-items: center; gap: 9px;
+  border-bottom: 1px solid var(--sa-line); padding: 8px 0; font-size: 13px;
+}
+.rail li .tail { margin-left: auto; font-family: var(--font-mono); font-size: 10px; color: var(--sa-subtle); }
+.rail li .trash { margin-left: auto; color: var(--sa-subtle); }
+.rail-btn {
+  display: flex; align-items: center; justify-content: center; gap: 7px;
+  margin-top: 12px; height: 34px; border-radius: 9px;
+  border: 1px solid var(--sa-line-2); background: var(--sa-elev);
+  font-size: 13px; font-weight: 500; color: var(--sa-ink);
+}
+.arrow { display: flex; align-items: center; justify-content: center; color: #b4c6c6; }
+.rail-cap {
+  margin-top: 10px; font-family: var(--font-mono); font-size: 9.5px;
+  letter-spacing: .16em; text-transform: uppercase; color: var(--ink-mute); text-align: center;
+}
+.opens {
+  border: 1px dashed var(--sa-line-2); border-radius: 12px; padding: 14px;
+  background: rgba(8,16,18,.4); text-align: center;
+}
+.opens .k { font-size: 13px; color: var(--sa-mute); }
+.opens .v { margin-top: 6px; font-size: 14px; font-weight: 600; color: var(--sa-ink); }
+.opens.is-cut { border-color: rgba(189,0,89,.4); }
+.opens.is-cut .v { color: #ff86b4; text-decoration: line-through; }
+
+.files { margin-top: 22px; display: grid; gap: 10px; }
+.file {
+  display: grid; grid-template-columns: 76px 1fr; gap: 14px; align-items: baseline;
+  border: 1px solid var(--line); border-radius: 11px; background: var(--paper); padding: 13px 16px;
+}
+.file .tag {
+  font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .14em;
+  text-transform: uppercase; font-weight: 600; text-align: center;
+  border-radius: 999px; padding: 3px 0;
+}
+.tag.add { background: #e2f4ee; color: #12674f; }
+.tag.cut { background: #fbe4ee; color: var(--magenta); }
+.tag.edit { background: #e9f2f2; color: var(--brand-700); }
+.file b { font-family: var(--font-mono); font-size: 12.5px; font-weight: 600; }
+.file p { margin-top: 3px; font-size: 13.5px; color: var(--ink-soft); }
+
+@media (max-width: 900px) {
+  .page { padding: 40px 20px 90px; }
+  .d-body, .grid-notes, .two-up { grid-template-columns: 1fr; }
+  .rail-row { grid-template-columns: 1fr; gap: 16px; }
+  .arrow { transform: rotate(90deg); }
+}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <symbol id="i-gemini" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2l2.2 6.4L20.6 10.6 14.2 12.8 12 19.4 9.8 12.8 3.4 10.6 9.8 8.4z"/></symbol>
+  <symbol id="i-kie" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" d="M12 3.4 21 20.2H3z"/><path fill="none" stroke="currentColor" stroke-width="1.6" d="M9.2 15.4h5.6"/></symbol>
+  <symbol id="i-fal" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" d="M8.4 3.4h7.2l4.9 5v7.2l-4.9 5H8.4l-4.9-5V8.4z"/></symbol>
+  <symbol id="i-runware" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" d="M12 3l7.8 4.5v9L12 21l-7.8-4.5v-9z"/><circle cx="12" cy="12" r="2.5" fill="currentColor"/></symbol>
+  <symbol id="i-atlas" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="8.6"/><ellipse cx="12" cy="12" rx="3.7" ry="8.6"/><path d="M3.5 12h17"/></g></symbol>
+  <symbol id="i-comet" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="14.2" cy="9.8" r="5.3"/><path d="M10.1 13.6 3.5 20.4" stroke-linecap="round"/></g></symbol>
+  <symbol id="i-cf" viewBox="0 0 24 24"><path fill="currentColor" d="M6.6 18.4h11.3a3.45 3.45 0 0 0 .35-6.85 5.45 5.45 0 0 0-10.35-1.5A3.93 3.93 0 0 0 6.6 18.4z"/></symbol>
+  <symbol id="i-tier" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.5"><rect x="7" y="7" width="10" height="10" rx="1.6"/><path d="M10 3.5v3M14 3.5v3M10 17.5v3M14 17.5v3M3.5 10h3M3.5 14h3M17.5 10h3M17.5 14h3"/></g></symbol>
+  <symbol id="i-device" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><rect x="2.6" y="4.2" width="18.8" height="12.4" rx="1.9"/><path d="M8.6 20.4h6.8M12 16.6v3.8"/></g></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.7"><rect x="4.6" y="10.4" width="14.8" height="9.6" rx="2"/><path d="M8.1 10.4V7.6a3.9 3.9 0 0 1 7.8 0v2.8"/></g></symbol>
+  <symbol id="i-cloud-up" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6.8 18.2h10.4a3.3 3.3 0 0 0 .3-6.6 5.2 5.2 0 0 0-9.9-1.4 3.75 3.75 0 0 0-.8 8z"/><path d="M12 15.6V8.8M9.4 11.2 12 8.6l2.6 2.6"/></g></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.7"><path d="M1.9 12S5.6 5.5 12 5.5 22.1 12 22.1 12 18.4 18.5 12 18.5 1.9 12 1.9 12z"/><circle cx="12" cy="12" r="3"/></g></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" d="M4.8 12.6 9.6 17.4 19.2 6.8"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4.5 7h15M9.5 7V4.8h5V7M6.6 7l.9 12.2h9l.9-12.2"/></g></symbol>
+  <symbol id="i-key" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="8" cy="8" r="4.3"/><path d="M11.2 11.2 20 20M16.4 15.6l-2 2M19 18.2l-2 2"/></g></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M4 12h15M13.5 6.5 20 12l-6.5 5.5"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" d="M12 5v14M5 12h14"/></symbol>
+</defs></svg>
+
+<main class="page">
+
+  <header>
+    <div class="doc-eyebrow">Design reference</div>
+    <h1 class="doc-title">One place for every key</h1>
+    <p class="doc-subtitle">
+      The connections dialog stops being two lists stacked on top of each other. Each provider gets a
+      single card that says where its key is stored and offers one button to change that. The same
+      dialog becomes the account page&rsquo;s connection manager.
+    </p>
+    <div class="doc-meta">
+      <div><b>Surface</b> API connections</div>
+      <div><b>Default</b> Both places</div>
+      <div><b>Backend</b> No changes</div>
+      <div><b>Date</b> 2026-09-05</div>
+    </div>
+  </header>
+
+  <!-- ============ 1. THE RULE ============ -->
+  <section class="block">
+    <div class="block-head"><span class="block-num">01</span><h2>The rule a card follows</h2></div>
+    <p class="block-lede">
+      Signed in, <b>Save &amp; close puts every key in both places</b> &mdash; this device and your account &mdash;
+      so cloud jobs work the moment you paste a key. The states below are what is left over: a provider you
+      deliberately kept out, one saved from another device, one you never touched.
+    </p>
+
+    <table class="states">
+      <thead>
+        <tr><th>Device</th><th>Account</th><th>What the card says</th><th>The button</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="no">&mdash;</td><td class="no">&mdash;</td>
+          <td>Nothing. An untouched provider looks exactly as it does today.</td>
+          <td class="no">none</td>
+        </tr>
+        <tr>
+          <td class="yes">&#10003;</td><td class="yes">&#10003;</td>
+          <td><b>On this device &middot; Encrypted in your account</b> &mdash; the default, reached without asking for it</td>
+          <td><b>Remove from account</b></td>
+        </tr>
+        <tr>
+          <td class="yes">&#10003;</td><td class="no">&mdash;</td>
+          <td><b>On this device &middot; Not in your account</b> &mdash; only after you opt this provider out</td>
+          <td><b>Save to account</b></td>
+        </tr>
+        <tr>
+          <td class="no">&mdash;</td><td class="yes">&#10003;</td>
+          <td><b>Encrypted in your account &middot; ends &middot;&middot;9c1d</b>, plus a line noting browser-only runs need a key here</td>
+          <td><b>Remove from account</b></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="grid-notes">
+      <div class="note is-pick">
+        <h4>Why the last row matters</h4>
+        <p>
+          It is the row that makes an account worth having. Sign in on a second laptop and the Runware card
+          already knows the account holds a key, instead of looking untouched and inviting you to paste it
+          again. Nothing in the current UI can express this.
+        </p>
+      </div>
+      <div class="note">
+        <h4>The hint is a guard, not decoration</h4>
+        <p>
+          Closing the dialog only writes a key whose last four characters differ from the stored
+          <code>hint</code>. Without that check every close would bump <code>revision</code> &mdash; and a bumped
+          revision fails any job still running on the old one.
+        </p>
+      </div>
+      <div class="note is-cut">
+        <h4>Removing has to stick</h4>
+        <p>
+          Take a provider out of your account and the next Save &amp; close must not put it back. That is one
+          per-provider flag in the app store, cleared when you press <b>Save to account</b> again.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 2. THE DIALOG ============ -->
+  <section class="block">
+    <div class="block-head"><span class="block-num">02</span><h2>The dialog, signed in</h2></div>
+    <p class="block-lede">
+      The &ldquo;Saved connections&rdquo; block and the &ldquo;Browser-only connections&rdquo; heading are both gone. There is
+      one grid of providers, storage is a property of each card, and the buttons are exits from the default
+      rather than the route to it.
+    </p>
+
+    <div class="frame">
+      <div class="frame-bar">API connections &middot; signed in &middot; four providers in use</div>
+      <div class="stage">
+        <div class="app">
+          <div class="dialog">
+
+            <div class="d-head">
+              <svg class="ic" width="18" height="18"><use href="#i-key"/></svg>
+              <div>
+                <h2>API connections</h2>
+                <p>Add a key for any engine you want to use.</p>
+              </div>
+              <svg class="x" width="18" height="18"><use href="#i-x"/></svg>
+            </div>
+
+            <div class="d-body">
+
+              <!-- STATE: device + account, in sync -->
+              <div class="card">
+                <div class="card-head">
+                  <h3>
+                    <svg class="mark" width="21" height="21"><use href="#i-gemini"/></svg>
+                    Google Gemini
+                    <span class="pill-ok"><svg width="12" height="12"><use href="#i-check"/></svg> Connected</span>
+                  </h3>
+                  <button class="sbtn">Remove from account</button>
+                </div>
+                <p class="hint">Image and video, billed to your Google account. Get a key at <a href="#">aistudio.google.com/apikey &rarr;</a></p>
+                <div class="field">AIzaSy&#8230;<svg class="eye" width="17" height="17"><use href="#i-eye"/></svg></div>
+                <div class="storage">
+                  <span class="seg"><svg width="13" height="13"><use href="#i-device"/></svg> On this device</span>
+                  <span class="sep">&middot;</span>
+                  <span class="seg on-server"><svg width="13" height="13"><use href="#i-lock"/></svg> Encrypted in your account</span>
+                </div>
+              </div>
+
+              <!-- STATE: device only -->
+              <div class="card">
+                <div class="card-head">
+                  <h3>
+                    <svg class="mark" width="21" height="21"><use href="#i-kie"/></svg>
+                    Kie.ai
+                    <span class="pill-ok"><svg width="12" height="12"><use href="#i-check"/></svg> Connected</span>
+                  </h3>
+                  <button class="sbtn">Remove from account</button>
+                </div>
+                <p class="hint">Image and video, billed to your own account. Checked against your Kie credit balance. Get a key at <a href="#">kie.ai &rarr;</a></p>
+                <div class="field">&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;<svg class="eye" width="17" height="17"><use href="#i-eye"/></svg></div>
+                <div class="storage">
+                  <span class="seg"><svg width="13" height="13"><use href="#i-device"/></svg> On this device</span>
+                  <span class="sep">&middot;</span>
+                  <span class="seg on-server"><svg width="13" height="13"><use href="#i-lock"/></svg> Encrypted in your account</span>
+                </div>
+              </div>
+
+              <!-- STATE: device + account, diverged -->
+              <div class="card">
+                <div class="card-head">
+                  <h3>
+                    <svg class="mark" width="21" height="21"><use href="#i-fal"/></svg>
+                    fal.ai
+                    <span class="pill-ok"><svg width="12" height="12"><use href="#i-check"/></svg> Connected</span>
+                  </h3>
+                  <button class="sbtn is-save"><svg width="13" height="13"><use href="#i-cloud-up"/></svg> Save to account</button>
+                </div>
+                <p class="hint">Image and video, billed to your own account. Get a key at <a href="#">fal.ai/dashboard/keys &rarr;</a></p>
+                <div class="field">&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;<svg class="eye" width="17" height="17"><use href="#i-eye"/></svg></div>
+                <div class="storage">
+                  <span class="seg"><svg width="13" height="13"><use href="#i-device"/></svg> On this device</span>
+                  <span class="sep">&middot;</span>
+                  <span class="seg">Not in your account</span>
+                </div>
+                <p class="aside-line">You kept this one off your account. Cloud jobs cannot use fal until you save it.</p>
+              </div>
+
+              <!-- STATE: account only -->
+              <div class="card">
+                <div class="card-head">
+                  <h3>
+                    <svg class="mark" width="21" height="21"><use href="#i-runware"/></svg>
+                    Runware
+                  </h3>
+                  <button class="sbtn">Remove from account</button>
+                </div>
+                <p class="hint">Image and video across hundreds of models, billed per megapixel or second. Get a key at <a href="#">runware.ai/signup &rarr;</a></p>
+                <div class="field empty">Runware API key<svg class="eye" width="17" height="17"><use href="#i-eye"/></svg></div>
+                <div class="storage">
+                  <span class="seg on-server"><svg width="13" height="13"><use href="#i-lock"/></svg> Encrypted in your account</span>
+                  <span class="sep">&middot;</span>
+                  <span class="tail">ends &middot;&middot;9c1d</span>
+                </div>
+                <p class="aside-line">Cloud jobs use it already. Browser-only runs need a key on this device.</p>
+              </div>
+
+              <!-- STATE: untouched -->
+              <div class="card">
+                <div class="card-head">
+                  <h3><svg class="mark" width="21" height="21"><use href="#i-atlas"/></svg> Atlas Cloud</h3>
+                </div>
+                <p class="hint">Image, video, and LLMs on one key, with published per-request pricing. Get a key at <a href="#">atlascloud.ai/console/api-keys &rarr;</a></p>
+                <div class="field empty">Atlas Cloud API key<svg class="eye" width="17" height="17"><use href="#i-eye"/></svg></div>
+              </div>
+
+              <!-- STATE: untouched -->
+              <div class="card">
+                <div class="card-head">
+                  <h3><svg class="mark" width="21" height="21"><use href="#i-comet"/></svg> CometAPI</h3>
+                </div>
+                <p class="hint">Commercial models &mdash; GPT Image, Seedance, Veo, Kling &mdash; behind one OpenAI-shaped API. Get a key at <a href="#">api.cometapi.com/console/token &rarr;</a></p>
+                <div class="field empty">CometAPI API key<svg class="eye" width="17" height="17"><use href="#i-eye"/></svg></div>
+              </div>
+
+              <!-- Cloudflare: two fields, full width -->
+              <div class="card span">
+                <div class="card-head">
+                  <h3>
+                    <svg class="mark" width="21" height="21"><use href="#i-cf"/></svg>
+                    Cloudflare
+                    <span class="pill-ok"><svg width="12" height="12"><use href="#i-check"/></svg> Connected</span>
+                  </h3>
+                  <button class="sbtn">Remove from account</button>
+                </div>
+                <p class="hint">Free text-to-image on Workers AI. Both fields save as you type. Create a token at <a href="#">dash.cloudflare.com/profile/api-tokens &rarr;</a></p>
+                <div class="two-up">
+                  <div>
+                    <span class="field-label">Account ID</span>
+                    <div class="field">8f21c0e4&#8230;</div>
+                  </div>
+                  <div>
+                    <span class="field-label">Workers AI API token</span>
+                    <div class="field">&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;<svg class="eye" width="17" height="17"><use href="#i-eye"/></svg></div>
+                  </div>
+                </div>
+                <div class="storage">
+                  <span class="seg"><svg width="13" height="13"><use href="#i-device"/></svg> On this device</span>
+                  <span class="sep">&middot;</span>
+                  <span class="seg on-server"><svg width="13" height="13"><use href="#i-lock"/></svg> Encrypted in your account</span>
+                </div>
+              </div>
+
+              <div class="card span tier">
+                <div class="card-head">
+                  <h3><svg class="mark" width="21" height="21"><use href="#i-tier"/></svg> Shared fast tier</h3>
+                </div>
+                <p class="hint">Filenames and example prompts run on a shared model, or on your Gemini key.</p>
+              </div>
+
+            </div>
+
+            <div class="d-foot">
+              <p>Signed in, so your keys are kept on this device <em>and</em> encrypted in your account, where cloud jobs can use them.</p>
+              <button class="btn-primary">Save &amp; close</button>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid-notes">
+      <div class="note is-cut">
+        <h4>Deleted</h4>
+        <p>
+          The whole &ldquo;Saved connections&rdquo; panel &mdash; its provider <code>&lt;select&gt;</code>, its key field, its
+          Save button, its list &mdash; along with the &ldquo;Browser-only connections&rdquo; heading that only existed to
+          separate it from the grid.
+        </p>
+      </div>
+      <div class="note is-pick">
+        <h4>No second step</h4>
+        <p>
+          Paste a key, press Save &amp; close, and cloud jobs run. Nobody has to notice a button to get the
+          thing they signed in for. Five of the seven cards here needed no interaction at all.
+        </p>
+      </div>
+      <div class="note">
+        <h4>One footer sentence</h4>
+        <p>
+          Today the footer explains two storage systems that save on different schedules. Now it states one
+          fact &mdash; and it is the disclosure that makes saving-without-asking fair.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 3. SIGNED OUT ============ -->
+  <section class="block">
+    <div class="block-head"><span class="block-num">03</span><h2>Signed out, nothing changes</h2></div>
+    <p class="block-lede">
+      No account means no second place to put a key, so the badges and buttons simply are not rendered.
+      A signed-out visitor sees the dialog exactly as it looks today.
+    </p>
+
+    <div class="frame">
+      <div class="frame-bar">API connections &middot; signed out</div>
+      <div class="stage tight">
+        <div class="app">
+          <div class="dialog" style="max-width:620px">
+            <div class="d-body">
+              <div class="card">
+                <div class="card-head">
+                  <h3>
+                    <svg class="mark" width="21" height="21"><use href="#i-gemini"/></svg>
+                    Google Gemini
+                    <span class="pill-ok"><svg width="12" height="12"><use href="#i-check"/></svg> Connected</span>
+                  </h3>
+                </div>
+                <p class="hint">Image and video, billed to your Google account. Get a key at <a href="#">aistudio.google.com/apikey &rarr;</a></p>
+                <div class="field">AIzaSy&#8230;<svg class="eye" width="17" height="17"><use href="#i-eye"/></svg></div>
+              </div>
+              <div class="card">
+                <div class="card-head">
+                  <h3><svg class="mark" width="21" height="21"><use href="#i-kie"/></svg> Kie.ai</h3>
+                </div>
+                <p class="hint">Image and video, billed to your own account. Get a key at <a href="#">kie.ai &rarr;</a></p>
+                <div class="field empty">Kie API key<svg class="eye" width="17" height="17"><use href="#i-eye"/></svg></div>
+              </div>
+            </div>
+            <div class="d-foot">
+              <p>Credentials live in this browser&rsquo;s local storage and go straight to each provider &mdash; never to our servers beyond proxying the request.</p>
+              <button class="btn-primary">Save &amp; close</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 4. ACCOUNT PAGE ============ -->
+  <section class="block">
+    <div class="block-head"><span class="block-num">04</span><h2>The account page rail</h2></div>
+    <p class="block-lede">
+      The rail keeps a read-only summary of what the account holds. Its button opens the dialog above
+      instead of a second, weaker form. Deleting a connection is still reachable &mdash; from the card that
+      owns it.
+    </p>
+
+    <div class="frame">
+      <div class="frame-bar">/account &middot; connections rail &middot; before &rarr; after</div>
+      <div class="stage">
+        <div class="app">
+          <div class="rail-row">
+
+            <div>
+              <div class="rail">
+                <div class="rail-label"><span>Saved connections</span><span>2</span></div>
+                <ul style="margin-top:10px">
+                  <li><svg class="mark" width="15" height="15"><use href="#i-gemini"/></svg> Google Gemini <svg class="trash" width="14" height="14"><use href="#i-trash"/></svg></li>
+                  <li><svg class="mark" width="15" height="15"><use href="#i-fal"/></svg> fal.ai <svg class="trash" width="14" height="14"><use href="#i-trash"/></svg></li>
+                </ul>
+                <div class="rail-btn"><svg width="15" height="15"><use href="#i-plus"/></svg> Add provider key</div>
+              </div>
+              <div class="opens is-cut" style="margin-top:12px">
+                <div class="k">opens</div>
+                <div class="v">One key at a time</div>
+              </div>
+              <p class="rail-cap">Before</p>
+            </div>
+
+            <div class="arrow"><svg width="24" height="24"><use href="#i-arrow"/></svg></div>
+
+            <div>
+              <div class="rail">
+                <div class="rail-label"><span>Saved connections</span><span>2</span></div>
+                <ul style="margin-top:10px">
+                  <li><svg class="mark" width="15" height="15"><use href="#i-gemini"/></svg> Google Gemini <span class="tail">&middot;&middot;4f2a</span></li>
+                  <li><svg class="mark" width="15" height="15"><use href="#i-fal"/></svg> fal.ai <span class="tail">&middot;&middot;9c1d</span></li>
+                </ul>
+                <div class="rail-btn"><svg width="15" height="15"><use href="#i-key"/></svg> Manage connections</div>
+              </div>
+              <div class="opens" style="margin-top:12px">
+                <div class="k">opens</div>
+                <div class="v">The dialog above</div>
+              </div>
+              <p class="rail-cap">After</p>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 5. FILES ============ -->
+  <section class="block">
+    <div class="block-head"><span class="block-num">05</span><h2>What this costs</h2></div>
+    <p class="block-lede">
+      One new component, one file that shrinks by about half, and no backend work &mdash;
+      <code>POST /connections</code> without <code>ifAbsent</code> already overwrites and bumps the revision,
+      and <code>DELETE /connections/:provider</code> already exists.
+    </p>
+
+    <div class="files">
+      <div class="file">
+        <span class="tag add">New</span>
+        <div>
+          <b>components/account/ConnectionStorageControl.tsx</b>
+          <p>Takes <code>{provider, apiKey, accountId?}</code>. Renders the badge and the button, owns its busy
+          and error state, the POST/DELETE calls, and the removal confirm. Testable on its own.</p>
+        </div>
+      </div>
+      <div class="file">
+        <span class="tag edit">Edit</span>
+        <div>
+          <b>components/ApiKeyConfig.tsx</b>
+          <p>Drop the embedded saved-connections block and the browser-only heading. <code>ProviderCard</code>
+          gains a slot for the control. On close, sync every changed, non-opted-out key to the account.</p>
+        </div>
+      </div>
+      <div class="file">
+        <span class="tag add">New</span>
+        <div>
+          <b>store/useAppStore.ts</b>
+          <p>One persisted list: the providers you have taken out of your account, so closing the dialog
+          never puts them back.</p>
+        </div>
+      </div>
+      <div class="file">
+        <span class="tag cut">Cut</span>
+        <div>
+          <b>components/account/AccountConnections.tsx</b>
+          <p>The panel variant, the add-a-key form, the provider select and its modal all go. The rail
+          variant survives as a read-only summary with one button.</p>
+        </div>
+      </div>
+      <div class="file">
+        <span class="tag edit">Edit</span>
+        <div>
+          <b>components/account/AccountConsole.tsx</b>
+          <p>Holds the dialog&rsquo;s open state for the rail.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid-notes">
+      <div class="note">
+        <h4>Out of scope &mdash; gating</h4>
+        <p>
+          A provider saved only to the account still reads as not connected in a browser-only workspace,
+          because browser-only genuinely cannot run it. <code>connection-gate-parity</code> passes unchanged.
+        </p>
+      </div>
+      <div class="note">
+        <h4>Out of scope &mdash; bulk import</h4>
+        <p>
+          The <em>Provider keys</em> tab in the browser import dialog stays. Per-provider buttons overlap it,
+          but it serves a different moment: migrating everything at once on first sign-in.
+        </p>
+      </div>
+      <div class="note is-cut">
+        <h4>The trade accepted</h4>
+        <p>
+          Copy, not move. A key saved to the account also stays on the device, so browser-only keeps
+          working &mdash; at the cost of the cleaner &ldquo;it is in exactly one place&rdquo; story.
+        </p>
+      </div>
+    </div>
+  </section>
+
+</main>
+</body>
+</html>
