@@ -1,20 +1,24 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Cloud } from 'lucide-react';
 import { accountRequest } from '@/lib/account/client';
 import { formatAccountBytes as size, useAccountLibrary } from '@/lib/account/use-library';
 import { useAccountStore } from '@/store/useAccountStore';
 import { isListedJob } from '@/lib/account/job-status';
+import type { CloudAssetCounts } from '@/lib/account/contracts';
 import CloudJobList from './CloudJobList';
 import CloudAssetGrid from './CloudAssetGrid';
 import { AccountSurface } from './AccountSurface';
 
-export default function AccountLibrary({localTest=false,ownerId,mode='browse',referenceLimit,onUsedReference}: {
+export default function AccountLibrary({localTest=false,ownerId,mode='browse',referenceLimit,onUsedReference,onCounts}: {
   localTest?:boolean;ownerId:string;mode?:'browse'|'pick-image';referenceLimit?:number;onUsedReference?:()=>void;
+  /** Account-wide asset counts, for a host that labels this library from outside it. */
+  onCounts?:(counts:CloudAssetCounts)=>void;
 }) {
   const library=useAccountLibrary(ownerId);
-  const {jobs,assets,storage,cursor,nextCursor,loading}=library;
+  const {jobs,assets,storage,cursor,nextCursor,loading,counts}=library;
+  useEffect(()=>{if(counts)onCounts?.(counts);},[counts,onCounts]);
   const [error,setError]=useState<string|null>(null),[busy,setBusy]=useState(false);
   const pending=useRef(false);
   async function action(path:string,body?:unknown){

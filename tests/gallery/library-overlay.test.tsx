@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -6,9 +7,13 @@ import type { GalleryRecord } from '../../lib/gallery/storage';
 import { useDraftStore } from '../../store/useDraftStore';
 import { useGalleryStore } from '../../store/useGalleryStore';
 import { useAccountStore } from '../../store/useAccountStore';
+import { usePromptLibraryStore } from '../../store/usePromptLibraryStore';
 
 vi.mock('../../components/account/AccountLibrary', () => ({
-  default: ({ownerId}:{ownerId:string}) => <div data-testid="cloud-library">Cloud assets for {ownerId}</div>,
+  default: function MockAccountLibrary({ownerId,onCounts}:{ownerId:string;onCounts?:(counts:{all:number;image:number;video:number;temporary:number})=>void}) {
+    useEffect(() => { onCounts?.({all:7,image:5,video:2,temporary:0}); }, [onCounts]);
+    return <div data-testid="cloud-library">Cloud assets for {ownerId}</div>;
+  },
 }));
 
 function record(overrides: Partial<GalleryRecord> = {}): GalleryRecord {
@@ -97,8 +102,8 @@ describe('LibraryOverlay', () => {
     render(<LibraryOverlay open onOpenChange={() => undefined} />);
 
     expect(screen.getByRole('dialog', { name: 'Library' })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'results' })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'prompts' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /^results/ })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /^prompts/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Clear library' })).toBeInTheDocument();
   });
 
@@ -123,5 +128,24 @@ describe('LibraryOverlay', () => {
     act(()=>useAccountStore.getState().applySession({account:null,googleEnabled:true,localSignIn:false,providers:[],connections:[]}));
     expect(screen.getByText('moonlit palms')).toBeInTheDocument();
     expect(screen.queryByRole('group',{name:'Library source'})).toBeNull();
+  });
+  it('labels each tab with how much it lists', () => {
+    useGalleryStore.setState({ records: [record(), record({ id: 'image-2' })] });
+    usePromptLibraryStore.setState({
+      history: [{ id: 'p1', text: 'one', savedAt: 1 }, { id: 'p2', text: 'two', savedAt: 2 }],
+      favourites: [{ id: 'p3', text: 'kept', savedAt: 3 }],
+    });
+    render(<LibraryOverlay open onOpenChange={() => {}} />);
+    expect(screen.getByRole('tab', { name: 'results (2)' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'prompts (3)' })).toBeInTheDocument();
+  });
+
+  it('counts the cloud library account-wide while the cloud source is shown', async () => {
+    useGalleryStore.setState({ records: [record()] });
+    act(() => useAccountStore.getState().applySession({ account: { id: 'owner', name: 'Owner', email: 'owner@example.test' }, googleEnabled: true, localSignIn: false, providers: [], connections: [] }));
+    render(<LibraryOverlay open onOpenChange={() => {}} />);
+    expect(await screen.findByRole('tab', { name: 'results (7)' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'This browser' }));
+    expect(screen.getByRole('tab', { name: 'results (1)' })).toBeInTheDocument();
   });
 });

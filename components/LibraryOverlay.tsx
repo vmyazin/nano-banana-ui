@@ -11,6 +11,8 @@ import PromptLibraryList from '@/components/PromptLibraryList';
 import { useAccessibleDialog } from '@/hooks/useAccessibleDialog';
 import { useAppStore } from '@/store/useAppStore';
 import { useGalleryStore } from '@/store/useGalleryStore';
+import { usePromptLibraryStore } from '@/store/usePromptLibraryStore';
+import type { CloudAssetCounts } from '@/lib/account/contracts';
 
 interface LibraryOverlayProps {
   open: boolean;
@@ -51,6 +53,11 @@ export default function LibraryOverlay({
   const storageError = useGalleryStore((state) => state.storageError);
   const [quota, setQuota] = useState<{ usage: number; quota: number } | null>(null);
   const [tab, setTab] = useState<'results' | 'prompts'>(initialTab);
+  // Account-wide, reported by the cloud grid once its page arrives: the store
+  // only holds the latest page of assets, so counting it would undercount.
+  const [cloudCount, setCloudCount] = useState<number | null>(null);
+  const onCloudCounts = useCallback((counts: CloudAssetCounts) => setCloudCount(counts.all), []);
+  const promptCount = usePromptLibraryStore((state) => state.history.length + state.favourites.length);
   const panelRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
   const descriptionId = useId();
@@ -75,6 +82,12 @@ export default function LibraryOverlay({
   const stored = records.reduce((total, record) => total + record.bytes, 0);
   const storedImages = records.filter((record) => record.kind === 'image' && Boolean(record.blob));
   const dialogTitle = isImagePicker ? 'Choose from library' : 'Library';
+  // Each tab says how much it lists for the source on screen; the cloud count is
+  // withheld rather than guessed while its first page is still loading.
+  const tabCounts: Record<'results' | 'prompts', number | null> = {
+    results: cloud ? cloudCount : records.length,
+    prompts: promptCount,
+  };
 
   return (
     <AnimatePresence>
@@ -135,7 +148,8 @@ export default function LibraryOverlay({
                         : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)]'
                     }`}
                   >
-                    {name}
+                    {/* One text node: a styled span for the count splits the accessible name into "results(2)". */}
+                    {tabCounts[name] === null ? name : `${name} (${tabCounts[name]})`}
                   </button>
                 ))}
               </div>
@@ -160,7 +174,7 @@ export default function LibraryOverlay({
             )}
 
             {cloud && account && (isImagePicker || tab === 'results') ? (
-              <AccountLibrary key={account.id} ownerId={account.id} mode={isImagePicker ? 'pick-image' : 'browse'} referenceLimit={referenceLimit} onUsedReference={close} />
+              <AccountLibrary key={account.id} ownerId={account.id} mode={isImagePicker ? 'pick-image' : 'browse'} referenceLimit={referenceLimit} onUsedReference={close} onCounts={onCloudCounts} />
             ) : isImagePicker ? (
               <GalleryGrid
                 mode="pick-image"
