@@ -5,6 +5,7 @@ import type { EngineId } from '@/lib/engines/registry';
 import type { ImageFormatPreference } from '@/lib/image/policy';
 import { DEFAULT_MODELS } from '@/lib/providers/catalog';
 import type { ProviderId } from '@/lib/providers/types';
+import type { ImportableProvider } from '@/lib/account/key-import';
 
 /** Engines that can produce video: the two original ones plus the aggregators. */
 export type VideoEngineId = 'kie' | 'fal' | ProviderId;
@@ -74,6 +75,12 @@ interface AppState {
    * being able to look away. Persisted so silencing it survives a reload.
    */
   chimeOnComplete: boolean;
+  /**
+   * Providers deliberately kept out of the account. Save & close syncs every
+   * other key, so without this flag pressing "Remove from account" would be
+   * undone by the very next close.
+   */
+  accountKeyOptOuts: ImportableProvider[];
   /** True once the persisted state has rehydrated on the client. */
   hasHydrated: boolean;
   setApiKey: (key: string) => void;
@@ -91,6 +98,7 @@ interface AppState {
   setImageFormat: (preference: ImageFormatPreference) => void;
   setConvertLibraryImages: (convert: boolean) => void;
   setChimeOnComplete: (chime: boolean) => void;
+  setAccountKeyOptOut: (provider: ImportableProvider, optedOut: boolean) => void;
   setHasHydrated: (v: boolean) => void;
 }
 
@@ -152,6 +160,7 @@ export const useAppStore = create<AppState>()(
       cometApiKey: '',
       cometImageModel: DEFAULT_MODELS.comet.image,
       cometVideoModel: DEFAULT_MODELS.comet.video,
+      accountKeyOptOuts: [],
       imageFormat: 'auto',
       convertLibraryImages: true,
       chimeOnComplete: true,
@@ -172,6 +181,14 @@ export const useAppStore = create<AppState>()(
       setImageFormat: (preference) => set({ imageFormat: preference }),
       setConvertLibraryImages: (convert) => set({ convertLibraryImages: convert }),
       setChimeOnComplete: (chime) => set({ chimeOnComplete: chime }),
+      setAccountKeyOptOut: (provider, optedOut) =>
+        set((state) => ({
+          accountKeyOptOuts: optedOut
+            ? state.accountKeyOptOuts.includes(provider)
+              ? state.accountKeyOptOuts
+              : [...state.accountKeyOptOuts, provider]
+            : state.accountKeyOptOuts.filter((id) => id !== provider),
+        })),
       setHasHydrated: (v) => set({ hasHydrated: v }),
     }),
     {
@@ -197,6 +214,7 @@ export const useAppStore = create<AppState>()(
         cometApiKey: s.cometApiKey,
         cometImageModel: s.cometImageModel,
         cometVideoModel: s.cometVideoModel,
+        accountKeyOptOuts: s.accountKeyOptOuts,
         imageFormat: s.imageFormat,
         convertLibraryImages: s.convertLibraryImages,
         chimeOnComplete: s.chimeOnComplete,
