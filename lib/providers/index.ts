@@ -1,4 +1,5 @@
 // lib/providers/index.ts
+import { piapiAdapter } from './piapi';
 import { atlasAdapter } from './atlas';
 import { cometAdapter } from './comet';
 import { runwareAdapter } from './runware';
@@ -8,10 +9,11 @@ export const PROVIDER_ADAPTERS: Record<ProviderId, ProviderAdapter> = {
   runware: runwareAdapter,
   atlas: atlasAdapter,
   comet: cometAdapter,
+  piapi: piapiAdapter,
 };
 
 export function isProviderId(value: unknown): value is ProviderId {
-  return value === 'runware' || value === 'atlas' || value === 'comet';
+  return value === 'runware' || value === 'atlas' || value === 'comet' || value === 'piapi';
 }
 
 export function getAdapter(id: ProviderId): ProviderAdapter {

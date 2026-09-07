@@ -115,6 +115,7 @@ describe('VideoWorkspace provider selection', () => {
       expect.stringContaining('fal.ai'),
       expect.stringContaining('Atlas Cloud'),
       expect.stringContaining('CometAPI'),
+      expect.stringContaining('PiAPI'),
     ]);
     expect(screen.getByRole('radio', { name: /Kie\.ai/i })).toHaveAttribute('aria-checked', 'true');
     expect(providers.compareDocumentPosition(screen.getByTestId('kie-workspace'))).toBe(

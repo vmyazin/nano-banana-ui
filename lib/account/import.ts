@@ -13,7 +13,7 @@ const supportedTypes = new Set([
   'video/webm',
 ]);
 const cloudProviders = new Set<CloudProvider>([
-  'gemini', 'fal', 'kie', 'runware', 'atlas', 'comet', 'cloudflare', 'pollinations',
+  'gemini', 'fal', 'kie', 'runware', 'atlas', 'comet', 'piapi', 'cloudflare', 'pollinations',
 ]);
 
 export type AccountImportState =

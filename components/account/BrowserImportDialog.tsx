@@ -90,10 +90,11 @@ export default function BrowserImportDialog({
   const falApiKey = useAppStore(state => state.falApiKey);
   const runwareApiKey = useAppStore(state => state.runwareApiKey);
   const atlasApiKey = useAppStore(state => state.atlasApiKey);
+  const piapiApiKey = useAppStore(state => state.piapiApiKey);
   const cometApiKey = useAppStore(state => state.cometApiKey);
   const keyCount = useMemo(
-    () => browserKeyCandidates({ apiKey, cfToken, cfAccountId, kieApiKey, falApiKey, runwareApiKey, atlasApiKey, cometApiKey }).length,
-    [apiKey, atlasApiKey, cfAccountId, cfToken, cometApiKey, falApiKey, kieApiKey, runwareApiKey]
+    () => browserKeyCandidates({ apiKey, cfToken, cfAccountId, kieApiKey, falApiKey, runwareApiKey, atlasApiKey, cometApiKey, piapiApiKey }).length,
+    [apiKey, atlasApiKey, cfAccountId, cfToken, cometApiKey, piapiApiKey, falApiKey, kieApiKey, runwareApiKey]
   );
   const { eligible, statuses, selected, busy } = asset;
 

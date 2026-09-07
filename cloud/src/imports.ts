@@ -17,7 +17,7 @@ const CLEANUP_RESCAN_WINDOW_MS = 3_600_000;
 export const MAX_IMPORT_ATTEMPTS = 5;
 export const MAX_ACCOUNT_LIVE_IMPORT_ATTEMPTS = 12;
 export const MAX_GLOBAL_LIVE_IMPORT_ATTEMPTS = 200;
-const providers = new Set(['gemini','fal','kie','runware','atlas','comet','cloudflare','pollinations','local-test']);
+const providers = new Set(['gemini','fal','kie','runware','atlas','comet','piapi','cloudflare','pollinations','local-test']);
 
 type ImportState = 'pending'|'uploading'|'completed'|'cancelled'|'expired';
 interface ImportRow {

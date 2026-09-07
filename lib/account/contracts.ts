@@ -1,5 +1,5 @@
 /** Serializable contract shared by browser and Worker; never contains provider keys. */
-export type CloudProvider = 'gemini' | 'fal' | 'kie' | 'runware' | 'atlas' | 'comet' | 'cloudflare' | 'pollinations' | 'local-test';
+export type CloudProvider = 'gemini' | 'fal' | 'kie' | 'runware' | 'atlas' | 'comet' | 'piapi' | 'cloudflare' | 'pollinations' | 'local-test';
 export interface CloudJobRequest {
   provider: CloudProvider;
   modelId: string;

@@ -20,6 +20,7 @@ export interface KeySource {
  * Pollinations needs no key and points at its docs.
  */
 export const KEY_SOURCES: Record<EngineId, KeySource> = {
+  piapi: { href: 'https://piapi.ai/workspace/api-keys', urlLabel: 'piapi.ai/workspace/api-keys' },
   gemini: {
     href: 'https://aistudio.google.com/apikey',
     urlLabel: 'aistudio.google.com/apikey',

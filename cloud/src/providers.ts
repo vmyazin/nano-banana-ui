@@ -29,7 +29,7 @@ const localAdapter:GenerationAdapter={
  *  purpose: it is the local fixture and is reached through its own branch below.
  *  One list, so a provider added to the union cannot be silently missing from the
  *  deployed configuration — `tests/providers-config.test.ts` compares the two. */
-export const CLOUD_PROVIDERS = ['fal','kie','runware','atlas','comet','gemini','cloudflare','pollinations'] as const;
+export const CLOUD_PROVIDERS = ['fal','kie','runware','atlas','comet','piapi','gemini','cloudflare','pollinations'] as const;
 type EnabledProvider = typeof CLOUD_PROVIDERS[number];
 export function enabledProviders(env:Env):CloudJobRequest['provider'][] {
   if(isLocal(env)&&env.DEV_FAKE_GENERATION==='1')return [...CLOUD_PROVIDERS];
@@ -41,7 +41,7 @@ export function adapterFor(env:Env,provider:CloudJobRequest['provider']):Generat
     if(isLocal(env)&&env.DEV_FAKE_GENERATION==='1')return localAdapter;
     if(provider==='fal')return falAdapter;
     if(provider==='kie')return kieAdapter;
-    if(provider==='runware'||provider==='atlas'||provider==='comet')return aggregatorAdapter;
+    if(provider==='runware'||provider==='atlas'||provider==='comet'||provider==='piapi')return aggregatorAdapter;
     if(provider==='gemini'||provider==='cloudflare'||provider==='pollinations')return synchronousAdapter;
   }
   throw new AccountError('Background generation for this provider is not enabled yet. Continue with the existing browser workflow.',409,'provider_unavailable');
@@ -53,7 +53,7 @@ export function validateRequest(env:Env,value:unknown):CloudJobRequest {
   if(isLocal(env)&&env.DEV_FAKE_GENERATION==='1'&&r.mediaType!=='image')throw new AccountError('The local fixture currently supports image generation only.',409,'local_fixture_mode');
   adapterFor(env,r.provider!);
   if(r.provider==='fal'||r.provider==='kie')validateQueuedRequest(r as CloudJobRequest);
-  if(r.provider==='runware'||r.provider==='atlas'||r.provider==='comet')validateAggregatorRequest(r as CloudJobRequest);
+  if(r.provider==='runware'||r.provider==='atlas'||r.provider==='comet'||r.provider==='piapi')validateAggregatorRequest(r as CloudJobRequest);
   if(r.provider==='gemini'||r.provider==='cloudflare'||r.provider==='pollinations')validateSynchronousRequest(r as CloudJobRequest);
   return {provider:r.provider!,modelId:r.modelId,mediaType:r.mediaType as 'image'|'video',inputMode:r.inputMode as CloudJobRequest['inputMode'],prompt:r.prompt.trim(),values:r.values,referenceIds:r.referenceIds};
 }

@@ -28,6 +28,10 @@ beforeEach(() => {
 });
 
 describe('captureImageResult', () => {
+  it('records PiAPI image resolution in the browser ledger', () => {
+    captureImageResult({engine:'piapi',modelId:'nano-banana-2',prompt:'A lighthouse',inputImages:3,resolution:'4K'});
+    expect(entries()[0]).toMatchObject({provider:'piapi',costUsd:0.12,confidence:'estimated'});
+  });
   it('prices the actual Atlas Seedream tier and charges extra references', () => {
     captureImageResult({
       engine: 'atlas', modelId: 'bytedance/seedream-v5.0-pro/edit',

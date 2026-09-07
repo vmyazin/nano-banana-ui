@@ -11,7 +11,8 @@ export type EngineId =
   | 'fal'
   | 'runware'
   | 'atlas'
-  | 'comet';
+  | 'comet'
+  | 'piapi';
 
 export interface EngineMeta {
   id: EngineId;
@@ -129,6 +130,12 @@ export const ENGINES: EngineMeta[] = [
     supportsAspectRatio: true,
     supportsImageSize: true,
     free: false,
+  },
+  {
+    id: 'piapi', label: 'PiAPI',
+    blurb: 'Nano Banana 2, Veo Fast and Kling Omni on your PiAPI key',
+    requiresApiKey: true, supportsInputImages: true, supportsGoogleSearch: false,
+    supportsAspectRatio: true, supportsImageSize: true, free: false,
   },
 ];
 

@@ -59,6 +59,7 @@ export const ENGINE_DOCS: ReadonlyArray<{
     href: 'https://atlascloud.ai/docs',
     accentClass: 'hover:text-[var(--neon-purple)]',
   },
+  { id: 'piapi', label: 'PiAPI', href: 'https://piapi.ai/docs', accentClass: 'hover:text-[var(--neon-cyan)]' },
   {
     id: 'comet',
     label: 'CometAPI',

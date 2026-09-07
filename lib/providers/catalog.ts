@@ -558,10 +558,43 @@ const COMET_MODELS: ProviderModel[] = [
   },
 ];
 
+/** PiAPI PAYG rates, https://piapi.ai/docs/llms.txt (2026-09-07). */
+export const PIAPI_MODELS: ProviderModel[] = [
+  {
+    id: 'nano-banana-2', label: 'Nano Banana 2', fileCode: 'nano-banana-2', kind: 'image',
+    modes: ['text', 'image'], maxInputImages: 14,
+    sizes: ['1K', '2K', '4K'].map(preset => ({ label: preset, preset })),
+    price: '$0.06 / 1K · $0.08 / 2K · $0.12 / 4K',
+    rate: { per: 'image', usdByResolution: { '1K': 0.06, '2K': 0.08, '4K': 0.12 } },
+    note: 'Up to 14 references. Browser reference uploads require PiAPI Creator or higher.',
+  },
+  {
+    id: 'veo-3.1-fast', label: 'Veo 3.1 Fast', fileCode: 'veo-3_1-fast', kind: 'video',
+    modes: ['text', 'image', 'frames'], maxInputImages: 2, durations: [8, 6, 4],
+    videoInputs: { image: { field: 'frameImages', maxImages: 1 }, frames: { field: 'frameImages', maxImages: 2 } },
+    sizes: ['720p', '1080p'].map(preset => ({ label: preset, preset })),
+    supportsAudio: true, aspectRatios: ['16:9', '9:16'],
+    price: '$0.06/sec silent · $0.09/sec with audio',
+    rate: { per: 'second', usdByResolution: { '720p': 0.06, '1080p': 0.06 }, audioUsdByResolution: { '720p': 0.09, '1080p': 0.09 } },
+  },
+  {
+    id: 'kling-3-omni', label: 'Kling 3 Omni', fileCode: 'kling-3-omni', kind: 'video',
+    modes: ['text', 'image', 'frames', 'reference'], maxInputImages: 5,
+    duration: { type: 'range', min: 3, max: 15, default: 5 },
+    videoInputs: { image: { field: 'frameImages', maxImages: 1 }, frames: { field: 'frameImages', maxImages: 2 }, reference: { field: 'referenceImages', maxImages: 5, promptSyntax: 'at-image-underscore-index' } },
+    sizes: ['720p', '1080p'].map(preset => ({ label: preset, preset })),
+    supportsAudio: true, aspectRatios: ['16:9', '9:16', '1:1'],
+    price: '$0.10/sec silent / $0.15/sec audio at 720p · $0.15/sec silent / $0.20/sec audio at 1080p',
+    rate: { per: 'second', usdByResolution: { '720p': 0.10, '1080p': 0.15 }, audioUsdByResolution: { '720p': 0.15, '1080p': 0.20 } },
+    note: 'Address subjects as @image_1, @image_2, etc. Browser uploads require PiAPI Creator or higher.',
+  },
+];
+
 export const PROVIDER_MODELS: Record<ProviderId, ProviderModel[]> = {
   runware: RUNWARE_MODELS,
   atlas: ATLAS_MODELS,
   comet: COMET_MODELS,
+  piapi: PIAPI_MODELS,
 };
 
 /** Default per provider and media kind — the cheapest entry that covers both modes. */
@@ -569,6 +602,7 @@ export const DEFAULT_MODELS: Record<ProviderId, Record<MediaKind, string>> = {
   runware: { image: 'runware:z-image@turbo', video: 'lightricks:ltx@2.5-fast' },
   atlas: { image: 'black-forest-labs/flux-schnell', video: 'ltx-2.3-quality/text-to-video' },
   comet: { image: 'gpt-image-2', video: 'seedance-2-5' },
+  piapi: { image: 'nano-banana-2', video: 'veo-3.1-fast' },
 };
 
 export function modelsFor(provider: ProviderId, kind: MediaKind): ProviderModel[] {

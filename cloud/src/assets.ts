@@ -17,7 +17,7 @@ export async function getAsset(env:Env,id:string,owner:string) { return env.DB.p
 /** Host allowlist prevents a provider result from turning the capture worker into a URL proxy. */
 export function safeResultUrl(value:string): URL {
   const url=new URL(value);
-  const domains=['fal.media','fal.ai','kie.ai','kieai.redpandaai.co','tempfile.ai','tempfile.redpandaai.co','redpandaai.co','runware.ai','atlascloud.ai','cometapi.com','filesystem.site'];
+  const domains=['fal.media','fal.ai','kie.ai','kieai.redpandaai.co','tempfile.ai','tempfile.redpandaai.co','redpandaai.co','runware.ai','atlascloud.ai','cometapi.com','filesystem.site','piapi.ai','theapi.app'];
   if(url.protocol!=='https:' || url.username || url.password || (url.port && url.port!=='443') || !domains.some(d=>url.hostname===d||url.hostname.endsWith(`.${d}`))) throw new AccountError('Provider returned an unsupported result location.',502,'result_location');
   return url;
 }

@@ -1,3 +1,4 @@
+import { piapiCreateImage, piapiCreateVideo, piapiPollTask } from '../../../lib/providers/piapi';
 import { findModel, resolveDuration, resolveSize, resolveVideoInput } from '../../../lib/providers/catalog';
 import { atlasCreateImage, atlasCreateVideo, atlasPollVideo } from '../../../lib/providers/atlas';
 import { runwareCreateImage, runwareCreateVideo, runwarePollImage, runwarePollVideo } from '../../../lib/providers/runware';
@@ -14,10 +15,10 @@ import { inlineReferences, recoverStagedImage, stageImage } from './media';
  *  dozen checks fired, which sent people hunting through the wrong settings —
  *  a first-and-last-frame job read as an image-format problem. */
 export function validateAggregatorRequest(r: CloudJobRequest) {
-  if (r.provider !== 'runware' && r.provider !== 'atlas' && r.provider !== 'comet') throw new Error('Unsupported aggregator');
+  if (r.provider !== 'runware' && r.provider !== 'atlas' && r.provider !== 'comet' && r.provider !== 'piapi') throw new Error('Unsupported aggregator');
   const model = findModel(r.provider, r.modelId);
   const invalid = (message: string) => { throw new AccountError(message, 400, 'invalid_settings'); };
-  const providerLabel = r.provider === 'runware' ? 'Runware' : r.provider === 'atlas' ? 'Atlas Cloud' : 'Comet';
+  const providerLabel = r.provider === 'runware' ? 'Runware' : r.provider === 'atlas' ? 'Atlas Cloud' : r.provider === 'piapi' ? 'PiAPI' : 'Comet';
   if (!model) return invalid(`${providerLabel} does not list the model "${r.modelId}". Pick a model from the list.`);
   if (model.kind !== r.mediaType) return invalid(`${model.label} makes ${model.kind}s, not ${r.mediaType}s. Pick a ${r.mediaType} model.`);
   if (!model.modes.includes(r.inputMode)) return invalid(`${model.label} does not offer ${describeMode(r.inputMode)}. Pick another model or input mode.`);
@@ -25,7 +26,7 @@ export function validateAggregatorRequest(r: CloudJobRequest) {
   if (r.inputMode === 'text' && count !== 0) return invalid('A text-only run cannot include images. Remove them or switch to an image input mode.');
   if (r.inputMode !== 'text' && count === 0) return invalid(`${describeMode(r.inputMode, true)} needs at least one image.`);
   if (r.mediaType === 'image') {
-    const maxImages = Math.min(model.maxInputImages ?? 1, r.provider === 'runware' ? 4 : 1);
+    const maxImages = Math.min(model.maxInputImages ?? 1, r.provider === 'piapi' ? 14 : r.provider === 'runware' ? 4 : 1);
     if (count > maxImages) return invalid(`${model.label} takes up to ${maxImages} input image${maxImages === 1 ? '' : 's'} in a background job. Remove ${count - maxImages}.`);
   } else if (r.inputMode !== 'text') {
     const capability = resolveVideoInput(r.provider, r.modelId, r.inputMode);
@@ -36,11 +37,16 @@ export function validateAggregatorRequest(r: CloudJobRequest) {
     // image to `last_image`, so only Comet is held to one.
     if (r.provider === 'comet' && count > 1) return invalid('Comet background jobs accept one input image, so first-and-last-frame runs are not available there yet.');
   }
-  const {aspectRatio, size, durationSeconds} = r.values;
+  const {aspectRatio, size, durationSeconds, resolution, audio} = r.values;
+  if (r.provider === 'piapi') {
+    if (resolution !== undefined && (r.mediaType !== 'image' || !['1K','2K','4K'].includes(String(resolution)))) return invalid('Choose 1K, 2K or 4K for Nano Banana 2.');
+    if (audio !== undefined && (!model.supportsAudio || typeof audio !== 'boolean')) return invalid('Audio must be on or off for a supported video model.');
+    if (aspectRatio !== undefined && model.aspectRatios && !model.aspectRatios.includes(String(aspectRatio))) return invalid('Choose an aspect ratio this model supports.');
+  }
   if (aspectRatio !== undefined && !['1:1','16:9','9:16','4:3','3:4','3:2','2:3','21:9'].includes(String(aspectRatio))) return invalid(`"${String(aspectRatio)}" is not an aspect ratio ${model.label} accepts.`);
   if (size !== undefined && (typeof size !== 'string' || !model.sizes?.some(s => s.label === size))) return invalid(`"${String(size)}" is not an output size ${model.label} publishes. Pick one from the list.`);
   if (durationSeconds !== undefined && (typeof durationSeconds !== 'number' || resolveDuration(r.provider, r.modelId, durationSeconds) !== durationSeconds)) return invalid(`${String(durationSeconds)} seconds is not a length ${model.label} publishes. Pick one from the list.`);
-  const stray = Object.keys(r.values).find(key => !['aspectRatio','size','durationSeconds'].includes(key));
+  const stray = Object.keys(r.values).find(key => !(r.provider === 'piapi' ? ['aspectRatio','size','durationSeconds','resolution','audio'] : ['aspectRatio','size','durationSeconds']).includes(key));
   if (stray) return invalid(`"${stray}" is not a setting this provider accepts.`);
 }
 
@@ -70,14 +76,14 @@ export const aggregatorAdapter: GenerationAdapter = {
         if (result.url) return {result:{sources:[{url:result.url}]}};
         throw new Error('Missing output');
       }
-      const create = provider === 'runware' ? runwareCreateImage : atlasCreateImage;
-      const result = await create({...common, imageInput: model.imageInput});
+      const create = provider === 'piapi' ? piapiCreateImage : provider === 'runware' ? runwareCreateImage : atlasCreateImage;
+      const result = await create({...common, imageInput: model.imageInput, ...(provider === 'piapi' ? {resolution: r.values.resolution as string | undefined} : {})});
       return {handle: {id: result.taskId}};
     }
     const size = resolveSize(provider, r.modelId, r.values.size as string | undefined);
-    const create = provider === 'runware' ? runwareCreateVideo : provider === 'comet' ? cometCreateVideo : atlasCreateVideo;
+    const create = provider === 'piapi' ? piapiCreateVideo : provider === 'runware' ? runwareCreateVideo : provider === 'comet' ? cometCreateVideo : atlasCreateVideo;
     const result = await create({
-      ...common, inputMode: r.inputMode,
+      ...common, inputMode: r.inputMode, ...(provider === 'piapi' ? {audio: r.values.audio === true} : {}),
       inputField: resolveVideoInput(provider, r.modelId, r.inputMode)?.field,
       durationSeconds: resolveDuration(provider, r.modelId, r.values.durationSeconds as number | undefined),
       width: size?.width, height: size?.height, resolution: size?.preset,
@@ -86,7 +92,7 @@ export const aggregatorAdapter: GenerationAdapter = {
   },
   async poll(env, job, handle) {
     const r: CloudJobRequest = JSON.parse(job.request_json);
-    const poll = job.provider === 'atlas' ? atlasPollVideo : job.provider === 'comet' ? cometPollVideo : r.mediaType === 'image' ? runwarePollImage : runwarePollVideo;
+    const poll = job.provider === 'piapi' ? piapiPollTask : job.provider === 'atlas' ? atlasPollVideo : job.provider === 'comet' ? cometPollVideo : r.mediaType === 'image' ? runwarePollImage : runwarePollVideo;
     const result = await poll({apiKey: await credentials(env, job), taskId: handle.id});
     if (result.state === 'error') return {state: 'failed'};
     if (result.state !== 'success') return {state: 'running'};

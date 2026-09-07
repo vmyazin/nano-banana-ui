@@ -12,7 +12,7 @@ import type { CloudJobRequest, CloudProvider } from './contracts';
 /** Only these three are in the shared provider catalog; findModel throws on any
  *  other key, and CloudProvider carries values it does not know — `local-test`
  *  reaches a real browser in local development. */
-const CATALOG_PROVIDERS: ProviderId[] = ['runware', 'atlas', 'comet'];
+const CATALOG_PROVIDERS: ProviderId[] = ['runware', 'atlas', 'comet', 'piapi'];
 
 export function jobModelLabel(provider: CloudProvider, modelId: string): string {
   if (provider === 'fal') return falModelLabel(modelId);

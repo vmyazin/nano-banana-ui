@@ -40,6 +40,8 @@ export async function submitProviderVideo(args: {
   durationSeconds?: number;
   /** Label of the model's documented size, resolved to pixels on the server. */
   size?: string;
+  audio?: boolean;
+  aspectRatio?: string;
 }): Promise<string> {
   const data = await post({ operation: 'create', ...args });
   if (!data.taskId) throw new Error('The provider did not return a task ID.');

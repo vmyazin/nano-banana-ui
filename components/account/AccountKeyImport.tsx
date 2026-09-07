@@ -20,6 +20,7 @@ export default function AccountKeyImport({ ownerId }: { ownerId: string }) {
   const falApiKey = useAppStore(state => state.falApiKey);
   const runwareApiKey = useAppStore(state => state.runwareApiKey);
   const atlasApiKey = useAppStore(state => state.atlasApiKey);
+  const piapiApiKey = useAppStore(state => state.piapiApiKey);
   const cometApiKey = useAppStore(state => state.cometApiKey);
   const connections = useAccountStore(state => state.session?.connections ?? []);
   const epoch = useAccountStore(state => state.epoch);
@@ -39,8 +40,8 @@ export default function AccountKeyImport({ ownerId }: { ownerId: string }) {
 
   const saved = useMemo(() => new Set(connections.map(connection => connection.provider)), [connections]);
   const available = useMemo(
-    () => browserKeyCandidates({ apiKey, cfToken, cfAccountId, kieApiKey, falApiKey, runwareApiKey, atlasApiKey, cometApiKey }),
-    [apiKey, atlasApiKey, cfAccountId, cfToken, cometApiKey, falApiKey, kieApiKey, runwareApiKey]
+    () => browserKeyCandidates({ apiKey, cfToken, cfAccountId, kieApiKey, falApiKey, runwareApiKey, atlasApiKey, cometApiKey, piapiApiKey }),
+    [apiKey, atlasApiKey, cfAccountId, cfToken, cometApiKey, piapiApiKey, falApiKey, kieApiKey, runwareApiKey]
   );
   const active = available.filter(key => !imported.has(key.provider));
   if (hasHydrated && active.length === 0) return null;

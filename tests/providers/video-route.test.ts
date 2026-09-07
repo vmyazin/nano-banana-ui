@@ -26,6 +26,17 @@ function mockFetch(payload: unknown, init: { ok?: boolean; status?: number } = {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('POST /api/providers/video', () => {
+  it('routes PiAPI audio, aspect and resolution into Veo Fast', async () => {
+    const mock = mockFetch({code:200,data:{task_id:'piapi-video'}});
+    const response = await post({provider:'piapi',apiKey:'test-only',model:'veo-3.1-fast',prompt:'A slow pan',inputMode:'text',durationSeconds:6,size:'1080p',aspectRatio:'9:16',audio:true});
+    expect(response.status).toBe(200);
+    expect(JSON.parse(mock.mock.calls[0][1].body)).toMatchObject({task_type:'veo3.1-video-fast',input:{duration:'6s',resolution:'1080p',aspect_ratio:'9:16',generate_audio:true}});
+  });
+  it('rejects an invalid PiAPI audio value before payment', async () => {
+    const mock = mockFetch({});
+    expect((await post({provider:'piapi',apiKey:'test-only',prompt:'A slow pan',audio:'true'})).status).toBe(400);
+    expect(mock).not.toHaveBeenCalled();
+  });
   it('rejects a provider it does not serve before touching the network', async () => {
     const fetchMock = mockFetch({});
 

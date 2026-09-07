@@ -92,7 +92,7 @@ function figuresIn(price: string): number[] {
 
 /** Every dollar amount the arithmetic form carries, whichever shape it takes. */
 function figuresOf(rate: NonNullable<ProviderModel['rate']>): number[] {
-  const base = rate.usd !== undefined ? [rate.usd] : Object.values(rate.usdByResolution);
+  const base = [...(rate.usd !== undefined ? [rate.usd] : Object.values(rate.usdByResolution)), ...Object.values(rate.audioUsdByResolution ?? {})];
   return rate.extraInputImageUsd === undefined ? base : [...base, rate.extraInputImageUsd];
 }
 
@@ -114,7 +114,7 @@ describe('hand-written prices and rates agree', () => {
   it.each(priced.map(model => [model.id, model] as const))(
     '%s writes the same figures in price and rate',
     (_id, model) => {
-      expect(figuresOf(model.rate!).slice().sort()).toEqual(figuresIn(model.price!).slice().sort());
+      expect([...new Set(figuresOf(model.rate!))].sort()).toEqual([...new Set(figuresIn(model.price!))].sort());
     }
   );
 

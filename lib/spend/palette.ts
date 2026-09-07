@@ -12,6 +12,7 @@ export const PROVIDER_FILL: Record<SpendProvider, { color: string; opacity: numb
   pollinations: { color: 'var(--neon-purple)', opacity: 1 },
   atlas: { color: 'var(--neon-purple)', opacity: 0.5 },
   fal: { color: 'var(--neon-pink)', opacity: 1 },
+  piapi: { color: 'var(--neon-cyan)', opacity: 0.75 },
   comet: { color: 'var(--neon-pink)', opacity: 0.5 },
   cloudflare: { color: 'var(--brand-accent)', opacity: 1 },
   kie: { color: 'var(--foreground)', opacity: 0.85 },
@@ -20,5 +21,5 @@ export const PROVIDER_FILL: Record<SpendProvider, { color: string; opacity: numb
 
 /** Stack order, so the same provider always sits at the same height. */
 export const PROVIDER_ORDER: SpendProvider[] = [
-  'gemini', 'fal', 'kie', 'runware', 'atlas', 'comet', 'pollinations', 'cloudflare', 'micro-ai',
+  'gemini', 'fal', 'kie', 'runware', 'atlas', 'comet', 'piapi', 'pollinations', 'cloudflare', 'micro-ai',
 ];

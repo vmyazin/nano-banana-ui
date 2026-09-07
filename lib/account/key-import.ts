@@ -31,6 +31,7 @@ export function importBrowserKey(key: BrowserKeyImport, ownerId: string, signal?
  * mentioned.
  */
 export interface BrowserKeyFields {
+  piapiApiKey?: string;
   apiKey: string; cfToken: string; cfAccountId: string; kieApiKey: string;
   falApiKey: string; runwareApiKey: string; atlasApiKey: string; cometApiKey: string;
 }
@@ -44,5 +45,6 @@ export function browserKeyCandidates(fields: BrowserKeyFields): BrowserKeyImport
     { provider: 'runware', apiKey: fields.runwareApiKey },
     { provider: 'atlas', apiKey: fields.atlasApiKey },
     { provider: 'comet', apiKey: fields.cometApiKey },
+    { provider: 'piapi', apiKey: fields.piapiApiKey ?? '' },
   ] as BrowserKeyImport[]).filter(key => key.apiKey.trim().length > 0);
 }

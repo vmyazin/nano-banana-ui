@@ -17,6 +17,7 @@ const PROVIDER_LABELS: Record<ProviderId, string> = {
   runware: 'Runware',
   atlas: 'Atlas Cloud',
   comet: 'CometAPI',
+  piapi: 'PiAPI',
 };
 import type { FalInputMode } from '@/lib/fal/types';
 import { useAppStore } from '@/store/useAppStore';
@@ -98,7 +99,7 @@ export default function VideoWorkspace({
   const setVideoEngine = useAppStore((state) => state.setVideoEngine);
   const isFal = videoEngine === 'fal';
   const activeProvider: ProviderId | null =
-    videoEngine === 'runware' || videoEngine === 'atlas' || videoEngine === 'comet'
+    videoEngine === 'runware' || videoEngine === 'atlas' || videoEngine === 'comet' || videoEngine === 'piapi'
       ? videoEngine
       : null;
   /**

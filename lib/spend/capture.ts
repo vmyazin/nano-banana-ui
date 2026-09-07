@@ -98,13 +98,14 @@ export function captureImageResult(args: ImageResultCapture): void {
       case 'runware':
         file(withFigure(base, resolveRunware(args.cost)));
         return;
+      case 'piapi':
       case 'atlas':
       case 'comet':
         file(withFigure(base, resolveCatalogRate(
           args.modelId ? findModel(args.engine, args.modelId) : undefined,
           undefined,
           1,
-          { inputImages: args.inputImages }
+          { inputImages: args.inputImages, ...(args.engine === 'piapi' ? {size: args.resolution ?? '1K'} : {}) }
         )));
         return;
       case 'fal': {
@@ -230,6 +231,7 @@ export function captureProviderJob(provider: ProviderId, job: ProviderJob, task:
       withFigure(
         base,
         resolveCatalogRate(findModel(provider, job.modelId), typeof duration === 'number' ? duration : undefined, 1, {
+          audio: job.controlValues?.audio === true,
           size: typeof job.controlValues?.size === 'string' ? job.controlValues.size : undefined,
         })
       )

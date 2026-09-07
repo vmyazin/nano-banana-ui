@@ -11,16 +11,18 @@ import type { ImportableProvider } from '@/lib/account/key-import';
 export type VideoEngineId = 'kie' | 'fal' | ProviderId;
 
 /** Store field names per provider, so the setters stay one line each. */
-const KEY_FIELDS: Record<ProviderId, 'runwareApiKey' | 'atlasApiKey' | 'cometApiKey'> = {
+const KEY_FIELDS: Record<ProviderId, 'runwareApiKey' | 'atlasApiKey' | 'cometApiKey' | 'piapiApiKey'> = {
   runware: 'runwareApiKey',
   atlas: 'atlasApiKey',
   comet: 'cometApiKey',
+  piapi: 'piapiApiKey',
 };
 
 const MODEL_FIELDS: Record<ProviderId, Record<'image' | 'video', string>> = {
   runware: { image: 'runwareImageModel', video: 'runwareVideoModel' },
   atlas: { image: 'atlasImageModel', video: 'atlasVideoModel' },
   comet: { image: 'cometImageModel', video: 'cometVideoModel' },
+  piapi: { image: 'piapiImageModel', video: 'piapiVideoModel' },
 };
 
 /** Public persist key after rebrand. */
@@ -54,6 +56,9 @@ interface AppState {
   atlasApiKey: string;
   atlasImageModel: string;
   atlasVideoModel: string;
+  piapiApiKey: string;
+  piapiImageModel: string;
+  piapiVideoModel: string;
   cometApiKey: string;
   cometImageModel: string;
   cometVideoModel: string;
@@ -157,6 +162,9 @@ export const useAppStore = create<AppState>()(
       atlasApiKey: '',
       atlasImageModel: DEFAULT_MODELS.atlas.image,
       atlasVideoModel: DEFAULT_MODELS.atlas.video,
+      piapiApiKey: '',
+      piapiImageModel: DEFAULT_MODELS.piapi.image,
+      piapiVideoModel: DEFAULT_MODELS.piapi.video,
       cometApiKey: '',
       cometImageModel: DEFAULT_MODELS.comet.image,
       cometVideoModel: DEFAULT_MODELS.comet.video,
@@ -211,6 +219,9 @@ export const useAppStore = create<AppState>()(
         atlasApiKey: s.atlasApiKey,
         atlasImageModel: s.atlasImageModel,
         atlasVideoModel: s.atlasVideoModel,
+        piapiApiKey: s.piapiApiKey,
+        piapiImageModel: s.piapiImageModel,
+        piapiVideoModel: s.piapiVideoModel,
         cometApiKey: s.cometApiKey,
         cometImageModel: s.cometImageModel,
         cometVideoModel: s.cometVideoModel,

@@ -103,6 +103,7 @@ export default function AccountConsole({
   const falApiKey = useAppStore(state => state.falApiKey);
   const runwareApiKey = useAppStore(state => state.runwareApiKey);
   const atlasApiKey = useAppStore(state => state.atlasApiKey);
+  const piapiApiKey = useAppStore(state => state.piapiApiKey);
   const cometApiKey = useAppStore(state => state.cometApiKey);
   const records = useGalleryStore(state => state.records);
   // Both stores are hydrated here rather than inside the import panels: those
@@ -114,8 +115,8 @@ export default function AccountConsole({
     void useGalleryStore.getState().hydrate();
   }, []);
   const browserKeys = useMemo(
-    () => browserKeyCandidates({ apiKey, cfToken, cfAccountId, kieApiKey, falApiKey, runwareApiKey, atlasApiKey, cometApiKey }).length,
-    [apiKey, atlasApiKey, cfAccountId, cfToken, cometApiKey, falApiKey, kieApiKey, runwareApiKey]
+    () => browserKeyCandidates({ apiKey, cfToken, cfAccountId, kieApiKey, falApiKey, runwareApiKey, atlasApiKey, cometApiKey, piapiApiKey }).length,
+    [apiKey, atlasApiKey, cfAccountId, cfToken, cometApiKey, piapiApiKey, falApiKey, kieApiKey, runwareApiKey]
   );
   const browserFiles = useMemo(() => records.filter(isImportableGalleryRecord), [records]);
   const browserBytes = browserFiles.reduce((total, record) => total + record.blob.size, 0);

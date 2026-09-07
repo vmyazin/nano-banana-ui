@@ -11,7 +11,7 @@
  * hold `fetch` calls live in their own modules.
  */
 
-export type ProviderId = 'runware' | 'atlas' | 'comet';
+export type ProviderId = 'runware' | 'atlas' | 'comet' | 'piapi';
 
 export type MediaKind = 'image' | 'video';
 
@@ -19,7 +19,7 @@ export type MediaKind = 'image' | 'video';
 export type ProviderMode = 'text' | 'image' | 'frames' | 'reference';
 
 export type VideoInputField = 'frameImages' | 'referenceImages';
-export type VideoPromptSyntax = 'image-index' | 'at-image-index';
+export type VideoPromptSyntax = 'image-index' | 'at-image-index' | 'at-image-underscore-index';
 
 export interface ProviderVideoInputCapability {
   field: VideoInputField;
@@ -66,6 +66,7 @@ export type ProviderRate = {
   per: 'image' | 'second' | 'video';
   /** The first reference is included; subsequent references are billed once per request. */
   extraInputImageUsd?: number;
+  audioUsdByResolution?: Record<string, number>;
 } & (
   | { usd: number; usdByResolution?: never }
   | { usd?: never; usdByResolution: Record<string, number> }
@@ -127,10 +128,13 @@ export interface ProviderModel {
    * whitelist as well. First entry is the default.
    */
   sizes?: ProviderSize[];
+  supportsAudio?: boolean;
+  aspectRatios?: string[];
   note?: string;
 }
 
 export interface ImageRequest {
+  resolution?: string;
   apiKey: string;
   model: string;
   prompt: string;
@@ -152,6 +156,7 @@ export interface ImageResult {
 }
 
 export interface VideoRequest {
+  audio?: boolean;
   apiKey: string;
   model: string;
   prompt: string;
@@ -215,7 +220,7 @@ export function readableProviderError(
   status: number,
   raw: string
 ): string {
-  const name = provider === 'runware' ? 'Runware' : provider === 'atlas' ? 'Atlas Cloud' : 'CometAPI';
+  const name = provider === 'runware' ? 'Runware' : provider === 'atlas' ? 'Atlas Cloud' : provider === 'piapi' ? 'PiAPI' : 'CometAPI';
   const text = raw.toLowerCase();
 
   if (status === 401 || status === 403 || text.includes('token') || text.includes('api key')) {

@@ -141,6 +141,8 @@ export async function POST(request: NextRequest) {
     typeof body.size === 'string' ? body.size : undefined
   );
 
+  if (body.provider === 'piapi' && body.audio !== undefined && typeof body.audio !== 'boolean') return NextResponse.json({success:false,error:'Audio must be on or off.'},{status:400});
+
   try {
     const { taskId } = await adapter.createVideo({
       apiKey,
@@ -159,6 +161,7 @@ export async function POST(request: NextRequest) {
       width: size?.width,
       height: size?.height,
       resolution: size?.preset,
+      ...(body.provider === 'piapi' ? {audio: body.audio === true} : {}),
       aspectRatio: typeof body.aspectRatio === 'string' ? body.aspectRatio : undefined,
     });
     return NextResponse.json({ success: true, taskId });

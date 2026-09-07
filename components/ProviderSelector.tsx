@@ -3,7 +3,7 @@
 import { useRef, type KeyboardEvent } from 'react';
 import ProviderLogo from '@/components/ProviderLogo';
 
-export type VideoProvider = 'kie' | 'fal' | 'runware' | 'atlas' | 'comet';
+export type VideoProvider = 'kie' | 'fal' | 'runware' | 'atlas' | 'comet' | 'piapi';
 
 interface ProviderSelectorProps {
   value: VideoProvider;
@@ -19,6 +19,7 @@ const providers = [
   { id: 'fal' as const, label: 'fal.ai' },
   { id: 'atlas' as const, label: 'Atlas Cloud' },
   { id: 'comet' as const, label: 'CometAPI' },
+  { id: 'piapi' as const, label: 'PiAPI' },
 ];
 
 export default function ProviderSelector({ value, onChange }: ProviderSelectorProps) {
@@ -45,7 +46,7 @@ export default function ProviderSelector({ value, onChange }: ProviderSelectorPr
     <div
       role="radiogroup"
       aria-label="Video provider"
-      className="grid gap-2 sm:grid-cols-3 lg:grid-cols-5"
+      className="grid gap-2 sm:grid-cols-3 lg:grid-cols-6"
     >
       {providers.map((provider, index) => {
         const selected = provider.id === value;

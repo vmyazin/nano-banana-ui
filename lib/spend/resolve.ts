@@ -67,7 +67,7 @@ export function resolveCatalogRate(
   model: ProviderModel | undefined,
   durationSeconds?: number,
   outputImages = 1,
-  controls: { size?: string; inputImages?: number } = {}
+  controls: { size?: string; inputImages?: number; audio?: boolean } = {}
 ): SpendFigure {
   const rate = model?.rate;
   if (!rate) return unknownFigure('catalog-rate');
@@ -81,8 +81,9 @@ export function resolveCatalogRate(
   // Preset first, then the label's leading tier: Atlas keys its table by API
   // preset, Runware publishes only labels — see sizeRateKey.
   const resolution = chosen ? sizeRateKey(chosen) : undefined;
-  const usd = rate.usdByResolution
-    ? (resolution ? rate.usdByResolution[resolution] : undefined)
+  const table = controls.audio && rate.audioUsdByResolution ? rate.audioUsdByResolution : rate.usdByResolution;
+  const usd = table
+    ? (resolution ? table[resolution] : undefined)
     : rate.usd;
   if (usd === undefined || !Number.isFinite(usd) || usd < 0) {
     return unknownFigure('catalog-rate', 'No verified published rate covers the saved output size.');

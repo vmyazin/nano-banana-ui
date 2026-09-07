@@ -64,6 +64,11 @@ const AGGREGATORS: ReadonlyArray<{
     ...KEY_SOURCES.atlas,
   },
   {
+    id: 'piapi', name: 'PiAPI',
+    description: 'Nano Banana 2, Veo Fast and Kling Omni. Browser reference uploads require Creator or higher.',
+    ...KEY_SOURCES.piapi,
+  },
+  {
     id: 'comet',
     name: 'CometAPI',
     description: 'Commercial models — GPT Image, Seedance, Veo, Kling — behind one OpenAI-shaped API.',
@@ -226,11 +231,13 @@ export default function ApiKeyConfig({ open, onOpenChange, focusProvider }: ApiK
   const kieConnected = !!savedKieKey;
   const runwareApiKey = useAppStore((s) => s.runwareApiKey);
   const atlasApiKey = useAppStore((s) => s.atlasApiKey);
+  const piapiApiKey = useAppStore((s) => s.piapiApiKey);
   const cometApiKey = useAppStore((s) => s.cometApiKey);
   const setProviderApiKey = useAppStore((s) => s.setProviderApiKey);
   const providerKeys: Record<ProviderId, string> = {
     runware: runwareApiKey,
     atlas: atlasApiKey,
+    piapi: piapiApiKey,
     comet: cometApiKey,
   };
   const savedFalKey = useAppStore((s) => s.falApiKey);
@@ -428,7 +435,7 @@ export default function ApiKeyConfig({ open, onOpenChange, focusProvider }: ApiK
       {
         apiKey: state.apiKey, cfToken: state.cfToken, cfAccountId: state.cfAccountId,
         kieApiKey: state.kieApiKey, falApiKey: state.falApiKey, runwareApiKey: state.runwareApiKey,
-        atlasApiKey: state.atlasApiKey, cometApiKey: state.cometApiKey,
+        atlasApiKey: state.atlasApiKey, cometApiKey: state.cometApiKey, piapiApiKey: state.piapiApiKey,
       },
       useAccountStore.getState().session?.connections ?? [],
       state.accountKeyOptOuts

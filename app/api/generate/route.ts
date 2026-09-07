@@ -106,12 +106,14 @@ async function handleProviderRequest(provider: ProviderId, body: Record<string, 
 
     const model = resolveModel(provider, 'image', typeof body.model === 'string' ? body.model : undefined);
     const catalogModel = findModel(provider, model);
+    if (provider === 'piapi' && images.length > 14) return NextResponse.json({success:false,error:'Nano Banana 2 accepts up to 14 references.'},{status:400});
     const result = await adapter.generateImage({
       apiKey,
       model,
       prompt,
       // Trimmed to what the model documents it accepts.
       images: catalogModel?.maxInputImages ? images.slice(0, catalogModel.maxInputImages) : images,
+      ...(provider === 'piapi' ? {resolution: typeof config.imageSize === 'string' ? config.imageSize : '1K'} : {}),
       aspectRatio: typeof config.aspectRatio === 'string' ? config.aspectRatio : undefined,
       imageInput: catalogModel?.imageInput,
     });

@@ -22,6 +22,32 @@ beforeEach(async () => {
 afterEach(() => {vi.unstubAllGlobals(); db.close();});
 
 describe('durable aggregator adapters', () => {
+  it('submits PiAPI image jobs asynchronously and polls the same task', async () => {
+    env.CLOUD_GENERATION_PROVIDERS = 'piapi';
+    await saveConnection(env, 'owner', 'piapi', {apiKey: 'piapi-test-secret'});
+    const mock = vi.fn().mockResolvedValueOnce(Response.json({code:200,data:{task_id:'piapi-task'}})).mockResolvedValueOnce(Response.json({code:200,data:{status:'completed',output:{image_url:'https://piapi.ai/result.png'}}}));
+    vi.stubGlobal('fetch', mock);
+    const r:CloudJobRequest = {...request,provider:'piapi',modelId:'nano-banana-2',values:{resolution:'4K',aspectRatio:'16:9'}};
+    validateRequest(env,r);
+    const job = await acceptJob(env,'owner','piapi-image-token',r);
+    const provider = adapterFor(env,'piapi');
+    const {handle} = await provider.submit(env,job);
+    expect(handle).toEqual({id:'piapi-task'});
+    expect(JSON.parse(mock.mock.calls[0][1].body)).toMatchObject({model:'gemini',task_type:'nano-banana-2',input:{resolution:'4K'}});
+    expect(await provider.poll(env,job,handle!)).toMatchObject({state:'success',result:{sources:[{url:'https://piapi.ai/result.png'}]}});
+    expect(mock.mock.calls[1][0]).toBe('https://api.piapi.ai/api/v1/task/piapi-task');
+  });
+  it('validates PiAPI reference limits, audio and model-specific settings before payment', () => {
+    env.CLOUD_GENERATION_PROVIDERS = 'piapi';
+    const r:CloudJobRequest = {...request,provider:'piapi',modelId:'nano-banana-2',inputMode:'image',referenceIds:Array.from({length:14},(_,i)=>`ref-${i}`),values:{resolution:'2K'}};
+    expect(() => validateRequest(env,r)).not.toThrow();
+    expect(() => validateRequest(env,{...r,referenceIds:[...r.referenceIds,'extra']})).toThrow(/up to 14/);
+    expect(() => validateRequest(env,{...r,values:{audio:true}})).toThrow(/Audio/);
+    const v:CloudJobRequest = {...r,modelId:'kling-3-omni',mediaType:'video',inputMode:'reference',referenceIds:['a','b','c','d','e'],values:{size:'1080p',durationSeconds:15,audio:true,aspectRatio:'1:1'}};
+    expect(() => validateRequest(env,v)).not.toThrow();
+    expect(() => validateRequest(env,{...v,modelId:'veo-3.1-fast'})).toThrow();
+    expect(() => validateRequest(env,{...v,values:{audio:'true'}})).toThrow(/Audio/);
+  });
   it('submits Comet video form fields and polls its returned task ID',async()=>{
     env.CLOUD_GENERATION_PROVIDERS='comet';await saveConnection(env,'owner','comet',{apiKey:'comet-test-secret'});
     const fetchMock=vi.fn().mockResolvedValueOnce(Response.json({id:'comet-task',status:'queued'})).mockResolvedValueOnce(Response.json({status:'completed',video_url:'https://filesystem.site/result.mp4'}));vi.stubGlobal('fetch',fetchMock);

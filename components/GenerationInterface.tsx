@@ -254,9 +254,11 @@ export default function GenerationInterface({ feature, apiKey, onBack, onOpenCon
   const falApiKey = useAppStore((s) => s.falApiKey);
   const runwareApiKey = useAppStore((s) => s.runwareApiKey);
   const atlasApiKey = useAppStore((s) => s.atlasApiKey);
+  const piapiApiKey = useAppStore((s) => s.piapiApiKey);
   const cometApiKey = useAppStore((s) => s.cometApiKey);
   const runwareImageModel = useAppStore((s) => s.runwareImageModel);
   const atlasImageModel = useAppStore((s) => s.atlasImageModel);
+  const piapiImageModel = useAppStore((s) => s.piapiImageModel);
   const cometImageModel = useAppStore((s) => s.cometImageModel);
   const setProviderModel = useAppStore((s) => s.setProviderModel);
   const hasCfCreds = !!cfAccountId && !!cfToken;
@@ -269,11 +271,13 @@ export default function GenerationInterface({ feature, apiKey, onBack, onOpenCon
   const providerKeys: Record<ProviderId, string> = {
     runware: runwareApiKey,
     atlas: atlasApiKey,
+    piapi: piapiApiKey,
     comet: cometApiKey,
   };
   const providerImageModels: Record<ProviderId, string> = {
     runware: runwareImageModel,
     atlas: atlasImageModel,
+    piapi: piapiImageModel,
     comet: cometImageModel,
   };
   // Derived from the persisted engine id rather than from activeEngine: passing
@@ -282,7 +286,7 @@ export default function GenerationInterface({ feature, apiKey, onBack, onOpenCon
   // this component entirely. The membership check keeps it in step with the
   // fallback above (persisted engine that can't run this feature → not active).
   const isAggregator =
-    storeEngine === 'runware' || storeEngine === 'atlas' || storeEngine === 'comet';
+    storeEngine === 'runware' || storeEngine === 'atlas' || storeEngine === 'comet' || storeEngine === 'piapi';
   const activeProvider: ProviderId | null =
     isAggregator && availableEngines.some((engine) => engine.id === storeEngine)
       ? storeEngine
@@ -706,7 +710,7 @@ export default function GenerationInterface({ feature, apiKey, onBack, onOpenCon
         const values: Record<string,string|number|boolean> = activeEngine.id === 'fal'
           ? {aspect_ratio:config.aspectRatio ?? 'auto',resolution:config.imageSize ?? '1K',enable_web_search:Boolean(config.useGoogleSearch)}
           : activeProvider || activeEngine.id === 'pollinations'
-            ? {aspectRatio:config.aspectRatio ?? '16:9'}
+            ? {aspectRatio:config.aspectRatio ?? '16:9', ...(activeProvider === 'piapi' ? {resolution:config.imageSize ?? '1K'} : {})}
             : activeEngine.id === 'cloudflare' ? {}
               : {aspectRatio:config.aspectRatio ?? '16:9',imageSize:config.imageSize ?? '1K',useGoogleSearch:Boolean(config.useGoogleSearch)};
         await cloudWorkspace.submit({modelId:cloudModelId,mediaType:'image',inputMode:cloudInputMode,prompt:cloudPrompt,values},feature.requiresImage ? references.map(reference => reference.file) : [],prompt);

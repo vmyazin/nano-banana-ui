@@ -131,7 +131,8 @@ export function buildAccountSpendEntry(args: BuildAccountSpendEntryArgs): Accoun
   const model = findModel(request.provider, request.modelId);
   const duration = typeof request.values.durationSeconds === 'number' ? request.values.durationSeconds : undefined;
   const resolved = resolveCatalogRate(model, duration, outputs, {
-    size: typeof request.values.size === 'string' ? request.values.size : undefined,
+    audio: request.values.audio === true,
+    size: request.provider === 'piapi' && request.mediaType === 'image' ? String(request.values.resolution ?? '1K') : typeof request.values.size === 'string' ? request.values.size : undefined,
     inputImages: request.referenceIds.length,
   });
   if (resolved.costUsd !== null) return { ...base, ...resolved };

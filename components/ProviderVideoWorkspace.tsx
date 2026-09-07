@@ -128,6 +128,8 @@ function controlFieldsFor(model: ProviderModel | undefined): ModelControlField[]
       options: model.sizes.map((size) => ({ label: size.label, value: size.label })),
     });
   }
+  if (model.aspectRatios?.length) fields.push({ key: 'aspectRatio', label: 'Aspect ratio', type: 'select', defaultValue: model.aspectRatios[0], options: model.aspectRatios.map(value => ({ label: value, value })) });
+  if (model.supportsAudio) fields.push({ key: 'audio', label: 'Generate audio', type: 'boolean', defaultValue: false, description: 'Audio changes the price per second.' });
   return fields;
 }
 
@@ -162,20 +164,22 @@ export default function ProviderVideoWorkspace({
   const imageFormat = useAppStore((state) => state.imageFormat);
   const runwareApiKey = useAppStore((state) => state.runwareApiKey);
   const atlasApiKey = useAppStore((state) => state.atlasApiKey);
+  const piapiApiKey = useAppStore((state) => state.piapiApiKey);
   const cometApiKey = useAppStore((state) => state.cometApiKey);
   const runwareVideoModel = useAppStore((state) => state.runwareVideoModel);
   const atlasVideoModel = useAppStore((state) => state.atlasVideoModel);
+  const piapiVideoModel = useAppStore((state) => state.piapiVideoModel);
   const cometVideoModel = useAppStore((state) => state.cometVideoModel);
   const setProviderModel = useAppStore((state) => state.setProviderModel);
 
   const apiKey =
-    provider === 'runware' ? runwareApiKey : provider === 'atlas' ? atlasApiKey : cometApiKey;
+    provider === 'runware' ? runwareApiKey : provider === 'atlas' ? atlasApiKey : provider === 'piapi' ? piapiApiKey : cometApiKey;
   const preference =
     provider === 'runware'
       ? runwareVideoModel
       : provider === 'atlas'
         ? atlasVideoModel
-        : cometVideoModel;
+        : provider === 'piapi' ? piapiVideoModel : cometVideoModel;
 
   // Models that cannot take the current input mode are filtered out rather than
   // failing at the vendor — Runware's Wan 2.6 Flash, for one, is image-only.
@@ -226,7 +230,7 @@ export default function ProviderVideoWorkspace({
       ? (inputCapability?.clientMaxImages ?? Math.min(inputCapability?.maxImages ?? 5, 5))
       : (inputCapability?.maxImages ?? selectedModel?.maxInputImages ?? 1);
   const referenceToken = (index: number) =>
-    inputCapability?.promptSyntax === 'at-image-index' ? `@Image${index + 1}` : `Image ${index + 1}`;
+    inputCapability?.promptSyntax === 'at-image-underscore-index' ? `@image_${index + 1}` : inputCapability?.promptSyntax === 'at-image-index' ? `@Image${index + 1}` : `Image ${index + 1}`;
   const matchingModels = models.filter((model) =>
     `${model.label} ${model.id}`.toLowerCase().includes(modelSearch.toLowerCase())
   );
@@ -312,7 +316,7 @@ export default function ProviderVideoWorkspace({
     selectedModel,
     typeof values.duration === 'number' ? values.duration : undefined,
     1,
-    { size: typeof values.size === 'string' ? values.size : undefined }
+    { size: typeof values.size === 'string' ? values.size : undefined, audio: values.audio === true }
   );
 
   useAutoAspect(references[0], sizeCandidates, (value) => {
@@ -539,11 +543,13 @@ export default function ProviderVideoWorkspace({
         await cloudWorkspace.submit({modelId:selectedModel.id, mediaType:'video', inputMode, prompt:prompt.trim(), values:{
           ...(typeof values.duration === 'number' ? {durationSeconds:values.duration} : {}),
           ...(typeof values.size === 'string' ? {size:values.size} : {}),
+          ...(selectedModel?.supportsAudio ? {audio:values.audio === true} : {}),
+          ...(selectedModel?.aspectRatios ? {aspectRatio:String(values.aspectRatio)} : {}),
         }}, inputMode === 'text' ? [] : references.map(reference => reference.file));
         autoRetry.reset();
         return;
       }
-      const images = await Promise.all(references.map((reference) => fileAsDataUrl(reference.file)));
+      const images = provider === 'piapi' && inputMode === 'text' ? [] : await Promise.all(references.map((reference) => fileAsDataUrl(reference.file)));
       const submittedPrompt = prompt.trim();
       const taskId = await submitProviderVideo({
         provider,
@@ -554,6 +560,8 @@ export default function ProviderVideoWorkspace({
         images,
         durationSeconds: typeof values.duration === 'number' ? values.duration : undefined,
         size: typeof values.size === 'string' ? values.size : undefined,
+        ...(selectedModel?.supportsAudio ? {audio:values.audio === true} : {}),
+        ...(selectedModel?.aspectRatios ? {aspectRatio:String(values.aspectRatio)} : {}),
       });
       usePromptLibraryStore.getState().remember(submittedPrompt);
       const jobId = useProviderJobsStore.getState().startJob({

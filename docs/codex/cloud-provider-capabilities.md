@@ -2,6 +2,19 @@
 
 Status: implementation in progress. Reviewed 2026-09-04. This records evidence and gaps; it is not a claim that every provider is enabled.
 
+## PiAPI follow-up — 2026-09-07
+
+PiAPI now has a shared async adapter for Nano Banana 2, Veo 3.1 Fast and Kling 3
+Omni. Account jobs persist its task ID and use signed hosted references; browser
+references use PiAPI's upload service (Creator subscription or higher). Tests
+cover model settings, reference limits, submission/polling and audio/resolution
+pricing. Lost paid submissions remain ambiguous and are not repeated.
+
+PiAPI is deliberately absent from production `CLOUD_GENERATION_PROVIDERS` until
+credentialed model/output-host checks pass. No live PiAPI generations or Worker
+deployment were performed for this implementation. Existing providers' deployment
+settings are unchanged. Source: [PiAPI API docs](https://piapi.ai/docs/llms.txt).
+
 ## Follow-up implementation status — 2026-09-05
 
 This supersedes the implementation gaps in the initial table below. All eight engines now have Worker adapters: fal/Kie/Runware/Atlas use persisted handles; Comet uses video handles or synchronous image results; Gemini/Cloudflare/Pollinations stage synchronous outputs. All studio image/video workspaces use the shared account submit and results boundary. Production enablement still defaults off, and credentialed verification, maximum output sizes and retention remain outstanding.
