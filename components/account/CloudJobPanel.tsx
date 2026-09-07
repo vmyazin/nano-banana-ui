@@ -1,8 +1,12 @@
 'use client';
 import { useRef, useState } from 'react';
 import { Cloud, Download, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 import ResultStack from '@/components/ResultStack';
 import LastFrameActions from '@/components/LastFrameActions';
+import ResultActions from '@/components/ResultActions';
+import { saveCloudVideoToGallery } from '@/lib/timeline/import-cloud';
+import { useTimelineStore } from '@/store/useTimelineStore';
 import { knownAccountAssetFilenameBase } from '@/lib/account/asset-name';
 import { useAccountStore } from '@/store/useAccountStore';
 import { downloadAccountAsset } from '@/lib/account/download';
@@ -19,6 +23,15 @@ export default function CloudJobPanel({provider,modelId,mediaType,inputMode,onCo
   const assets=allAssets.filter(a=>a.metadata.provider===provider&&a.metadata.modelId===modelId&&a.kind===mediaType&&a.metadata.inputMode===inputMode);
   const pending=useRef(false),[busy,setBusy]=useState(false);
   const active=jobs.some(j=>['queued','submitting','running','saving'].includes(j.state));
+  /** Downloads the clip into the browser library, then places it — the same
+   *  route the library's own card takes, so a placement resolves identically. */
+  async function addClipToTimeline(asset:CloudAsset){
+    const owner=useAccountStore.getState().session?.account?.id;
+    if(!owner)throw new Error('Sign in again to add this clip to the timeline.');
+    const recordId=await saveCloudVideoToGallery(asset,owner);
+    useTimelineStore.getState().addClip(recordId);
+    toast.success('Added to the timeline');
+  }
   async function download(asset:CloudAsset){setDownloading(asset.id);try{await downloadAccountAsset(asset);}catch(error){setError(error instanceof Error?error.message:'Download failed.');}finally{setDownloading(null);}}
   async function changeJob(id:string,action:'resume'|'cancel'|'dismiss'){
     if(pending.current)return;
@@ -59,8 +72,12 @@ export default function CloudJobPanel({provider,modelId,mediaType,inputMode,onCo
     <div><h3 className="display flex items-center gap-2 text-base font-semibold"><Cloud size={17} className="text-cyan-300" aria-hidden="true"/>Result</h3><p className="mt-1 text-xs text-[var(--foreground-muted)]">Saved to your account when complete. You can leave this page.</p></div>
     <CloudJobList jobs={jobs.filter(isListedJob)} busy={busy} onResume={id=>void changeJob(id,'resume')} onCancel={id=>void changeJob(id,'cancel')} onDismiss={id=>void changeJob(id,'dismiss')} onRemove={ids=>void removeJobs(ids)} />
     <TemporaryAssetNotice assets={assets} />
-    {mediaType==='image'?<ResultStack items={assets.map(a=>({id:a.id,src:`/api/account/assets/${a.id}/content`,mimeType:a.mimeType,label:a.expiresAt?'Temporary result':undefined}))} isGenerating={active} pendingLabel="Your job is running." downloadingId={downloading} onDownload={item=>{const asset=assets.find(a=>a.id===item.id);if(asset)return download(asset);}} emptyState={<p className="p-5 text-center text-sm text-[var(--foreground-muted)]">Your saved images will appear here.</p>}/>:assets[0]?<><video controls crossOrigin="anonymous" src={`/api/account/assets/${assets[0].id}/content`} className="w-full rounded-xl bg-black"/><button type="button" disabled={Boolean(downloading)} onClick={()=>void download(assets[0])} className="btn-secondary justify-center"><Download size={16} aria-hidden="true"/>Download video</button></>:<div className="flex flex-1 flex-col items-center justify-center gap-3 text-sm text-[var(--foreground-muted)]">{active&&<Loader2 className="animate-spin text-cyan-300" aria-hidden="true"/>}{active?'Your background video job is running.':'Your saved video will appear here.'}</div>}
+    {mediaType==='image'?<ResultStack items={assets.map(a=>({id:a.id,src:`/api/account/assets/${a.id}/content`,mimeType:a.mimeType,label:a.expiresAt?'Temporary result':undefined}))} isGenerating={active} pendingLabel="Your job is running." downloadingId={downloading} filenameBase={item=>{const asset=assets.find(a=>a.id===item.id);return asset?knownAccountAssetFilenameBase(asset):item.id;}} onUseAsFirstFrame={onContinueFromFrame} onDownload={item=>{const asset=assets.find(a=>a.id===item.id);if(asset)return download(asset);}} emptyState={<p className="p-5 text-center text-sm text-[var(--foreground-muted)]">Your saved images will appear here.</p>}/>:assets[0]?<><video controls crossOrigin="anonymous" src={`/api/account/assets/${assets[0].id}/content`} className="w-full rounded-xl bg-black"/><button type="button" disabled={Boolean(downloading)} onClick={()=>void download(assets[0])} className="btn-secondary justify-center"><Download size={16} aria-hidden="true"/>Download video</button></>:<div className="flex flex-1 flex-col items-center justify-center gap-3 text-sm text-[var(--foreground-muted)]">{active&&<Loader2 className="animate-spin text-cyan-300" aria-hidden="true"/>}{active?'Your background video job is running.':'Your saved video will appear here.'}</div>}
     {mediaType==='video'&&assets[0]&&<LastFrameActions key={assets[0].id} videoUrl={`/api/account/assets/${assets[0].id}/content`} filenameBase={knownAccountAssetFilenameBase(assets[0])} onContinue={onContinueFromFrame}/>}
+    {/* The clip's other exits. `Continue from last frame` above is the one the
+        app always had; these are the two it was missing — the frame as a
+        reference, and the clip itself as a cut. */}
+    {mediaType==='video'&&assets[0]&&<ResultActions key={`actions-${assets[0].id}`} kind="video" src={`/api/account/assets/${assets[0].id}/content`} filenameBase={knownAccountAssetFilenameBase(assets[0])} onAddToTimeline={()=>addClipToTimeline(assets[0])}/>}
     {error&&<p role="alert" className="text-sm text-red-300">{error}</p>}
   </AccountSurface>;
 }

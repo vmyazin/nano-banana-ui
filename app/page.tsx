@@ -93,6 +93,16 @@ function Studio() {
     void setFeatureId(null);
     void setWorkspace(nextWorkspace);
   };
+  /**
+   * Send a finished image on as the opening frame of a clip. The frame itself
+   * travels through the seed store; this only moves the user to the workspace
+   * that claims it, which is state only this component owns.
+   */
+  const startVideoFromFirstFrame = () => {
+    void setFeatureId(null);
+    void setWorkspace('video');
+    void setVideoMode('image');
+  };
   const [keyDialogOpen, setKeyDialogOpen] = useState(false);
   /**
    * Which engine the dialog was opened for. A workspace asks for its own key, so
@@ -358,6 +368,7 @@ function Studio() {
                 apiKey={apiKey}
                 onBack={clearFeature}
                 onOpenConnections={openConnections}
+                onUseAsFirstFrame={startVideoFromFirstFrame}
               />
             </motion.div>
           )}

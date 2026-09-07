@@ -55,6 +55,13 @@
       "request": "launch",
       "command": "ACCOUNT_WORKER_PORT=8805 DEV_FAKE_GENERATION=1 npm run dev -- --port 3105",
       "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "Result action row smoke test",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "ACCOUNT_WORKER_PORT=8807 DEV_FAKE_GENERATION=1 npm run dev -- --port 3107",
+      "cwd": "${workspaceFolder}"
     }
   ]
 }

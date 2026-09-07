@@ -73,6 +73,8 @@ interface GenerationInterfaceProps {
   apiKey: string;
   onBack: () => void;
   onOpenConnections: (provider?: EngineId) => void;
+  /** Switch to image-to-video, seeded with a finished image. */
+  onUseAsFirstFrame?: () => void;
 }
 
 const readImageAsDataUrl = (file: File): Promise<string> =>
@@ -207,7 +209,7 @@ function EngineSelector({ engines, activeEngineId, onSelect, accountMode = false
   );
 }
 
-export default function GenerationInterface({ feature, apiKey, onBack, onOpenConnections }: GenerationInterfaceProps) {
+export default function GenerationInterface({ feature, apiKey, onBack, onOpenConnections, onUseAsFirstFrame }: GenerationInterfaceProps) {
   const prompt = useDraftStore((state) => state.prompt);
   const setPrompt = useDraftStore((state) => state.setPrompt);
   const references = useDraftStore((state) => state.references);
@@ -874,6 +876,7 @@ export default function GenerationInterface({ feature, apiKey, onBack, onOpenCon
         }
         onBack={handleBack}
         onOpenConnections={onOpenConnections}
+        onUseAsFirstFrame={onUseAsFirstFrame}
       />
     );
   }
@@ -1247,6 +1250,8 @@ export default function GenerationInterface({ feature, apiKey, onBack, onOpenCon
             onDownload={(item) => downloadImage(item)}
             downloadingId={downloadingId}
             downloadLabel="Download Image"
+            filenameBase={() => filenameSlug || 'generated-image'}
+            onUseAsFirstFrame={onUseAsFirstFrame}
 
             emptyState={
               <div className="p-5 text-center text-[var(--foreground-muted)]">

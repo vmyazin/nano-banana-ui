@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { Download, Loader2, Maximize2 } from 'lucide-react';
 
 import ImageLightbox from '@/components/ImageLightbox';
+import ResultActions from '@/components/ResultActions';
 
 /**
  * Generated images, newest on top, instead of one that each job overwrites.
@@ -43,6 +44,20 @@ interface ResultStackProps {
   /** Id of the item whose download is in flight, for its button's spinner. */
   downloadingId?: string | null;
   downloadLabel?: string;
+  /**
+   * Names each result for the file that reaches the draft. Falls back to the
+   * item id, which is stable but says nothing — panels that know the prompt
+   * slug should pass it.
+   */
+  filenameBase?: (item: ResultStackItem) => string;
+  /** How many references the selected model accepts. */
+  referenceLimit?: number;
+  /**
+   * Switch the app into image-to-video, seeded with the chosen result. Omitted
+   * where that destination is unreachable, which withdraws the action rather
+   * than offering a button that goes nowhere.
+   */
+  onUseAsFirstFrame?: () => void;
 }
 
 /** How many results are kept on screen; the rest stay in the library. */
@@ -61,6 +76,9 @@ export default function ResultStack({
   onDownload,
   downloadingId,
   downloadLabel = 'Download image',
+  filenameBase,
+  referenceLimit,
+  onUseAsFirstFrame,
 }: ResultStackProps) {
   const [openId, setOpenId] = useState<string | null>(null);
 
@@ -128,6 +146,18 @@ export default function ResultStack({
               )}
               {downloadingId === item.id ? 'Preparing download…' : downloadLabel}
             </button>
+            {/* The row that makes a result something other than a dead end.
+                Every image panel composes this component, so putting it here
+                rather than in each caller is what gives all three the same
+                handoffs at once. */}
+            <ResultActions
+              kind="image"
+              src={item.src}
+              filenameBase={filenameBase?.(item) ?? item.id}
+              referenceLimit={referenceLimit}
+              onUseAsFirstFrame={onUseAsFirstFrame}
+              dense
+            />
           </motion.div>
         ))}
       </AnimatePresence>
