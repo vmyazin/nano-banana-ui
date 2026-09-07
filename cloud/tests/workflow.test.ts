@@ -6,6 +6,7 @@ import { LOCAL_SCHEMA } from '../src/schema';
 import { acceptJob, getJob } from '../src/jobs';
 import { runGeneration, type DurableStep } from '../src/generation-runner';
 import { captureResult, deleteAsset, safeResultUrl, writeOutput } from '../src/assets';
+import { serveObject } from '../src/media';
 import type { Env } from '../src/security';
 import type { GenerationAdapter } from '../src/providers';
 const step:DurableStep={do:async(_name,_config,fn)=>fn(),sleep:async()=>{}};
@@ -43,6 +44,13 @@ describe('background generation and capture',()=>{
     expect(db.prepare('SELECT used_bytes FROM account_storage').get()?.used_bytes).toBe(0);
     expect(db.prepare('SELECT deleted FROM account_assets').get()?.deleted).toBe(1);
   });
+  it('persists the validated response MIME when multipart completion omits metadata',async()=>{
+    const j=await job();
+    env.ASSETS=memoryBucket({completeOmitsMetadata:true}).bucket;
+    vi.stubGlobal('fetch',vi.fn().mockResolvedValue(new Response(new Uint8Array([137,80,78,71]),{headers:{'Content-Type':'image/png'}})));
+    await captureResult(env,j,{sources:[{url:'https://im.runware.ai/output.png'}]});
+    expect(db.prepare('SELECT mime_type FROM account_assets WHERE job_id=?').get(j.id)?.mime_type).toBe('image/png');
+  });
   it('does not count a result whose account/job was deleted during transfer',async()=>{
     const j=await job();const key=`accounts/owner/jobs/${j.id}/0`;await writeOutput(env,key,new Uint8Array([1,2,3]),'image/png');
     db.prepare('UPDATE account_jobs SET deleted=1 WHERE id=?').run(j.id);
@@ -64,5 +72,29 @@ describe('private video range downloads',()=>{
     expect(byteRange('bytes=-10',100)).toEqual({offset:90,length:10});
     expect(byteRange('bytes=100-',100)).toBe('invalid');
     expect(byteRange('bytes=0-1,4-5',100)).toBe('invalid');
+  });
+});
+
+describe('private asset response types',()=>{
+  it('uses supported R2 metadata for legacy generic database MIME values',async()=>{
+    env.ASSETS=memoryBucket({completeOmitsMetadata:true}).bucket;
+    await writeOutput(env,'accounts/owner/legacy.png',new Uint8Array([137,80,78,71]),'image/png');
+    const response=await serveObject(new Request('https://worker.test/media'),env,'accounts/owner/legacy.png','application/octet-stream',4);
+    expect(response.headers.get('Content-Type')).toBe('image/png');
+  });
+  it('preserves the recovered MIME for private range HEAD responses',async()=>{
+    env.ASSETS=memoryBucket({completeOmitsMetadata:true}).bucket;
+    await writeOutput(env,'accounts/owner/legacy.png',new Uint8Array([137,80,78,71]),'image/png');
+    const response=await serveObject(new Request('https://worker.test/media',{method:'HEAD',headers:{Range:'bytes=0-1'}}),env,'accounts/owner/legacy.png','application/octet-stream',4);
+    expect(response.status).toBe(206);
+    expect(response.headers.get('Content-Type')).toBe('image/png');
+    expect(response.headers.get('Content-Range')).toBe('bytes 0-1/4');
+  });
+  it('does not trust unsupported R2 metadata for a generic database MIME',async()=>{
+    const {bucket,objects}=memoryBucket();
+    objects.set('accounts/owner/untrusted',{bytes:new Uint8Array([1]),contentType:'text/html'});
+    env.ASSETS=bucket;
+    const response=await serveObject(new Request('https://worker.test/media'),env,'accounts/owner/untrusted','application/octet-stream',1);
+    expect(response.headers.get('Content-Type')).toBe('application/octet-stream');
   });
 });

@@ -45,6 +45,12 @@ describe('useAccountAssetAsReference', () => {
     expect(useDraftStore.getState().references[0]?.file.type).toBe('image/png');
   });
 
+  it('downloads a legacy image with generic saved MIME metadata and verifies the response', async () => {
+    await useAccountAssetAsReference({ ...asset, mimeType: 'application/octet-stream' }, 'owner-1', 2);
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(useDraftStore.getState().references[0]?.file.type).toBe('image/png');
+  });
+
   it('accepts a full-resolution result that conversion brings under the upload cap', async () => {
     // What background mode actually saves: a provider PNG far over the 20 MB
     // input cap, which prepareReferences re-encodes to a fraction of its size.
@@ -107,9 +113,14 @@ describe('useAccountAssetAsReference', () => {
     expect(useDraftStore.getState().references).toHaveLength(0);
   });
 
-  it('rejects a non-image response', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, blob: async () => new Blob(['video'], { type: 'video/mp4' }) })));
-    await expect(useAccountAssetAsReference(asset, 'owner-1', 2)).rejects.toThrow();
+  it.each([
+    ['declared image with video response', asset, 'video/mp4'],
+    ['legacy image with generic response', { ...asset, mimeType: 'application/octet-stream' }, 'application/octet-stream'],
+    ['legacy image with text response', { ...asset, mimeType: 'application/octet-stream' }, 'text/plain'],
+  ])('rejects %s', async (_label, candidate, responseType) => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, blob: async () => new Blob(['not-image'], { type: responseType }) })));
+    await expect(useAccountAssetAsReference(candidate, 'owner-1', 2)).rejects.toThrow();
+    expect(fetch).toHaveBeenCalledOnce();
     expect(prepareReferences).not.toHaveBeenCalled();
   });
 });

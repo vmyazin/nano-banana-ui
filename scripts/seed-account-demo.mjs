@@ -33,11 +33,11 @@ while (Date.now() < completionDeadline) {
     if (!asset) throw new Error('Saved job is missing its asset.');
     const download = await fetch(`${origin}/api/account/assets/${asset.id}/content`, { headers });
     const bytes = (await download.arrayBuffer()).byteLength;
-    if (!download.ok || bytes !== asset.bytes) throw new Error('Asset download failed verification.');
+    if (!download.ok || download.headers.get('Content-Type') !== 'image/png' || bytes !== asset.bytes) throw new Error('Asset download failed verification.');
     const accessResponse=await fetch(`${origin}/api/account/assets/${asset.id}/access`,{method:'POST',headers});
     const access=await accessResponse.json();
     const range=await fetch(access.url,{headers:{Range:'bytes=0-9'}});
-    if(range.status!==206 || (await range.arrayBuffer()).byteLength!==10)throw new Error('Scoped range download failed.');
+    if(range.status!==206 || range.headers.get('Content-Type')!=='image/png' || (await range.arrayBuffer()).byteLength!==10)throw new Error('Scoped range download failed.');
     console.log(`Local Workflow saved ${bytes} bytes to R2; authenticated download verified.`);
     const importBody={clientImportId:'account-demo-import-image-v1',bytes:fixture.length,mimeType:'image/png',metadata:{provider:'local-test',modelId:'local-fixture',mediaType:'image',inputMode:'text',prompt:'Local imported fixture',values:{},referenceIds:[]}};
     const begin=await fetch(`${origin}/api/account/imports`,{method:'POST',headers,body:JSON.stringify(importBody)});
@@ -52,7 +52,7 @@ while (Date.now() < completionDeadline) {
     const repeated=await replay.json();
     if(!replay.ok||repeated.state!=='completed'||repeated.assetId!==imported.assetId||repeated.url)throw new Error('Import replay did not preserve the existing asset.');
     const importedFile=await fetch(`${origin}/api/account/assets/${imported.assetId}/content`,{headers});
-    if(!importedFile.ok||(await importedFile.arrayBuffer()).byteLength!==fixture.length)throw new Error('Imported asset could not be downloaded.');
+    if(!importedFile.ok||importedFile.headers.get('Content-Type')!=='image/png'||(await importedFile.arrayBuffer()).byteLength!==fixture.length)throw new Error('Imported asset could not be downloaded.');
     console.log('Opt-in import, idempotent replay and private imported-file download verified.');
     process.exit(0);
   }

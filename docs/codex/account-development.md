@@ -180,6 +180,12 @@ capabilities, so file bytes do not pass through Vercel. The R2 bucket stays
 private. Capability URLs are owner- and purpose-scoped, and deletion immediately
 revokes metadata access before queued object cleanup.
 
+## Generated asset MIME and references
+
+`captureResult` retains the MIME validated during a remote download rather than relying on `R2MultipartUpload.complete()` to return HTTP metadata. R2 still stores that type with the object. Existing assets whose database MIME is `application/octet-stream` are served with the object's stored type only when it matches the generated-output allowlist; this needs no migration or regeneration.
+
+The Library permits only records already classified as images with that exact generic MIME to reach the private download. The downloaded Blob must still have an image MIME before `prepareReferences`, conversion, and insertion. Keep those response checks and owner/epoch guards: admitting legacy metadata is not permission to accept generic file bytes as images. The local account seed checks Content-Type as well as bytes for full, ranged, and imported downloads.
+
 ## Ingress and observability
 
 The Worker bounds metadata request bodies before parsing them: jobs 40,000

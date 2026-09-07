@@ -1,4 +1,4 @@
-import { getAsset } from './assets';
+import { getAsset, isSupportedOutputMime } from './assets';
 import { byteRange } from './range';
 import { hash, isLocal, json, randomToken, type Env } from './security';
 
@@ -34,7 +34,9 @@ export async function serveObject(request:Request,env:Env,key:string,mime:string
   if(range==='invalid')return new Response(null,{status:416,headers:{'Content-Range':`bytes */${bytes}`,'Cache-Control':'no-store'}});
   const object=await env.ASSETS?.get(key,range?{range}:undefined);
   if(!object)return json({error:'File is temporarily unavailable.'},503);
-  const headers=new Headers({'Cache-Control':'private, no-store','Content-Type':mime,'X-Content-Type-Options':'nosniff','Accept-Ranges':'bytes','Content-Length':String(range?.length??object.size),'Referrer-Policy':'no-referrer'});
+  const objectMime=object.httpMetadata?.contentType;
+  const responseMime=mime==='application/octet-stream'&&objectMime&&isSupportedOutputMime(objectMime)?objectMime:mime;
+  const headers=new Headers({'Cache-Control':'private, no-store','Content-Type':responseMime,'X-Content-Type-Options':'nosniff','Accept-Ranges':'bytes','Content-Length':String(range?.length??object.size),'Referrer-Policy':'no-referrer'});
   if(range)headers.set('Content-Range',`bytes ${range.offset}-${range.offset+range.length-1}/${object.size}`);
   if(request.method==='HEAD'){await object.body.cancel();return new Response(null,{status:range?206:200,headers});}
   return new Response(object.body,{status:range?206:200,headers});

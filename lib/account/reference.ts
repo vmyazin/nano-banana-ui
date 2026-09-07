@@ -35,7 +35,8 @@ export async function addAccountAssetAsReference(asset:CloudAsset,ownerId:string
     if(current.status!=='ready'||current.epoch!==epoch||current.session?.account?.id!==ownerId)throw new Error('Your account changed. Choose the image again.');
   };
   assertOwner();
-  if(asset.kind!=='image'||!asset.mimeType.startsWith('image/'))throw new Error('Choose an image to use as a reference.');
+  const legacyGenericImage=asset.kind==='image'&&asset.mimeType==='application/octet-stream';
+  if(asset.kind!=='image'||(!asset.mimeType.startsWith('image/')&&!legacyGenericImage))throw new Error('Choose an image to use as a reference.');
   if(asset.bytes>MAX_REFERENCE_SOURCE_BYTES)throw new Error(`This image is over ${megabytes(MAX_REFERENCE_SOURCE_BYTES)} and is too large to open as a reference. Download and resize it first.`);
   // A swap keeps the count the same, so a full stack is not a reason to refuse
   // it - the slot being replaced is already spoken for.

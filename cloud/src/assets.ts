@@ -10,6 +10,7 @@ export const MAX_JOB_OUTPUT_BYTES = 1_000_000_000;
 interface AssetRow { id: string; user_id: string; job_id: string | null; object_key: string; kind: 'image'|'video'; mime_type: string; bytes: number; metadata_json: string; created_at: number; deleted: number; expires_at?:number|null }
 export interface ResultSource { url?: string; objectKey?: string; mimeType?: string }
 export interface ProviderResult { sources: ResultSource[]; cost?: number; usage?: { promptTokens: number; outputTokens: number } }
+export const isSupportedOutputMime = (mimeType:string) => /^(image\/(png|jpeg|webp|avif)|video\/(mp4|webm))$/.test(mimeType);
 export function assetView(row: AssetRow): CloudAsset { return { id:row.id, jobId:row.job_id, kind:row.kind, mimeType:row.mime_type, bytes:row.bytes, createdAt:row.created_at, metadata:JSON.parse(row.metadata_json),...(row.expires_at?{expiresAt:row.expires_at}:{}) }; }
 export async function getAsset(env:Env,id:string,owner:string) { return env.DB.prepare('SELECT a.*,r.expires_at FROM account_assets a LEFT JOIN account_asset_retention r ON r.asset_id=a.id WHERE a.id = ? AND a.user_id = ? AND a.deleted = 0 AND (r.expires_at IS NULL OR r.expires_at>?)').bind(id,owner,Date.now()).first<AssetRow>(); }
 
@@ -32,7 +33,7 @@ async function fetchOutput(url:string):Promise<Response> {
 }
 export async function writeOutput(env:Env,key:string,body:ReadableStream<Uint8Array>|Uint8Array,mimeType:string,maxBytes=MAX_OUTPUT_BYTES) {
   if(!env.ASSETS)throw new Error('Asset storage is unavailable');
-  if(!/^(image\/(png|jpeg|webp|avif)|video\/(mp4|webm))$/.test(mimeType))throw new AccountError('Unsupported generated file type.',502,'result_type');
+  if(!isSupportedOutputMime(mimeType))throw new AccountError('Unsupported generated file type.',502,'result_type');
   let length=0;
   const input=body instanceof Uint8Array ? new ReadableStream<Uint8Array>({start(controller){controller.enqueue(body);controller.close();}}) : body;
   const bounded=input.pipeThrough(new TransformStream<Uint8Array,Uint8Array>({transform(chunk,controller){length+=chunk.byteLength;if(length>maxBytes)throw new AccountError('Generated file exceeds the supported transfer limit.',502,'result_size');controller.enqueue(chunk);}}));
@@ -68,6 +69,7 @@ export async function captureResult(env:Env,job:JobRow,result:ProviderResult) {
       continue; // Includes tombstones: never resurrect a deleted asset.
     }
     let object=await env.ASSETS.head(key);
+    let storedMime=object?.httpMetadata?.contentType||source.mimeType;
     if(!object){
       if(source.objectKey){
         if(source.objectKey!==key)throw new Error('Invalid staged result');
@@ -77,6 +79,9 @@ export async function captureResult(env:Env,job:JobRow,result:ProviderResult) {
       const response=await fetchOutput(source.url);
       const mime=(response.headers.get('content-type')||source.mimeType||'').split(';')[0].trim().toLowerCase();
       if(!mime.startsWith(`${request.mediaType}/`)){await response.body?.cancel();throw new Error('Unexpected result type');}
+      // Multipart completion can omit httpMetadata even though R2 stored it.
+      // Keep the MIME that passed writeOutput validation for the D1 asset row.
+      storedMime=mime;
       object=await writeOutput(env,key,response.body!,mime,MAX_JOB_OUTPUT_BYTES-totalBytes);
     }
     if(object.size<=0)throw new Error('Empty stored result');
@@ -89,7 +94,7 @@ export async function captureResult(env:Env,job:JobRow,result:ProviderResult) {
       env.DB.prepare(`UPDATE account_storage SET used_bytes = used_bytes + ? WHERE user_id = ? AND NOT EXISTS (SELECT 1 FROM account_assets WHERE id = ?) AND NOT EXISTS (SELECT 1 FROM account_asset_retention WHERE asset_id=?) AND EXISTS (SELECT 1 FROM account_jobs WHERE id = ? AND deleted = 0 AND state NOT IN ('failed','cancelled'))`).bind(object.size,job.user_id,id,id,job.id),
       env.DB.prepare(`INSERT OR IGNORE INTO account_assets (id,user_id,job_id,object_key,kind,mime_type,bytes,metadata_json,created_at)
         SELECT ?,?,?,?,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM account_jobs WHERE id = ? AND deleted = 0 AND state NOT IN ('failed','cancelled'))`)
-        .bind(id,job.user_id,job.id,key,request.mediaType,object.httpMetadata?.contentType||source.mimeType||'application/octet-stream',object.size,job.request_json,Date.now(),job.id),
+        .bind(id,job.user_id,job.id,key,request.mediaType,storedMime||object.httpMetadata?.contentType||'application/octet-stream',object.size,job.request_json,Date.now(),job.id),
     ]);
     // A concurrent deletion can win after this transfer started. Queue the
     // newly finished object too, even if an earlier delete already drained.
