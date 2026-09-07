@@ -32,7 +32,7 @@ const READY = {
 };
 
 async function addFirstClip() {
-  await userEvent.click(screen.getAllByRole('button', { name: /add/i })[0]);
+  await userEvent.click(screen.getAllByRole('button', { name: /add .+ to the timeline/i })[0]);
 }
 
 describe('restoring an expired clip from a local file', () => {

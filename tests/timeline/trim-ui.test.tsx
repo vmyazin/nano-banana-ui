@@ -21,7 +21,7 @@ async function addEightSecondClip() {
     durable: true,
   });
   renderWorkspace();
-  await userEvent.click(screen.getAllByRole('button', { name: /add/i })[0]);
+  await userEvent.click(screen.getAllByRole('button', { name: /add .+ to the timeline/i })[0]);
   await waitFor(() => expect(useTimelineStore.getState().timeline.clips).toHaveLength(1));
 }
 

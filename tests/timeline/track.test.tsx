@@ -47,7 +47,7 @@ describe('TimelineTrack', () => {
     });
 
     renderWorkspace();
-    const addButtons = screen.getAllByRole('button', { name: /add/i });
+    const addButtons = screen.getAllByRole('button', { name: /add .+ to the timeline/i });
     await userEvent.click(addButtons[0]); // 'clip' / "neon tiger" -> 2s
     await userEvent.click(addButtons[1]); // 'dead' / "rooftop" -> 6s
 
@@ -72,7 +72,7 @@ describe('TimelineTrack', () => {
 
   it('keeps an unavailable clip in place with its reason as visible text and a Remove action', async () => {
     renderWorkspace();
-    await userEvent.click(screen.getAllByRole('button', { name: /add/i })[1]); // 'dead' -> expired
+    await userEvent.click(screen.getAllByRole('button', { name: /add .+ to the timeline/i })[1]); // 'dead' -> expired
 
     const track = screen.getByTestId('timeline-track');
     // Visible text, not just a hover-only title attribute — title tooltips
@@ -87,7 +87,7 @@ describe('TimelineTrack', () => {
 
   it('shows the same unavailable reason text the list renders for the same state', async () => {
     renderWorkspace();
-    await userEvent.click(screen.getAllByRole('button', { name: /add/i })[1]); // 'dead' -> expired
+    await userEvent.click(screen.getAllByRole('button', { name: /add .+ to the timeline/i })[1]); // 'dead' -> expired
 
     const track = screen.getByTestId('timeline-track');
     // TimelineList renders `state.message` verbatim too (it is off-limits to
@@ -98,7 +98,7 @@ describe('TimelineTrack', () => {
 
   it('exposes a Fit control on a ready clip block that calls through to the store', async () => {
     renderWorkspace();
-    await userEvent.click(screen.getAllByRole('button', { name: /add/i })[0]);
+    await userEvent.click(screen.getAllByRole('button', { name: /add .+ to the timeline/i })[0]);
 
     const track = screen.getByTestId('timeline-track');
     await waitFor(() => expect(within(track).getByText('neon tiger')).toBeInTheDocument());
@@ -124,7 +124,7 @@ describe('TimelineTrack', () => {
     });
 
     renderWorkspace();
-    await userEvent.click(screen.getAllByRole('button', { name: /add/i })[0]);
+    await userEvent.click(screen.getAllByRole('button', { name: /add .+ to the timeline/i })[0]);
 
     const track = screen.getByTestId('timeline-track');
     await waitFor(() =>

@@ -36,7 +36,7 @@ describe('clip posters keep their own proportions', () => {
     seedPoster();
     readyPortraitClip();
     renderWorkspace();
-    await userEvent.click(screen.getAllByRole('button', { name: /add/i })[0]);
+    await userEvent.click(screen.getAllByRole('button', { name: /add .+ to the timeline/i })[0]);
 
     const track = screen.getByTestId('timeline-track');
     await waitFor(() => expect(within(track).getByText('neon tiger')).toBeInTheDocument());
@@ -55,7 +55,7 @@ describe('clip posters keep their own proportions', () => {
     seedPoster();
     readyPortraitClip();
     renderWorkspace();
-    await userEvent.click(screen.getAllByRole('button', { name: /add/i })[0]);
+    await userEvent.click(screen.getAllByRole('button', { name: /add .+ to the timeline/i })[0]);
 
     const list = screen.getByTestId('timeline-list');
     await waitFor(() => expect(within(list).getByText('neon tiger')).toBeInTheDocument());
@@ -85,7 +85,7 @@ describe('a clip with no poster yet', () => {
     });
 
     renderWorkspace();
-    await userEvent.click(screen.getAllByRole('button', { name: /add/i })[0]);
+    await userEvent.click(screen.getAllByRole('button', { name: /add .+ to the timeline/i })[0]);
 
     const track = screen.getByTestId('timeline-track');
     await waitFor(() => expect(within(track).getByText('neon tiger')).toBeInTheDocument());

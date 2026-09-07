@@ -17,7 +17,7 @@ describe('TimelineWorkspace', () => {
 
   it('adds a clip from the drawer and shows it in the sequence', async () => {
     renderWorkspace();
-    await userEvent.click(screen.getAllByRole('button', { name: /add/i })[0]);
+    await userEvent.click(screen.getAllByRole('button', { name: /add .+ to the timeline/i })[0]);
     const list = screen.getByTestId('timeline-list');
     await waitFor(() => expect(within(list).getByText('neon tiger')).toBeInTheDocument());
   });
@@ -51,7 +51,7 @@ describe('TimelineWorkspace', () => {
 
   it('keeps an expired clip in place and explains why, rather than dropping it', async () => {
     renderWorkspace();
-    await userEvent.click(screen.getAllByRole('button', { name: /add/i })[1]);
+    await userEvent.click(screen.getAllByRole('button', { name: /add .+ to the timeline/i })[1]);
     const list = screen.getByTestId('timeline-list');
     await waitFor(() => expect(within(list).getByText(/source has expired/i)).toBeInTheDocument());
     // Still on the timeline, not silently removed.
@@ -73,7 +73,7 @@ describe('TimelineWorkspace', () => {
       warning: 'This browser is out of storage for kept results. Remove some to keep saving.',
     });
     renderWorkspace();
-    await userEvent.click(screen.getAllByRole('button', { name: /add/i })[0]);
+    await userEvent.click(screen.getAllByRole('button', { name: /add .+ to the timeline/i })[0]);
     await waitFor(() =>
       expect(screen.getByText(/out of storage for kept results/i)).toBeInTheDocument()
     );
@@ -88,7 +88,7 @@ describe('TimelineWorkspace', () => {
       decodable: false,
     });
     renderWorkspace();
-    await userEvent.click(screen.getAllByRole('button', { name: /add/i })[0]);
+    await userEvent.click(screen.getAllByRole('button', { name: /add .+ to the timeline/i })[0]);
 
     const list = screen.getByTestId('timeline-list');
     await waitFor(() =>
@@ -103,7 +103,7 @@ describe('TimelineWorkspace', () => {
     const snapshots: Array<Record<string, ClipState>> = [];
     renderWorkspace({ onClipStatesChange: (states) => snapshots.push(states) });
 
-    await userEvent.click(screen.getAllByRole('button', { name: /add/i })[0]);
+    await userEvent.click(screen.getAllByRole('button', { name: /add .+ to the timeline/i })[0]);
     await waitFor(() => expect(Object.keys(snapshots.at(-1) ?? {})).toHaveLength(1));
     const placementId = Object.keys(snapshots.at(-1)!)[0];
 
@@ -132,7 +132,7 @@ describe('TimelineWorkspace', () => {
     const pending = mockPendingAcquire();
     renderWorkspace();
 
-    await userEvent.click(screen.getAllByRole('button', { name: /add/i })[0]);
+    await userEvent.click(screen.getAllByRole('button', { name: /add .+ to the timeline/i })[0]);
     await waitFor(() => expect(pending.signal()).toBeDefined());
 
     await userEvent.click(
@@ -163,7 +163,7 @@ describe('TimelineWorkspace', () => {
     const pending = mockPendingAcquire();
     const { unmount } = renderWorkspace();
 
-    await userEvent.click(screen.getAllByRole('button', { name: /add/i })[0]);
+    await userEvent.click(screen.getAllByRole('button', { name: /add .+ to the timeline/i })[0]);
     await waitFor(() => expect(pending.signal()).toBeDefined());
     expect(pending.signal()?.aborted).toBe(false);
 

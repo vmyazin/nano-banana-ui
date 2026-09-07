@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useId, useMemo, useState } from 'react';
-import { Loader2, Plus, Trash2, Video } from 'lucide-react';
+import { Library, Loader2, Plus, Trash2, Video } from 'lucide-react';
 
+import LibraryOverlay from '@/components/LibraryOverlay';
 import { useFileDrop } from '@/lib/drop/use-file-drop';
 import type { GalleryRecord } from '@/lib/gallery/storage';
 import { importLocalVideos } from '@/lib/timeline/import-local';
@@ -147,6 +148,7 @@ export default function TimelineClipDrawer({
     [records]
   );
   const previews = usePreviewUrls(clips);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   return (
     <div className="glass-card space-y-3 p-3.5">
@@ -157,10 +159,28 @@ export default function TimelineClipDrawer({
 
       <ImportTile />
 
+      {/* The rail below lists only what this browser holds. A clip generated in
+          the cloud never lands there on its own, so without this the editor
+          could not see the app's own default-mode output at all. */}
+      <button
+        type="button"
+        onClick={() => setPickerOpen(true)}
+        className="btn-secondary w-full justify-center gap-1.5 px-2.5 py-2 text-xs"
+      >
+        <Library size={13} aria-hidden="true" /> Add from library
+      </button>
+
+      <LibraryOverlay
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+        purpose="pick-clip"
+        onAddedToTimeline={() => setPickerOpen(false)}
+      />
+
       {clips.length === 0 ? (
         <p className="text-[0.8125rem] leading-relaxed text-[var(--foreground-muted)]">
-          Generated videos are kept here automatically. Nothing yet — make one, or add a file
-          from your device above.
+          Generated videos are kept here automatically. Nothing yet — make one, add a file
+          from your device, or pull one in from your library.
         </p>
       ) : (
         <ul className="space-y-2">

@@ -166,7 +166,7 @@ describe('output format, end to end through the workspace', () => {
 
   async function addAReadyClip() {
     // The mocked acquisition reports 1920x1080, so the derived format is that.
-    await userEvent.click(screen.getAllByRole('button', { name: /add/i })[0]);
+    await userEvent.click(screen.getAllByRole('button', { name: /add .+ to the timeline/i })[0]);
     const list = screen.getByTestId('timeline-list');
     await waitFor(() => expect(within(list).getByText('neon tiger')).toBeInTheDocument());
     await waitFor(() => expect(output()).toMatchObject({ width: 1920, height: 1080, auto: true }));
@@ -235,7 +235,7 @@ describe('output format, end to end through the workspace', () => {
     expect(output().auto).toBe(true);
 
     // A second clip re-runs the derive effect over the whole timeline.
-    await userEvent.click(screen.getAllByRole('button', { name: /add/i })[0]);
+    await userEvent.click(screen.getAllByRole('button', { name: /add .+ to the timeline/i })[0]);
     await waitFor(() => expect(useTimelineStore.getState().timeline.clips).toHaveLength(2));
     expect(output().keepAudio).toBe(false);
   });

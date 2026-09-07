@@ -240,11 +240,18 @@ function Studio() {
       {/* Kept results and saved prompts */}
       {/* Keyed on the tab: ⌘K's "Saved prompts" remounts the overlay so it
           lands on that section instead of whatever was last selected. */}
+      {/* A clip added from the library has nowhere visible to land unless the
+          editor comes forward with it, so this is the one caller that follows
+          the clip instead of only closing. */}
       <LibraryOverlay
         key={libraryTab}
         open={libraryOpen}
         onOpenChange={setLibraryOpen}
         initialTab={libraryTab}
+        onAddedToTimeline={() => {
+          setLibraryOpen(false);
+          selectWorkspace('timeline');
+        }}
       />
 
       {/* Main Content */}

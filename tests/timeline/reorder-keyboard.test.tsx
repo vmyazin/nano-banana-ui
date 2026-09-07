@@ -20,7 +20,7 @@ async function addTwoClips() {
     });
   }
   renderWorkspace();
-  const addButtons = screen.getAllByRole('button', { name: /add/i });
+  const addButtons = screen.getAllByRole('button', { name: /add .+ to the timeline/i });
   await userEvent.click(addButtons[0]); // 'neon tiger'
   await userEvent.click(addButtons[1]); // 'rooftop'
   await waitFor(() => expect(useTimelineStore.getState().timeline.clips).toHaveLength(2));

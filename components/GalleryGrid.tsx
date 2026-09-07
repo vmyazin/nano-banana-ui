@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Download, ImageDown, Loader2, Pin, PinOff, Trash2, Wand2 } from 'lucide-react';
+import { Download, Film, ImageDown, Loader2, Pin, PinOff, Trash2, Wand2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { fetchResultBlob } from '@/lib/gallery/capture';
@@ -16,13 +16,16 @@ import { convertedForDownload } from '@/lib/image/download-format';
 import { useAppStore } from '@/store/useAppStore';
 import { useDraftStore } from '@/store/useDraftStore';
 import { useGalleryStore } from '@/store/useGalleryStore';
+import { useTimelineStore } from '@/store/useTimelineStore';
 
 /** Generous ceiling; the workspace trims to its own model's limit on mount. */
 const REFERENCE_LIMIT = 8;
 
 interface GalleryGridProps {
-  mode?: 'browse' | 'pick-image';
+  mode?: 'browse' | 'pick-image' | 'pick-clip';
   onUsedReference?: () => void;
+  /** Fired after a stored clip lands on the timeline, so the host can close. */
+  onAddedToTimeline?: () => void;
   referenceLimit?: number;
 }
 
@@ -34,20 +37,37 @@ function titleOf(record: GalleryRecord) {
  * Object URLs for whatever bytes each record holds, revoked when the set
  * changes. The gallery store owns the Blobs; this owns only the URLs made to
  * display them.
+ *
+ * Each entry says whether it is a still or a clip, because the two cannot share
+ * an element: a kept video with no poster used to fall through to `record.blob`
+ * and be handed to an `<img>`, which can never paint video bytes — the card
+ * showed a broken image. Those records now report themselves as clips and get a
+ * `<video>` instead.
  */
+interface Preview {
+  url: string;
+  isVideo: boolean;
+}
+
 function usePreviewUrls(records: GalleryRecord[]) {
   const previews = useMemo(() => {
-    const entries = new Map<string, string>();
+    const entries = new Map<string, Preview>();
     for (const record of records) {
-      const blob = record.posterBlob ?? record.blob;
-      if (blob) entries.set(record.id, URL.createObjectURL(blob));
+      if (record.posterBlob) {
+        entries.set(record.id, { url: URL.createObjectURL(record.posterBlob), isVideo: false });
+      } else if (record.blob) {
+        entries.set(record.id, {
+          url: URL.createObjectURL(record.blob),
+          isVideo: record.kind === 'video',
+        });
+      }
     }
     return entries;
   }, [records]);
 
   useEffect(() => {
     return () => {
-      for (const url of previews.values()) URL.revokeObjectURL(url);
+      for (const preview of previews.values()) URL.revokeObjectURL(preview.url);
     };
   }, [previews]);
 
@@ -57,6 +77,7 @@ function usePreviewUrls(records: GalleryRecord[]) {
 export default function GalleryGrid({
   mode = 'browse',
   onUsedReference,
+  onAddedToTimeline,
   referenceLimit = REFERENCE_LIMIT,
 }: GalleryGridProps) {
   const records = useGalleryStore((state) => state.records);
@@ -65,7 +86,12 @@ export default function GalleryGrid({
   const visibleRecords = useMemo(
     () => mode === 'pick-image'
       ? records.filter((record) => record.kind === 'image' && Boolean(record.blob))
-      : records,
+      // A clip with no bytes cannot be placed: the timeline resolves through
+      // the record's own Blob, and these records' provider links have usually
+      // outlived their files by the time anyone goes looking for them.
+      : mode === 'pick-clip'
+        ? records.filter((record) => record.kind === 'video' && Boolean(record.blob))
+        : records,
     [mode, records]
   );
   const previews = usePreviewUrls(visibleRecords);
@@ -84,7 +110,9 @@ export default function GalleryGrid({
       <p className="py-6 text-center text-sm text-[var(--foreground-muted)]">
         {mode === 'pick-image'
           ? 'No stored images yet.'
-          : 'Generated results are kept here automatically. Nothing yet.'}
+          : mode === 'pick-clip'
+            ? 'No clips kept in this browser yet.'
+            : 'Generated results are kept here automatically. Nothing yet.'}
       </p>
     );
   }
@@ -139,6 +167,22 @@ export default function GalleryGrid({
     useDraftStore.getState().addReferences(prepared, referenceLimit);
     toast.success('Added as a reference');
     onUsedReference?.();
+  };
+
+  /**
+   * These bytes are already local, so there is nothing to fetch — placing is
+   * the whole action. Adding through the store rather than a callback is what
+   * lets the same gesture work from the main library, where the timeline
+   * workspace is not mounted to receive one.
+   */
+  const addToTimeline = (record: GalleryRecord) => {
+    if (!record.blob) {
+      toast.error('Keep this clip first so it can be placed.');
+      return;
+    }
+    useTimelineStore.getState().addClip(record.id);
+    toast.success('Added to the timeline');
+    onAddedToTimeline?.();
   };
 
   const restore = (record: GalleryRecord) => {
@@ -200,9 +244,12 @@ export default function GalleryGrid({
             className="space-y-2 rounded-xl border border-[var(--border)] bg-[var(--background-elevated)]/60 p-3"
           >
             <div className="flex aspect-video items-center justify-center overflow-hidden rounded-lg bg-black/40">
-              {preview ? (
+              {preview && !preview.isVideo ? (
                 /* eslint-disable-next-line @next/next/no-img-element */
-                <img src={preview} alt={titleOf(record)} className="h-full w-full object-contain" />
+                <img src={preview.url} alt={titleOf(record)} className="h-full w-full object-contain" />
+              ) : preview ? (
+                /* A kept clip with no poster: its own bytes, seeked as below. */
+                <video src={`${preview.url}#t=0.1`} controls preload="metadata" className="h-full w-full" />
               ) : record.kind === 'video' && record.sourceUrl ? (
                 /* Same `#t=` seek as the cloud grid: metadata alone leaves some
                    browsers on a blank frame instead of the clip's opening one. */
@@ -259,6 +306,14 @@ export default function GalleryGrid({
                 >
                   <ImageDown size={13} /> Use image
                 </button>
+              ) : mode === 'pick-clip' ? (
+                <button
+                  type="button"
+                  onClick={() => addToTimeline(record)}
+                  className="btn-secondary flex items-center gap-1.5 px-2 py-1 text-xs"
+                >
+                  <Film size={13} /> Add to timeline
+                </button>
               ) : (
                 <>
                   {!stored && record.sourceUrl && (
@@ -279,6 +334,17 @@ export default function GalleryGrid({
                   >
                     <ImageDown size={13} /> Use as reference
                   </button>
+                  {/* Only once the bytes are here: a link-only clip has nothing
+                      for the timeline to resolve, and Keep sits right alongside. */}
+                  {record.kind === 'video' && stored && (
+                    <button
+                      type="button"
+                      onClick={() => addToTimeline(record)}
+                      className="btn-secondary flex items-center gap-1.5 px-2 py-1 text-xs"
+                    >
+                      <Film size={13} /> Add to timeline
+                    </button>
+                  )}
                   {/* An imported clip was never generated, so it carries no prompt
                       or settings to replay — offering the action would be a button
                       that silently does nothing. */}

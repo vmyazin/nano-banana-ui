@@ -19,7 +19,7 @@ async function addEightSecondClip() {
     durable: true,
   });
   renderWorkspace();
-  await userEvent.click(screen.getAllByRole('button', { name: /add/i })[0]);
+  await userEvent.click(screen.getAllByRole('button', { name: /add .+ to the timeline/i })[0]);
   await waitFor(() => expect(useTimelineStore.getState().timeline.clips).toHaveLength(1));
   await waitFor(() => expect(screen.getByTestId('track-ruler')).toBeInTheDocument());
 }
@@ -89,7 +89,7 @@ describe('the shared playhead', () => {
       dimensions: { width: 1920, height: 1080, durationSeconds: 8 },
       durable: true,
     });
-    await userEvent.click(screen.getAllByRole('button', { name: /add/i })[0]);
+    await userEvent.click(screen.getAllByRole('button', { name: /add .+ to the timeline/i })[0]);
     await waitFor(() => expect(screen.getByTestId('track-ruler')).toBeInTheDocument());
 
     expect(usePlayheadStore.getState().time).toBe(0);

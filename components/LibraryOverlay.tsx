@@ -17,8 +17,14 @@ import type { CloudAssetCounts } from '@/lib/account/contracts';
 interface LibraryOverlayProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  purpose?: 'browse' | 'pick-image';
+  purpose?: 'browse' | 'pick-image' | 'pick-clip';
   referenceLimit?: number;
+  /**
+   * Fired after a clip lands on the timeline. The timeline's own picker only
+   * closes; the main library also switches to the timeline workspace, which is
+   * why this is the host's decision rather than something made here.
+   */
+  onAddedToTimeline?: () => void;
   /**
    * Section to land on. Only read on mount — the page remounts this overlay
    * (keyed on the tab) when ⌘K aims at a different section, which is the
@@ -45,6 +51,7 @@ export default function LibraryOverlay({
   initialTab = 'results',
   purpose = 'browse',
   referenceLimit,
+  onAddedToTimeline,
 }: LibraryOverlayProps) {
   const account = useAccountStore(state => state.status === 'ready' ? state.session?.account : null);
   const [source, setSource] = useState<'auto' | 'browser' | 'cloud'>('auto');
@@ -62,6 +69,10 @@ export default function LibraryOverlay({
   const titleId = useId();
   const descriptionId = useId();
   const isImagePicker = purpose === 'pick-image';
+  const isClipPicker = purpose === 'pick-clip';
+  // Both pickers behave the same everywhere the difference is only "is this a
+  // picker": no section tabs, no library-wide controls, one action per card.
+  const isPicker = isImagePicker || isClipPicker;
 
   const close = useCallback(() => onOpenChange(false), [onOpenChange]);
   useAccessibleDialog({ open, onClose: close, dialogRef: panelRef });
@@ -81,7 +92,8 @@ export default function LibraryOverlay({
 
   const stored = records.reduce((total, record) => total + record.bytes, 0);
   const storedImages = records.filter((record) => record.kind === 'image' && Boolean(record.blob));
-  const dialogTitle = isImagePicker ? 'Choose from library' : 'Library';
+  const storedClips = records.filter((record) => record.kind === 'video' && Boolean(record.blob));
+  const dialogTitle = isClipPicker ? 'Add a clip' : isImagePicker ? 'Choose from library' : 'Library';
   // Each tab says how much it lists for the source on screen; the cloud count is
   // withheld rather than guessed while its first page is still loading.
   const tabCounts: Record<'results' | 'prompts', number | null> = {
@@ -118,9 +130,13 @@ export default function LibraryOverlay({
               <div className="min-w-0 flex-1">
                 <h2 id={titleId} className="text-base font-semibold text-[var(--foreground)]">{dialogTitle}</h2>
                 <p id={descriptionId} className="text-[0.9375rem] text-[var(--foreground-muted)]">
-                  {isImagePicker
-                    ? 'Stored images available as a frame for this clip'
-                    : account ? 'Your cloud library and the results stored on this device' : 'Results kept in this browser after the provider links expire'}
+                  {isClipPicker
+                    ? account
+                      ? 'Clips from your cloud library and from this device'
+                      : 'Clips kept in this browser'
+                    : isImagePicker
+                      ? 'Stored images available as a frame for this clip'
+                      : account ? 'Your cloud library and the results stored on this device' : 'Results kept in this browser after the provider links expire'}
                 </p>
               </div>
               <button
@@ -134,7 +150,7 @@ export default function LibraryOverlay({
             </header>
 
             <div className="dialog-scroll-region min-h-0 flex-1 overflow-y-auto px-3.5 py-3.5 sm:px-4">
-            {!isImagePicker && (
+            {!isPicker && (
               <div role="tablist" aria-label="Library sections" className="mb-4 flex gap-1 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-1">
                 {(['results', 'prompts'] as const).map((name) => (
                   <button
@@ -155,7 +171,7 @@ export default function LibraryOverlay({
               </div>
             )}
 
-            {account && (isImagePicker || tab === 'results') && (
+            {account && (isPicker || tab === 'results') && (
               <div role="group" aria-label="Library source" className="mb-4 flex gap-2">
                 {(['cloud', 'browser'] as const).map(value => (
                   <button key={value} type="button" aria-pressed={cloud === (value === 'cloud')}
@@ -173,24 +189,27 @@ export default function LibraryOverlay({
               </p>
             )}
 
-            {cloud && account && (isImagePicker || tab === 'results') ? (
-              <AccountLibrary key={account.id} ownerId={account.id} mode={isImagePicker ? 'pick-image' : 'browse'} referenceLimit={referenceLimit} onUsedReference={close} onCounts={onCloudCounts} />
-            ) : isImagePicker ? (
+            {cloud && account && (isPicker || tab === 'results') ? (
+              <AccountLibrary key={account.id} ownerId={account.id} mode={isClipPicker ? 'pick-clip' : isImagePicker ? 'pick-image' : 'browse'} referenceLimit={referenceLimit} onUsedReference={close} onAddedToTimeline={onAddedToTimeline} onCounts={onCloudCounts} />
+            ) : isPicker ? (
               <GalleryGrid
-                mode="pick-image"
+                mode={isClipPicker ? 'pick-clip' : 'pick-image'}
                 onUsedReference={close}
+                onAddedToTimeline={onAddedToTimeline}
                 referenceLimit={referenceLimit}
               />
             ) : tab === 'results' ? (
-              <GalleryGrid onUsedReference={close} />
+              <GalleryGrid onUsedReference={close} onAddedToTimeline={onAddedToTimeline} />
             ) : (
               <PromptLibraryList onInserted={close} />
             )}
             </div>
 
-            {(!cloud || (!isImagePicker && tab === 'prompts')) && <footer className="dialog-safe-footer flex flex-wrap items-center justify-between gap-3 border-t border-[var(--border)] px-3.5 py-3.5 sm:px-4">
+            {(!cloud || (!isPicker && tab === 'prompts')) && <footer className="dialog-safe-footer flex flex-wrap items-center justify-between gap-3 border-t border-[var(--border)] px-3.5 py-3.5 sm:px-4">
               <p className="text-[0.9375rem] text-[var(--foreground-muted)]">
-                {isImagePicker ? (
+                {isClipPicker ? (
+                  <>{storedClips.length} stored clip{storedClips.length === 1 ? '' : 's'}</>
+                ) : isImagePicker ? (
                   <>{storedImages.length} stored image{storedImages.length === 1 ? '' : 's'}</>
                 ) : (
                   <>
@@ -200,7 +219,7 @@ export default function LibraryOverlay({
                 )}
               </p>
               <div className="flex flex-wrap items-center gap-3">
-                {!isImagePicker && (
+                {!isPicker && (
                   <label className="flex items-center gap-2 text-[0.8125rem] text-[var(--foreground-muted)]">
                     <input
                       type="checkbox"
@@ -216,7 +235,7 @@ export default function LibraryOverlay({
                     </span>
                   </label>
                 )}
-                {!isImagePicker && records.length > 0 && (
+                {!isPicker && records.length > 0 && (
                   <button
                     type="button"
                     onClick={() => void useGalleryStore.getState().clear()}
