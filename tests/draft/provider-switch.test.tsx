@@ -148,15 +148,56 @@ describe('carrying user input across providers and modes', () => {
     expect(URL.revokeObjectURL).not.toHaveBeenCalledWith('blob:draft-1');
   });
 
-  it('carries the prompt from the image studio into a video workspace', () => {
+  it('does not carry an image prompt into a video workspace', () => {
+    // "Keep the exact same attic, the same camera angle" is a still-image
+    // instruction. Sitting unnoticed in a motion field it silently degrades the
+    // clip, so the prompt stops at the boundary even though the frames cross it.
     useAppStore.setState({ engine: 'gemini' });
     const studio = renderImageStudio();
-    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'A brass diving bell' } });
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Keep the exact same attic' } });
     studio.unmount();
 
     renderFal();
 
-    expect(screen.getByLabelText('Prompt')).toHaveValue('A brass diving bell');
+    expect(screen.getByLabelText('Prompt')).toHaveValue('');
+  });
+
+  it('gives each side its own prompt back on the round trip', () => {
+    useAppStore.setState({ engine: 'gemini' });
+    const studio = renderImageStudio();
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Keep the exact same attic' } });
+    studio.unmount();
+
+    const fal = renderFal();
+    fireEvent.change(screen.getByLabelText('Prompt'), { target: { value: 'Slow dolly through the attic' } });
+    fal.unmount();
+
+    // Back to where we started: the image prompt is waiting, not the motion one.
+    renderImageStudio();
+    expect(screen.getByRole('textbox')).toHaveValue('Keep the exact same attic');
+  });
+
+  it('does not carry a video prompt back into the image studio', () => {
+    useAppStore.setState({ engine: 'gemini' });
+    const fal = renderFal();
+    fireEvent.change(screen.getByLabelText('Prompt'), { target: { value: 'Slow dolly through the attic' } });
+    fal.unmount();
+
+    renderImageStudio();
+
+    expect(screen.getByRole('textbox')).toHaveValue('');
+  });
+
+  it('keeps the prompt when the switch stays on one side of the boundary', () => {
+    // Only the image/video crossing discards it. Changing engine or input mode
+    // within a kind must never cost the user what they typed.
+    const fal = renderFal();
+    fireEvent.change(screen.getByLabelText('Prompt'), { target: { value: 'Slow dolly through the attic' } });
+    fal.unmount();
+
+    renderKie();
+
+    expect(screen.getByLabelText('Prompt')).toHaveValue('Slow dolly through the attic');
   });
 
   it('carries an aspect ratio from a video workspace into the image studio', () => {

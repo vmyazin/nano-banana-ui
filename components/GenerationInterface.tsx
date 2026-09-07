@@ -212,6 +212,13 @@ function EngineSelector({ engines, activeEngineId, onSelect, accountMode = false
 export default function GenerationInterface({ feature, apiKey, onBack, onOpenConnections, onUseAsFirstFrame }: GenerationInterfaceProps) {
   const prompt = useDraftStore((state) => state.prompt);
   const setPrompt = useDraftStore((state) => state.setPrompt);
+
+  // Claims the prompt field for this kind of work, dropping a prompt written
+  // for the other kind. Declared ahead of every other mount effect here so a
+  // stale prompt cannot outlive this line and block what those effects set.
+  useEffect(() => {
+    useDraftStore.getState().enterPromptScope('image');
+  }, []);
   const references = useDraftStore((state) => state.references);
   // The id travels with the bytes rather than living in a parallel array: the
   // read is async, so for one render after a removal a bare `string[]` would

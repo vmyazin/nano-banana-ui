@@ -109,6 +109,13 @@ export default function KieGenerationWorkspace({
   const variantKey = `${selectedModel.id}:${inputMode}`;
   const prompt = useDraftStore((state) => state.prompt);
   const setPrompt = useDraftStore((state) => state.setPrompt);
+
+  // Claims the prompt field for this kind of work, dropping a prompt written
+  // for the other kind. Declared ahead of every other mount effect here so a
+  // stale prompt cannot outlive this line and block what those effects set.
+  useEffect(() => {
+    useDraftStore.getState().enterPromptScope(mediaType === 'video' ? 'video' : 'image');
+  }, [mediaType]);
   const references = useDraftStore((state) => state.references);
   const controlValues = useDraftStore((state) => state.controlValues);
   const [valuesByVariant, setValuesByVariant] = useState<

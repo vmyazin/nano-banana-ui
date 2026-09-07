@@ -17,7 +17,15 @@ describe('useDraftStore', () => {
       createObjectURL: vi.fn(() => `blob:draft-${++created}`),
       revokeObjectURL,
     }));
-    useDraftStore.setState({ prompt: '', references: [], controlValues: {} });
+    // promptScope and promptByScope belong here too: without them a test that
+    // ends inside one scope leaks into the next one's first enterPromptScope.
+    useDraftStore.setState({
+      prompt: '',
+      promptScope: null,
+      promptByScope: {},
+      references: [],
+      controlValues: {},
+    });
   });
 
   afterEach(() => vi.unstubAllGlobals());
@@ -97,6 +105,89 @@ describe('useDraftStore', () => {
       aspect_ratio: '16:9',
       seed: 7,
       duration: '10',
+    });
+  });
+
+  describe('prompt scope', () => {
+    it('files a prompt away under its own scope rather than losing it', () => {
+      useDraftStore.getState().enterPromptScope('image');
+      useDraftStore.getState().setPrompt('Keep the exact same attic');
+
+      useDraftStore.getState().enterPromptScope('video');
+
+      // A still-image instruction must not sit in a motion field...
+      expect(useDraftStore.getState().prompt).toBe('');
+      expect(useDraftStore.getState().promptScope).toBe('video');
+    });
+
+    it('restores each side on the round trip', () => {
+      useDraftStore.getState().enterPromptScope('image');
+      useDraftStore.getState().setPrompt('Keep the exact same attic');
+      useDraftStore.getState().enterPromptScope('video');
+      useDraftStore.getState().setPrompt('Slow dolly through the attic');
+
+      useDraftStore.getState().enterPromptScope('image');
+      expect(useDraftStore.getState().prompt).toBe('Keep the exact same attic');
+
+      useDraftStore.getState().enterPromptScope('video');
+      expect(useDraftStore.getState().prompt).toBe('Slow dolly through the attic');
+    });
+
+    it('keeps the latest edit on each side, not the first', () => {
+      useDraftStore.getState().enterPromptScope('image');
+      useDraftStore.getState().setPrompt('First draft');
+      useDraftStore.getState().enterPromptScope('video');
+      useDraftStore.getState().enterPromptScope('image');
+      useDraftStore.getState().setPrompt('Second draft');
+      useDraftStore.getState().enterPromptScope('video');
+
+      useDraftStore.getState().enterPromptScope('image');
+      expect(useDraftStore.getState().prompt).toBe('Second draft');
+    });
+
+    it('is a no-op within one kind, whatever remounts in between', () => {
+      // Switching engine, input mode or feature all remount a workspace. None
+      // of those cross the boundary, so none may cost the user what they typed.
+      useDraftStore.getState().enterPromptScope('video');
+      useDraftStore.getState().setPrompt('Slow dolly through the attic');
+
+      useDraftStore.getState().enterPromptScope('video');
+
+      expect(useDraftStore.getState().prompt).toBe('Slow dolly through the attic');
+    });
+
+    it('adopts a prompt put there before any workspace claimed the field', () => {
+      // "Restore settings" and the prompt library both write while the picker
+      // is open. Filing that under a scope that never existed would hand the
+      // workspace it was meant for an empty field.
+      useDraftStore.getState().setPrompt('Restored from the library');
+
+      useDraftStore.getState().enterPromptScope('image');
+
+      expect(useDraftStore.getState().prompt).toBe('Restored from the library');
+    });
+
+    it('leaves references alone, since carrying a frame across is the useful half', () => {
+      useDraftStore.getState().enterPromptScope('image');
+      useDraftStore.getState().addReferences([reference('attic.png')], 4);
+      useDraftStore.getState().setPrompt('Keep the exact same attic');
+
+      useDraftStore.getState().enterPromptScope('video');
+
+      expect(useDraftStore.getState().references).toHaveLength(1);
+      expect(useDraftStore.getState().prompt).toBe('');
+    });
+
+    it('forgets both sides on reset', () => {
+      useDraftStore.getState().enterPromptScope('image');
+      useDraftStore.getState().setPrompt('Keep the exact same attic');
+      useDraftStore.getState().enterPromptScope('video');
+
+      useDraftStore.getState().reset();
+      useDraftStore.getState().enterPromptScope('image');
+
+      expect(useDraftStore.getState().prompt).toBe('');
+      expect(useDraftStore.getState().promptByScope).toEqual({});
     });
   });
 });

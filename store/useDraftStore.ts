@@ -24,6 +24,9 @@ export interface DraftReferenceInput {
   sourceLabel?: string;
 }
 
+/** Whether the prompt on screen is describing a still or a motion. */
+export type PromptScope = 'image' | 'video';
+
 interface DraftState {
   /**
    * What the user has typed and chosen, independent of which provider or mode
@@ -31,10 +34,32 @@ interface DraftState {
    * handles and object URLs, neither of which survive serialization.
    */
   prompt: string;
+  /**
+   * Which kind of workspace the current prompt was written in.
+   *
+   * References are shared across every workspace on purpose - carrying a
+   * reference image into the video tab as its first frame is the useful half of
+   * this store. A prompt is not like that: "Keep the exact same attic, the same
+   * camera angle" is a still-image instruction, and sitting unnoticed in a
+   * motion field it silently degrades the clip.
+   */
+  promptScope: PromptScope | null;
+  /**
+   * What each side was last left holding. Switching tabs files the current
+   * prompt away under its own scope and brings back whatever that side had, so
+   * a round trip to the video page and back returns the image prompt intact.
+   */
+  promptByScope: Partial<Record<PromptScope, string>>;
   references: DraftReference[];
   /** Last value seen per control key, replayed onto whatever model comes next. */
   controlValues: Record<string, DraftValue>;
   setPrompt: (prompt: string) => void;
+  /**
+   * Claim the prompt field for one kind of workspace: file the outgoing prompt
+   * under the scope that wrote it and restore this scope's own. A no-op within
+   * a kind, so switching engine, input mode or feature costs nothing.
+   */
+  enterPromptScope: (scope: PromptScope) => void;
   /** Appends up to `limit` total, dropping and revoking any that no longer fit. */
   addReferences: (entries: DraftReferenceInput[], limit: number) => void;
   /** Trims to a new model's ceiling, e.g. moving from a 3-image to a 1-image model. */
@@ -66,10 +91,27 @@ function release(references: DraftReference[]) {
 
 export const useDraftStore = create<DraftState>((set, get) => ({
   prompt: '',
+  promptScope: null,
+  promptByScope: {},
   references: [],
   controlValues: {},
 
   setPrompt: (prompt) => set({ prompt }),
+
+  enterPromptScope: (scope) =>
+    set((state) => {
+      if (state.promptScope === scope) return {};
+      // Nothing has claimed the field yet, so whatever is in it was put there
+      // for the workspace now opening — a gallery restore or a prompt inserted
+      // from the library. Adopt it rather than file it under a scope that never
+      // existed and hand the user an empty field.
+      if (state.promptScope === null) return { promptScope: scope };
+      return {
+        promptScope: scope,
+        promptByScope: { ...state.promptByScope, [state.promptScope]: state.prompt },
+        prompt: state.promptByScope[scope] ?? '',
+      };
+    }),
 
   addReferences: (entries, limit) => {
     const created = entries.map(createReference);
@@ -131,6 +173,6 @@ export const useDraftStore = create<DraftState>((set, get) => ({
 
   reset: () => {
     release(get().references);
-    set({ prompt: '', references: [], controlValues: {} });
+    set({ prompt: '', promptScope: null, promptByScope: {}, references: [], controlValues: {} });
   },
 }));
