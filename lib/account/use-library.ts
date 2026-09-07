@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { accountRequest } from './client';
+import { useAccountStore } from '@/store/useAccountStore';
 import { isActiveJob } from './job-status';
 import type { CloudAsset, CloudAssetCounts, CloudJobView } from './contracts';
 
@@ -51,7 +52,14 @@ export function useAccountLibrary(ownerId:string,kind:LibraryKind='all') {
         // keep their numbers while the grid below them reloads.
         // Defaulted at the boundary: a truncated or unexpected payload should
         // leave the page empty, not hand `undefined` to the render.
-        if(!controller.signal.aborted){latestJobs.current=jobPage?.jobs??[];setJobs(latestJobs.current);setAssets(assetPage?.assets??[]);setNextCursor(assetPage?.nextCursor??null);if(assetPage?.counts)setCounts(assetPage.counts);setStorage(quota?.storage??null);setError(null);}
+        if(!controller.signal.aborted){latestJobs.current=jobPage?.jobs??[];setJobs(latestJobs.current);setAssets(assetPage?.assets??[]);setNextCursor(assetPage?.nextCursor??null);if(assetPage?.counts)setCounts(assetPage.counts);setStorage(quota?.storage??null);setError(null);
+          // The queue card counts from the session store, which polls on its own
+          // slow heartbeat. Without this, settling a job here left the count
+          // saying two for up to half a minute - the same stale number the card
+          // was collapsed to stop showing. applyJobs is owner and epoch guarded,
+          // so a stale page cannot write into a newer account.
+          const account=useAccountStore.getState();
+          account.applyJobs(ownerId,account.epoch,latestJobs.current,account.assets);}
       }catch(error){if(!controller.signal.aborted)setError(error instanceof Error&&error.message?error.message:'Could not load your cloud library.');}
       finally{running=false;if(!controller.signal.aborted)setLoading(false);}
     }

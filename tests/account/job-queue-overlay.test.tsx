@@ -42,20 +42,37 @@ describe('job queue overlay',()=>{
     show([job('a','saved'),job('b','cancelled')]);
     expect(screen.queryByLabelText('Job queue')).toBeNull();
   });
-  it('drops a finished job but keeps one that needs a person',()=>{
+  it('collapses to a count when nothing is in flight, and points at where it can be settled',()=>{
+    // Unfinished business does not resolve itself and `dismissed` is per-tab, so
+    // as a list this rebuilt on every reload and followed the reader all run.
     show([job('a','saved'),job('b','needs_attention',{errorCode:'storage_full'}),job('c','failed')]);
+    const link=screen.getByRole('link',{name:'2 jobs need attention'});
+    expect(link).toHaveAttribute('href','/account#jobs');
+    // A count, not the rows it replaced.
+    expect(screen.queryByText('Needs attention')).toBeNull();
+    expect(screen.queryByText('Video, Seedance 2.0 Mini')).toBeNull();
     expect(screen.queryByText('Saved')).toBeNull();
+  });
+  it('counts one job in the singular',()=>{
+    show([job('a','failed')]);
+    expect(screen.getByRole('link',{name:'1 job needs attention'})).toBeInTheDocument();
+  });
+  it('still names every job while something is in flight',()=>{
+    // The card earns its size only while there is progress to report.
+    show([job('a','running'),job('b','needs_attention',{errorCode:'storage_full'})]);
+    expect(screen.getByText('Generating')).toBeInTheDocument();
     expect(screen.getByText('Needs attention')).toBeInTheDocument();
-    expect(screen.getByText('Failed')).toBeInTheDocument();
   });
   it('hides a dismissed row without touching the account',async()=>{
     const fetchMock=vi.fn();vi.stubGlobal('fetch',fetchMock);
-    show([job('a','failed')]);
+    // Dismissal is offered on the expanded card only, so something must be
+    // running for the row to exist at all.
+    show([job('a','failed'),job('b','running')]);
     fireEvent.click(screen.getByRole('button',{name:'Dismiss Video, Seedance 2.0 Mini'}));
-    expect(screen.queryByLabelText('Job queue')).toBeNull();
+    expect(screen.queryByText('Failed')).toBeNull();
     // Dismissal is a view state. Stopping tracking is a separate, confirmed action.
     expect(fetchMock).not.toHaveBeenCalled();
-    expect(useAccountStore.getState().jobs).toHaveLength(1);
+    expect(useAccountStore.getState().jobs).toHaveLength(2);
     vi.unstubAllGlobals();
   });
   it('offers no dismiss on a job that is still running',()=>{
@@ -63,7 +80,7 @@ describe('job queue overlay',()=>{
     expect(screen.queryByRole('button')).toBeNull();
   });
   it('names a tracking-stopped job by what happened to it',()=>{
-    show([job('a','failed',{errorCode:'tracking_stopped'})]);
+    show([job('a','failed',{errorCode:'tracking_stopped'}),job('b','running')]);
     expect(screen.getByText('Tracking stopped')).toBeInTheDocument();
   });
   it('sends overflow to the account page rather than growing',()=>{

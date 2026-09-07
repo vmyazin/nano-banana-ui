@@ -67,7 +67,19 @@ export default function AccountConsole({
   onManageKeys: () => void;
 }) {
   const ownerId = account.id;
-  const [filter, setFilter] = useState<LibraryFilterId>('all');
+  /**
+   * Deep link from the job queue card. That card is now only a count, so the
+   * page it points at has to arrive already showing the jobs it counted —
+   * landing on the asset grid would make the count a dead end.
+   *
+   * Read in the initializer rather than an effect: the dashboard renders
+   * "Checking your account…" until the session resolves, so this component only
+   * ever mounts in the browser, and a setState in an effect would cost a
+   * cascading render to show the wrong panel first.
+   */
+  const [filter, setFilter] = useState<LibraryFilterId>(() =>
+    typeof window !== 'undefined' && window.location.hash === '#jobs' ? 'attention' : 'all'
+  );
   const [importing, setImporting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionBusy, setActionBusy] = useState(false);
@@ -274,7 +286,7 @@ export default function AccountConsole({
           </button>
         )}
 
-        <div className="mt-4">
+        <div id="jobs" className="mt-4 scroll-mt-24">
           {showingJobs ? (
             visibleJobs.length > 0 ? (
               <CloudJobList

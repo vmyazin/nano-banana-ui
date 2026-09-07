@@ -1,6 +1,6 @@
 'use client';
 import Link from 'next/link';
-import { X } from 'lucide-react';
+import { TriangleAlert, X } from 'lucide-react';
 import { useAccountStore } from '@/store/useAccountStore';
 import { useJobQueueStore } from '@/store/useJobQueueStore';
 import { jobSummary } from '@/lib/account/job-label';
@@ -15,6 +15,14 @@ const LIMIT = 5;
  *  Awareness only: cancel, resume and stop-tracking live in CloudJobList on
  *  /account, where they have the confirmation they need. Desktop only for now;
  *  a fixed corner card is the wrong shape for a phone.
+ *
+ *  The card earns its size only while something is actually in flight. A job
+ *  that needs a person does not resolve on its own and `dismissed` is per-tab,
+ *  so the list used to rebuild itself on every reload and follow the reader
+ *  across every page for the rest of the run — a standing widget they learn to
+ *  ignore, which is the worst possible home for "the provider may have charged
+ *  for this". With nothing running it collapses to a count that points at the
+ *  one place those jobs can be resumed, cancelled or stopped.
  */
 export default function JobQueueOverlay() {
   const jobs = useAccountStore(state => state.jobs);
@@ -24,6 +32,29 @@ export default function JobQueueOverlay() {
   // only until they say they have seen it.
   const shown = jobs.filter(job => !dismissed.includes(job.id) && (isActiveJob(job) || needsAttention(job)));
   if (!shown.length) return null;
+
+  // Nothing is in flight, so there is no progress to report — only unfinished
+  // business, which belongs where it can be settled rather than in a corner.
+  if (!shown.some(isActiveJob)) {
+    return (
+      <div
+        role="status"
+        aria-live="polite"
+        aria-label="Job queue"
+        className="fixed bottom-4 right-4 z-40 hidden md:block"
+      >
+        <Link
+          href="/account#jobs"
+          className="flex items-center gap-2 rounded-full border border-amber-300/30 bg-[var(--surface-overlay)] px-3 py-1.5 text-xs text-amber-200 shadow-lg transition-colors hover:border-amber-300/60 hover:text-amber-100"
+        >
+          <TriangleAlert size={13} aria-hidden="true" />
+          {shown.length} job{shown.length === 1 ? '' : 's'} need
+          {shown.length === 1 ? 's' : ''} attention
+        </Link>
+      </div>
+    );
+  }
+
   return (
     <div
       role="status"
