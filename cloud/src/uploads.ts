@@ -17,7 +17,11 @@ export async function reserveUpload(env:Env,owner:string,bytes:number,mime:strin
     AND (SELECT COUNT(*) FROM account_uploads WHERE user_id=? AND state!='deleted')<32
     AND (SELECT COALESCE(SUM(expected_bytes),0) FROM account_uploads WHERE state!='deleted')+?<=?`)
     .bind(id,owner,key,mime,bytes,now,now+INPUT_TTL,owner,bytes,MAX_TEMP_BYTES,owner,bytes,MAX_GLOBAL_TEMP_BYTES).run();
-  if(!inserted.meta.changes)throw new AccountError('Temporary input storage is full. Remove unused uploads or wait for cleanup.',409,'input_capacity');
+  // Named for what the reader can actually do about it. The old wording asked
+  // them to remove unused uploads, which no screen in the app lists or offers —
+  // and the quota it sounds like, the cloud library, is a different table
+  // entirely, so people went and found it reassuringly empty.
+  if(!inserted.meta.changes)throw new AccountError('Too many references are still in use for background jobs. Wait for the jobs using them to finish, then try again.',409,'input_capacity');
   return {id,...await mediaAccess(env,owner,id,'upload')};
 }
 export async function inputUrls(env:Env,job:JobRow):Promise<string[]> {
@@ -88,6 +92,21 @@ export async function cleanupUploads(env:Env) {
   await env.DB.prepare(`UPDATE account_uploads SET state='deleted' WHERE expires_at<? AND state!='deleted' AND NOT EXISTS
     (SELECT 1 FROM account_job_inputs i JOIN account_jobs j ON j.id=i.job_id WHERE i.upload_id=account_uploads.id AND j.deleted=0 AND j.state NOT IN ('saved','failed','cancelled'))
     `).bind(Date.now()).run();
+  // An input that has served every job holding it is finished work, whatever
+  // its expiry says. Without this a reference stayed for the full day-long TTL
+  // even once its job had saved, so 32 successful background runs exhausted the
+  // per-user slots and every later one failed at reservation with "Temporary
+  // input storage is full" — a cap the account page never showed, and nothing
+  // to do with the library quota people went looking at.
+  //
+  // The EXISTS is what separates "already used" from "not used yet": reserving
+  // and PUTting are two calls, and an unattached row is a reservation in
+  // flight, which only its own expiry may reclaim.
+  await env.DB.prepare(`UPDATE account_uploads SET state='deleted' WHERE state!='deleted'
+    AND EXISTS (SELECT 1 FROM account_job_inputs i WHERE i.upload_id=account_uploads.id)
+    AND NOT EXISTS
+    (SELECT 1 FROM account_job_inputs i JOIN account_jobs j ON j.id=i.job_id WHERE i.upload_id=account_uploads.id AND j.deleted=0 AND j.state NOT IN ('saved','failed','cancelled'))
+    `).run();
   // Retain tombstones until deletion succeeds, so storage failures can retry.
   const tombstones=await env.DB.prepare("SELECT id,object_key FROM account_uploads WHERE state='deleted' LIMIT 100").all<{id:string;object_key:string}>();
   for(const row of tombstones.results){

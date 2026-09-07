@@ -17,6 +17,47 @@ afterEach(()=>{vi.restoreAllMocks();db.close();});
 const uploadRequest=(url:string,bytes=new Uint8Array([1,2,3]),origin=env.APP_ORIGIN)=>new Request(url,{method:'PUT',headers:{Origin:origin,'Content-Type':'image/png'},body:bytes});
 async function ready(){const upload=await reserveUpload(env,'owner',3,'image/png');expect((await publicMedia(uploadRequest(upload.url),env))?.status).toBe(200);return upload;}
 const request=(ids:string[])=>({provider:'local-test' as const,modelId:'local-test',mediaType:'image' as const,inputMode:'image' as const,prompt:'Reference test',values:{},referenceIds:ids});
+describe('an input outlives only the job that needed it',()=>{
+  it('frees the slot once its job has finished, without waiting for the TTL',async()=>{
+    // The reported blockage: every background image-to-video run consumed one
+    // of the 32 per-user slots and never gave it back, so a day's work wedged
+    // the account with "Temporary input storage is full" - while the asset
+    // quota it is nothing to do with sat at 62.7 MB of 1 GB.
+    for(let index=0;index<32;index+=1){
+      const upload=await ready();
+      const job=await acceptJob(env,'owner',`finished-input-slot-token-${index}`,request([upload.id]));
+      await finishJob(env,job.id,'saved',null);
+    }
+    await expect(reserveUpload(env,'owner',3,'image/png')).rejects.toThrow(/still in use/);
+
+    await cleanupUploads(env);
+
+    await expect(reserveUpload(env,'owner',3,'image/png')).resolves.toBeTruthy();
+  });
+
+  it('keeps an input while its job is still live',async()=>{
+    const upload=await ready();
+    await acceptJob(env,'owner','live-job-still-running-token',request([upload.id]));
+
+    await cleanupUploads(env);
+
+    // Still resolvable: the workflow reads these at dispatch.
+    const row=db.prepare("SELECT state FROM account_uploads WHERE id=?").get(upload.id) as {state:string};
+    expect(row.state).toBe('ready');
+  });
+
+  it('leaves a reservation that no job has claimed to its own expiry',async()=>{
+    // Reserve-then-PUT is two calls. Reclaiming an unattached row the moment it
+    // appears would delete the reservation between them.
+    const upload=await reserveUpload(env,'owner',3,'image/png');
+
+    await cleanupUploads(env);
+
+    const row=db.prepare("SELECT state FROM account_uploads WHERE id=?").get(upload.id) as {state:string};
+    expect(row.state).toBe('pending');
+  });
+});
+
 describe('private reference staging',()=>{
   it('bounds temporary reservations atomically and rejects mismatched bytes',async()=>{
     const uploads=await Promise.allSettled(Array.from({length:13},()=>reserveUpload(env,'owner',20_000_000,'image/png')));

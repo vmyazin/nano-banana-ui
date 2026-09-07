@@ -97,6 +97,13 @@
       "request": "launch",
       "command": "ACCOUNT_WORKER_PORT=8817 npm run dev -- --port 3117",
       "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "Input slot release smoke test",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "ACCOUNT_WORKER_PORT=8817 DEV_FAKE_GENERATION=1 npm run dev -- --port 3117",
+      "cwd": "${workspaceFolder}"
     }
   ]
 }
