@@ -46,7 +46,7 @@ export default function CloudAssetGrid({assets,ownerId,mode='browse',referenceLi
   columns?:2|4;
   onUsedReference?:()=>void;onChanged:()=>void;
 }) {
-  const [busy,setBusy]=useState<string|null>(null),[error,setError]=useState<string|null>(null);
+  const [busy,setBusy]=useState<string|null>(null);
   const [removing,setRemoving]=useState<CloudAsset|null>(null);
   // Held by id, not by object, so a library refresh or a deletion resolves the
   // open preview away instead of leaving a stale copy on screen.
@@ -59,10 +59,17 @@ export default function CloudAssetGrid({assets,ownerId,mode='browse',referenceLi
   function assertOwner(){
     if(useAccountStore.getState().session?.account?.id!==ownerId)throw new Error('Your account changed. Try again from the current library.');
   }
+  /**
+   * Failures are reported the way `GalleryGrid` reports them — a toast, not an
+   * inline line at the top of the grid. The two grids sit behind the same two
+   * tabs of the same picker, and an alert rendered above a scrolled list is
+   * invisible at the moment it is written: a rejected "Use image" read as a
+   * button that does nothing at all, which is exactly how it was reported.
+   */
   async function run(asset:CloudAsset,action:()=>Promise<unknown>){
-    if(pending.current)return;pending.current=true;setBusy(asset.id);setError(null);
+    if(pending.current)return;pending.current=true;setBusy(asset.id);
     try{assertOwner();await action();}
-    catch(error){if(mounted.current)setError(error instanceof Error&&error.message?error.message:'Please try again.');}
+    catch(error){toast.error(error instanceof Error&&error.message?error.message:'Please try again.');}
     finally{pending.current=false;if(mounted.current)setBusy(null);}
   }
   function reference(asset:CloudAsset){return run(asset,async()=>{await addAccountAssetAsReference(asset,ownerId,referenceLimit??8);assertOwner();toast.success('Added as a reference');onUsedReference?.();});}
@@ -76,7 +83,6 @@ export default function CloudAssetGrid({assets,ownerId,mode='browse',referenceLi
   }
   return <>
     <TemporaryAssetNotice assets={visible}/>
-    {error&&<p role="alert" className="mb-3 text-sm text-red-300">{error}</p>}
     {visible.length===0?<p className="py-6 text-center text-sm text-[var(--foreground-muted)]">{mode==='pick-image'?'No cloud images on this page.':'Your saved cloud assets will appear here.'}</p>:
       <ul className={`grid grid-cols-1 gap-4 sm:grid-cols-2 ${columns===4?'lg:grid-cols-3 xl:grid-cols-4':''}`}>{visible.map(asset=><li key={asset.id} className={`rounded-xl border border-cyan-300/25 bg-[var(--background-elevated)]/80 transition-colors hover:border-cyan-300/50 motion-reduce:transition-none ${dense?'space-y-2.5 p-2.5':'space-y-3 p-3'}`}>
         <div className="flex aspect-video items-center justify-center overflow-hidden rounded-lg bg-black/40">

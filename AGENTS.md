@@ -16,7 +16,7 @@
 
 ## Auto-load routing
 
-- **Cloud library, imports, or spend** → first read `docs/codex/account-development.md`. Reuse `CloudAssetGrid` / `useAccountLibrary` for cloud files, `prepareReferences` for reference insertion, and `SpendReport` with the canonical spend resolvers for either ledger. Import controls read browser stores only after explicit selection; account requests must retain owner/epoch guards because a session can change during a file transfer.
+- **Cloud library, imports, or spend** → first read `docs/codex/account-development.md`. Reuse `CloudAssetGrid` / `useAccountLibrary` for cloud files, `prepareReferences` for reference insertion, and `SpendReport` with the canonical spend resolvers for either ledger. Import controls read browser stores only after explicit selection; account requests must retain owner/epoch guards because a session can change during a file transfer. Two rules the cloud grid pays for when they are broken: **size gates go after `prepareReferences`, never before** — a cloud result is a full-resolution provider PNG and the conversion is what decides the payload, so gating on `asset.bytes` rejected every background-mode image the pipeline could have handled; and **it reports outcomes the way `GalleryGrid` does, in a toast**, because both grids sit behind the two tabs of one picker and an inline alert above a scrolled list is invisible at the moment it is written, which reads as a button that does nothing.
 - **Browser → cloud import, or test data for it** → the picker is
   `components/account/BrowserImportDialog.tsx` over the `use-asset-import` hook; the hook owns the
   transfer loop, the stable per-file client id that makes a retry idempotent, and the owner/epoch

@@ -45,9 +45,39 @@ describe('useAccountAssetAsReference', () => {
     expect(useDraftStore.getState().references[0]?.file.type).toBe('image/png');
   });
 
+  it('accepts a full-resolution result that conversion brings under the upload cap', async () => {
+    // What background mode actually saves: a provider PNG far over the 20 MB
+    // input cap, which prepareReferences re-encodes to a fraction of its size.
+    vi.mocked(prepareReferences).mockResolvedValueOnce([
+      { file: new File([new Uint8Array(6_000_000)], 'cloud.webp', { type: 'image/webp' }) },
+    ]);
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      blob: async () => new Blob([new Uint8Array(1)], { type: 'image/png' }),
+    })));
+
+    await useAccountAssetAsReference({ ...asset, bytes: 23_000_000 }, 'owner-1', 2);
+    expect(useDraftStore.getState().references).toHaveLength(1);
+  });
+
+  it('rejects an image still over the cap after conversion', async () => {
+    // A source conversion cannot shrink — the one case the upload cap is for.
+    vi.mocked(prepareReferences).mockResolvedValueOnce([
+      { file: new File([new Uint8Array(21_000_000)], 'cloud.png', { type: 'image/png' }) },
+    ]);
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      blob: async () => new Blob([new Uint8Array(1)], { type: 'image/png' }),
+    })));
+
+    await expect(useAccountAssetAsReference({ ...asset, bytes: 23_000_000 }, 'owner-1', 2))
+      .rejects.toThrow('after compression');
+    expect(useDraftStore.getState().references).toHaveLength(0);
+  });
+
   it.each([
     ['video', { ...asset, kind: 'video' as const }],
-    ['oversized metadata', { ...asset, bytes: 20_000_001 }],
+    ['oversized metadata', { ...asset, bytes: 120_000_001 }],
   ])('rejects %s without downloading', async (_label, candidate) => {
     await expect(useAccountAssetAsReference(candidate, 'owner-1', 2)).rejects.toThrow();
     expect(fetch).not.toHaveBeenCalled();
