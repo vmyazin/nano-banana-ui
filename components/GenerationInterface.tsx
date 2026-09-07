@@ -13,7 +13,7 @@ import { toast } from 'sonner';
 import { Feature, GenerationConfig } from '@/types';
 import { useFileDrop } from '@/lib/drop/use-file-drop';
 import { metaForFeature, slugify } from '@/lib/example-prompts';
-import { geminiResolutionCost } from '@/lib/spend/rates';
+import { falPublishedCost, geminiResolutionCost } from '@/lib/spend/rates';
 import { requestExamplePrompt, requestPromptSlug } from '@/lib/micro-ai/browser';
 import {
   boundedMediaBlob,
@@ -642,6 +642,15 @@ export default function GenerationInterface({ feature, apiKey, onBack, onOpenCon
   // Cost line, per engine. Gemini's rate is the single table in lib/spend/rates.ts —
   // that file names the vendor page it was read from. Pollinations is free.
   const estCost = geminiResolutionCost(config.imageSize, images.length);
+  // Keyed by endpoint, not by model: the two nano-banana variants are priced
+  // the same, but the rate table has never known this catalogue's model ids.
+  const falImageCost = falPublishedCost(
+    (feature.requiresImage
+      ? FAL_IMAGE_MODEL.variants.find(candidate => candidate.inputMode === 'image')
+      : FAL_IMAGE_MODEL.variants.find(candidate => candidate.inputMode === 'text')
+    )?.endpointId ?? '',
+    { resolution: config.imageSize, webSearch: Boolean(config.useGoogleSearch) }
+  );
   // Aggregator prices are the vendors' published rates, carried on the catalog
   // entry — the units differ per provider, so they are shown as written rather
   // than folded into one estimate.
@@ -655,7 +664,11 @@ export default function GenerationInterface({ feature, apiKey, onBack, onOpenCon
       : activeEngine.id === 'cloudflare'
         ? 'Free daily tier · FLUX.1 [schnell]'
         : activeEngine.id === 'fal'
-          ? 'fal usage rates apply · Nano Banana 2'
+          // The exact figure, not "usage rates apply": the resolution and the
+          // web-search toggle are both known here, which is everything the
+          // published rate needs, and the ledger prices the run this way after
+          // the fact anyway.
+          ? `${falImageCost ? `Est. ≈ $${falImageCost.costUsd.toFixed(3)} / image` : 'fal usage rates apply'} · Nano Banana 2`
           : activeProviderCatalogModel
             ? `${activeProviderCatalogModel.price ?? 'Usage rates apply'} · ${activeProviderCatalogModel.label}`
             : `Est. ≈ $${estCost.toFixed(2)} / image · Gemini 3 Pro Image`;

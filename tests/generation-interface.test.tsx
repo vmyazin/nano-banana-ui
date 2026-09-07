@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import GenerationInterface from '../components/GenerationInterface';
 import { cancelFalJob, runFalImage } from '../lib/fal/browser';
+import { falPublishedCost } from '../lib/spend/rates';
 import { useAppStore } from '../store/useAppStore';
 import { useDraftStore } from '../store/useDraftStore';
 import { FEATURES, type Feature } from '../types';
@@ -798,11 +799,19 @@ describe('GenerationInterface fal image generation', () => {
     }
   );
 
-  it('shows the fal usage-rate provider line without a hard-coded price', () => {
+  it('prices the fal line from the published rate rather than a literal', () => {
+    // This line used to read "fal usage rates apply", on the principle that the
+    // app should not invent a figure. It no longer has to invent one: the rate
+    // table it prices the finished run with is the same table read here, so the
+    // expectation is derived from that source rather than typed in - which is
+    // what the original test was protecting.
+    const published = falPublishedCost('fal-ai/nano-banana-2', { resolution: '1K', webSearch: false });
+    expect(published).not.toBeNull();
+
     renderInterface();
 
-    expect(screen.getByText('fal usage rates apply · Nano Banana 2')).toBeTruthy();
-    expect(screen.queryByText(/\$\d/)).toBeNull();
+    expect(screen.getByText(`Est. ≈ $${published!.costUsd.toFixed(3)} / image · Nano Banana 2`)).toBeTruthy();
+    expect(screen.queryByText(/usage rates apply/)).toBeNull();
   });
 
   it('rejects a remote image whose declared size exceeds 20 MiB', async () => {

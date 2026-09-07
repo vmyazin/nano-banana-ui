@@ -299,7 +299,7 @@ export default function ProviderVideoWorkspace({
   );
   useAutoAspect(references[0], sizeCandidates, (value) => {
     if (value !== values.size) updateValues('size', value);
-  });
+  }, typeof values.size === 'string' ? values.size : undefined);
 
   const addReferences = async (files: File[]) => {
     const usable = files.filter((file) =>

@@ -175,3 +175,48 @@ export function falPublishedCost(
   if (usd === undefined) return null;
   return { costUsd: usd, unit: 'video', quantity: 1 };
 }
+
+/** `$0.08` → `$0.08`; `$0.081` → `$0.081`. Trailing zeros carry no information. */
+function usd(value: number): string {
+  const fixed = value >= 0.01 ? value.toFixed(3) : value.toFixed(4);
+  return `$${fixed.replace(/0+$/, '').replace(/\.$/, '')}`;
+}
+
+/** `0.1`–`0.4` → `$0.1–0.4`, or a single figure when the range collapses. */
+function usdRange(values: number[]): string | null {
+  const finite = values.filter(value => Number.isFinite(value) && value > 0);
+  if (finite.length === 0) return null;
+  const low = Math.min(...finite);
+  const high = Math.max(...finite);
+  return low === high ? usd(low) : `${usd(low)}–${usd(high).replace('$', '')}`;
+}
+
+/**
+ * A model's published rate, short enough to sit in a picker beside its name.
+ *
+ * The figures were always here — the spend ledger writes them down after every
+ * run — but only the aggregator catalogues carried a `price` string, so the fal
+ * pickers listed Veo 3.1 and Kling 3 Pro by name alone and gave no way to stay
+ * inside a budget without leaving the app. Ranges rather than one number where
+ * the rate genuinely moves with resolution, audio or duration: a single figure
+ * would be a guess presented as a fact.
+ */
+export function falRateLabel(endpointId: string): string | null {
+  const rate = FAL_RATES[endpointId];
+  if (!rate) return null;
+
+  if (rate.unit === 'image') {
+    const multipliers = Object.values(rate.resolutionMultiplier);
+    const range = usdRange(multipliers.map(multiplier => rate.usd * multiplier));
+    return range && `${range} / image`;
+  }
+
+  if (rate.unit === 'second') {
+    const perSecond = Object.values(rate.usdPerSecond).flatMap(entry => [entry.audioOff, entry.audioOn]);
+    const range = usdRange(perSecond);
+    return range && `${range} / s`;
+  }
+
+  const range = usdRange(Object.values(rate.usdPerRun));
+  return range && `${range} / clip`;
+}

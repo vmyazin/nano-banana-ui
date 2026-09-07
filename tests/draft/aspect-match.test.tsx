@@ -130,3 +130,49 @@ describe('useAutoAspect', () => {
     expect(apply).not.toHaveBeenCalled();
   });
 });
+
+describe('an explicit size choice survives a new reference',()=>{
+  // The catalogue rounds: 480p is 864x496 (1.742), 720p is exactly 1280x720.
+  const SIZES=[
+    {label:'480p · 16:9',width:864,height:496},
+    {label:'480p · 9:16',width:496,height:864},
+    {label:'480p · 1:1',width:640,height:640},
+    {label:'480p · 3:4',width:560,height:752},
+    {label:'720p · 16:9',width:1280,height:720},
+    {label:'720p · 9:16',width:720,height:1280},
+  ];
+  const candidates=candidatesFromSizes(SIZES);
+
+  it('keeps 480p when a 16:9 reference arrives, instead of buying 720p',()=>{
+    // The whole report: 720p is a closer numeric match only because the vendor
+    // rounded 480p, and taking it is a 2.25x jump on a rate the reader chose.
+    const matched=closestAspectCandidate(1920,1080,candidates,'480p · 16:9');
+    expect(matched?.value).toBe('480p · 16:9');
+  });
+
+  it('still corrects a genuinely wrong shape',()=>{
+    const matched=closestAspectCandidate(1080,1920,candidates,'480p · 16:9');
+    expect(matched?.value).toBe('480p · 9:16');
+  });
+
+  it('changes the shape without also changing the resolution',()=>{
+    // A portrait reference needs a portrait row; it does not need a dearer one.
+    const matched=closestAspectCandidate(496,864,candidates,'480p · 16:9');
+    expect(matched?.value).toBe('480p · 9:16');
+  });
+
+  it('matches on ratio alone when nothing has been chosen yet',()=>{
+    expect(closestAspectCandidate(1920,1080,candidates)?.value).toBe('720p · 16:9');
+  });
+
+  it('ignores a current value the model does not offer',()=>{
+    // Switching model republishes the whitelist; a stale label must not stick.
+    expect(closestAspectCandidate(1920,1080,candidates,'4K · 16:9')?.value).toBe('720p · 16:9');
+  });
+
+  it('leaves a ratio-only control alone once it already fits',()=>{
+    const ratios=candidatesFromValues(['16:9','9:16','1:1','4:3']);
+    expect(closestAspectCandidate(1920,1080,ratios,'16:9')?.value).toBe('16:9');
+    expect(closestAspectCandidate(1080,1920,ratios,'16:9')?.value).toBe('9:16');
+  });
+});

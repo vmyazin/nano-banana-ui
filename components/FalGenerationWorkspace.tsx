@@ -44,6 +44,7 @@ import { prepareReferences } from '@/lib/draft/ingest';
 import { useDraftStore } from '@/store/useDraftStore';
 import { usePromptLibraryStore } from '@/store/usePromptLibraryStore';
 import { candidatesFromValues, useAutoAspect } from '@/lib/draft/aspect-match';
+import { falRateLabel } from '@/lib/spend/rates';
 import { carryOverValues } from '@/lib/draft/carry-over';
 import { FRAME_EXTRACTION_ERROR, isVideoFile, lastFrameAsImageFile } from '@/lib/video-frame';
 import type { EngineId } from '@/lib/engines/registry';
@@ -723,9 +724,22 @@ function FalGenerationWorkspaceSession({
               onChange={(event) => setModel(event.target.value)}
               className="w-full"
             >
-              {matchingModels.map((model) => (
-                <option key={model.id} value={model.id}>{model.label} · {model.provider}</option>
-              ))}
+              {/* The rate rides along with the name, as the aggregator pickers
+                  already do. Without it this list named Veo 3.1 and Kling 3 Pro
+                  and nothing else, and staying inside a budget meant leaving
+                  the app to look the numbers up. */}
+              {matchingModels.map((model) => {
+                // The rate belongs to the endpoint, and a model publishes one
+                // per input mode, so it is read for the variant this picker
+                // would actually submit to.
+                const endpoint = resolveFalVariant(model.id, 'video', inputMode)?.endpointId;
+                const rate = endpoint ? falRateLabel(endpoint) : null;
+                return (
+                  <option key={model.id} value={model.id}>
+                    {model.label} · {model.provider}{rate ? ` · ${rate}` : ''}
+                  </option>
+                );
+              })}
             </select>
             {matchingModels.length === 0 ? (
               <p role="status" className="text-sm text-[var(--foreground-muted)]">No fal video models match your search.</p>

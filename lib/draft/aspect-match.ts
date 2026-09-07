@@ -51,28 +51,64 @@ export function candidatesFromSizes(sizes: ProviderSize[]): AspectCandidate[] {
 }
 
 /**
+ * How far apart two ratios can sit in log space and still be the same shape.
+ *
+ * Vendors round their own tables: this model's "480p · 16:9" is 864×496, which
+ * is 1.742 rather than 1.778, and lands 0.02 from a true 16:9. The nearest
+ * genuinely different shape in these tables is 3:2, a full 0.17 away, so 0.05
+ * separates "the vendor rounded" from "a different shape" with room to spare.
+ */
+const SAME_SHAPE = 0.05;
+
+/** '480p · 16:9' → '480p'. Empty for a label that names only a ratio. */
+export function sizeTier(label: string): string {
+  const parts = label.split('·');
+  return parts.length > 1 ? parts[0].trim() : '';
+}
+
+/**
  * The candidate whose ratio is closest to the image's, measured in log space
  * so that 2:1 and 1:2 sit at the same distance from square — a linear
  * difference would treat portrait ratios as all nearly alike.
+ *
+ * `current` is what the control already holds, and it is treated as a decision
+ * rather than a starting point. These labels carry a resolution as well as a
+ * shape, and resolution is what the money is: on this catalogue 720p is 2.25×
+ * the per-second rate of 480p. Matching on ratio alone moved a reader from
+ * "480p · 16:9" to "720p · 16:9" the moment they attached a 16:9 image, because
+ * the vendor's own rounding made the more expensive row a closer numeric match.
  */
 export function closestAspectCandidate(
   width: number,
   height: number,
-  candidates: AspectCandidate[]
+  candidates: AspectCandidate[],
+  current?: string
 ): AspectCandidate | null {
   if (width <= 0 || height <= 0) return null;
   const target = Math.log(width / height);
-  let best: AspectCandidate | null = null;
-  let bestDistance = Infinity;
-  for (const candidate of candidates) {
-    if (!Number.isFinite(candidate.ratio) || candidate.ratio <= 0) continue;
-    const distance = Math.abs(Math.log(candidate.ratio) - target);
-    if (distance < bestDistance) {
-      bestDistance = distance;
-      best = candidate;
-    }
-  }
-  return best;
+  const usable = candidates.filter(
+    (candidate) => Number.isFinite(candidate.ratio) && candidate.ratio > 0
+  );
+  const distance = (candidate: AspectCandidate) => Math.abs(Math.log(candidate.ratio) - target);
+  const nearest = (options: AspectCandidate[]) =>
+    options.reduce<AspectCandidate | null>(
+      (best, candidate) => (best === null || distance(candidate) < distance(best) ? candidate : best),
+      null
+    );
+
+  const chosen = current ? usable.find((candidate) => candidate.value === current) : undefined;
+  // Already the right shape: there is nothing to correct, and correcting it
+  // anyway is how an explicit budget decision got overwritten.
+  if (chosen && distance(chosen) <= SAME_SHAPE) return chosen;
+
+  const best = nearest(usable);
+  if (!best || !chosen) return best;
+
+  // The shape does have to change. The resolution does not: prefer the same
+  // tier when it can carry the new shape just as well.
+  const tier = sizeTier(chosen.value);
+  const sameTier = tier ? nearest(usable.filter((candidate) => sizeTier(candidate.value) === tier)) : null;
+  return sameTier && distance(sameTier) <= distance(best) + SAME_SHAPE ? sameTier : best;
 }
 
 /**
@@ -87,9 +123,15 @@ export function closestAspectCandidate(
 export function useAutoAspect(
   reference: DraftReference | undefined,
   candidates: AspectCandidate[],
-  apply: (value: string) => void
+  apply: (value: string) => void,
+  /** What the control holds now, so an existing choice can be kept. */
+  current?: string
 ) {
   const applyRef = useRef(apply);
+  // A ref, not a dependency: the effect must fire when the reference changes,
+  // never when the reader edits the control themselves. That edit overrules the
+  // guess and has to stick, which is the rule this hook already kept.
+  const currentRef = useRef(current);
   // Identity-stable key: candidates are rebuilt every render.
   const candidatesKey = candidates.map((candidate) => candidate.value).join('|');
   const candidatesRef = useRef(candidates);
@@ -97,12 +139,13 @@ export function useAutoAspect(
   useEffect(() => {
     applyRef.current = apply;
     candidatesRef.current = candidates;
+    currentRef.current = current;
   });
 
   const { id, width, height } = reference ?? {};
   useEffect(() => {
     if (!id || !width || !height) return;
-    const matched = closestAspectCandidate(width, height, candidatesRef.current);
+    const matched = closestAspectCandidate(width, height, candidatesRef.current, currentRef.current);
     if (matched) applyRef.current(matched.value);
   }, [id, width, height, candidatesKey]);
 }
