@@ -4,6 +4,7 @@ import { Maximize2, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 
 import ImageLightbox from '@/components/ImageLightbox';
+import StoredImagePicker from '@/components/StoredImagePicker';
 
 export interface ReferenceStackItem {
   /** Stable across re-renders, so React keys and the open lightbox survive one. */
@@ -31,12 +32,21 @@ export interface ReferenceStackItem {
 export default function ReferenceStack({
   items,
   onRemove,
+  replaceLimit,
   layout = 'grid',
   captionClassName = 'text-xs font-medium text-[var(--foreground)]',
 }: {
   items: ReferenceStackItem[];
   /** Called with the item's index, matching each workspace's existing remover. */
   onRemove: (index: number) => void;
+  /**
+   * Offer each slot its own Replace, limited to this many references.
+   *
+   * Per slot rather than one control for the set: with two frames on screen,
+   * "replace" has to say *which*, and only the slot knows. Omitted where the
+   * workspace has no library to pick from.
+   */
+  replaceLimit?: number;
   /** `grid` is the two-up square gallery; `stack` is one full-width column. */
   layout?: 'grid' | 'stack';
   /** Caption tone belongs to the workspace's accent; the frame belongs here. */
@@ -73,13 +83,22 @@ export default function ReferenceStack({
               >
                 <Maximize2 size={14} />
               </button>
+            </div>
+            {/* Always on screen, and named. These used to be one unlabelled bin
+                icon that appeared on hover in the thumbnail's corner, so
+                swapping a frame meant discovering it first — and the route back
+                to the library disappeared the moment a slot was filled. */}
+            <div className="flex gap-1.5">
+              {replaceLimit !== undefined && (
+                <StoredImagePicker referenceLimit={replaceLimit} replaceIndex={index} />
+              )}
               <button
                 type="button"
                 onClick={() => onRemove(index)}
                 aria-label={item.removeLabel}
-                className="absolute right-2 top-2 rounded-md border border-white/10 bg-black/70 p-1.5 text-white opacity-0 transition-opacity focus-visible:opacity-100 group-hover/ref:opacity-100"
+                className="btn-secondary flex flex-1 items-center justify-center gap-1.5 px-2 py-1 text-xs"
               >
-                <Trash2 size={14} />
+                <Trash2 size={13} aria-hidden="true" /> Remove
               </button>
             </div>
             {item.sourceLabel && (

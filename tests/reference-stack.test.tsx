@@ -21,6 +21,29 @@ describe('ReferenceStack', () => {
     expect(screen.getByRole('button', { name: 'Remove reference 3' })).toBeInTheDocument();
   });
 
+  it('keeps the remove control on screen rather than behind a hover', () => {
+    // It used to be an unlabelled bin icon at opacity-0 in the thumbnail's
+    // corner, so swapping a frame meant discovering it first.
+    render(<ReferenceStack items={items} onRemove={vi.fn()} />);
+
+    const remove = screen.getByRole('button', { name: 'Remove reference 1' });
+    expect(remove).toHaveTextContent('Remove');
+    expect(remove.className).not.toContain('opacity-0');
+  });
+
+  it('gives every slot its own Replace when a library is available', () => {
+    // Per slot, because with two frames on screen "replace" has to say which.
+    render(<ReferenceStack items={items} onRemove={vi.fn()} replaceLimit={3} />);
+
+    expect(screen.getAllByRole('button', { name: 'Replace' })).toHaveLength(3);
+  });
+
+  it('offers no Replace where the workspace has no library to pick from', () => {
+    render(<ReferenceStack items={items} onRemove={vi.fn()} />);
+
+    expect(screen.queryByRole('button', { name: 'Replace' })).toBeNull();
+  });
+
   it('opens the lightbox for the clicked thumbnail, showing that item full size', () => {
     render(<ReferenceStack items={items} onRemove={vi.fn()} />);
 

@@ -60,8 +60,25 @@ interface DraftState {
    * a kind, so switching engine, input mode or feature costs nothing.
    */
   enterPromptScope: (scope: PromptScope) => void;
-  /** Appends up to `limit` total, dropping and revoking any that no longer fit. */
+  /**
+   * Appends up to `limit` total, dropping and revoking any that no longer fit -
+   * unless a replacement slot is pending, in which case the first entry takes
+   * that slot and the limit does not apply.
+   */
   addReferences: (entries: DraftReferenceInput[], limit: number) => void;
+  /**
+   * The slot the next picked reference should take over, rather than being
+   * appended.
+   *
+   * A store field rather than an argument threaded through the picker: the pick
+   * happens four components away, inside whichever of the two library grids the
+   * user is looking at, and both already call `addReferences`. Routing an index
+   * through `LibraryOverlay`, `GalleryGrid`, `AccountLibrary` and
+   * `CloudAssetGrid` would touch every one of them to say something only the
+   * slot that opened the picker knows.
+   */
+  replaceTarget: number | null;
+  setReplaceTarget: (index: number | null) => void;
   /** Trims to a new model's ceiling, e.g. moving from a 3-image to a 1-image model. */
   limitReferences: (limit: number) => void;
   /** Moves one reference to another slot; order is meaningful for first/last frames. */
@@ -94,9 +111,12 @@ export const useDraftStore = create<DraftState>((set, get) => ({
   promptScope: null,
   promptByScope: {},
   references: [],
+  replaceTarget: null,
   controlValues: {},
 
   setPrompt: (prompt) => set({ prompt }),
+
+  setReplaceTarget: (index) => set({ replaceTarget: index }),
 
   enterPromptScope: (scope) =>
     set((state) => {
@@ -126,6 +146,23 @@ export const useDraftStore = create<DraftState>((set, get) => ({
         }));
       });
     }
+    // Swapping one slot, not adding to the set: the pending target takes the
+    // first pick and the limit is irrelevant, since the count cannot change.
+    // Cleared either way, so a cancelled pick cannot leak into the next add.
+    const { replaceTarget } = get();
+    if (replaceTarget !== null) {
+      const next = [...get().references];
+      if (created.length > 0 && replaceTarget >= 0 && replaceTarget < next.length) {
+        release([next[replaceTarget]]);
+        next[replaceTarget] = created[0];
+        // Anything past the first has nowhere to go in a swap.
+        release(created.slice(1));
+        set({ references: next, replaceTarget: null });
+        return;
+      }
+      set({ replaceTarget: null });
+    }
+
     const combined = [...get().references, ...created];
     if (combined.length <= limit) {
       set({ references: combined });
@@ -173,6 +210,13 @@ export const useDraftStore = create<DraftState>((set, get) => ({
 
   reset: () => {
     release(get().references);
-    set({ prompt: '', promptScope: null, promptByScope: {}, references: [], controlValues: {} });
+    set({
+      prompt: '',
+      promptScope: null,
+      promptByScope: {},
+      references: [],
+      replaceTarget: null,
+      controlValues: {},
+    });
   },
 }));

@@ -1010,6 +1010,7 @@ export default function GenerationInterface({ feature, apiKey, onBack, onOpenCon
 
               {images.length > 0 && (
                 <ReferenceStack
+                  replaceLimit={feature.maxImages || 1}
                   items={images.map((image, index) => ({
                     id: image.id,
                     src: image.dataUrl,

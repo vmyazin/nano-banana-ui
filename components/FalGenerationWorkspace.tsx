@@ -784,6 +784,7 @@ function FalGenerationWorkspaceSession({
               )}
               <ReferenceStack
                 layout="stack"
+                replaceLimit={maxInputImages}
                 items={references.map((reference, index) => ({
                   id: reference.id,
                   src: reference.previewUrl,

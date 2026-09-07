@@ -37,7 +37,10 @@ export async function addAccountAssetAsReference(asset:CloudAsset,ownerId:string
   assertOwner();
   if(asset.kind!=='image'||!asset.mimeType.startsWith('image/'))throw new Error('Choose an image to use as a reference.');
   if(asset.bytes>MAX_REFERENCE_SOURCE_BYTES)throw new Error(`This image is over ${megabytes(MAX_REFERENCE_SOURCE_BYTES)} and is too large to open as a reference. Download and resize it first.`);
-  if(useDraftStore.getState().references.length>=limit)throw new Error('Remove a reference before adding another.');
+  // A swap keeps the count the same, so a full stack is not a reason to refuse
+  // it - the slot being replaced is already spoken for.
+  const isReplacing=()=>useDraftStore.getState().replaceTarget!==null;
+  if(!isReplacing()&&useDraftStore.getState().references.length>=limit)throw new Error('Remove a reference before adding another.');
   const url=await accountAssetUrl(asset.id,undefined,ownerId);
   assertOwner();
   const response=await fetch(url,{credentials:'omit',referrerPolicy:'no-referrer'});
@@ -50,7 +53,7 @@ export async function addAccountAssetAsReference(asset:CloudAsset,ownerId:string
   assertOwner();
   // Measured after conversion, because conversion is what decides the payload.
   if(prepared.some(entry=>entry.file.size>MAX_REFERENCE_BYTES))throw new Error(`This image is still over ${megabytes(MAX_REFERENCE_BYTES)} after compression. Download and resize it first.`);
-  if(useDraftStore.getState().references.length>=limit)throw new Error('Remove a reference before adding another.');
+  if(!isReplacing()&&useDraftStore.getState().references.length>=limit)throw new Error('Remove a reference before adding another.');
   useDraftStore.getState().addReferences(prepared,limit);
 }
 

@@ -24,6 +24,7 @@ describe('useDraftStore', () => {
       promptScope: null,
       promptByScope: {},
       references: [],
+      replaceTarget: null,
       controlValues: {},
     });
   });
@@ -188,6 +189,60 @@ describe('useDraftStore', () => {
 
       expect(useDraftStore.getState().prompt).toBe('');
       expect(useDraftStore.getState().promptByScope).toEqual({});
+    });
+  });
+
+  describe('replacing one slot', () => {
+    it('swaps the targeted slot in place, leaving the others and the order alone', () => {
+      useDraftStore.getState().addReferences([reference('a.png'), reference('b.png')], 2);
+      const [first, second] = useDraftStore.getState().references;
+
+      useDraftStore.getState().setReplaceTarget(0);
+      useDraftStore.getState().addReferences([reference('c.png')], 2);
+
+      const after = useDraftStore.getState().references;
+      expect(after).toHaveLength(2);
+      expect(after[0].file.name).toBe('c.png');
+      expect(after[1].id).toBe(second.id);
+      // The slot's old preview is the store's to release, and only the store's.
+      expect(revokeObjectURL).toHaveBeenCalledWith(first.previewUrl);
+    });
+
+    it('ignores the limit, since a swap cannot change the count', () => {
+      useDraftStore.getState().addReferences([reference('a.png')], 1);
+
+      useDraftStore.getState().setReplaceTarget(0);
+      useDraftStore.getState().addReferences([reference('b.png')], 1);
+
+      expect(useDraftStore.getState().references).toHaveLength(1);
+      expect(useDraftStore.getState().references[0].file.name).toBe('b.png');
+    });
+
+    it('clears the target, so the next ordinary add appends', () => {
+      useDraftStore.getState().addReferences([reference('a.png')], 4);
+      useDraftStore.getState().setReplaceTarget(0);
+      useDraftStore.getState().addReferences([reference('b.png')], 4);
+
+      useDraftStore.getState().addReferences([reference('c.png')], 4);
+
+      expect(useDraftStore.getState().references.map((r) => r.file.name)).toEqual(['b.png', 'c.png']);
+    });
+
+    it('appends as usual when the target no longer exists', () => {
+      // The slot can be removed while the picker is open.
+      useDraftStore.getState().addReferences([reference('a.png')], 4);
+      useDraftStore.getState().setReplaceTarget(5);
+
+      useDraftStore.getState().addReferences([reference('b.png')], 4);
+
+      expect(useDraftStore.getState().references.map((r) => r.file.name)).toEqual(['a.png', 'b.png']);
+      expect(useDraftStore.getState().replaceTarget).toBeNull();
+    });
+
+    it('is forgotten on reset', () => {
+      useDraftStore.getState().setReplaceTarget(1);
+      useDraftStore.getState().reset();
+      expect(useDraftStore.getState().replaceTarget).toBeNull();
     });
   });
 });

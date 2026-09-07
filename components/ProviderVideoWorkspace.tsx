@@ -718,6 +718,7 @@ export default function ProviderVideoWorkspace({
               )}
               <ReferenceStack
                 layout="grid"
+                replaceLimit={maxInputImages}
                 captionClassName="text-[0.65rem] font-medium text-[var(--neon-purple)]"
                 items={references.map((reference, index) => ({
                   id: reference.id,

@@ -552,6 +552,7 @@ export default function KieGenerationWorkspace({
               </div>
               <ReferenceStack
                 layout="grid"
+                replaceLimit={maxInputImages}
                 items={references.map((reference, index) => ({
                   id: reference.id,
                   src: reference.previewUrl,
