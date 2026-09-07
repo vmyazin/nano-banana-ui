@@ -111,6 +111,13 @@
       "request": "launch",
       "command": "ACCOUNT_WORKER_PORT=8821 DEV_FAKE_GENERATION=1 npm run dev -- --port 3121",
       "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "Cost on button (merged) smoke test",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "ACCOUNT_WORKER_PORT=8825 DEV_FAKE_GENERATION=1 npm run dev -- --port 3125",
+      "cwd": "${workspaceFolder}"
     }
   ]
 }

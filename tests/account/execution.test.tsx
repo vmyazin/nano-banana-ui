@@ -37,6 +37,19 @@ describe('account execution and isolation',()=>{
     expect(submit.mock.calls[0][1]).toMatchObject({provider:'gemini',modelId:'gemini-3-pro-image-preview',prompt:'Account image request',mediaType:'image'});
     expect(submit.mock.calls[0][1]).not.toHaveProperty('apiKey');
   });
+  it('says what the press will cost, at the settings on screen',async()=>{
+    // The rate and the duration were both already here; the reader was doing
+    // the multiplication, once per clip, and had to keep the tier straight.
+    useAppStore.setState({runwareApiKey:'runware-key',runwareVideoModel:'bytedance:seedance@2.0-mini'});
+    useAccountStore.setState({status:'ready'});
+    useProviderJobsStore.getState().clearJobs();
+
+    render(<ProviderVideoWorkspace provider="runware" label="Runware" inputMode="text" onBack={()=>{}} onOpenConnections={()=>{}}/>);
+
+    const generate=screen.getByRole('button',{name:/^Generate video/});
+    // 480p is $0.036/s and the model opens on its shortest duration.
+    expect(generate).toHaveAccessibleName(/~\$\d+\.\d{2}/);
+  });
   it('never lets Generate go dead without saying why',async()=>{
     // SA-02 asked for the error re-shown, or the button disabled with the
     // reason attached. While the session is still resolving this button is
@@ -114,7 +127,8 @@ describe('account execution and isolation',()=>{
     useAppStore.setState({runwareApiKey:'',runwareVideoModel:'lightricks:ltx@2.5-fast'});useProviderJobsStore.getState().clearJobs();
     render(<ProviderVideoWorkspace provider="runware" label="Runware" inputMode="text" onBack={()=>{}} onOpenConnections={()=>{}}/>);
     fireEvent.change(screen.getByRole('textbox',{name:'Prompt'}),{target:{value:'Account video request'}});
-    fireEvent.click(screen.getByRole('button',{name:'Generate video'}));
+    // The button now carries its own estimate, so the name is a prefix match.
+    fireEvent.click(screen.getByRole('button',{name:/^Generate video/}));
     await waitFor(()=>expect(submit).toHaveBeenCalledTimes(1));
     expect(submit.mock.calls[0][1]).toMatchObject({provider:'runware',mediaType:'video',values:{durationSeconds:6,size:'720p · 16:9'}});
     expect(useProviderJobsStore.getState().jobs).toHaveLength(0);

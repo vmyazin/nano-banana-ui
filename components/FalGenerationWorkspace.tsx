@@ -45,6 +45,7 @@ import { useDraftStore } from '@/store/useDraftStore';
 import { usePromptLibraryStore } from '@/store/usePromptLibraryStore';
 import { candidatesFromValues, useAutoAspect } from '@/lib/draft/aspect-match';
 import { falRateLabel } from '@/lib/spend/rates';
+import FalRunCost from '@/components/FalRunCost';
 import { carryOverValues } from '@/lib/draft/carry-over';
 import { FRAME_EXTRACTION_ERROR, isVideoFile, lastFrameAsImageFile } from '@/lib/video-frame';
 import type { EngineId } from '@/lib/engines/registry';
@@ -848,7 +849,7 @@ function FalGenerationWorkspaceSession({
               void submit();
             }}
             className="btn-primary flex w-full items-center justify-center gap-2 py-3 text-base disabled:cursor-not-allowed disabled:opacity-50">
-            {isSubmitting ? <><Loader2 className="animate-spin" size={21} /> Uploading & starting…</> : <><Sparkles size={21} /> Generate video</>}
+            {isSubmitting ? <><Loader2 className="animate-spin" size={21} /> Uploading & starting…</> : <><Sparkles size={21} /> Generate video<FalRunCost modelId={selectedModel.id} mediaType="video" inputMode={inputMode} resolution={values.resolution} audio={values.generate_audio} duration={values.duration} /></>}
           </button>
           <CloudExecutionNotice workspace={cloudWorkspace} />
           {error && (

@@ -6,7 +6,7 @@
  */
 import type { KieJob } from '../kie/types';
 import type { MicroAiUsage } from '../micro-ai/models';
-import type { ProviderModel } from '../providers/types';
+import { sizeRateKey, type ProviderModel } from '../providers/types';
 
 import type { SpendEntry, SpendSource } from './ledger';
 import {
@@ -71,7 +71,16 @@ export function resolveCatalogRate(
 ): SpendFigure {
   const rate = model?.rate;
   if (!rate) return unknownFigure('catalog-rate');
-  const resolution = model?.sizes?.find(size => size.label === controls.size || size.preset === controls.size)?.preset;
+  // Only search when a size was actually given. `size.preset === undefined`
+  // is true for every size that has no preset, so with no size chosen this
+  // matched the first Runware entry and priced its cheapest tier — the exact
+  // fallback the rate type forbids. Latent while every size had a preset.
+  const chosen = controls.size === undefined
+    ? undefined
+    : model?.sizes?.find(size => size.label === controls.size || size.preset === controls.size);
+  // Preset first, then the label's leading tier: Atlas keys its table by API
+  // preset, Runware publishes only labels — see sizeRateKey.
+  const resolution = chosen ? sizeRateKey(chosen) : undefined;
   const usd = rate.usdByResolution
     ? (resolution ? rate.usdByResolution[resolution] : undefined)
     : rate.usd;

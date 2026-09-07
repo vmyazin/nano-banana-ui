@@ -192,7 +192,7 @@ describe('VideoWorkspace provider selection', () => {
       />
     );
     fireEvent.change(screen.getByLabelText('Prompt'), { target: { value: 'A moonlit ocean' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Generate video' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Generate video/ }));
     await waitFor(() => expect(submitFalJobMock).toHaveBeenCalledOnce());
     const signal = submitFalJobMock.mock.calls[0][1].signal as AbortSignal;
 

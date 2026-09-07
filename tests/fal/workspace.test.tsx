@@ -215,7 +215,7 @@ describe('FalGenerationWorkspace', () => {
   it('requires exactly one image reference before upload and keeps its preview removable', async () => {
     const { container } = renderWorkspace('image');
     fireEvent.change(screen.getByLabelText('Prompt'), { target: { value: 'Animate this portrait' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Generate video' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Generate video/ }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Add at least one reference image');
     expect(uploadFalFilesMock).not.toHaveBeenCalled();
 
@@ -237,14 +237,14 @@ describe('FalGenerationWorkspace', () => {
     );
 
     fireEvent.change(screen.getByLabelText('Prompt'), { target: { value: 'Push in on the tiger' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Generate video' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Generate video/ }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Add both a first frame and a last frame');
     expect(uploadFalFilesMock).not.toHaveBeenCalled();
 
     const opening = new File(['image'], 'opening.png', { type: 'image/png' });
     fireEvent.change(container.querySelector('input[type="file"]')!, { target: { files: [opening] } });
     await screen.findByAltText('First frame');
-    fireEvent.click(screen.getByRole('button', { name: 'Generate video' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Generate video/ }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Add both a first frame and a last frame');
     expect(uploadFalFilesMock).not.toHaveBeenCalled();
   });
@@ -270,7 +270,7 @@ describe('FalGenerationWorkspace', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Swap first and last' }));
 
     fireEvent.change(screen.getByLabelText('Prompt'), { target: { value: 'Push in on the tiger' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Generate video' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Generate video/ }));
 
     await waitFor(() => expect(submitFalJobMock).toHaveBeenCalledOnce());
     expect(uploadFalFilesMock).toHaveBeenCalledWith(
@@ -326,7 +326,7 @@ describe('FalGenerationWorkspace', () => {
 
     expect(await screen.findByAltText('Reference 1')).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('Prompt'), { target: { value: 'Keep the camera moving' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Generate video' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Generate video/ }));
 
     await waitFor(() => expect(uploadFalFilesMock).toHaveBeenCalledOnce());
     const [, uploaded] = uploadFalFilesMock.mock.calls[0] as [string, File[]];
@@ -390,7 +390,7 @@ describe('FalGenerationWorkspace', () => {
     fireEvent.change(container.querySelector('input[type="file"]')!, { target: { files: [file] } });
     await screen.findByAltText('Reference 1');
     fireEvent.change(screen.getByLabelText('Prompt'), { target: { value: '  Animate this portrait  ' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Generate video' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Generate video/ }));
 
     await waitFor(() => expect(submitFalJobMock).toHaveBeenCalledOnce());
     expect(uploadFalFilesMock).toHaveBeenCalledWith('fal-key-secret', [file], { signal: expect.any(AbortSignal) });
@@ -428,7 +428,7 @@ describe('FalGenerationWorkspace', () => {
     fireEvent.change(container.querySelector('input[type="file"]')!, { target: { files: [file] } });
     await screen.findByAltText('Reference 1');
     fireEvent.change(screen.getByLabelText('Prompt'), { target: { value: 'Animate this portrait' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Generate video' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Generate video/ }));
 
     // The reason is what makes the failure actionable — a generic retry prompt is not.
     expect(await screen.findByRole('alert'))
@@ -443,7 +443,7 @@ describe('FalGenerationWorkspace', () => {
     submitFalJobMock.mockRejectedValue(new Error('Rejected credential fal-key-secret.'));
     renderWorkspace();
     fireEvent.change(screen.getByLabelText('Prompt'), { target: { value: 'A moonlit ocean' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Generate video' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Generate video/ }));
 
     const alert = await screen.findByRole('alert');
     expect(alert).toHaveTextContent('fal could not start this job');
@@ -460,7 +460,7 @@ describe('FalGenerationWorkspace', () => {
     );
     renderWorkspace();
     fireEvent.change(screen.getByLabelText('Prompt'), { target: { value: 'A moonlit ocean' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Generate video' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Generate video/ }));
 
     const alert = await screen.findByRole('alert');
     expect(alert).toHaveTextContent('HTTP 422');
@@ -473,7 +473,7 @@ describe('FalGenerationWorkspace', () => {
     submitFalJobMock.mockReturnValue(pending.promise);
     const view = renderWorkspace();
     fireEvent.change(screen.getByLabelText('Prompt'), { target: { value: 'A moonlit ocean' } });
-    const submit = screen.getByRole('button', { name: 'Generate video' });
+    const submit = screen.getByRole('button', { name: /^Generate video/ });
     fireEvent.click(submit);
     fireEvent.click(submit);
     await waitFor(() => expect(submitFalJobMock).toHaveBeenCalledOnce());
@@ -500,7 +500,7 @@ describe('FalGenerationWorkspace', () => {
     submitFalJobMock.mockReturnValue(pending.promise);
     renderWorkspace();
     fireEvent.change(screen.getByLabelText('Prompt'), { target: { value: 'A moonlit ocean' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Generate video' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Generate video/ }));
     await waitFor(() => expect(submitFalJobMock).toHaveBeenCalledOnce());
     const signal = submitFalJobMock.mock.calls[0][1].signal as AbortSignal;
 
@@ -508,7 +508,7 @@ describe('FalGenerationWorkspace', () => {
       target: { value: 'veo-3-1' },
     });
     expect(signal.aborted).toBe(false);
-    expect(screen.getByRole('button', { name: 'Generate video' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: /^Generate video/ })).toBeEnabled();
     await act(async () => {
       pending.resolve({ requestId: 'request_stale_model' });
       await pending.promise;
@@ -533,7 +533,7 @@ describe('FalGenerationWorkspace', () => {
     const onBack = vi.fn();
     renderWorkspace('text', { onBack });
     fireEvent.change(screen.getByLabelText('Prompt'), { target: { value: 'A moonlit ocean' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Generate video' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Generate video/ }));
     await waitFor(() => expect(submitFalJobMock).toHaveBeenCalledOnce());
     const signal = submitFalJobMock.mock.calls[0][1].signal as AbortSignal;
 
@@ -558,7 +558,7 @@ describe('FalGenerationWorkspace', () => {
       </StrictMode>
     );
     fireEvent.change(screen.getByLabelText('Prompt'), { target: { value: 'A moonlit ocean' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Generate video' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Generate video/ }));
     await waitFor(() => expect(submitFalJobMock).toHaveBeenCalledOnce());
     expect(uploadFalFilesMock).toHaveBeenCalledOnce();
     expect(uploadFalFilesMock).toHaveBeenCalledWith('fal-key-secret', [], { signal: expect.any(AbortSignal) });
@@ -571,7 +571,7 @@ describe('FalGenerationWorkspace', () => {
     submitFalJobMock.mockReturnValue(pending.promise);
     const view = renderWorkspace();
     fireEvent.change(screen.getByLabelText('Prompt'), { target: { value: 'A moonlit ocean' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Generate video' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Generate video/ }));
     await waitFor(() => expect(submitFalJobMock).toHaveBeenCalledOnce());
     const signal = submitFalJobMock.mock.calls[0][1].signal as AbortSignal;
 
@@ -579,11 +579,11 @@ describe('FalGenerationWorkspace', () => {
       <FalGenerationWorkspace inputMode="image" onBack={() => undefined} onOpenConnections={() => undefined} />
     );
     expect(signal.aborted).toBe(false);
-    expect(screen.getByRole('button', { name: 'Generate video' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: /^Generate video/ })).toBeEnabled();
     view.rerender(
       <FalGenerationWorkspace inputMode="text" onBack={() => undefined} onOpenConnections={() => undefined} />
     );
-    expect(screen.getByRole('button', { name: 'Generate video' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: /^Generate video/ })).toBeEnabled();
     await act(async () => {
       pending.resolve({ requestId: 'request_wrongmode1' });
       await pending.promise;
@@ -604,7 +604,7 @@ describe('FalGenerationWorkspace', () => {
     submitFalJobMock.mockReturnValue(pending.promise);
     renderWorkspace();
     fireEvent.change(screen.getByLabelText('Prompt'), { target: { value: 'A moonlit ocean' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Generate video' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Generate video/ }));
     await waitFor(() => expect(submitFalJobMock).toHaveBeenCalledOnce());
 
     fireEvent.change(screen.getByRole('combobox', { name: 'Model' }), {
@@ -628,7 +628,7 @@ describe('FalGenerationWorkspace', () => {
     const onOpenConnections = vi.fn();
     renderWorkspace('text', { onOpenConnections });
     fireEvent.change(screen.getByLabelText('Prompt'), { target: { value: 'A moonlit ocean' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Generate video' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Generate video/ }));
     expect(onOpenConnections).toHaveBeenCalledOnce();
     expect(uploadFalFilesMock).not.toHaveBeenCalled();
     expect(submitFalJobMock).not.toHaveBeenCalled();
@@ -785,7 +785,7 @@ describe('FalGenerationWorkspace', () => {
     fireEvent.change(screen.getByLabelText('Prompt'), {
       target: { value: '  A neon tiger prowling through the rain  ' },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Generate video' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Generate video/ }));
 
     await waitFor(() =>
       expect(useFalJobsStore.getState().jobs[0]?.slug).toBe('neon-tiger-in-the-rain')
@@ -806,7 +806,7 @@ describe('FalGenerationWorkspace', () => {
     renderWorkspace();
 
     fireEvent.change(screen.getByLabelText('Prompt'), { target: { value: 'A neon tiger in the rain' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Generate video' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Generate video/ }));
 
     await waitFor(() => expect(submitFalJobMock).toHaveBeenCalledOnce());
     expect(fetchMock).toHaveBeenCalledWith('/api/slug', expect.objectContaining({ method: 'POST' }));

@@ -23,6 +23,7 @@ import StoredImagePicker from '@/components/StoredImagePicker';
 import GenerationWorkspaceLayout from '@/components/GenerationWorkspaceLayout';
 import ReferenceStack from '@/components/ReferenceStack';
 import { candidatesFromSizes, useAutoAspect } from '@/lib/draft/aspect-match';
+import { resolveCatalogRate } from '@/lib/spend/resolve';
 import { carryOverValues } from '@/lib/draft/carry-over';
 import { useFileDrop } from '@/lib/drop/use-file-drop';
 import { recordFinishedJob } from '@/lib/gallery/record-job';
@@ -297,6 +298,23 @@ export default function ProviderVideoWorkspace({
     () => candidatesFromSizes(selectedModel?.sizes ?? []),
     [selectedModel]
   );
+  /**
+   * What this press will cost, at the settings on screen.
+   *
+   * The rate and the duration were both already here, and the reader was left
+   * to multiply them — once per clip, without mixing up which tier they had
+   * selected. Priced through the same resolver the spend ledger uses, so the
+   * figure on the button and the figure in the ledger cannot disagree; null
+   * whenever the vendor never published a rate for this size, which is a
+   * silence rather than a guess.
+   */
+  const estimate = resolveCatalogRate(
+    selectedModel,
+    typeof values.duration === 'number' ? values.duration : undefined,
+    1,
+    { size: typeof values.size === 'string' ? values.size : undefined }
+  );
+
   useAutoAspect(references[0], sizeCandidates, (value) => {
     if (value !== values.size) updateValues('size', value);
   }, typeof values.size === 'string' ? values.size : undefined);
@@ -800,6 +818,9 @@ export default function ProviderVideoWorkspace({
             ) : (
               <>
                 <Sparkles size={21} /> Generate video
+                {estimate.costUsd !== null && (
+                  <span className="font-normal opacity-80">{` · ~$${estimate.costUsd.toFixed(2)}`}</span>
+                )}
               </>
             )}
           </button>

@@ -62,6 +62,7 @@ const RUNWARE_MODELS: ProviderModel[] = [
     kind: 'video',
     modes: ['reference'],
     price: '$0.05 / s @ 480p · $0.10 @ 720p · $0.20 @ 1080p',
+    rate: { usdByResolution: { '480p': 0.05, '720p': 0.10, '1080p': 0.20 }, per: 'second' },
     maxInputImages: 10,
     videoInputs: {
       reference: {
@@ -87,6 +88,7 @@ const RUNWARE_MODELS: ProviderModel[] = [
     // frameImages takes two, and the vendor's rule for two is first and last.
     modes: ['text', 'image', 'frames'],
     price: '$0.09 / s @ 720p · $0.13 @ 1080p',
+    rate: { usdByResolution: { '720p': 0.09, '1080p': 0.13 }, per: 'second' },
     maxInputImages: 2,
     durations: [6, 8, 10, 12, 14, 16, 18, 20],
     sizes: [
@@ -107,6 +109,7 @@ const RUNWARE_MODELS: ProviderModel[] = [
     kind: 'video',
     modes: ['text', 'image', 'frames'],
     price: '$0.036 / s @ 480p · $0.081 / s @ 720p',
+    rate: { usdByResolution: { '480p': 0.036, '720p': 0.081 }, per: 'second' },
     maxInputImages: 2,
     durations: [4, 5, 6, 8, 10, 15],
     sizes: [
@@ -150,6 +153,7 @@ const RUNWARE_MODELS: ProviderModel[] = [
     kind: 'video',
     modes: ['image'],
     price: '$0.025 / s @ 720p',
+    rate: { usdByResolution: { '720p': 0.025 }, per: 'second' },
     maxInputImages: 1,
     // Documented as a 2–15s range; these are the useful stops inside it.
     durations: [4, 5, 6, 8, 10, 15],

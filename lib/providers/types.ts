@@ -42,6 +42,25 @@ export interface ProviderSize {
   preset?: string;
 }
 
+/** `480p · 16:9` → `480p`; a bare `720p` stays `720p`. */
+export function sizeTier(label: string): string {
+  return label.split('·')[0].trim();
+}
+
+/**
+ * The key a size's published rate is filed under.
+ *
+ * Two vendors name a size two ways. Atlas gives each one an API preset, and
+ * its rate table is keyed by that (`1080p-SR`, not the `1080p (upscaled)` the
+ * label shows). Runware publishes only a label, `480p · 16:9`, whose leading
+ * tier is the thing its per-second price is quoted at. Reading the preset
+ * first and the tier second lets one rate table serve both, so the two
+ * families cannot drift into separate lookups.
+ */
+export function sizeRateKey(size: ProviderSize): string {
+  return size.preset ?? sizeTier(size.label);
+}
+
 /** Published prices; a missing resolution must never fall back to the cheapest tier. */
 export type ProviderRate = {
   per: 'image' | 'second' | 'video';

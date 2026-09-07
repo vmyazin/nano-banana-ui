@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { findModel, PROVIDER_MODELS } from '@/lib/providers/catalog';
+import { sizeRateKey, type ProviderModel } from '@/lib/providers/types';
 
 import { resolveCatalogRate } from '@/lib/spend/resolve';
 
@@ -81,5 +82,78 @@ describe('Atlas billing settings', () => {
   it('does not silently omit an unknown reference surcharge', () => {
     expect(resolveCatalogRate(findModel('atlas', 'bytedance/seedream-v5.0-pro/edit')))
       .toMatchObject({ costUsd: null, confidence: 'unknown' });
+  });
+});
+
+/** Every dollar amount written in a display string. */
+function figuresIn(price: string): number[] {
+  return [...price.matchAll(/\$(\d+(?:\.\d+)?)/g)].map(match => Number(match[1]));
+}
+
+/** Every dollar amount the arithmetic form carries, whichever shape it takes. */
+function figuresOf(rate: NonNullable<ProviderModel['rate']>): number[] {
+  const base = rate.usd !== undefined ? [rate.usd] : Object.values(rate.usdByResolution);
+  return rate.extraInputImageUsd === undefined ? base : [...base, rate.extraInputImageUsd];
+}
+
+/**
+ * `price` is copy and `rate` is arithmetic, and they are the same money written
+ * twice. Atlas generates its string from its table, so those cannot drift; the
+ * Runware tiers are transcribed by hand, and a figure that drifted there would
+ * show one number and bill another — the failure the rate field exists to stop.
+ */
+describe('hand-written prices and rates agree', () => {
+  const priced = Object.values(PROVIDER_MODELS).flat().filter(model => model.rate && model.price);
+
+  it('covers the tiered Runware models this guard was written for', () => {
+    expect(priced.map(model => model.id)).toEqual(expect.arrayContaining([
+      'alibaba:wan@3.0', 'lightricks:ltx@2.5-fast', 'bytedance:seedance@2.0-mini', 'alibaba:wan@2.6-flash',
+    ]));
+  });
+
+  it.each(priced.map(model => [model.id, model] as const))(
+    '%s writes the same figures in price and rate',
+    (_id, model) => {
+      expect(figuresOf(model.rate!).slice().sort()).toEqual(figuresIn(model.price!).slice().sort());
+    }
+  );
+
+  it('files every resolution tier under a key one of its own sizes produces', () => {
+    // A tier no size can reach would price nothing, silently.
+    for (const model of priced) {
+      const table = model.rate?.usdByResolution;
+      if (!table) continue;
+      const reachable = new Set((model.sizes ?? []).map(sizeRateKey));
+      for (const key of Object.keys(table)) expect(reachable).toContain(key);
+    }
+  });
+});
+
+describe('Runware tiers reach the same resolver as Atlas', () => {
+  const seedance = findModel('runware', 'bytedance:seedance@2.0-mini');
+
+  it('prices the report s own example: $0.081 / s at 720p over 4 seconds', () => {
+    const figure = resolveCatalogRate(seedance, 4, 1, { size: '720p · 16:9' });
+    expect(figure.costUsd).toBeCloseTo(0.324, 6);
+    expect(figure.confidence).toBe('estimated');
+  });
+
+  it('charges the cheaper tier when the cheaper tier is chosen', () => {
+    expect(resolveCatalogRate(seedance, 4, 1, { size: '480p · 16:9' }).costUsd).toBeCloseTo(0.144, 6);
+  });
+
+  it('reads the tier from the label when the vendor names no preset', () => {
+    // These sizes carry width and height, not a preset; the label leads with
+    // the tier the per-second price is quoted at.
+    expect(sizeRateKey({ label: '480p · 16:9', width: 864, height: 496 })).toBe('480p');
+    expect(sizeRateKey({ label: '1080p (upscaled)', preset: '1080p-SR' })).toBe('1080p-SR');
+  });
+
+  it('leaves a size the vendor never priced unpriced, rather than guessing', () => {
+    // LTX sells 2K and 4K while quoting only 720p and 1080p.
+    const ltx = findModel('runware', 'lightricks:ltx@2.5-fast');
+    expect(resolveCatalogRate(ltx, 4, 1, { size: '720p · 16:9' }).costUsd).toBeCloseTo(0.36, 6);
+    expect(resolveCatalogRate(ltx, 4, 1, { size: '4K · 16:9' })).toMatchObject({ costUsd: null, confidence: 'unknown' });
+    expect(resolveCatalogRate(seedance, 4, 1)).toMatchObject({ costUsd: null, confidence: 'unknown' });
   });
 });

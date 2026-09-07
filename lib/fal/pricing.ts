@@ -18,12 +18,20 @@ export function falUnitQuantity(unit: string, durationSeconds?: number): number 
   return null;
 }
 
+/**
+ * One duration control's value in seconds. Split out from `falDurationSeconds`
+ * so a caller holding the raw value — rather than the whole control record —
+ * reads it by the same rule instead of writing a second parseFloat.
+ */
+export function falSecondsFrom(raw: string | number | boolean | undefined): number | undefined {
+  const seconds =
+    typeof raw === 'number' ? raw : typeof raw === 'string' ? Number.parseFloat(raw) : Number.NaN;
+  return Number.isFinite(seconds) && seconds > 0 ? seconds : undefined;
+}
+
 /** fal duration controls are `5`, `'10'`, or `'8s'` depending on the model. */
 export function falDurationSeconds(
   values: Record<string, string | number | boolean>
 ): number | undefined {
-  const raw = values.duration;
-  const seconds =
-    typeof raw === 'number' ? raw : typeof raw === 'string' ? Number.parseFloat(raw) : Number.NaN;
-  return Number.isFinite(seconds) && seconds > 0 ? seconds : undefined;
+  return falSecondsFrom(values.duration);
 }
