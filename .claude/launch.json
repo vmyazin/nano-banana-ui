@@ -62,6 +62,13 @@
       "request": "launch",
       "command": "ACCOUNT_WORKER_PORT=8807 DEV_FAKE_GENERATION=1 npm run dev -- --port 3107",
       "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "Run location persistence smoke test",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "ACCOUNT_WORKER_PORT=8809 DEV_FAKE_GENERATION=1 npm run dev -- --port 3109",
+      "cwd": "${workspaceFolder}"
     }
   ]
 }

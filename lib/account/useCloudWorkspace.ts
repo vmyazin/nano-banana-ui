@@ -1,6 +1,7 @@
 'use client';
-import { useRef, useState } from 'react';
+import { useRef } from 'react';
 import { useAccountStore } from '@/store/useAccountStore';
+import { runLocationKey, useRunLocationStore } from '@/store/useRunLocationStore';
 import { usePromptLibraryStore } from '@/store/usePromptLibraryStore';
 import { warmAccountSlug } from './asset-name';
 import { refreshAccount } from './session';
@@ -11,15 +12,19 @@ interface Pending { owner:string;signature:string;files:File[];token:string;requ
 export function useCloudWorkspace(provider:CloudProvider) {
   const session=useAccountStore(state=>state.session);
   const status=useAccountStore(state=>state.status);
-  const [guestOverride,setGuestOverride]=useState(false);
-  const [browserOwner,setBrowserOwner]=useState<string|null>(null);
   const pending=useRef<Pending|null>(null);
   const flight=useRef<Promise<CloudJobView>|null>(null);
   const hasJobs=useAccountStore(state=>state.jobs.some(job=>job.provider===provider));
   const owner=session?.account?.id;
   const signedIn=Boolean(owner);
   const uncertain=status==='unavailable'&&!session;
-  const cloud=signedIn&&browserOwner!==owner||uncertain&&!guestOverride;
+  // Survives the remount that switching engine or input mode causes. The old
+  // pair of useState flags reduces exactly to this: background is the default
+  // wherever it is possible at all, until this owner asks for the browser.
+  const choice=useRunLocationStore(state=>state.choices[runLocationKey(owner,provider)]);
+  const choose=useRunLocationStore(state=>state.choose);
+  const choseBrowser=choice==='browser';
+  const cloud=(signedIn||uncertain)&&!choseBrowser;
   const enabled=Boolean(session?.providers?.includes(provider));
   const connected=Boolean(session?.connections?.some(c=>c.provider===provider));
   // libraryPrompt is what the prompt library remembers once the job is accepted.
@@ -55,6 +60,6 @@ export function useCloudWorkspace(provider:CloudProvider) {
     const promise=perform(request,files,libraryPrompt).finally(()=>{flight.current=null;});
     flight.current=promise;return promise;
   }
-  return {signedIn,cloud,enabled,connected,hasJobs,uncertain,checking:status==='loading'||uncertain&&!guestOverride,unavailable:status==='unavailable',
-    useBrowser:()=>{setBrowserOwner(owner||null);setGuestOverride(true);},useCloud:()=>{setBrowserOwner(null);setGuestOverride(false);},submit};
+  return {signedIn,cloud,enabled,connected,hasJobs,uncertain,checking:status==='loading'||uncertain&&!choseBrowser,unavailable:status==='unavailable',
+    useBrowser:()=>choose(owner,provider,'browser'),useCloud:()=>choose(owner,provider,'cloud'),submit};
 }
