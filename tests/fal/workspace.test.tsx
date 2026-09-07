@@ -297,11 +297,11 @@ describe('FalGenerationWorkspace', () => {
 
     expect(screen.getByRole('button', { name: /Choose the first frame/ })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'From library' }));
-    expect(screen.getByRole('dialog', { name: 'Choose from library' })).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Choose an image' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Use image' }));
 
     expect(await screen.findByAltText('First frame')).toBeInTheDocument();
-    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Choose from library' })).toBeNull());
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Choose an image' })).toBeNull());
     expect(screen.getByRole('button', { name: /Choose the last frame/ })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'From library' }));

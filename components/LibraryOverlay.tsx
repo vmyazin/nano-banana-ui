@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Library, X } from 'lucide-react';
+import { Library, Loader2, Upload, X } from 'lucide-react';
 
 import AccountLibrary from '@/components/account/AccountLibrary';
 import { useAccountStore } from '@/store/useAccountStore';
@@ -12,6 +12,8 @@ import { useAccessibleDialog } from '@/hooks/useAccessibleDialog';
 import { useAppStore } from '@/store/useAppStore';
 import { useGalleryStore } from '@/store/useGalleryStore';
 import { usePromptLibraryStore } from '@/store/usePromptLibraryStore';
+import { prepareReferences } from '@/lib/draft/ingest';
+import { useDraftStore } from '@/store/useDraftStore';
 import type { CloudAssetCounts } from '@/lib/account/contracts';
 
 interface LibraryOverlayProps {
@@ -68,11 +70,49 @@ export default function LibraryOverlay({
   const panelRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
   const descriptionId = useId();
+  const uploadId = useId();
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const isImagePicker = purpose === 'pick-image';
   const isClipPicker = purpose === 'pick-clip';
   // Both pickers behave the same everywhere the difference is only "is this a
   // picker": no section tabs, no library-wide controls, one action per card.
   const isPicker = isImagePicker || isClipPicker;
+
+  /**
+   * The other half of the choice the empty state offers.
+   *
+   * This dialog was the only route a filled slot had — Replace opens it — so a
+   * reader with nothing stored yet met "No stored images yet." and no way
+   * forward at all, and swapping one picture for another off their disk meant
+   * removing the reference and starting over. Which, before the input-slot fix,
+   * also reset the output size.
+   *
+   * Bytes enter through `prepareReferences` like every other reference, and
+   * `addReferences` honours the slot Replace recorded, so the same call both
+   * adds and swaps.
+   */
+  const uploadFromDevice = async (picked: File[]) => {
+    const images = picked.filter((file) => file.type.startsWith('image/'));
+    if (images.length === 0) {
+      setUploadError('Choose an image file.');
+      return;
+    }
+    setUploading(true);
+    setUploadError(null);
+    try {
+      const prepared = await prepareReferences(
+        images.map((file) => ({ file, sourceLabel: file.name })),
+        useAppStore.getState().imageFormat
+      );
+      useDraftStore.getState().addReferences(prepared, referenceLimit ?? 8);
+      onOpenChange(false);
+    } catch {
+      setUploadError('That image could not be read.');
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const close = useCallback(() => onOpenChange(false), [onOpenChange]);
   useAccessibleDialog({ open, onClose: close, dialogRef: panelRef });
@@ -93,7 +133,7 @@ export default function LibraryOverlay({
   const stored = records.reduce((total, record) => total + record.bytes, 0);
   const storedImages = records.filter((record) => record.kind === 'image' && Boolean(record.blob));
   const storedClips = records.filter((record) => record.kind === 'video' && Boolean(record.blob));
-  const dialogTitle = isClipPicker ? 'Add a clip' : isImagePicker ? 'Choose from library' : 'Library';
+  const dialogTitle = isClipPicker ? 'Add a clip' : isImagePicker ? 'Choose an image' : 'Library';
   // Each tab says how much it lists for the source on screen; the cloud count is
   // withheld rather than guessed while its first page is still loading.
   const tabCounts: Record<'results' | 'prompts', number | null> = {
@@ -135,7 +175,7 @@ export default function LibraryOverlay({
                       ? 'Clips from your cloud library and from this device'
                       : 'Clips kept in this browser'
                     : isImagePicker
-                      ? 'Stored images available as a frame for this clip'
+                      ? 'Upload one, or pick an image you have already stored'
                       : account ? 'Your cloud library and the results stored on this device' : 'Results kept in this browser after the provider links expire'}
                 </p>
               </div>
@@ -168,6 +208,42 @@ export default function LibraryOverlay({
                     {tabCounts[name] === null ? name : `${name} (${tabCounts[name]})`}
                   </button>
                 ))}
+              </div>
+            )}
+
+            {isImagePicker && (
+              <div className="mb-4">
+                <label
+                  htmlFor={uploadId}
+                  className={`flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-[var(--border-hover)] bg-[var(--background-elevated)]/40 px-3 py-2.5 text-sm text-[var(--foreground-muted)] transition-colors hover:border-[var(--neon-cyan)]/60 hover:text-[var(--foreground)] ${uploading ? 'pointer-events-none opacity-60' : ''}`}
+                >
+                  {uploading ? (
+                    <Loader2 size={15} className="animate-spin motion-reduce:animate-none" aria-hidden="true" />
+                  ) : (
+                    <Upload size={15} aria-hidden="true" />
+                  )}
+                  {uploading ? 'Reading…' : 'Upload from device'}
+                </label>
+                <input
+                  id={uploadId}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="sr-only"
+                  disabled={uploading}
+                  onChange={(event) => {
+                    const picked = Array.from(event.target.files ?? []);
+                    // Reset first, or picking the same file twice in a row
+                    // fires no change event and the retry looks like a no-op.
+                    event.target.value = '';
+                    void uploadFromDevice(picked);
+                  }}
+                />
+                {uploadError && (
+                  <p role="alert" className="mt-2 text-[0.8125rem] text-red-300">
+                    {uploadError}
+                  </p>
+                )}
               </div>
             )}
 

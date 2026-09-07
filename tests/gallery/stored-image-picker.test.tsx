@@ -37,12 +37,12 @@ describe('StoredImagePicker', () => {
     render(<StoredImagePicker referenceLimit={2} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'From library' }));
-    expect(screen.getByRole('dialog', { name: 'Choose from library' })).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Choose an image' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Use image' }));
 
     await waitFor(() => {
       expect(useDraftStore.getState().references).toHaveLength(1);
-      expect(screen.queryByRole('dialog', { name: 'Choose from library' })).toBeNull();
+      expect(screen.queryByRole('dialog', { name: 'Choose an image' })).toBeNull();
     });
     expect(useDraftStore.getState().references[0]?.file.name).toBe('stored-library-image.png');
   });

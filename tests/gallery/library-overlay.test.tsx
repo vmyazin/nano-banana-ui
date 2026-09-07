@@ -45,6 +45,63 @@ describe('LibraryOverlay', () => {
     useAccountStore.setState({session:null,status:'ready',epoch:0,jobs:[],assets:[]});
   });
 
+  it('takes an upload, so the picker is never a dead end with nothing stored', async () => {
+    // SA-06: Replace opens this dialog and nothing else, so a reader with an
+    // empty library met "No stored images yet." and no way forward - swapping
+    // one picture for another off disk meant removing the reference entirely.
+    const onOpenChange = vi.fn();
+    render(
+      <LibraryOverlay open onOpenChange={onOpenChange} purpose="pick-image" referenceLimit={2} />
+    );
+
+    expect(screen.getByText('No stored images yet.')).toBeInTheDocument();
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    expect(input.accept).toBe('image/*');
+
+    fireEvent.change(input, {
+      target: { files: [new File(['png'], 'from-disk.png', { type: 'image/png' })] },
+    });
+
+    await waitFor(() => expect(useDraftStore.getState().references).toHaveLength(1));
+    expect(useDraftStore.getState().references[0].file.name).toBe('from-disk.png');
+    // Picked and done: the dialog closes the way choosing a stored image does.
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it('swaps the slot Replace recorded, rather than appending to it', async () => {
+    useDraftStore.getState().addReferences(
+      [{ file: new File(['a'], 'first.png', { type: 'image/png' }) },
+       { file: new File(['b'], 'second.png', { type: 'image/png' }) }],
+      2
+    );
+    // What Replace sets before opening this dialog.
+    useDraftStore.getState().setReplaceTarget(0);
+
+    render(
+      <LibraryOverlay open onOpenChange={() => undefined} purpose="pick-image" referenceLimit={2} />
+    );
+    fireEvent.change(document.querySelector('input[type="file"]') as HTMLInputElement, {
+      target: { files: [new File(['c'], 'swapped.png', { type: 'image/png' })] },
+    });
+
+    await waitFor(() =>
+      expect(useDraftStore.getState().references.map(r => r.file.name)).toEqual(['swapped.png', 'second.png'])
+    );
+  });
+
+  it('refuses a file that is not an image, without touching the draft', async () => {
+    render(
+      <LibraryOverlay open onOpenChange={() => undefined} purpose="pick-image" referenceLimit={2} />
+    );
+
+    fireEvent.change(document.querySelector('input[type="file"]') as HTMLInputElement, {
+      target: { files: [new File(['clip'], 'clip.mp4', { type: 'video/mp4' })] },
+    });
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Choose an image file.');
+    expect(useDraftStore.getState().references).toHaveLength(0);
+  });
+
   it('presents a focused image-only picker without library management', () => {
     useGalleryStore.setState({
       records: [
@@ -70,7 +127,9 @@ describe('LibraryOverlay', () => {
       />
     );
 
-    expect(screen.getByRole('dialog', { name: 'Choose from library' })).toBeInTheDocument();
+    // Named for what it offers: the picker takes an upload as well as a stored
+    // image, so it no longer claims to be only the library.
+    expect(screen.getByRole('dialog', { name: 'Choose an image' })).toBeInTheDocument();
     expect(screen.getByText('moonlit palms')).toBeInTheDocument();
     expect(screen.queryByText('moving palms')).toBeNull();
     expect(screen.queryByRole('tablist')).toBeNull();

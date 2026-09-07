@@ -118,6 +118,13 @@
       "request": "launch",
       "command": "ACCOUNT_WORKER_PORT=8825 DEV_FAKE_GENERATION=1 npm run dev -- --port 3125",
       "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "Replace source smoke test",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "ACCOUNT_WORKER_PORT=8827 DEV_FAKE_GENERATION=1 npm run dev -- --port 3127",
+      "cwd": "${workspaceFolder}"
     }
   ]
 }
