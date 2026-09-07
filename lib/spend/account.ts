@@ -130,15 +130,18 @@ export function buildAccountSpendEntry(args: BuildAccountSpendEntryArgs): Accoun
 
   const model = findModel(request.provider, request.modelId);
   const duration = typeof request.values.durationSeconds === 'number' ? request.values.durationSeconds : undefined;
-  const resolved = resolveCatalogRate(model, duration, outputs);
+  const resolved = resolveCatalogRate(model, duration, outputs, {
+    size: typeof request.values.size === 'string' ? request.values.size : undefined,
+    inputImages: request.referenceIds.length,
+  });
   if (resolved.costUsd !== null) return { ...base, ...resolved };
   return {
     ...base,
     ...withNote(
       resolved,
-      model?.rate?.per === 'second'
+      resolved.note ?? (model?.rate?.per === 'second'
         ? 'The published per-second rate cannot be applied without a saved duration.'
-        : 'The provider catalog does not publish a flat rate for this model.'
+        : 'The provider catalog does not publish a rate for this model.')
     ),
   };
 }

@@ -175,12 +175,22 @@ const RUNWARE_MODELS: ProviderModel[] = [
  * Neither tier has a native 1080p: above 720p they list only the upscaled `-SR`
  * sizes, and `4k` belongs to the full Seedance 2.0 model alone.
  */
-function seedance20Tier(tier: 'mini' | 'fast', usdPerSecond: number): ProviderModel[] {
+function seedance20Tier(tier: 'mini' | 'fast'): ProviderModel[] {
+  // Resolution-specific Atlas prices, read 2026-09-07:
+  // https://www.atlascloud.ai/models/explore/seedance-2-lowest-price
+  // The endpoint llms.txt quotes only the starting rate. Fast's published
+  // 1080p price does not explicitly identify the API's 1080p-SR option;
+  // leave that and unlisted 1440p-SR prices unknown rather than infer them.
+  const usdByResolution: Record<string, number> = tier === 'mini'
+    ? { '480p': 0.0113, '720p': 0.0242, '1080p-SR': 0.0435 }
+    : { '480p': 0.027, '720p': 0.0581 };
   const shared = {
     label: `Seedance 2.0 ${tier === 'mini' ? 'Mini' : 'Fast'}`,
     kind: 'video' as const,
-    price: `$${usdPerSecond} / s`,
-    rate: { usd: usdPerSecond, per: 'second' as const },
+    price: Object.entries(usdByResolution)
+      .map(([resolution, usd]) => `$${usd} / s @ ${resolution}`)
+      .join(' · ') + ' · other sizes: price unknown',
+    rate: { usdByResolution, per: 'second' as const },
     // Documented as any whole 4–15; these are the stops worth offering.
     durations: [4, 5, 6, 8, 10, 12, 15],
     sizes: [
@@ -275,7 +285,9 @@ const ATLAS_MODELS: ProviderModel[] = [
     fileCode: 'seedream-v5_0-pro',
     kind: 'image',
     modes: ['text'],
-    price: '$0.036 / image',
+    // atlas.ts always submits the 1.5K size tier, regardless of the shared
+    // studio imageSize setting. Do not charge the unused 2K tier here.
+    price: '$0.036 / image @ 1.5K',
     rate: { usd: 0.036, per: 'image' },
     note: "ByteDance's flagship — the best prompt adherence and in-image typography here.",
   },
@@ -285,8 +297,10 @@ const ATLAS_MODELS: ProviderModel[] = [
     fileCode: 'seedream-v5_0-pro-edit',
     kind: 'image',
     modes: ['image'],
-    price: '$0.036 / image',
-    rate: { usd: 0.036, per: 'image' },
+    price: '$0.036 / image @ 1.5K + $0.003 / extra reference',
+    // https://www.atlascloud.ai/docs/more-models/bytedance/seedream-v5.0-pro-edit/generateImage
+    // First input is included; additional inputs are charged (read 2026-09-07).
+    rate: { usd: 0.036, per: 'image', extraInputImageUsd: 0.003 },
     maxInputImages: 10,
     note: 'Editing only — it needs at least one reference. The first is included in the price; each one after it adds $0.003.',
   },
@@ -325,8 +339,8 @@ const ATLAS_MODELS: ProviderModel[] = [
     ],
   },
   // The only models here with native audio and a character-reference mode.
-  ...seedance20Tier('mini', 0.011),
-  ...seedance20Tier('fast', 0.027),
+  ...seedance20Tier('mini'),
+  ...seedance20Tier('fast'),
 ];
 
 const COMET_MODELS: ProviderModel[] = [

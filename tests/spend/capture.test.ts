@@ -28,6 +28,14 @@ beforeEach(() => {
 });
 
 describe('captureImageResult', () => {
+  it('prices the actual Atlas Seedream tier and charges extra references', () => {
+    captureImageResult({
+      engine: 'atlas', modelId: 'bytedance/seedream-v5.0-pro/edit',
+      prompt: 'p', inputImages: 3, resolution: '4K',
+    });
+    // The shared imageSize preference is not sent to Atlas; atlas.ts sends 1.5K.
+    expect(entries()[0].costUsd).toBeCloseTo(0.042, 6);
+  });
   it('files a Gemini run as exact when usage came back', () => {
     captureImageResult({
       engine: 'gemini',
@@ -166,6 +174,14 @@ describe('captureProviderJob', () => {
   it('uses the catalog rate and duration for Atlas', () => {
     captureProviderJob('atlas', { ...job, provider: 'atlas', modelId: 'ltx-2.3-quality/text-to-video' }, { taskId: 'x', state: 'success', urls: job.urls });
     expect(entries()[0]).toMatchObject({ costUsd: 0.01, confidence: 'estimated', quantity: { unit: 'second', value: 5 } });
+  });
+
+  it('uses the saved Atlas size rather than the currently selected or cheapest tier', () => {
+    captureProviderJob('atlas', {
+      ...job, provider: 'atlas', modelId: 'bytedance/seedance-2.0-mini/text-to-video',
+      controlValues: { duration: 10, size: '720p' },
+    }, { taskId: 'x', state: 'success', urls: job.urls });
+    expect(entries()[0].costUsd).toBeCloseTo(0.242, 6);
   });
 });
 

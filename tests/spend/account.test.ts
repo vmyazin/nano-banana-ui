@@ -10,6 +10,33 @@ const request = (patch:Partial<CloudJobRequest> = {}):CloudJobRequest => ({
 const result = (patch:Partial<PersistedProviderResult> = {}):PersistedProviderResult => ({sources:[{}],...patch});
 
 describe('account spend entry builder',()=>{
+  it('uses the saved Atlas video size and duration', () => {
+    const entry = buildAccountSpendEntry({
+      jobId: 'atlas-video', at: 1, result: result(),
+      request: request({ provider: 'atlas', modelId: 'bytedance/seedance-2.0-fast/text-to-video',
+        mediaType: 'video', values: { size: '720p', durationSeconds: 10 } }),
+    });
+    expect(entry?.costUsd).toBeCloseTo(0.581, 6);
+    expect(entry?.confidence).toBe('estimated');
+  });
+
+  it('keeps an unpriced Atlas resolution unknown with the relevant explanation', () => {
+    const entry = buildAccountSpendEntry({
+      jobId: 'atlas-unknown', at: 1, result: result(),
+      request: request({ provider: 'atlas', modelId: 'bytedance/seedance-2.0-fast/text-to-video',
+        mediaType: 'video', values: { size: '1440p (upscaled)', durationSeconds: 10 } }),
+    });
+    expect(entry).toMatchObject({ costUsd: null, confidence: 'unknown', note: expect.stringContaining('output size') });
+  });
+
+  it('counts Seedream references and ignores the unused shared imageSize preference', () => {
+    const entry = buildAccountSpendEntry({
+      jobId: 'atlas-edit', at: 1, result: result(),
+      request: request({ provider: 'atlas', modelId: 'bytedance/seedream-v5.0-pro/edit',
+        inputMode: 'image', referenceIds: ['a', 'b', 'c'], values: { imageSize: '2K' } }),
+    });
+    expect(entry?.costUsd).toBeCloseTo(0.042, 6);
+  });
   it('prices Gemini usage once even with multiple outputs and limits the prompt excerpt',()=>{
     const entry=buildAccountSpendEntry({jobId:'job-1',request:request(),result:result({sources:[{},{}],usage:{promptTokens:100,outputTokens:1120}}),at:123});
     expect(entry).toMatchObject({id:'gemini-job-1',at:123,confidence:'exact',source:'usage-metadata',quantity:{unit:'token',value:1220}});

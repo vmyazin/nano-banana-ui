@@ -66,14 +66,30 @@ export function resolveRunware(cost: number | undefined): SpendFigure {
 export function resolveCatalogRate(
   model: ProviderModel | undefined,
   durationSeconds?: number,
-  outputImages = 1
+  outputImages = 1,
+  controls: { size?: string; inputImages?: number } = {}
 ): SpendFigure {
   const rate = model?.rate;
   if (!rate) return unknownFigure('catalog-rate');
+  const resolution = model?.sizes?.find(size => size.label === controls.size || size.preset === controls.size)?.preset;
+  const usd = rate.usdByResolution
+    ? (resolution ? rate.usdByResolution[resolution] : undefined)
+    : rate.usd;
+  if (usd === undefined || !Number.isFinite(usd) || usd < 0) {
+    return unknownFigure('catalog-rate', 'No verified published rate covers the saved output size.');
+  }
+  let inputCost = 0;
+  if (rate.extraInputImageUsd !== undefined) {
+    const count = controls.inputImages;
+    if (count === undefined || !Number.isInteger(count) || count < 0) {
+      return unknownFigure('catalog-rate', 'The reference count is required to estimate this model.');
+    }
+    inputCost = Math.max(0, count - 1) * rate.extraInputImageUsd;
+  }
   if (rate.per === 'second') {
-    if (durationSeconds === undefined || !(durationSeconds > 0)) return unknownFigure('catalog-rate');
+    if (durationSeconds === undefined || !Number.isFinite(durationSeconds) || !(durationSeconds > 0)) return unknownFigure('catalog-rate');
     return {
-      costUsd: rate.usd * durationSeconds,
+      costUsd: usd * durationSeconds + inputCost,
       confidence: 'estimated',
       source: 'catalog-rate',
       quantity: { unit: 'second', value: durationSeconds },
@@ -81,7 +97,7 @@ export function resolveCatalogRate(
   }
   const quantity = rate.per === 'image' && Number.isInteger(outputImages) && outputImages > 0 ? outputImages : 1;
   return {
-    costUsd: rate.usd * quantity,
+    costUsd: usd * quantity + inputCost,
     confidence: 'estimated',
     source: 'catalog-rate',
     quantity: { unit: rate.per, value: quantity },

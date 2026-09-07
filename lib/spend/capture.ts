@@ -100,7 +100,12 @@ export function captureImageResult(args: ImageResultCapture): void {
         return;
       case 'atlas':
       case 'comet':
-        file(withFigure(base, resolveCatalogRate(args.modelId ? findModel(args.engine, args.modelId) : undefined)));
+        file(withFigure(base, resolveCatalogRate(
+          args.modelId ? findModel(args.engine, args.modelId) : undefined,
+          undefined,
+          1,
+          { inputImages: args.inputImages }
+        )));
         return;
       case 'fal': {
         const inputMode = args.inputImages > 0 ? 'image' : 'text';
@@ -224,7 +229,9 @@ export function captureProviderJob(provider: ProviderId, job: ProviderJob, task:
     file(
       withFigure(
         base,
-        resolveCatalogRate(findModel(provider, job.modelId), typeof duration === 'number' ? duration : undefined)
+        resolveCatalogRate(findModel(provider, job.modelId), typeof duration === 'number' ? duration : undefined, 1, {
+          size: typeof job.controlValues?.size === 'string' ? job.controlValues.size : undefined,
+        })
       )
     );
   } catch {

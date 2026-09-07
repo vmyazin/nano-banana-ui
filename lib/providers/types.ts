@@ -42,11 +42,15 @@ export interface ProviderSize {
   preset?: string;
 }
 
-/** A flat published price the app can multiply, unlike the display-only `price`. */
-export interface ProviderRate {
-  usd: number;
+/** Published prices; a missing resolution must never fall back to the cheapest tier. */
+export type ProviderRate = {
   per: 'image' | 'second' | 'video';
-}
+  /** The first reference is included; subsequent references are billed once per request. */
+  extraInputImageUsd?: number;
+} & (
+  | { usd: number; usdByResolution?: never }
+  | { usd?: never; usdByResolution: Record<string, number> }
+);
 
 export interface ProviderModel {
   /** The vendor's own identifier, verbatim. Never construct one of these. */
@@ -69,9 +73,8 @@ export interface ProviderModel {
    */
   price?: string;
   /**
-   * The same published price as arithmetic, for the spend ledger. Only set
-   * when `price` is one flat figure; tiered or metered models leave it out and
-   * their runs record as unknown.
+   * Published price as arithmetic for the spend ledger. Resolution tables
+   * cover only verified tiers; unsupported settings record as unknown.
    */
   rate?: ProviderRate;
   /** Max reference images the model accepts, when the vendor documents one. */
