@@ -481,7 +481,13 @@ export default function ProviderVideoWorkspace({
   };
 
   const submit = async () => {
-    if (cloudWorkspace.checking) return;
+    // Says why, as the fal and Kie workspaces already do. This was the only
+    // submit guard here that could return without a word, and a press that
+    // produces nothing at all reads as a broken button rather than a wait.
+    if (cloudWorkspace.checking) {
+      setError('Still checking your account. Try again in a moment.');
+      return;
+    }
     if (needsKey) {
       setError(`Connect your ${label} key before starting a generation.`);
       onOpenConnections(provider);
@@ -781,6 +787,10 @@ export default function ProviderVideoWorkspace({
               void submit();
             }}
             disabled={isSubmitting || cloudWorkspace.checking}
+            // A disabled control has to carry its own reason: the guard above
+            // can only be reached programmatically, so for a pointer this
+            // button going dead is the whole of the explanation on offer.
+            title={cloudWorkspace.checking ? 'Still checking your account.' : undefined}
             className="btn-primary flex w-full items-center justify-center gap-2 py-3 text-base disabled:cursor-not-allowed disabled:opacity-50"
           >
             {isSubmitting ? (

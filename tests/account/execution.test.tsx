@@ -37,6 +37,61 @@ describe('account execution and isolation',()=>{
     expect(submit.mock.calls[0][1]).toMatchObject({provider:'gemini',modelId:'gemini-3-pro-image-preview',prompt:'Account image request',mediaType:'image'});
     expect(submit.mock.calls[0][1]).not.toHaveProperty('apiKey');
   });
+  it('never lets Generate go dead without saying why',async()=>{
+    // SA-02 asked for the error re-shown, or the button disabled with the
+    // reason attached. While the session is still resolving this button is
+    // disabled, so the reason has to travel on the button itself.
+    const runwareSession:AccountSession={...session,providers:['runware'],connections:[{id:'runware-connection',provider:'runware',revision:1,hint:'test'}]};
+    useAccountStore.getState().applySession(runwareSession);
+    useAccountStore.setState({status:'loading'});
+
+    render(<ProviderVideoWorkspace provider="runware" label="Runware" inputMode="text" onBack={()=>{}} onOpenConnections={()=>{}}/>);
+
+    const generate=screen.getByRole('button',{name:/Generate/i});
+    expect(generate).toBeDisabled();
+    expect(generate).toHaveAttribute('title','Still checking your account.');
+  });
+  it('stays usable after a background image-to-video submission fails',async()=>{
+    // The exact SA-01 repro: Video -> Image to video -> attach a reference ->
+    // Generate. The upload is what fails there, before any job exists.
+    const runwareSession:AccountSession={...session,providers:['runware'],connections:[{id:'runware-connection',provider:'runware',revision:1,hint:'test'}]};
+    useAccountStore.getState().applySession(runwareSession);refresh.mockResolvedValue(runwareSession);
+    useAppStore.setState({runwareApiKey:'',runwareVideoModel:'lightricks:ltx@2.5-fast'});
+    useProviderJobsStore.getState().clearJobs();
+    Object.defineProperty(URL,'createObjectURL',{configurable:true,value:vi.fn(()=>'blob:reference')});
+    Object.defineProperty(URL,'revokeObjectURL',{configurable:true,value:vi.fn()});
+    useDraftStore.getState().addReferences([{file:new File(['x'],'frame.png',{type:'image/png'})}],1);
+    upload.mockRejectedValue(new Error('Too many references are still in use for background jobs.'));
+
+    render(<ProviderVideoWorkspace provider="runware" label="Runware" inputMode="image" onBack={()=>{}} onOpenConnections={()=>{}}/>);
+    fireEvent.change(screen.getByLabelText('Prompt'),{target:{value:'A canal at dusk'}});
+
+    fireEvent.click(screen.getByRole('button',{name:/Generate/i}));
+    await waitFor(()=>expect(upload).toHaveBeenCalledTimes(1));
+    expect(await screen.findByText(/still in use/)).toBeInTheDocument();
+
+    // The second press has to reach the account again, not be swallowed.
+    fireEvent.click(screen.getByRole('button',{name:/Generate/i}));
+    await waitFor(()=>expect(upload).toHaveBeenCalledTimes(2));
+  });
+  it('stays usable after a background submission fails',async()=>{
+    // SA-02: once the storage error fired, further clicks did nothing at all -
+    // no job, no error, no network call - and the button still looked live.
+    const geminiSession:AccountSession={...session,providers:['gemini'],connections:[{id:'gemini-connection',provider:'gemini',revision:1,hint:'test'}]};
+    useAccountStore.getState().applySession(geminiSession);refresh.mockResolvedValue(geminiSession);
+    useAppStore.setState({engine:'gemini',apiKey:''});
+    submit.mockRejectedValue(new Error('Too many references are still in use for background jobs.'));
+    render(<QueryClientProvider client={new QueryClient()}><GenerationInterface feature={FEATURES.find(f=>f.id==='text-to-image')!} apiKey="" onBack={()=>{}} onOpenConnections={()=>{}}/></QueryClientProvider>);
+    fireEvent.change(screen.getByRole('textbox',{name:'Prompt'}),{target:{value:'A canal at dusk'}});
+
+    fireEvent.click(screen.getByRole('button',{name:/Generate Image/i}));
+    await waitFor(()=>expect(submit).toHaveBeenCalledTimes(1));
+    expect(await screen.findByText(/still in use/)).toBeInTheDocument();
+
+    // The second press has to reach the account again, not be swallowed.
+    fireEvent.click(screen.getByRole('button',{name:/Generate Image/i}));
+    await waitFor(()=>expect(submit).toHaveBeenCalledTimes(2));
+  });
   it('asks for the account connection, not the browser key, when fal runs in the cloud',async()=>{
     const falSession:AccountSession={...session,providers:['fal'],connections:[{id:'fal-connection',provider:'fal',revision:1,hint:'test'}]};
     useAccountStore.getState().applySession(falSession);refresh.mockResolvedValue(falSession);
