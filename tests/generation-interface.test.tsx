@@ -277,12 +277,12 @@ describe('GenerationInterface fal image generation', () => {
     });
   });
 
-  it('offers fal Nano Banana 2 for every image feature', () => {
+  it('offers the fal engine for every image feature', () => {
     for (const feature of FEATURES) {
       const view = renderInterface(feature);
 
       expect(
-        screen.getByRole('button', { name: /fal\.ai.*Nano Banana 2/i })
+        screen.getByRole('button', { name: /^fal\.ai$/i })
       ).toBeTruthy();
 
       view.unmount();
@@ -312,7 +312,7 @@ describe('GenerationInterface fal image generation', () => {
       vi.stubGlobal('fetch', fetchMock);
       renderInterface(feature);
 
-      fireEvent.click(screen.getByRole('button', { name: /fal\.ai.*Nano Banana 2/i }));
+      fireEvent.click(screen.getByRole('button', { name: /^fal\.ai$/i }));
       const files = Array.from({ length: referenceCount }, (_, index) =>
         new File([`${feature.id}-${index}`], `${feature.id}-${index}.png`, {
           type: 'image/png',
@@ -371,7 +371,7 @@ describe('GenerationInterface fal image generation', () => {
     vi.stubGlobal('fetch', fetchMock);
     renderInterface(searchGrounding);
 
-    fireEvent.click(screen.getByRole('button', { name: /fal\.ai.*Nano Banana 2/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^fal\.ai$/i }));
     fireEvent.change(screen.getByRole('textbox'), {
       target: { value: 'A bright editorial still life' },
     });

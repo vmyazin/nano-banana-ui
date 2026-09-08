@@ -122,7 +122,7 @@ export const ENGINES: EngineMeta[] = [
   },
   {
     id: 'fal',
-    label: 'fal.ai · Nano Banana 2',
+    label: 'fal.ai',
     blurb: 'Nano Banana 2, on your own fal key',
     requiresApiKey: true,
     supportsInputImages: true,
