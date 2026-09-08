@@ -360,6 +360,24 @@ select:focus {
   box-shadow: 0 0 0 3px rgba(0, 255, 249, 0.12);
 }
 
+/* A field still waiting on something says so where the reader is looking,
+   rather than only in a sentence somewhere below the button. Hung off
+   aria-invalid so the visual state and the one assistive tech reads cannot
+   drift apart. In the brand accent, not red: nothing has failed, the field is
+   asking to be filled in. */
+input[aria-invalid='true'],
+textarea[aria-invalid='true'],
+select[aria-invalid='true'] {
+  border-color: rgba(255, 237, 78, 0.55);
+}
+
+input[aria-invalid='true']:focus,
+textarea[aria-invalid='true']:focus,
+select[aria-invalid='true']:focus {
+  border-color: rgba(255, 237, 78, 0.8);
+  box-shadow: 0 0 0 3px rgba(255, 237, 78, 0.14);
+}
+
 input::placeholder,
 textarea::placeholder {
   color: var(--foreground-subtle);

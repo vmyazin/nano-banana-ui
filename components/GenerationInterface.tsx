@@ -1,7 +1,7 @@
 // components/GenerationInterface.tsx
 'use client';
 
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useId } from 'react';
 import { useCloudWorkspace } from '@/lib/account/useCloudWorkspace';
 import { SINGLE_IMAGE_MODELS } from '@/lib/account/models';
 import { featureImagePrompt } from '@/lib/image/feature-prompt';
@@ -303,6 +303,15 @@ export default function GenerationInterface({ feature, apiKey, onBack, onOpenCon
   const cloudModelId = activeProviderModel ?? (activeEngine.id === 'fal' ? FAL_IMAGE_MODEL.id : activeEngine.id === 'gemini' || activeEngine.id === 'cloudflare' || activeEngine.id === 'pollinations' ? SINGLE_IMAGE_MODELS[activeEngine.id] : activeEngine.id);
   const cloudInputMode = feature.requiresImage ? 'image' : 'text';
   const [cloudSubmitting, setCloudSubmitting] = useState(false);
+  /**
+   * Kept apart from `error`, which is about a request that failed. This one is
+   * about the field, and belongs on it: it used to render below the button, the
+   * cost line and the background-generation note, in the least prominent type
+   * on the panel, while the field it described was left untouched.
+   */
+  const [promptError, setPromptError] = useState<string | null>(null);
+  const promptRef = useRef<HTMLTextAreaElement>(null);
+  const promptErrorId = useId();
   const [error, setError] = useState<string | null>(null);
   /**
    * Finished results, newest first. Not cleared anywhere on purpose:
@@ -694,7 +703,8 @@ export default function GenerationInterface({ feature, apiKey, onBack, onOpenCon
     const hasFeatureDefaultPrompt =
       feature.id === 'image-editing' || feature.id === 'style-transfer';
     if (!prompt.trim() && !hasFeatureDefaultPrompt) {
-      setError('Please enter a prompt');
+      setPromptError('Please enter a prompt');
+      promptRef.current?.focus();
       return;
     }
     if (feature.requiresImage && images.length === 0) {
@@ -766,6 +776,9 @@ export default function GenerationInterface({ feature, apiKey, onBack, onOpenCon
   const handleEngineSelect = (engineId: EngineId) => {
     abortActiveGeneration();
     abortActiveDownload();
+    // The complaint described the panel before the switch; carrying it across
+    // outlives the state that produced it.
+    setPromptError(null);
     setEngine(engineId);
   };
 
@@ -1093,9 +1106,13 @@ export default function GenerationInterface({ feature, apiKey, onBack, onOpenCon
 
             <AutoExpandingPrompt
               aria-label="Prompt"
+              fieldRef={promptRef}
+              aria-invalid={promptError ? true : undefined}
+              aria-describedby={promptError ? promptErrorId : undefined}
               value={prompt}
               onChange={(e) => {
                 setPrompt(e.target.value);
+                setPromptError(null); // typing is the fix; the complaint goes with it
                 setFilenameSlug(null); // manual edit invalidates the pre-rendered name
               }}
               placeholder={
@@ -1104,6 +1121,12 @@ export default function GenerationInterface({ feature, apiKey, onBack, onOpenCon
                   : 'Describe the image'
               }
             />
+
+            {promptError && (
+              <p id={promptErrorId} role="alert" className="text-sm text-[var(--brand-accent)]">
+                {promptError}
+              </p>
+            )}
 
             {feature.id === 'social-media-thumbnail' && (
               <div className="p-3 rounded-lg bg-[var(--brand-accent)]/10 border border-[var(--brand-accent)]/30 text-sm">

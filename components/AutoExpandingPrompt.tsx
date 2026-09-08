@@ -1,11 +1,25 @@
 'use client';
 
-import { useEffect, useRef, type ChangeEvent, type TextareaHTMLAttributes } from 'react';
+import {
+  useEffect,
+  useRef,
+  type ChangeEvent,
+  type RefObject,
+  type TextareaHTMLAttributes,
+} from 'react';
 
 type AutoExpandingPromptProps = Omit<
   TextareaHTMLAttributes<HTMLTextAreaElement>,
   'rows'
->;
+> & {
+  /**
+   * The field itself, for a workspace that needs to put the cursor in it — a
+   * failed validation should land the reader where the fix is. Named rather
+   * than taken as `ref` because this component already keeps one of its own
+   * for resizing, and both have to point at the same node.
+   */
+  fieldRef?: RefObject<HTMLTextAreaElement | null>;
+};
 
 const resizeToContent = (textarea: HTMLTextAreaElement) => {
   textarea.style.height = 'auto';
@@ -20,6 +34,7 @@ export default function AutoExpandingPrompt({
   className = '',
   onChange,
   value,
+  fieldRef,
   ...props
 }: AutoExpandingPromptProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -36,7 +51,10 @@ export default function AutoExpandingPrompt({
   return (
     <textarea
       {...props}
-      ref={textareaRef}
+      ref={(node) => {
+        textareaRef.current = node;
+        if (fieldRef) fieldRef.current = node;
+      }}
       rows={2}
       value={value}
       onChange={handleChange}

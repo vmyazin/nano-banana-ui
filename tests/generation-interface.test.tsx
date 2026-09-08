@@ -1124,6 +1124,64 @@ describe('GenerationInterface fal image generation', () => {
   });
 });
 
+describe('GenerationInterface prompt validation', () => {
+  beforeEach(() => {
+    useDraftStore.getState().reset();
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+    mockedRunFalImage.mockReset();
+    useAppStore.setState({
+      engine: 'fal',
+      apiKey: 'gemini_test_key',
+      cfAccountId: 'cf_account',
+      cfToken: 'cf_token',
+      kieApiKey: 'kie_test_key',
+      falApiKey: 'fal_id:fal_secret',
+    });
+  });
+
+  it('marks the empty field, puts the cursor in it, and says so next to it', () => {
+    renderInterface();
+    const prompt = screen.getByLabelText('Prompt');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Generate Image' }));
+
+    const alert = screen.getByRole('alert');
+    expect(alert.textContent).toBe('Please enter a prompt');
+    expect(prompt.getAttribute('aria-invalid')).toBe('true');
+    expect(prompt.getAttribute('aria-describedby')).toBe(alert.id);
+    expect(document.activeElement).toBe(prompt);
+    // Named by the field, not stranded below the button.
+    expect(prompt.compareDocumentPosition(alert) & Node.DOCUMENT_POSITION_FOLLOWING)
+      .toBeTruthy();
+    expect(mockedRunFalImage).not.toHaveBeenCalled();
+  });
+
+  it('clears the complaint as soon as the reader types', () => {
+    renderInterface();
+    const prompt = screen.getByLabelText('Prompt');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Generate Image' }));
+    expect(screen.getByRole('alert').textContent).toBe('Please enter a prompt');
+
+    fireEvent.change(prompt, { target: { value: 'A' } });
+
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(prompt.getAttribute('aria-invalid')).toBeNull();
+  });
+
+  it('drops the complaint when the engine changes underneath it', () => {
+    renderInterface();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Generate Image' }));
+    expect(screen.getByRole('alert').textContent).toBe('Please enter a prompt');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Google Gemini' }));
+
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+});
+
 describe('GenerationInterface result stack', () => {
   /** Runs one generation that resolves to a distinct one-pixel data URL. */
   const generateOnce = async (body: string) => {
