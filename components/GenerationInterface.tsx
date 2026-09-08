@@ -33,6 +33,8 @@ import AutoExpandingPrompt from '@/components/AutoExpandingPrompt';
 import PromptPanel from '@/components/PromptPanel';
 import { useAppStore } from '@/store/useAppStore';
 import { modelsFor, resolveModel } from '@/lib/providers/catalog';
+import ModelListbox from '@/components/ModelListbox';
+import { PROVIDER_IMAGE_COLUMNS, providerImageSpecs } from '@/lib/models/listbox-specs';
 import type { ProviderId } from '@/lib/providers/types';
 import { prepareReferences } from '@/lib/draft/ingest';
 import { keepUploadedImages } from '@/lib/gallery/keep-upload';
@@ -968,37 +970,32 @@ export default function GenerationInterface({ feature, apiKey, onBack, onOpenCon
         onSelect={handleEngineSelect}
       />
 
-      {/* Same shape as the Model card in the Kie and fal workspaces: a select
+      {/* Same shape as the Model card in the Kie and fal workspaces: the rack
           of what this provider serves, with the vendor's own description of the
           chosen one underneath. */}
       {activeProvider && (
         <section className="glass-card space-y-3 p-3.5 md:p-4">
           <h3 className="display text-base font-semibold">Model</h3>
           <div className="space-y-2">
-            <label htmlFor="provider-model" className="sr-only">
-              Model
-            </label>
-            <select
-              id="provider-model"
-              aria-label="Model"
-              value={activeProviderModel ?? ''}
-              onChange={(event) => setProviderModel(activeProvider, 'image', event.target.value)}
-              className="w-full"
-            >
-              {modelsFor(activeProvider, 'image').map((model) => (
-                <option key={model.id} value={model.id}>
-                  {model.label}
-                  {model.price ? ` · ${model.price}` : ''}
-                </option>
-              ))}
-            </select>
+            <ModelListbox
+              label="Model"
+              accent="image"
+              columns={PROVIDER_IMAGE_COLUMNS}
+              rows={modelsFor(activeProvider, 'image').map((model) => ({
+                id: model.id,
+                label: model.label,
+                cells: providerImageSpecs(model),
+              }))}
+              value={activeProviderModel ?? undefined}
+              onChange={(id) => setProviderModel(activeProvider, 'image', id)}
+            />
             {activeProviderCatalogModel && (
               <p className="px-0.5 text-sm leading-relaxed text-[var(--foreground-muted)]">
                 <span className="font-medium text-[var(--foreground)]">
                   {activeProviderCatalogModel.label}:
                 </span>{' '}
                 {activeProviderCatalogModel.note ??
-                  `Billed to your ${activeEngine.label} account at ${activeProviderCatalogModel.price ?? 'the vendor’s rates'}.`}
+                  `Billed to your ${activeEngine.label} account at ${activeProviderCatalogModel.price && activeProviderCatalogModel.price !== 'metered' ? activeProviderCatalogModel.price : 'the vendor’s rates'}.`}
               </p>
             )}
           </div>

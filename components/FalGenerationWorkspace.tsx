@@ -45,7 +45,8 @@ import { keepUploadedImages } from '@/lib/gallery/keep-upload';
 import { useDraftStore } from '@/store/useDraftStore';
 import { usePromptLibraryStore } from '@/store/usePromptLibraryStore';
 import { candidatesFromValues, useAutoAspect } from '@/lib/draft/aspect-match';
-import { falRateLabel } from '@/lib/spend/rates';
+import ModelListbox from '@/components/ModelListbox';
+import { FAL_VIDEO_COLUMNS, falVideoSpecs } from '@/lib/models/listbox-specs';
 import FalRunCost from '@/components/FalRunCost';
 import { carryOverValues } from '@/lib/draft/carry-over';
 import { FRAME_EXTRACTION_ERROR, isVideoFile, lastFrameAsImageFile } from '@/lib/video-frame';
@@ -725,29 +726,24 @@ function FalGenerationWorkspaceSession({
                 />
               </div>
             </div>
-            <select
-              aria-label="Model"
-              value={matchingModels.some((model) => model.id === selectedModel.id) ? selectedModel.id : ''}
-              onChange={(event) => setModel(event.target.value)}
-              className="w-full"
-            >
-              {/* The rate rides along with the name, as the aggregator pickers
-                  already do. Without it this list named Veo 3.1 and Kling 3 Pro
-                  and nothing else, and staying inside a budget meant leaving
-                  the app to look the numbers up. */}
-              {matchingModels.map((model) => {
-                // The rate belongs to the endpoint, and a model publishes one
-                // per input mode, so it is read for the variant this picker
-                // would actually submit to.
-                const endpoint = resolveFalVariant(model.id, 'video', inputMode)?.endpointId;
-                const rate = endpoint ? falRateLabel(endpoint) : null;
-                return (
-                  <option key={model.id} value={model.id}>
-                    {model.label} · {model.provider}{rate ? ` · ${rate}` : ''}
-                  </option>
-                );
-              })}
-            </select>
+            {/* The rate rides along in its own column, as the aggregator
+                pickers' does. Without it this list named Veo 3.1 and Kling 3
+                Pro and nothing else, and staying inside a budget meant leaving
+                the app to look the numbers up. It is read for the variant this
+                mode would actually submit to, since a model publishes one rate
+                per endpoint. */}
+            <ModelListbox
+              label="Model"
+              accent="video"
+              columns={FAL_VIDEO_COLUMNS}
+              rows={matchingModels.map((model) => ({
+                id: model.id,
+                label: model.label,
+                cells: falVideoSpecs(model, inputMode),
+              }))}
+              value={matchingModels.some((model) => model.id === selectedModel.id) ? selectedModel.id : undefined}
+              onChange={setModel}
+            />
             {matchingModels.length === 0 ? (
               <p role="status" className="text-sm text-[var(--foreground-muted)]">No fal video models match your search.</p>
             ) : (

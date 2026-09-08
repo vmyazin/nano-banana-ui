@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import ProviderVideoWorkspace from '@/components/ProviderVideoWorkspace';
@@ -38,7 +38,7 @@ describe('ProviderVideoWorkspace', () => {
     // Unkeyed, the not-connected callout owns the single call to action; the
     // header carries only the connected-state status button.
     expect(screen.getByRole('button', { name: 'Connect key' })).toBeInTheDocument();
-    expect(screen.getByRole('combobox', { name: 'Model' })).toBeInTheDocument();
+    expect(screen.getByRole('listbox', { name: 'Model' })).toBeInTheDocument();
     expect(screen.getByLabelText('Search compatible models')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Gen Example/ })).toBeInTheDocument();
     expect(screen.getByText('Your generated video will appear here.')).toBeInTheDocument();
@@ -177,8 +177,8 @@ describe('ProviderVideoWorkspace', () => {
 
     fireEvent.change(screen.getByLabelText('Search compatible models'), { target: { value: 'pixverse' } });
 
-    const options = [...screen.getByRole('combobox', { name: 'Model' }).querySelectorAll('option')];
+    const options = within(screen.getByRole('listbox', { name: 'Model' })).getAllByRole('option');
     expect(options).toHaveLength(1);
-    expect(options[0].textContent).toContain('PixVerse V5 Fast');
+    expect(options[0]).toHaveAccessibleName('PixVerse V5 Fast');
   });
 });

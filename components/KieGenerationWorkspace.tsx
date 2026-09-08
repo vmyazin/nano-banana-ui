@@ -13,6 +13,8 @@ import { useFileDrop } from '@/lib/drop/use-file-drop';
 import { requestExamplePrompt, requestPromptSlug } from '@/lib/micro-ai/browser';
 import { fetchKieCredits, submitKieJob, uploadKieFiles } from '@/lib/kie/browser';
 import { defaultKieValues, modelsForKieMode, resolveKieVariant, validateKieInput } from '@/lib/kie/catalog';
+import ModelListbox from '@/components/ModelListbox';
+import { KIE_IMAGE_COLUMNS, KIE_VIDEO_COLUMNS, kieImageSpecs, kieVideoSpecs } from '@/lib/models/listbox-specs';
 import { currentKieTime, isKieJobTerminal } from '@/lib/kie/queue';
 import type { KieFieldDefinition, KieInputMode, KieJob, MediaType } from '@/lib/kie/types';
 import {
@@ -501,18 +503,18 @@ export default function KieGenerationWorkspace({
               </div>
             </div>
             <div className="space-y-2">
-              <label htmlFor="kie-model" className="sr-only">Model</label>
-              <select
-                id="kie-model"
-                aria-label="Model"
+              <ModelListbox
+                label="Model"
+                accent={mediaType}
+                columns={mediaType === 'video' ? KIE_VIDEO_COLUMNS : KIE_IMAGE_COLUMNS}
+                rows={(matchingModels.length > 0 ? matchingModels : models).map((model) => ({
+                  id: model.id,
+                  label: model.label,
+                  cells: mediaType === 'video' ? kieVideoSpecs(model, inputMode) : kieImageSpecs(model, inputMode),
+                }))}
                 value={selectedModel.id}
-                onChange={(event) => setModel(event.target.value)}
-                className="w-full"
-              >
-                {(matchingModels.length > 0 ? matchingModels : models).map((model) => (
-                  <option key={model.id} value={model.id}>{model.label} · {model.provider}</option>
-                ))}
-              </select>
+                onChange={setModel}
+              />
               <p className="px-0.5 text-sm leading-relaxed text-[var(--foreground-muted)]">
                 <span className="font-medium text-[var(--foreground)]">{selectedModel.label}:</span> {selectedModel.description}
               </p>

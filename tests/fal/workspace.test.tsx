@@ -45,6 +45,10 @@ const labels = [
   'Wan 2.7',
 ];
 
+/** The model names down the rack, in order — the accessible name of each option is its label. */
+const optionNames = (listbox: HTMLElement) =>
+  within(listbox).getAllByRole('option').map((option) => option.querySelector('.model-listbox-name')?.textContent);
+
 function deferred<T>() {
   let resolve!: (value: T) => void;
   let reject!: (reason?: unknown) => void;
@@ -129,7 +133,7 @@ describe('FalGenerationWorkspace', () => {
   it('renders the persisted Veo Fast model with catalog text defaults through shared controls', () => {
     renderWorkspace();
 
-    expect((screen.getByRole('combobox', { name: 'Model' }) as HTMLSelectElement).value).toBe('veo-3-1-fast');
+    expect(within(screen.getByRole('listbox', { name: 'Model' })).getByRole('option', { selected: true })).toHaveAccessibleName('Veo 3.1 Fast');
     expect(screen.getByRole('combobox', { name: 'Aspect ratio' })).toHaveDisplayValue('16:9');
     expect(screen.getByRole('combobox', { name: 'Duration' })).toHaveDisplayValue('8s');
     expect(screen.getByRole('radio', { name: '720p' })).toHaveAttribute('aria-checked', 'true');
@@ -170,8 +174,8 @@ describe('FalGenerationWorkspace', () => {
 
   it('lists exactly nine curated models and searches label, provider, and description', () => {
     renderWorkspace();
-    const model = screen.getByRole('combobox', { name: 'Model' });
-    expect(within(model).getAllByRole('option').map((option) => option.textContent?.split(' · ')[0])).toEqual(labels);
+    const model = screen.getByRole('listbox', { name: 'Model' });
+    expect(optionNames(model)).toEqual(labels);
 
     fireEvent.change(screen.getByRole('searchbox', { name: 'Search fal video models' }), {
       target: { value: 'MiniMax' },
@@ -198,7 +202,7 @@ describe('FalGenerationWorkspace', () => {
 
   it('persists model selection and resets controls to each mode-specific catalog default', () => {
     const view = renderWorkspace();
-    fireEvent.change(screen.getByRole('combobox', { name: 'Model' }), { target: { value: 'hailuo-2-3-standard' } });
+    fireEvent.click(screen.getByRole('option', { name: 'MiniMax Hailuo 2.3 Standard' }));
     expect(useAppStore.getState().falVideoModel).toBe('hailuo-2-3-standard');
     expect(screen.getByRole('combobox', { name: 'Duration' })).toHaveDisplayValue('6');
     fireEvent.change(screen.getByRole('combobox', { name: 'Duration' }), { target: { value: '1' } });
@@ -231,10 +235,8 @@ describe('FalGenerationWorkspace', () => {
 
   it('offers only end-frame capable models and needs both frames before upload', async () => {
     const { container } = renderWorkspace('frames');
-    const model = screen.getByRole('combobox', { name: 'Model' });
-    expect(within(model).getAllByRole('option').map((option) => option.textContent?.split(' · ')[0])).toEqual(
-      labels.filter((label) => !label.startsWith('MiniMax'))
-    );
+    const model = screen.getByRole('listbox', { name: 'Model' });
+    expect(optionNames(model)).toEqual(labels.filter((label) => !label.startsWith('MiniMax')));
 
     fireEvent.change(screen.getByLabelText('Prompt'), { target: { value: 'Push in on the tiger' } });
     fireEvent.click(screen.getByRole('button', { name: /^Generate video/ }));
@@ -504,9 +506,7 @@ describe('FalGenerationWorkspace', () => {
     await waitFor(() => expect(submitFalJobMock).toHaveBeenCalledOnce());
     const signal = submitFalJobMock.mock.calls[0][1].signal as AbortSignal;
 
-    fireEvent.change(screen.getByRole('combobox', { name: 'Model' }), {
-      target: { value: 'veo-3-1' },
-    });
+    fireEvent.click(screen.getByRole('option', { name: 'Veo 3.1 Standard' }));
     expect(signal.aborted).toBe(false);
     expect(screen.getByRole('button', { name: /^Generate video/ })).toBeEnabled();
     await act(async () => {
@@ -607,9 +607,7 @@ describe('FalGenerationWorkspace', () => {
     fireEvent.click(screen.getByRole('button', { name: /^Generate video/ }));
     await waitFor(() => expect(submitFalJobMock).toHaveBeenCalledOnce());
 
-    fireEvent.change(screen.getByRole('combobox', { name: 'Model' }), {
-      target: { value: 'veo-3-1' },
-    });
+    fireEvent.click(screen.getByRole('option', { name: 'Veo 3.1 Standard' }));
     await act(async () => {
       // Without provider idempotency, a transport failure cannot reveal an accepted request ID.
       // The safe behavior is to neither retry nor invent a job that cannot be polled or cancelled.
@@ -837,9 +835,12 @@ describe('FalGenerationWorkspace', () => {
 
     renderWorkspace();
 
-    expect(screen.getByText('Kling 3 Pro')).toBeInTheDocument();
+    // The picker names every model too, so only look past it for the cards.
+    const picker = screen.getByRole('listbox', { name: 'Model' });
+    const outsidePicker = (text: string) => screen.getAllByText(text).filter((node) => !picker.contains(node));
+    expect(outsidePicker('Kling 3 Pro')).toHaveLength(1);
     // The ready clip's own card says what made it.
-    expect(screen.getByText('Veo 3.1 Fast')).toBeInTheDocument();
+    expect(outsidePicker('Veo 3.1 Fast')).toHaveLength(1);
     expect(screen.queryByText('request_running_kling')).toBeNull();
     // Still recoverable for anything that has to be quoted back to fal.
     expect(screen.getByTitle('request_running_kling')).toBeInTheDocument();

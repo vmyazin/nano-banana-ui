@@ -38,6 +38,8 @@ import { downloadFilenameBase } from '@/lib/download-name';
 import { requestExamplePrompt, requestPromptSlug } from '@/lib/micro-ai/browser';
 import { getProviderVideoStatus, pollDelayMs, submitProviderVideo } from '@/lib/providers/browser';
 import { modelsFor } from '@/lib/providers/catalog';
+import ModelListbox from '@/components/ModelListbox';
+import { PROVIDER_VIDEO_COLUMNS, providerVideoSpecs } from '@/lib/models/listbox-specs';
 import { frameSlotLabel } from '@/lib/providers/frames';
 import type { ProviderId, ProviderMode, ProviderModel } from '@/lib/providers/types';
 import type { EngineId } from '@/lib/engines/registry';
@@ -667,31 +669,26 @@ export default function ProviderVideoWorkspace({
               </div>
             </div>
             <div className="space-y-2">
-              <label htmlFor="provider-video-model" className="sr-only">
-                Model
-              </label>
-              <select
-                id="provider-video-model"
-                aria-label="Model"
-                value={selectedModel?.id ?? ''}
-                onChange={(event) => {
+              <ModelListbox
+                label="Model"
+                accent="video"
+                columns={PROVIDER_VIDEO_COLUMNS}
+                rows={(matchingModels.length > 0 ? matchingModels : models).map((model) => ({
+                  id: model.id,
+                  label: model.label,
+                  cells: providerVideoSpecs(model),
+                }))}
+                value={selectedModel?.id}
+                onChange={(id) => {
                   setError(null);
-                  setProviderModel(provider, 'video', event.target.value);
+                  setProviderModel(provider, 'video', id);
                 }}
-                className="w-full"
-              >
-                {(matchingModels.length > 0 ? matchingModels : models).map((model) => (
-                  <option key={model.id} value={model.id}>
-                    {model.label}
-                    {model.price ? ` · ${model.price}` : ''}
-                  </option>
-                ))}
-              </select>
+              />
               {selectedModel && (
                 <p className="px-0.5 text-sm leading-relaxed text-[var(--foreground-muted)]">
                   <span className="font-medium text-[var(--foreground)]">{selectedModel.label}:</span>{' '}
                   {selectedModel.note ??
-                    `Billed to your ${label} account at ${selectedModel.price ?? 'the vendor’s rates'}.`}
+                    `Billed to your ${label} account at ${selectedModel.price && selectedModel.price !== 'metered' ? selectedModel.price : 'the vendor’s rates'}.`}
                 </p>
               )}
             </div>

@@ -48,7 +48,7 @@ describe('Kie generation workspace', () => {
     );
 
     expect(screen.getByRole('heading', { name: 'Text to video' })).toBeTruthy();
-    expect((screen.getByLabelText('Model') as HTMLSelectElement).value).toBe('veo-3-1');
+    expect(within(screen.getByRole('listbox', { name: 'Model' })).getByRole('option', { selected: true })).toHaveAccessibleName('Veo 3.1');
     expect((screen.getByLabelText('Generation mode') as HTMLSelectElement).selectedOptions[0].textContent).toBe('TEXT 2 VIDEO');
     expect(screen.getByText(/Results are temporary/i)).toBeTruthy();
     const searchInput = screen.getByLabelText('Search compatible models');
