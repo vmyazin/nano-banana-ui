@@ -16,6 +16,7 @@ import { convertedForDownload } from '@/lib/image/download-format';
 import { useAppStore } from '@/store/useAppStore';
 import { useDraftStore } from '@/store/useDraftStore';
 import { useGalleryStore } from '@/store/useGalleryStore';
+import { useHoverPlay } from '@/lib/media/use-hover-play';
 import { useTimelineStore } from '@/store/useTimelineStore';
 
 /** Generous ceiling; the workspace trims to its own model's limit on mount. */
@@ -81,6 +82,8 @@ export default function GalleryGrid({
   referenceLimit = REFERENCE_LIMIT,
 }: GalleryGridProps) {
   const records = useGalleryStore((state) => state.records);
+  const hoverPlay = useHoverPlay();
+
   // Keep the filtered array stable: preview URLs are keyed to this dependency,
   // so recreating it on every picker render would revoke and rebuild every URL.
   const visibleRecords = useMemo(
@@ -249,11 +252,11 @@ export default function GalleryGrid({
                 <img src={preview.url} alt={titleOf(record)} className="h-full w-full object-contain" />
               ) : preview ? (
                 /* A kept clip with no poster: its own bytes, seeked as below. */
-                <video src={`${preview.url}#t=0.1`} controls preload="metadata" className="h-full w-full" />
+                <video src={`${preview.url}#t=0.1`} controls preload="metadata" className="h-full w-full" {...hoverPlay} />
               ) : record.kind === 'video' && record.sourceUrl ? (
                 /* Same `#t=` seek as the cloud grid: metadata alone leaves some
                    browsers on a blank frame instead of the clip's opening one. */
-                <video src={`${record.sourceUrl}#t=0.1`} controls preload="metadata" className="h-full w-full" />
+                <video src={`${record.sourceUrl}#t=0.1`} controls preload="metadata" className="h-full w-full" {...hoverPlay} />
               ) : (
                 <p className="px-4 text-center text-xs text-[var(--foreground-subtle)]">
                   This result was not kept and its provider link has expired.

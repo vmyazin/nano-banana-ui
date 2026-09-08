@@ -1,5 +1,6 @@
 'use client';
 
+import { useHoverPlay } from '@/lib/media/use-hover-play';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { CloudUpload, Film, Image as ImageIcon } from 'lucide-react';
@@ -52,6 +53,7 @@ function LocalThumb({ record }: { record: GalleryRecord & { blob: Blob } }) {
       if (created) URL.revokeObjectURL(created);
     };
   }, [record.blob]);
+  const hoverPlay = useHoverPlay();
 
   return (
     <div ref={holder} className="flex aspect-[4/3] items-center justify-center overflow-hidden rounded-lg bg-black/40">
@@ -59,7 +61,7 @@ function LocalThumb({ record }: { record: GalleryRecord & { blob: Blob } }) {
         ? record.kind === 'image'
           // eslint-disable-next-line @next/next/no-img-element
           ? <img src={url} alt="" className="h-full w-full object-contain" />
-          : <video src={url} muted playsInline preload="metadata" aria-hidden="true" className="h-full w-full object-contain" />
+          : <video src={url} muted playsInline preload="metadata" aria-hidden="true" className="h-full w-full object-contain" {...hoverPlay} />
         : <span className="text-[var(--foreground-subtle)]">{record.kind === 'image' ? <ImageIcon size={18} aria-hidden="true" /> : <Film size={18} aria-hidden="true" />}</span>}
     </div>
   );

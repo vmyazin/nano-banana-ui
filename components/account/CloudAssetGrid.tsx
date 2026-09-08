@@ -17,6 +17,7 @@ import { saveCloudVideoToGallery } from '@/lib/timeline/import-cloud';
 import { useAccountStore } from '@/store/useAccountStore';
 import { useDraftStore } from '@/store/useDraftStore';
 import { useTimelineStore } from '@/store/useTimelineStore';
+import { useHoverPlay } from '@/lib/media/use-hover-play';
 import TemporaryAssetNotice from './TemporaryAssetNotice';
 
 /**
@@ -30,7 +31,7 @@ import TemporaryAssetNotice from './TemporaryAssetNotice';
  * raised after the fact is only advisory.
  */
 function ClipPlayer({src,label}:{src:string;label:string}){
-  const player=useRef<HTMLVideoElement>(null);const [shown,setShown]=useState(false);
+  const player=useRef<HTMLVideoElement>(null);const [shown,setShown]=useState(false);const hoverPlay=useHoverPlay();
   useEffect(()=>{
     const node=player.current;
     // jsdom has no observer, and a viewer without one still deserves a poster.
@@ -38,7 +39,7 @@ function ClipPlayer({src,label}:{src:string;label:string}){
     const observer=new IntersectionObserver(entries=>{if(entries.some(entry=>entry.isIntersecting)){setShown(true);observer.disconnect();}},{rootMargin:'200px'});
     observer.observe(node);return()=>observer.disconnect();
   },[]);
-  return <video ref={player} controls preload={shown?'metadata':'none'} crossOrigin="anonymous" aria-label={label} src={shown?`${src}#t=0.1`:src} className="h-full w-full"/>;
+  return <video ref={player} controls preload={shown?'metadata':'none'} crossOrigin="anonymous" aria-label={label} src={shown?`${src}#t=0.1`:src} className="h-full w-full" {...hoverPlay}/>;
 }
 
 export default function CloudAssetGrid({assets,ownerId,mode='browse',referenceLimit=8,columns=2,onUsedReference,onAddedToTimeline,onChanged}: {

@@ -39,6 +39,7 @@ import { requestExamplePrompt, requestPromptSlug } from '@/lib/micro-ai/browser'
 import { getProviderVideoStatus, pollDelayMs, submitProviderVideo } from '@/lib/providers/browser';
 import { modelsFor } from '@/lib/providers/catalog';
 import ModelListbox from '@/components/ModelListbox';
+import { useHoverPlay } from '@/lib/media/use-hover-play';
 import { PROVIDER_VIDEO_COLUMNS, providerVideoSpecs } from '@/lib/models/listbox-specs';
 import { frameSlotLabel } from '@/lib/providers/frames';
 import type { ProviderId, ProviderMode, ProviderModel } from '@/lib/providers/types';
@@ -212,6 +213,8 @@ export default function ProviderVideoWorkspace({
     valuesByModel[modelKey] ?? carryOverValues(fields, defaultValuesFor(fields), controlValues);
 
   const [modelSearch, setModelSearch] = useState('');
+  const hoverPlay = useHoverPlay();
+
   const [error, setError] = useState<string | null>(null);
   const [isGeneratingExample, setIsGeneratingExample] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -905,6 +908,7 @@ export default function ProviderVideoWorkspace({
                 controls
                 playsInline
                 className="h-full max-h-[520px] w-full bg-black"
+                {...hoverPlay}
               />
             ) : latestJob && !isTerminal(latestJob.state) ? (
               <div className="space-y-3 p-5 text-center">

@@ -79,6 +79,13 @@
   twice. Vendor key pages come from `lib/providers/key-source.ts`, and the dialog
   opens through `onOpenConnections(<engine id>)` so `ApiKeyConfig`'s
   `focusProvider` outlines that card and focuses its field.
+- **A `<video>` a viewer can rest a pointer on** → spread `useHoverPlay()` from
+  `lib/media/use-hover-play.ts` onto it (`<video {...hoverPlay} />`), never a local
+  hover timer. One hook keeps the rule the same everywhere: a second of rest before
+  a muted preview starts, so a pointer crossing a grid never lights up eight clips;
+  hand-over the moment the viewer unmutes or pauses; nothing on touch or under
+  reduced motion. `tests/media/hover-play-adoption.test.ts` lists the files and
+  fails on a bare `<video>`; the timeline preview is the one deliberate exception.
 - **An image result panel** → render `components/ResultStack.tsx` rather than
   laying out cards inline. It owns the 4-item display cap, the per-card download
   and fullscreen, and the lightbox — a panel that keeps its own `lightboxOpen`

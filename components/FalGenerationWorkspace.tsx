@@ -46,6 +46,7 @@ import { useDraftStore } from '@/store/useDraftStore';
 import { usePromptLibraryStore } from '@/store/usePromptLibraryStore';
 import { candidatesFromValues, useAutoAspect } from '@/lib/draft/aspect-match';
 import ModelListbox from '@/components/ModelListbox';
+import { useHoverPlay } from '@/lib/media/use-hover-play';
 import { FAL_VIDEO_COLUMNS, falVideoSpecs } from '@/lib/models/listbox-specs';
 import FalRunCost from '@/components/FalRunCost';
 import { carryOverValues } from '@/lib/draft/carry-over';
@@ -149,6 +150,7 @@ function JobCard({
   onContinueFromFrame?: () => void;
 }) {
   const resultUrl = isSafeFalVideoUrl(job.resultUrl, job.mimeType) ? job.resultUrl : undefined;
+  const hoverPlay = useHoverPlay();
   const error = safeProviderText(job.error, apiKey, 'fal could not complete this job.');
   const logs = job.logs.slice(-20).map((log) => safeProviderText(log, apiKey, 'fal reported an update.'));
   const filenameBase = downloadFilenameBase({
@@ -203,7 +205,7 @@ function JobCard({
 
       {resultUrl && (
         <div className="space-y-3">
-          <video src={resultUrl} controls className="max-h-[520px] w-full rounded-lg bg-black" />
+          <video src={resultUrl} controls className="max-h-[520px] w-full rounded-lg bg-black" {...hoverPlay} />
           <a
             href={resultUrl}
             download={`${filenameBase}.${extensionForMedia('video', job.mimeType)}`}
@@ -298,6 +300,7 @@ function FalGenerationWorkspaceSession({
       ? controlState.values
       : carryOverValues(variant.fields, defaultFalValues(variant), controlValues);
   const [modelSearch, setModelSearch] = useState('');
+
   const [error, setError] = useState<string | null>(null);
   const [isGeneratingExample, setIsGeneratingExample] = useState(false);
   const [isReadingFrame, setIsReadingFrame] = useState(false);

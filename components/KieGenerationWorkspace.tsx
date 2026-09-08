@@ -14,6 +14,7 @@ import { requestExamplePrompt, requestPromptSlug } from '@/lib/micro-ai/browser'
 import { fetchKieCredits, submitKieJob, uploadKieFiles } from '@/lib/kie/browser';
 import { defaultKieValues, modelsForKieMode, resolveKieVariant, validateKieInput } from '@/lib/kie/catalog';
 import ModelListbox from '@/components/ModelListbox';
+import { useHoverPlay } from '@/lib/media/use-hover-play';
 import { KIE_IMAGE_COLUMNS, KIE_VIDEO_COLUMNS, kieImageSpecs, kieVideoSpecs } from '@/lib/models/listbox-specs';
 import { currentKieTime, isKieJobTerminal } from '@/lib/kie/queue';
 import type { KieFieldDefinition, KieInputMode, KieJob, MediaType } from '@/lib/kie/types';
@@ -128,6 +129,8 @@ export default function KieGenerationWorkspace({
     valuesByVariant[variantKey] ??
     carryOverValues(variant.fields, defaultKieValues(variant), controlValues);
   const [modelSearch, setModelSearch] = useState('');
+  const hoverPlay = useHoverPlay();
+
   const [error, setError] = useState<string | null>(null);
   const [isGeneratingExample, setIsGeneratingExample] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -650,7 +653,7 @@ export default function KieGenerationWorkspace({
             <>
               <div className="flex min-h-[300px] flex-1 items-center justify-center overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--background-elevated)]/70">
                 {resultUrl ? (
-                  <video src={resultUrl} controls className="h-full w-full max-h-[520px] bg-black" />
+                  <video src={resultUrl} controls className="h-full w-full max-h-[520px] bg-black" {...hoverPlay} />
                 ) : latestJob && !isKieJobTerminal(latestJob.state) ? (
                   <div className="space-y-3 p-5 text-center">
                     <Loader2 className="mx-auto animate-spin text-[var(--neon-cyan)]" size={34} />
