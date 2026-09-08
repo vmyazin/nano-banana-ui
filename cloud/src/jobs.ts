@@ -7,6 +7,8 @@ export const MAX_ACTIVE_JOBS = 3;
 export const MAX_GLOBAL_ACTIVE_JOBS = 100;
 export const IMAGE_RESERVATION = 64_000_000;
 export const VIDEO_RESERVATION = 256_000_000;
+/** Whole megabytes: these figures are quota arithmetic, not file sizes. */
+const megabytes = (bytes: number) => `${Math.round(bytes / 1_000_000)} MB`;
 // Stopping tracking releases a job slot, but its temporary bytes still occupy
 // overflow storage until retained-file cleanup succeeds.
 const GLOBAL_OCCUPIED_SLOTS = `(SELECT COALESCE(SUM(active_jobs),0) FROM account_storage) +
@@ -60,7 +62,34 @@ export async function acceptJob(env: Env, owner: string, token: string, request:
     if(await env.DB.prepare(OWNER_OVERFLOW).bind(owner).first())throw new AccountError('Resolve your temporary results before starting another cloud job. Download and delete them, wait for their displayed expiry, or free space and resume jobs still awaiting saving.',409,'temporary_results');
     const global=await env.DB.prepare(`SELECT ${GLOBAL_OCCUPIED_SLOTS} AS active`).first<{active:number}>();
     if((global?.active??0)>=MAX_GLOBAL_ACTIVE_JOBS)throw new AccountError('Background generation is busy. Try again shortly or explicitly choose browser-only generation.',503,'service_capacity');
-    throw new AccountError('Your account needs more available storage or fewer active jobs. Free space or wait for a job to finish.', 409, 'capacity');
+    // One sentence used to cover everything below, and named storage first —
+    // which is the only figure the account page shows prominently, and rarely
+    // the one that actually stopped the job. A reader with an almost empty
+    // library was being sent to delete files that were never the problem.
+    if (request.referenceIds.length) {
+      const ready = await env.DB.prepare(`SELECT COUNT(*) AS ready FROM account_uploads
+        WHERE user_id=? AND state='ready' AND expires_at>? AND id IN (SELECT value FROM json_each(?))`)
+        .bind(owner, now, references).first<{ ready: number }>();
+      if ((ready?.ready ?? 0) !== request.referenceIds.length) {
+        throw new AccountError('A reference image is no longer available. Attach it again and start the job.', 409, 'reference_unavailable');
+      }
+    }
+    const account = await env.DB.prepare('SELECT used_bytes, reserved_bytes, active_jobs, limit_bytes FROM account_storage WHERE user_id = ?')
+      .bind(owner).first<{ used_bytes: number; reserved_bytes: number; active_jobs: number; limit_bytes: number }>();
+    const used = account?.used_bytes ?? 0, held = account?.reserved_bytes ?? 0, limit = account?.limit_bytes ?? 0;
+    if ((account?.active_jobs ?? 0) >= MAX_ACTIVE_JOBS) {
+      throw new AccountError(`This account already has ${MAX_ACTIVE_JOBS} jobs in progress. Wait for one to finish, or cancel or dismiss one on your account page.`, 409, 'active_jobs');
+    }
+    // What the intake actually weighed: every job in flight holds its whole
+    // possible output, so an account can be out of room with nothing saved.
+    if (used + held + reservation > limit) {
+      throw used + reservation <= limit
+        ? new AccountError(`Jobs in progress are holding ${megabytes(held)} of this account's ${megabytes(limit)}. Wait for them to finish, or dismiss them on your account page.`, 409, 'reserved_capacity')
+        : new AccountError(`This account has ${megabytes(used)} saved of ${megabytes(limit)}, with no room for this job. Delete saved results to make space.`, 409, 'capacity');
+    }
+    // Nothing above accounts for it, so say that rather than name a limit that
+    // was not the one in the way.
+    throw new AccountError('This job could not be started. Try again shortly.', 409, 'capacity');
   }
   if (row.request_digest !== digest) throw new AccountError('Submission token already used.', 409, 'token_conflict');
   return row;

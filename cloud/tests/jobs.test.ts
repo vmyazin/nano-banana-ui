@@ -29,7 +29,9 @@ describe('durable job intake', () => {
   it('bounds active jobs and releases reservations exactly once', async () => {
     const jobs=[];
     for(let i=0;i<3;i++)jobs.push(await acceptJob(env,'owner',`request-token-12345${i}`,request));
-    await expect(acceptJob(env,'owner','request-token-123459',request)).rejects.toMatchObject({code:'capacity'});
+    // Named for the bound it hit, which is what this test is about: 'capacity'
+    // used to cover storage and slots alike and could not tell them apart.
+    await expect(acceptJob(env,'owner','request-token-123459',request)).rejects.toMatchObject({code:'active_jobs'});
     await finishJob(env,jobs[0].id,'failed'); await finishJob(env,jobs[0].id,'failed');
     expect(db.prepare('SELECT reserved_bytes, active_jobs FROM account_storage').get()).toMatchObject({reserved_bytes:2*IMAGE_RESERVATION,active_jobs:2});
     expect(await getJob(env,jobs[0].id,'different-owner')).toBeNull();
