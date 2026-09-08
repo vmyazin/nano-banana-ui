@@ -7,6 +7,7 @@ import { SINGLE_IMAGE_MODELS } from '@/lib/account/models';
 import { featureImagePrompt } from '@/lib/image/feature-prompt';
 import CloudExecutionNotice from '@/components/account/CloudExecutionNotice';
 import CloudJobPanel from '@/components/account/CloudJobPanel';
+import GenerationWorkspaceLayout from '@/components/GenerationWorkspaceLayout';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useMutation } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -970,101 +971,240 @@ export default function GenerationInterface({ feature, apiKey, onBack, onOpenCon
         onSelect={handleEngineSelect}
       />
 
-      {/* Same shape as the Model card in the Kie and fal workspaces: the rack
-          of what this provider serves, with the vendor's own description of the
-          chosen one underneath. */}
-      {activeProvider && (
-        <section className="glass-card space-y-3 p-3.5 md:p-4">
-          <h3 className="display text-base font-semibold">Model</h3>
-          <div className="space-y-2">
-            <ModelListbox
-              label="Model"
-              accent="image"
-              columns={PROVIDER_IMAGE_COLUMNS}
-              rows={modelsFor(activeProvider, 'image').map((model) => ({
-                id: model.id,
-                label: model.label,
-                cells: providerImageSpecs(model),
-              }))}
-              value={activeProviderModel ?? undefined}
-              onChange={(id) => setProviderModel(activeProvider, 'image', id)}
-            />
-            {activeProviderCatalogModel && (
-              <p className="px-0.5 text-sm leading-relaxed text-[var(--foreground-muted)]">
-                <span className="font-medium text-[var(--foreground)]">
-                  {activeProviderCatalogModel.label}:
-                </span>{' '}
-                {activeProviderCatalogModel.note ??
-                  `Billed to your ${activeEngine.label} account at ${activeProviderCatalogModel.price && activeProviderCatalogModel.price !== 'metered' ? activeProviderCatalogModel.price : 'the vendor’s rates'}.`}
-              </p>
+      {/* Setup on the left, Prompt directly over the result on the right:
+          the composition the video workspaces already use, so moving between
+          image and video never relocates the prompt. */}
+      <GenerationWorkspaceLayout
+        setup={
+          <>
+            {/* Same shape as the Model card in the Kie and fal workspaces: the rack
+                of what this provider serves, with the vendor's own description of the
+                chosen one underneath. */}
+            {activeProvider && (
+              <section className="glass-card space-y-3 p-3.5 md:p-4">
+                <h3 className="display text-base font-semibold">Model</h3>
+                <div className="space-y-2">
+                  <ModelListbox
+                    label="Model"
+                    accent="image"
+                    columns={PROVIDER_IMAGE_COLUMNS}
+                    rows={modelsFor(activeProvider, 'image').map((model) => ({
+                      id: model.id,
+                      label: model.label,
+                      cells: providerImageSpecs(model),
+                    }))}
+                    value={activeProviderModel ?? undefined}
+                    onChange={(id) => setProviderModel(activeProvider, 'image', id)}
+                  />
+                  {activeProviderCatalogModel && (
+                    <p className="px-0.5 text-sm leading-relaxed text-[var(--foreground-muted)]">
+                      <span className="font-medium text-[var(--foreground)]">
+                        {activeProviderCatalogModel.label}:
+                      </span>{' '}
+                      {activeProviderCatalogModel.note ??
+                        `Billed to your ${activeEngine.label} account at ${activeProviderCatalogModel.price && activeProviderCatalogModel.price !== 'metered' ? activeProviderCatalogModel.price : 'the vendor’s rates'}.`}
+                    </p>
+                  )}
+                </div>
+              </section>
             )}
-          </div>
-        </section>
-      )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3.5 md:gap-4">
-        {/* Input Section */}
-        <motion.div
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          className="space-y-3 sm:space-y-3.5 md:space-y-4"
-        >
-          {/* Image Upload */}
-          {feature.requiresImage && (
-            <div className="glass-card p-3.5 md:p-4 space-y-3">
-              <h3 className="display text-base sm:text-lg font-semibold">
-                Upload Image{feature.requiresMultipleImages ? 's' : ''}
-              </h3>
+            {/* Image Upload */}
+            {feature.requiresImage && (
+              <div className="glass-card p-3.5 md:p-4 space-y-3">
+                <h3 className="display text-base sm:text-lg font-semibold">
+                  Upload Image{feature.requiresMultipleImages ? 's' : ''}
+                </h3>
 
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                multiple={feature.requiresMultipleImages}
-                onChange={handleImageUpload}
-                className="hidden"
-              />
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  multiple={feature.requiresMultipleImages}
+                  onChange={handleImageUpload}
+                  className="hidden"
+                />
 
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-stretch">
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  {...dropProps}
-                  className={`flex w-full flex-col items-center gap-2 rounded-xl border-2 border-dashed py-3 transition-all sm:flex-1 ${isDragging ? 'border-[var(--neon-cyan)] bg-[var(--neon-cyan)]/10 text-[var(--neon-cyan)]' : 'border-[var(--neon-cyan)]/30 text-[var(--foreground-muted)] hover:border-[var(--neon-cyan)] hover:bg-[var(--neon-cyan)]/5 hover:text-[var(--neon-cyan)]'}`}
-                >
-                  {isFetching ? <Loader2 size={32} className="animate-spin" /> : <ImagePlus size={32} />}
-                  <span className="font-medium">
-                    {isFetching
-                      ? 'Fetching dropped image…'
-                      : isDragging
-                        ? 'Drop to use as a source'
-                        : `Drop or click to upload${feature.requiresMultipleImages ? ` (max ${feature.maxImages})` : ''}`}
-                  </span>
-                  <span className="text-xs text-[var(--foreground-subtle)]">
-                    or paste with ⌘V / Ctrl+V
-                  </span>
-                </button>
-                {references.length < (feature.maxImages || 1) && (
-                  <StoredImagePicker referenceLimit={feature.maxImages || 1} />
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-stretch">
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    {...dropProps}
+                    className={`flex w-full flex-col items-center gap-2 rounded-xl border-2 border-dashed py-3 transition-all sm:flex-1 ${isDragging ? 'border-[var(--neon-cyan)] bg-[var(--neon-cyan)]/10 text-[var(--neon-cyan)]' : 'border-[var(--neon-cyan)]/30 text-[var(--foreground-muted)] hover:border-[var(--neon-cyan)] hover:bg-[var(--neon-cyan)]/5 hover:text-[var(--neon-cyan)]'}`}
+                  >
+                    {isFetching ? <Loader2 size={32} className="animate-spin" /> : <ImagePlus size={32} />}
+                    <span className="font-medium">
+                      {isFetching
+                        ? 'Fetching dropped image…'
+                        : isDragging
+                          ? 'Drop to use as a source'
+                          : `Drop or click to upload${feature.requiresMultipleImages ? ` (max ${feature.maxImages})` : ''}`}
+                    </span>
+                    <span className="text-xs text-[var(--foreground-subtle)]">
+                      or paste with ⌘V / Ctrl+V
+                    </span>
+                  </button>
+                  {references.length < (feature.maxImages || 1) && (
+                    <StoredImagePicker referenceLimit={feature.maxImages || 1} />
+                  )}
+                </div>
+
+                {images.length > 0 && (
+                  <ReferenceStack
+                    replaceLimit={feature.maxImages || 1}
+                    items={images.map((image, index) => ({
+                      id: image.id,
+                      src: image.dataUrl,
+                      alt: `Upload ${index + 1}`,
+                      removeLabel: `Remove upload ${index + 1}`,
+                    }))}
+                    onRemove={removeImage}
+                  />
                 )}
               </div>
+            )}
 
-              {images.length > 0 && (
-                <ReferenceStack
-                  replaceLimit={feature.maxImages || 1}
-                  items={images.map((image, index) => ({
-                    id: image.id,
-                    src: image.dataUrl,
-                    alt: `Upload ${index + 1}`,
-                    removeLabel: `Remove upload ${index + 1}`,
-                  }))}
-                  onRemove={removeImage}
-                />
+            {/* Settings Panel — always visible */}
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="glass-card p-4 space-y-3"
+            >
+                  <h3 className="display text-lg font-semibold">
+                    Generation Settings
+                  </h3>
+
+                  <div className="space-y-3">
+                    {/* In cloud mode the saved account connection is what runs the job,
+                        so testing the browser key here would ask a signed-in person to
+                        reconnect a provider they already connected — directly
+                        contradicting the background-generation notice above. */}
+                    {activeEngine.id === 'cloudflare' && (cloudWorkspace.cloud ? !cloudWorkspace.connected : !hasCfCreds) && (
+                      <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3 flex items-center justify-between gap-3">
+                        <p className="text-xs text-[var(--foreground-muted)]">
+                          Connect your Cloudflare token to use this engine.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => onOpenConnections(activeEngine.id)}
+                          className="btn-secondary text-xs py-1.5 px-3 flex-shrink-0"
+                        >
+                          Connect →
+                        </button>
+                      </div>
+                    )}
+
+                    {activeEngine.id === 'fal' && (cloudWorkspace.cloud ? !cloudWorkspace.connected : !falApiKey.trim()) && (
+                      <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3 flex items-center justify-between gap-3">
+                        <p className="text-xs text-[var(--foreground-muted)]">
+                          Connect your fal API key to use this engine.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => onOpenConnections(activeEngine.id)}
+                          className="btn-secondary text-xs py-1.5 px-3 flex-shrink-0"
+                        >
+                          Connect →
+                        </button>
+                      </div>
+                    )}
+
+                    {activeEngine.supportsAspectRatio && (
+                    <div>
+                      <label htmlFor="image-aspect-ratio" className="block text-sm font-medium mb-2 text-[var(--foreground)]">
+                        Aspect Ratio
+                      </label>
+                      <select
+                        id="image-aspect-ratio"
+                        value={config.aspectRatio}
+                        onChange={(e) => applyConfig({ ...config, aspectRatio: e.target.value as NonNullable<GenerationConfig['aspectRatio']> })}
+                        className="w-full"
+                      >
+                        {ASPECT_RATIO_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>{option.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                    )}
+
+                    {activeEngine.supportsImageSize && (
+                    <div className="space-y-2">
+                      <span className="block text-sm font-medium text-[var(--foreground)]">
+                        Resolution
+                      </span>
+                      <SegmentedToggleGroup
+                        label="Resolution"
+                        options={RESOLUTION_OPTIONS}
+                        value={config.imageSize ?? '1K'}
+                        onChange={(value) => applyConfig({
+                          ...config,
+                          imageSize: value as NonNullable<GenerationConfig['imageSize']>,
+                        })}
+                      />
+                    </div>
+                    )}
+
+                    {feature.id === 'search-grounding' && (
+                      <div className="flex items-center justify-between p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                        <div>
+                          <span className="text-sm font-medium">Use Google Search</span>
+                          <p className="text-xs text-[var(--foreground-muted)] mt-0.5">
+                            Ground generation with real-time data
+                          </p>
+                        </div>
+                        <input
+                          type="checkbox"
+                          checked={config.useGoogleSearch}
+                          onChange={(e) => applyConfig({ ...config, useGoogleSearch: e.target.checked })}
+                          className="w-5 h-5"
+                        />
+                      </div>
+                    )}
+                  </div>
+            </motion.div>
+
+            {/* Generate Button */}
+            <button
+              onClick={handleGenerate}
+              disabled={isGenerating || cloudWorkspace.checking}
+              className="btn-primary w-full py-3 text-base flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isGenerating ? (
+                <>
+                  <Loader2 className="animate-spin" size={24} />
+                  Generating Magic...
+                </>
+              ) : (
+                <>
+                  <Wand2 size={24} />
+                  Generate Image
+                </>
               )}
-            </div>
-          )}
+            </button>
 
-          {/* Prompt Input */}
+            <p className="mt-2 text-center text-xs text-[var(--foreground-subtle)]">
+              {costLine}
+            </p>
+
+            <CloudExecutionNotice workspace={cloudWorkspace} />
+
+            {/* Error Display */}
+            <AnimatePresence>
+              {displayError && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="glass-card p-4 bg-red-500/10 border-red-500/30 text-red-300 whitespace-pre-wrap"
+                >
+                  {displayError}
+                  <RetryCountdown retry={autoRetry.pending} onCancel={autoRetry.cancel} />
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </>
+        }
+        prompt={
           <PromptPanel>
             <div className="flex items-center justify-between gap-2 flex-wrap">
               <h3 className="display text-base sm:text-lg font-semibold">
@@ -1144,183 +1284,44 @@ export default function GenerationInterface({ feature, apiKey, onBack, onOpenCon
               </div>
             )}
           </PromptPanel>
-
-          {/* Settings Panel — always visible */}
-          <motion.div
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
+        }
+        results={
+          cloudWorkspace.cloud ? <CloudJobPanel provider={activeEngine.id} modelId={cloudModelId} mediaType="image" inputMode={cloudInputMode} /> : <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
             className="glass-card p-4 space-y-3"
           >
-                <h3 className="display text-lg font-semibold">
-                  Generation Settings
-                </h3>
+            <h3 className="display text-lg font-semibold">
+              Generated Image
+            </h3>
 
-                <div className="space-y-3">
-                  {/* In cloud mode the saved account connection is what runs the job,
-                      so testing the browser key here would ask a signed-in person to
-                      reconnect a provider they already connected — directly
-                      contradicting the background-generation notice above. */}
-                  {activeEngine.id === 'cloudflare' && (cloudWorkspace.cloud ? !cloudWorkspace.connected : !hasCfCreds) && (
-                    <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3 flex items-center justify-between gap-3">
-                      <p className="text-xs text-[var(--foreground-muted)]">
-                        Connect your Cloudflare token to use this engine.
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => onOpenConnections(activeEngine.id)}
-                        className="btn-secondary text-xs py-1.5 px-3 flex-shrink-0"
-                      >
-                        Connect →
-                      </button>
-                    </div>
-                  )}
+            {newestResult && (
+              <ImageFormatControl
+                value={imageFormat}
+                onChange={setImageFormat}
+                sourceMimeType={generatedMimeType}
+              />
+            )}
 
-                  {activeEngine.id === 'fal' && (cloudWorkspace.cloud ? !cloudWorkspace.connected : !falApiKey.trim()) && (
-                    <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3 flex items-center justify-between gap-3">
-                      <p className="text-xs text-[var(--foreground-muted)]">
-                        Connect your fal API key to use this engine.
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => onOpenConnections(activeEngine.id)}
-                        className="btn-secondary text-xs py-1.5 px-3 flex-shrink-0"
-                      >
-                        Connect →
-                      </button>
-                    </div>
-                  )}
+            <ResultStack
+              items={results}
+              isGenerating={isGenerating}
+              onDownload={(item) => downloadImage(item)}
+              downloadingId={downloadingId}
+              downloadLabel="Download Image"
+              filenameBase={() => filenameSlug || 'generated-image'}
+              onUseAsFirstFrame={onUseAsFirstFrame}
 
-                  {activeEngine.supportsAspectRatio && (
-                  <div>
-                    <label htmlFor="image-aspect-ratio" className="block text-sm font-medium mb-2 text-[var(--foreground)]">
-                      Aspect Ratio
-                    </label>
-                    <select
-                      id="image-aspect-ratio"
-                      value={config.aspectRatio}
-                      onChange={(e) => applyConfig({ ...config, aspectRatio: e.target.value as NonNullable<GenerationConfig['aspectRatio']> })}
-                      className="w-full"
-                    >
-                      {ASPECT_RATIO_OPTIONS.map((option) => (
-                        <option key={option.value} value={option.value}>{option.label}</option>
-                      ))}
-                    </select>
-                  </div>
-                  )}
-
-                  {activeEngine.supportsImageSize && (
-                  <div className="space-y-2">
-                    <span className="block text-sm font-medium text-[var(--foreground)]">
-                      Resolution
-                    </span>
-                    <SegmentedToggleGroup
-                      label="Resolution"
-                      options={RESOLUTION_OPTIONS}
-                      value={config.imageSize ?? '1K'}
-                      onChange={(value) => applyConfig({
-                        ...config,
-                        imageSize: value as NonNullable<GenerationConfig['imageSize']>,
-                      })}
-                    />
-                  </div>
-                  )}
-
-                  {feature.id === 'search-grounding' && (
-                    <div className="flex items-center justify-between p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
-                      <div>
-                        <span className="text-sm font-medium">Use Google Search</span>
-                        <p className="text-xs text-[var(--foreground-muted)] mt-0.5">
-                          Ground generation with real-time data
-                        </p>
-                      </div>
-                      <input
-                        type="checkbox"
-                        checked={config.useGoogleSearch}
-                        onChange={(e) => applyConfig({ ...config, useGoogleSearch: e.target.checked })}
-                        className="w-5 h-5"
-                      />
-                    </div>
-                  )}
+              emptyState={
+                <div className="p-5 text-center text-[var(--foreground-muted)]">
+                  <Wand2 size={48} className="mx-auto mb-4 opacity-30" />
+                  <p>Your generated image will appear here</p>
                 </div>
-          </motion.div>
-
-          {/* Generate Button */}
-          <button
-            onClick={handleGenerate}
-            disabled={isGenerating || cloudWorkspace.checking}
-            className="btn-primary w-full py-3 text-base flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isGenerating ? (
-              <>
-                <Loader2 className="animate-spin" size={24} />
-                Generating Magic...
-              </>
-            ) : (
-              <>
-                <Wand2 size={24} />
-                Generate Image
-              </>
-            )}
-          </button>
-
-          <p className="mt-2 text-center text-xs text-[var(--foreground-subtle)]">
-            {costLine}
-          </p>
-
-          <CloudExecutionNotice workspace={cloudWorkspace} />
-
-          {/* Error Display */}
-          <AnimatePresence>
-            {displayError && (
-              <motion.div
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="glass-card p-4 bg-red-500/10 border-red-500/30 text-red-300 whitespace-pre-wrap"
-              >
-                {displayError}
-                <RetryCountdown retry={autoRetry.pending} onCancel={autoRetry.cancel} />
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </motion.div>
-
-        {/* Output Section */}
-        {cloudWorkspace.cloud ? <CloudJobPanel provider={activeEngine.id} modelId={cloudModelId} mediaType="image" inputMode={cloudInputMode} /> : <motion.div
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          className="glass-card p-4 space-y-3"
-        >
-          <h3 className="display text-lg font-semibold">
-            Generated Image
-          </h3>
-
-          {newestResult && (
-            <ImageFormatControl
-              value={imageFormat}
-              onChange={setImageFormat}
-              sourceMimeType={generatedMimeType}
+              }
             />
-          )}
-
-          <ResultStack
-            items={results}
-            isGenerating={isGenerating}
-            onDownload={(item) => downloadImage(item)}
-            downloadingId={downloadingId}
-            downloadLabel="Download Image"
-            filenameBase={() => filenameSlug || 'generated-image'}
-            onUseAsFirstFrame={onUseAsFirstFrame}
-
-            emptyState={
-              <div className="p-5 text-center text-[var(--foreground-muted)]">
-                <Wand2 size={48} className="mx-auto mb-4 opacity-30" />
-                <p>Your generated image will appear here</p>
-              </div>
-            }
-          />
-        </motion.div>}
-      </div>
+          </motion.div>
+        }
+      />
     </div>
   );
 }
