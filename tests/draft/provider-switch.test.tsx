@@ -221,7 +221,7 @@ describe('carrying user input across providers and modes', () => {
 
     renderImageStudio();
 
-    expect(screen.getByRole('combobox', { name: /Aspect Ratio/i })).toHaveValue('16:9');
+    expect(screen.getByRole('combobox', { name: /Aspect Ratio/i })).toHaveValue('1:1');
   });
 
   it('drops the extra reference when the next model accepts fewer', async () => {

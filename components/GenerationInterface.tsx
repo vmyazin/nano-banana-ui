@@ -107,6 +107,15 @@ const ASPECT_RATIO_OPTIONS = [
   { value: '4:3', label: '4:3 (Standard)' },
 ];
 
+/**
+ * Square, because this control's first job is text-to-image — the most general
+ * mode in the app — and 16:9 sent every unspecified prompt out as a YouTube
+ * thumbnail, which is what the Viral Thumbnail Generator is for. A shape the
+ * user did pick survives: it is remembered on the draft, and an attached
+ * reference overrides it through `useAutoAspect`.
+ */
+const DEFAULT_ASPECT_RATIO = '1:1';
+
 const ASPECT_RATIO_CANDIDATES = candidatesFromValues(
   ASPECT_RATIO_OPTIONS.map((option) => option.value)
 );
@@ -131,7 +140,7 @@ function draftedConfig(): GenerationConfig {
   return {
     aspectRatio: isValueCompatible(ASPECT_RATIO_FIELD, aspectRatio)
       ? (aspectRatio as GenerationConfig['aspectRatio'])
-      : '16:9',
+      : DEFAULT_ASPECT_RATIO,
     imageSize: isValueCompatible(RESOLUTION_FIELD, imageSize)
       ? (imageSize as GenerationConfig['imageSize'])
       : '1K',
@@ -233,7 +242,7 @@ export default function GenerationInterface({ feature, apiKey, onBack, onOpenCon
   const applyConfig = (next: GenerationConfig) => {
     setConfig(next);
     useDraftStore.getState().rememberControlValues({
-      aspect_ratio: next.aspectRatio ?? '16:9',
+      aspect_ratio: next.aspectRatio ?? DEFAULT_ASPECT_RATIO,
       resolution: next.imageSize ?? '1K',
     });
   };
@@ -609,7 +618,7 @@ export default function GenerationInterface({ feature, apiKey, onBack, onOpenCon
         provider: activeEngine.id,
         modelId: activeModelId,
         controlValues: {
-          aspect_ratio: config.aspectRatio ?? '16:9',
+          aspect_ratio: config.aspectRatio ?? DEFAULT_ASPECT_RATIO,
           resolution: config.imageSize ?? '1K',
         },
         mimeType: blob.type || 'image/png',
@@ -725,9 +734,9 @@ export default function GenerationInterface({ feature, apiKey, onBack, onOpenCon
         const values: Record<string,string|number|boolean> = activeEngine.id === 'fal'
           ? {aspect_ratio:config.aspectRatio ?? 'auto',resolution:config.imageSize ?? '1K',enable_web_search:Boolean(config.useGoogleSearch)}
           : activeProvider || activeEngine.id === 'pollinations'
-            ? {aspectRatio:config.aspectRatio ?? '16:9', ...(activeProvider === 'piapi' ? {resolution:config.imageSize ?? '1K'} : {})}
+            ? {aspectRatio:config.aspectRatio ?? DEFAULT_ASPECT_RATIO, ...(activeProvider === 'piapi' ? {resolution:config.imageSize ?? '1K'} : {})}
             : activeEngine.id === 'cloudflare' ? {}
-              : {aspectRatio:config.aspectRatio ?? '16:9',imageSize:config.imageSize ?? '1K',useGoogleSearch:Boolean(config.useGoogleSearch)};
+              : {aspectRatio:config.aspectRatio ?? DEFAULT_ASPECT_RATIO,imageSize:config.imageSize ?? '1K',useGoogleSearch:Boolean(config.useGoogleSearch)};
         await cloudWorkspace.submit({modelId:cloudModelId,mediaType:'image',inputMode:cloudInputMode,prompt:cloudPrompt,values},feature.requiresImage ? references.map(reference => reference.file) : [],prompt);
       } catch (caught) {
         if (mountedRef.current && generationOperationRef.current === operation) setError(caught instanceof Error ? caught.message : 'Could not confirm this background job.');

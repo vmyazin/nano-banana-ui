@@ -386,7 +386,7 @@ describe('GenerationInterface fal image generation', () => {
         prompt: 'A bright editorial still life',
         dataUrls: [],
         values: {
-          aspect_ratio: '16:9',
+          aspect_ratio: '1:1',
           resolution: '2K',
           enable_web_search: true,
         },
@@ -1179,6 +1179,37 @@ describe('GenerationInterface prompt validation', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Google Gemini' }));
 
     expect(screen.queryByRole('alert')).toBeNull();
+  });
+});
+
+describe('GenerationInterface aspect ratio default', () => {
+  beforeEach(() => {
+    useDraftStore.getState().reset();
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+    useAppStore.setState({
+      engine: 'gemini',
+      apiKey: 'gemini_test_key',
+      cfAccountId: 'cf_account',
+      cfToken: 'cf_token',
+      kieApiKey: 'kie_test_key',
+    });
+  });
+
+  it('starts square rather than as a YouTube thumbnail', () => {
+    renderInterface();
+
+    // The thumbnail shape is the Viral Thumbnail Generator's job, not the
+    // default for the most general mode in the app.
+    expect(screen.getByLabelText(/aspect ratio/i)).toHaveValue('1:1');
+  });
+
+  it('keeps a shape the user already chose', () => {
+    useDraftStore.getState().rememberControlValues({ aspect_ratio: '16:9', resolution: '1K' });
+
+    renderInterface();
+
+    expect(screen.getByLabelText(/aspect ratio/i)).toHaveValue('16:9');
   });
 });
 

@@ -146,6 +146,13 @@
       "request": "launch",
       "command": "ACCOUNT_WORKER_PORT=8833 DEV_FAKE_GENERATION=1 npm run dev -- --port 3133",
       "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "Defaults and run-location smoke test",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "ACCOUNT_WORKER_PORT=8835 DEV_FAKE_GENERATION=1 npm run dev -- --port 3135",
+      "cwd": "${workspaceFolder}"
     }
   ]
 }
