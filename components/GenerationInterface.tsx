@@ -35,6 +35,7 @@ import { useAppStore } from '@/store/useAppStore';
 import { modelsFor, resolveModel } from '@/lib/providers/catalog';
 import type { ProviderId } from '@/lib/providers/types';
 import { prepareReferences } from '@/lib/draft/ingest';
+import { keepUploadedImages } from '@/lib/gallery/keep-upload';
 import { useDraftStore } from '@/store/useDraftStore';
 import { usePromptLibraryStore } from '@/store/usePromptLibraryStore';
 import { useGalleryStore } from '@/store/useGalleryStore';
@@ -377,6 +378,10 @@ export default function GenerationInterface({ feature, apiKey, onBack, onOpenCon
     );
     if (!mountedRef.current) return;
     useDraftStore.getState().addReferences(prepared, maxImages);
+    // Kept for next time, in this browser and in the cloud library when there
+    // is an account to hold it. Not awaited: the reference is already in the
+    // draft, and storing it must not delay the press that follows.
+    void keepUploadedImages(prepared);
     setError(null);
   }, [activeEngine.id, feature.maxImages, imageFormat, references.length]);
 

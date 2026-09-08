@@ -44,6 +44,7 @@ import type { EngineId } from '@/lib/engines/registry';
 import { FRAME_EXTRACTION_ERROR, isVideoFile, lastFrameAsImageFile } from '@/lib/video-frame';
 import { useAppStore } from '@/store/useAppStore';
 import { prepareReferences } from '@/lib/draft/ingest';
+import { keepUploadedImages } from '@/lib/gallery/keep-upload';
 import { useDraftStore } from '@/store/useDraftStore';
 import { usePromptLibraryStore } from '@/store/usePromptLibraryStore';
 import { useProviderJobsStore, type ProviderJob } from '@/store/useProviderJobsStore';
@@ -362,6 +363,11 @@ export default function ProviderVideoWorkspace({
       const converted = await prepareReferences(prepared, imageFormat);
       if (!mountedRef.current) return;
       useDraftStore.getState().addReferences(converted, maxInputImages);
+      // Kept for next time, in this browser and in the cloud library when
+      // there is an account to hold it. Deliberately not awaited: the
+      // reference is already in the draft, and storing it must not delay the
+      // press that follows.
+      void keepUploadedImages(converted);
     } catch {
       if (mountedRef.current) setError(FRAME_EXTRACTION_ERROR);
     } finally {

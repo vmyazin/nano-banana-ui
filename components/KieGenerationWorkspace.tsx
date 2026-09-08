@@ -25,6 +25,7 @@ import { useAppStore } from '@/store/useAppStore';
 import { useKieJobsStore } from '@/store/useKieJobsStore';
 import { useSeedFrameStore } from '@/store/useSeedFrameStore';
 import { prepareReferences } from '@/lib/draft/ingest';
+import { keepUploadedImages } from '@/lib/gallery/keep-upload';
 import { useDraftStore } from '@/store/useDraftStore';
 import { usePromptLibraryStore } from '@/store/usePromptLibraryStore';
 import { candidatesFromValues, useAutoAspect } from '@/lib/draft/aspect-match';
@@ -267,6 +268,11 @@ export default function KieGenerationWorkspace({
       const converted = await prepareReferences(prepared, imageFormat);
       if (!mountedRef.current) return;
       useDraftStore.getState().addReferences(converted, maxInputImages);
+      // Kept for next time, in this browser and in the cloud library when
+      // there is an account to hold it. Deliberately not awaited: the
+      // reference is already in the draft, and storing it must not delay the
+      // press that follows.
+      void keepUploadedImages(converted);
     } catch {
       if (mountedRef.current) setError(FRAME_EXTRACTION_ERROR);
     } finally {

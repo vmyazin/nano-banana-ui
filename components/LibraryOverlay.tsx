@@ -13,6 +13,7 @@ import { useAppStore } from '@/store/useAppStore';
 import { useGalleryStore } from '@/store/useGalleryStore';
 import { usePromptLibraryStore } from '@/store/usePromptLibraryStore';
 import { prepareReferences } from '@/lib/draft/ingest';
+import { keepUploadedImages } from '@/lib/gallery/keep-upload';
 import { useDraftStore } from '@/store/useDraftStore';
 import type { CloudAssetCounts } from '@/lib/account/contracts';
 
@@ -106,6 +107,9 @@ export default function LibraryOverlay({
         useAppStore.getState().imageFormat
       );
       useDraftStore.getState().addReferences(prepared, referenceLimit ?? 8);
+      // Kept for next time, so the grid behind this dialog fills with the
+      // images the reader has actually used rather than staying empty.
+      void keepUploadedImages(prepared);
       onOpenChange(false);
     } catch {
       setUploadError('That image could not be read.');
