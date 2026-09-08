@@ -17,10 +17,10 @@ const vars = productionVars();
 const base = { APP_ORIGIN: vars.APP_ORIGIN } as Env;
 
 describe('production generation provider configuration', () => {
-  it('enables verified providers and keeps PiAPI gated pending a live check', () => {
+  it('includes PiAPI after fixing its Workers transport', () => {
     const env = { ...base, CLOUD_GENERATION_PROVIDERS: vars.CLOUD_GENERATION_PROVIDERS };
-    expect(enabledProviders(env).sort()).toEqual(CLOUD_PROVIDERS.filter(provider => provider !== 'piapi').sort());
-    expect(enabledProviders(env)).not.toContain('piapi');
+    expect(enabledProviders(env).sort()).toEqual([...CLOUD_PROVIDERS].sort());
+    expect(enabledProviders(env)).toContain('piapi');
   });
   it('accepts only the providers a value names, ignoring unknown and empty entries', () => {
     expect(enabledProviders({ ...base, CLOUD_GENERATION_PROVIDERS: ' fal , , nope, gemini ' })).toEqual(['fal','gemini']);

@@ -21,7 +21,7 @@ describe('PiAPI contracts', () => {
     expect(mock.mock.calls[0][0]).toBe('https://upload.theapi.app/api/ephemeral_resource');
     expect(JSON.parse(mock.mock.calls[0][1].body).file_data).toBe('data:image/webp;base64,AQID');
     expect(mock.mock.calls[1][0]).toBe(PIAPI_TASK_URL);
-    expect(mock.mock.calls[1][1]).toMatchObject({ redirect: 'error', headers: expect.objectContaining({ 'X-API-Key': 'test-only' }) });
+    expect(mock.mock.calls[1][1]).toMatchObject({ redirect: 'manual', headers: expect.objectContaining({ 'X-API-Key': 'test-only' }) });
     expect(JSON.parse(mock.mock.calls[1][1].body)).toEqual({ model: 'gemini', task_type: 'nano-banana-2', input: { prompt: image.prompt, resolution: '4K', aspect_ratio: '3:2', output_format: 'png', image_urls: ['https://upload.theapi.app/ref.webp'] }, config: { service_mode: 'public' } });
   });
   it('uses hosted account references without uploading them again', async () => {
@@ -32,7 +32,20 @@ describe('PiAPI contracts', () => {
   });
   it('explains the upload subscription requirement before any paid task', async () => {
     const mock = vi.fn().mockResolvedValue(Response.json({ code: 403 }, { status: 403 })); vi.stubGlobal('fetch', mock);
-    await expect(piapiCreateImage({ ...image, images: ['data:image/png;base64,AQID'] })).rejects.toMatchObject({ status: 403, message: expect.stringContaining('Creator') });
+    await expect(piapiCreateImage({ ...image, images: ['data:image/png;base64,AQID'] })).rejects.toMatchObject({ status: 403, message: expect.stringContaining('No generation task was submitted.') });
+    expect(mock).toHaveBeenCalledTimes(1);
+  });
+  it.each([301, 302, 307, 308])('rejects HTTP %s without forwarding credentials or retrying payment', async status => {
+    const mock = vi.fn().mockResolvedValue(new Response(null, { status, headers: { Location: 'https://untrusted.example/task' } }));
+    vi.stubGlobal('fetch', mock);
+    await expect(piapiCreateImage(image)).rejects.toMatchObject({ status: 409 });
+    expect(mock).toHaveBeenCalledTimes(1);
+    expect(mock.mock.calls[0][1].redirect).toBe('manual');
+  });
+  it('rejects browser opaque redirects during reference upload before a paid task', async () => {
+    const mock = vi.fn().mockResolvedValue({ type: 'opaqueredirect', status: 0 });
+    vi.stubGlobal('fetch', mock);
+    await expect(piapiCreateImage({ ...image, images: ['data:image/png;base64,AQID'] })).rejects.toMatchObject({ status: 502 });
     expect(mock).toHaveBeenCalledTimes(1);
   });
   it('maps Veo frames, audio and duration to its own schema', async () => {

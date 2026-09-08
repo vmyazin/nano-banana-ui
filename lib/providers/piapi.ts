@@ -8,7 +8,7 @@ const record = (value: unknown): Json => value !== null && typeof value === 'obj
 const fail = (message: string, status = 400): never => { throw new ProviderError(message, status, 'piapi'); };
 
 function publicError(status: number, uploading: boolean): string {
-  if (uploading && status === 403) return 'PiAPI reference uploads require the Creator plan or higher. Use a supported PiAPI plan or account background generation with hosted references.';
+  if (uploading && status === 403) return 'PiAPI blocked this reference upload. Browser reference uploads require the Creator plan or higher. No generation task was submitted.';
   if (status === 401 || status === 403) return 'Your PiAPI API key is invalid or does not have access to this model.';
   if (status === 402) return 'Your PiAPI account needs additional credits.';
   if (status === 429) return 'PiAPI is rate limiting requests. Please try again shortly.';
@@ -19,12 +19,17 @@ async function request(url: string, apiKey: string, body?: Json, paid = false): 
   let response: Response;
   try {
     response = await fetch(url, {
-      method: body ? 'POST' : 'GET', redirect: 'error',
+      // Workers supports only follow/manual. Reject redirects below so a key
+      // never follows Location to another host, in either runtime.
+      method: body ? 'POST' : 'GET', redirect: 'manual',
       headers: { 'X-API-Key': apiKey, ...(body ? { 'Content-Type': 'application/json' } : {}) },
       ...(body ? { body: JSON.stringify(body) } : {}), signal: AbortSignal.timeout(60_000),
     });
   } catch {
     return fail(paid ? 'PiAPI may have accepted this task. Check your PiAPI task history before submitting again.' : 'Could not reach PiAPI. Please try again.', paid ? 409 : 503);
+  }
+  if (String(response.type) === 'opaqueredirect' || (response.status >= 300 && response.status < 400)) {
+    return fail(paid ? 'PiAPI may have accepted this task. Check your PiAPI task history before submitting again.' : 'PiAPI returned an unexpected redirect.', paid ? 409 : 502);
   }
   const payload = record(await response.json().catch(() => null));
   const code = typeof payload.code === 'number' ? payload.code : typeof payload.code === 'string' ? Number(payload.code) : undefined;

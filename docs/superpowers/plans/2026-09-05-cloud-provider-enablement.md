@@ -81,3 +81,20 @@ their checks can run.
 | comet | | | | | | pending |
 | cloudflare | | | | | | pending |
 | pollinations | | | | | | pending |
+
+## PiAPI follow-up — 2026-09-08 UTC
+
+User approved deployment and $0.36 of hosted-reference checks. Worker version
+`6c15cd87-781b-49e5-8a2e-08924a16404a` enables PiAPI after replacing unsupported
+`redirect: error` with manual handling and explicit redirect rejection.
+
+| Model | Job ID | Completion after leaving | Library asset | Reservation released | Spend entries | Result |
+|---|---|---|---|---|---|---|
+| Nano Banana 2, 1K | 7c8661b9-5a30-44fc-913b-0c531884ceee | left image workspace | image, 914,246 B, img.theapi.app | yes | 1 ($0.06 estimated) | passed |
+| Kling Omni, 720p, 3s, silent | be63fc31-85b3-4c0c-b815-0eda0d054e68 | submission tab closed | video, 1,876,663 B, storage.theapi.app | yes | 1 ($0.30 estimated) | passed |
+
+Both outputs appeared in a fresh Brave account tab. PiAPI history confirms the
+$0.06/$0.30 charges. Signed extensionless reference URLs worked on the Free plan;
+guest uploads still need Creator. Veo and other PiAPI modes remain unverified.
+The original job f60aef19-876c-43c6-9342-f67ea7817509 failed before network I/O
+under Workerd's unsupported redirect mode; no duplicate vendor task was created.

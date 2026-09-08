@@ -2,6 +2,25 @@
 
 Status: implementation in progress. Reviewed 2026-09-04. This records evidence and gaps; it is not a claim that every provider is enabled.
 
+## PiAPI runtime follow-up — 2026-09-08 UTC
+
+PiAPI background generation is now enabled on Worker version
+`6c15cd87-781b-49e5-8a2e-08924a16404a`. Workerd rejects `redirect: error`
+before network I/O; the shared adapter now uses `manual` and explicitly rejects
+redirects, including browser opaque redirects, without forwarding credentials.
+A GET-only production probe successfully read an existing task with the saved
+key; all temporary diagnostic hooks were removed before enablement.
+
+Nano Banana 2 hosted-reference generation passed on a Free PiAPI plan: job
+`7c8661b9-5a30-44fc-913b-0c531884ceee` saved one image from `img.theapi.app`,
+with exactly one estimated $0.06 spend entry. This proves the extensionless
+signed input URL is usable by this model. Kling Omni's 3-second silent 720p reference check also passed after closing the
+submission tab: job `be63fc31-85b3-4c0c-b815-0eda0d054e68` saved a 1,876,663-byte
+video from `storage.theapi.app`, with one estimated $0.30 spend entry. Both jobs
+released their reservations and are visible from a fresh account tab. Veo live
+verification remains outstanding. Guest uploads still need
+Creator or higher. Detailed evidence is in the PiAPI implementation plan.
+
 ## PiAPI follow-up — 2026-09-07
 
 PiAPI now has a shared async adapter for Nano Banana 2, Veo 3.1 Fast and Kling 3
