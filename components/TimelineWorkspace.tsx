@@ -276,8 +276,12 @@ export default function TimelineWorkspace({
   const budgetBytes = DEFAULT_GALLERY_BUDGET.maxBytes;
   const storagePct = Math.min(100, (storedBytes / budgetBytes) * 100);
 
+  // Wider than the 1400px column the generation workspaces share: the track
+  // lays every clip out side by side, so it is the one surface that keeps
+  // earning width. Matches the page column `app/page.tsx` gives the timeline,
+  // so this cap never silently undoes it.
   return (
-    <div className="mx-auto w-full max-w-[1400px] space-y-3.5 sm:space-y-4" data-timeline-width={isWide ? 'wide' : 'narrow'}>
+    <div className="mx-auto w-full max-w-[110rem] space-y-3.5 sm:space-y-4" data-timeline-width={isWide ? 'wide' : 'narrow'}>
       <section className="glass-card p-3.5 md:p-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex min-w-0 items-center gap-3">

@@ -85,6 +85,13 @@ function Studio() {
     FEATURES.find((f) => f.id === featureId) ?? null;
   const selectFeature = (feature: Feature) => setFeatureId(feature.id);
   const clearFeature = () => setFeatureId(null);
+  // The timeline runs the account console's wide column rather than the
+  // studio's 7xl one: a horizontal track of clips beside the export panel is
+  // the widest thing in the app, and 7xl crops the track first. The header
+  // widens with it so the wordmark stays flush with the content's left edge —
+  // the same rule AccountPageShell follows for the console.
+  const columnWidth = activeWorkspace === 'timeline' ? 'max-w-[110rem]' : 'max-w-7xl';
+
   const selectWorkspace = (nextWorkspace: 'image' | 'video' | 'timeline') => {
     if (nextWorkspace === 'image') {
       void setWorkspace(null);
@@ -127,7 +134,7 @@ function Studio() {
     <div className="min-h-screen relative w-full overflow-x-hidden">
       {/* Header — sticky, hairline border, backdrop blur (Linear/Vercel nav) */}
       <header className="sticky top-0 z-50 border-b border-[var(--border)] bg-[hsl(var(--tint-hue)_38%_5%/0.72)] backdrop-blur-xl">
-        <div className="w-full max-w-7xl mx-auto px-6 sm:px-8 md:px-12 lg:px-16 py-3.5 md:py-4">
+        <div className={`w-full ${columnWidth} mx-auto px-6 sm:px-8 md:px-12 lg:px-16 py-3.5 md:py-4`}>
           <div className="flex items-center justify-between gap-4">
             <Link
               href="/"
@@ -265,7 +272,7 @@ function Studio() {
       />
 
       {/* Main Content */}
-      <main className="relative z-10 w-full max-w-7xl mx-auto px-6 sm:px-8 md:px-12 lg:px-16 py-4 sm:py-5 md:py-6">
+      <main className={`relative z-10 w-full ${columnWidth} mx-auto px-6 sm:px-8 md:px-12 lg:px-16 py-4 sm:py-5 md:py-6`}>
         <AnimatePresence mode="wait">
           {activeWorkspace === 'video' ? (
             <motion.div

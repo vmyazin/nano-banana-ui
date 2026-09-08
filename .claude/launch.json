@@ -139,6 +139,13 @@
       "request": "launch",
       "command": "ACCOUNT_WORKER_PORT=8831 DEV_FAKE_GENERATION=1 npm run dev -- --port 3131",
       "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "Timeline column width smoke test",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "ACCOUNT_WORKER_PORT=8833 DEV_FAKE_GENERATION=1 npm run dev -- --port 3133",
+      "cwd": "${workspaceFolder}"
     }
   ]
 }
