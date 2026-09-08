@@ -241,6 +241,13 @@ off in production, so guest use is unchanged. See
 [`docs/deployment.md`](docs/deployment.md) for the deployment boundary and the
 account-service launch checklist.
 
+The account Worker is not part of that push. After changing anything under
+`cloud/`, deploy it by hand or the change stays inert in production:
+
+```bash
+cd cloud && npx wrangler deploy      # npx wrangler deployments status to check
+```
+
 ## 🤝 Contributing
 
 Contributions welcome — report bugs, suggest features, or open pull requests.
