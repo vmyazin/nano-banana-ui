@@ -1,19 +1,17 @@
 // app/page.tsx
 'use client';
 
-import { Suspense, useEffect, useLayoutEffect, useState } from 'react';
+import { Suspense, useEffect, useLayoutEffect } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useQueryState } from 'nuqs';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Key, Check, Command as CommandIcon, Library as LibraryIcon, Film, Volume2, VolumeX, CircleDollarSign, CircleUserRound } from 'lucide-react';
-import { usePromptLibraryStore } from '@/store/usePromptLibraryStore';
+import { CircleDollarSign, CircleUserRound } from 'lucide-react';
 import FeatureSelector from '@/components/FeatureSelector';
 import ProviderLogo from '@/components/ProviderLogo';
 import { brand } from '@/lib/brand';
 import { ENGINE_DOCS } from '@/lib/engines/docs';
-import type { EngineId } from '@/lib/engines/registry';
 import StudioHeader from '@/components/StudioHeader';
 import VideoWorkspace from '@/components/VideoWorkspace';
 import { Feature, FEATURES } from '@/types';
@@ -38,9 +36,6 @@ function Studio() {
 
   // API key lives in the persisted Zustand store (single source of truth).
   const apiKey = useAppStore((s) => s.apiKey);
-  const kieApiKey = useAppStore((s) => s.kieApiKey);
-  const falApiKey = useAppStore((s) => s.falApiKey);
-  const hasHydrated = useAppStore((s) => s.hasHydrated);
   /**
    * The session resolves a moment after paint, so the footer waits for a
    * definite answer before offering to sign anyone in: until then the row reads
@@ -49,12 +44,6 @@ function Studio() {
    * watches the row flip out from under them.
    */
   const signedOut = useAccountStore((s) => s.status === 'ready' && !s.session?.account);
-  useEffect(() => {
-    useAppStore.persist.rehydrate();
-    // Its own call: each persisted store defers hydration to avoid an SSR mismatch.
-    void usePromptLibraryStore.persist.rehydrate();
-  }, []);
-  const hasKey = hasHydrated && !!(apiKey || kieApiKey || falApiKey);
 
   // View is driven by the URL (?feature=<id>) so it deep-links, supports
   // browser back/forward, and survives a refresh.

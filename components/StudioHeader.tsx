@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
@@ -14,6 +14,7 @@ import { brand } from '@/lib/brand';
 import { setChimeEnabled } from '@/lib/notify/chime';
 import { useAppStore } from '@/store/useAppStore';
 import { useConnectionsDialog } from '@/store/useConnectionsDialog';
+import { usePromptLibraryStore } from '@/store/usePromptLibraryStore';
 
 interface StudioHeaderProps {
   /** Which workspace reads as current. */
@@ -66,6 +67,26 @@ export default function StudioHeader({
 }: StudioHeaderProps) {
   const router = useRouter();
   const pathname = usePathname();
+
+  /**
+   * Both stores defer hydration (`skipHydration`) to avoid an SSR mismatch, so
+   * somebody has to ask for it on mount — and it has to be *this* component.
+   *
+   * The call used to live in `app/page.tsx` alone, which was fine while the
+   * header only ever rendered there. Once the timeline moved to its own route
+   * the header came with it and the rehydrate did not: on /timeline
+   * `hasHydrated` stayed false forever, so `hasKey` read false and a user whose
+   * keys were set was shown the bright "Add API Keys" call to action — the
+   * loudest thing in the header, telling them to do something they had already
+   * done. It belongs here because this is the component that reads the state;
+   * `useAppStore`'s own docs name the header CTA as the reason the hydration
+   * exists at all.
+   */
+  useEffect(() => {
+    useAppStore.persist.rehydrate();
+    // Its own call: each persisted store defers hydration separately.
+    void usePromptLibraryStore.persist.rehydrate();
+  }, []);
 
   const apiKey = useAppStore((s) => s.apiKey);
   const kieApiKey = useAppStore((s) => s.kieApiKey);
@@ -218,8 +239,12 @@ export default function StudioHeader({
                 {hasKey ? (
                   <>
                     <Check size={15} className="text-emerald-400" />
-                    <span className="hidden sm:inline">API&nbsp;Key</span>
-                    <span className="sm:hidden">Key</span>
+                    {/* Plural, like the CTA beside it and the dialog it opens:
+                        the button stands for every provider's credentials, not
+                        one, and a user with three keys saved read "API Key" as
+                        a count. */}
+                    <span className="hidden sm:inline">API&nbsp;Keys</span>
+                    <span className="sm:hidden">Keys</span>
                   </>
                 ) : (
                   <>
