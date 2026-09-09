@@ -2,7 +2,7 @@
 
 // components/TimelineExportPanel.tsx
 import { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, Download, Loader2, UploadCloud, X } from 'lucide-react';
+import { AlertTriangle, Check, Download, Library, Loader2, UploadCloud, X } from 'lucide-react';
 
 import {
   selectRenderEngine,
@@ -55,9 +55,15 @@ const PHASE_LABEL: Record<RenderProgress['phase'], string> = {
   uploading: 'Uploading',
 };
 
-/** Downloads the finished blob via a throwaway anchor. Never written back
- *  into the gallery — storing it would double the storage cost of every
- *  export against a budget the pinning rules already strain. */
+/**
+ * Downloads the finished blob via a throwaway anchor.
+ *
+ * Never written back into the gallery *automatically* — doing that would
+ * double the storage cost of every export against a budget the pinning rules
+ * already strain. The end state below offers a "Save to library" button
+ * instead, so the cost is paid only for the exports somebody deliberately
+ * keeps, and the bytes are not thrown away by the one path that has them.
+ */
 function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
@@ -69,9 +75,44 @@ function downloadBlob(blob: Blob, filename: string) {
   URL.revokeObjectURL(url);
 }
 
+/**
+ * Timestamped so two exports in one session never collide, and kept at module
+ * scope: the purity lint reads the component body as render scope and rejects a
+ * `Date.now()` there, even inside an async handler.
+ */
+function exportFilename(): string {
+  return `timeline-export-${Date.now()}.mp4`;
+}
+
 interface RenderState {
   progress: RenderProgress;
   controller: AbortController;
+}
+
+/**
+ * What a finished render leaves behind.
+ *
+ * The panel used to have no such state: it downloaded the file and reset to the
+ * Export button, so the browser's download shelf was the only evidence the
+ * export had happened — no name, no size, and nothing to click if the download
+ * was missed. Holding the blob is what makes Download work a second time
+ * without re-encoding, and what makes saving to the library possible at all.
+ */
+interface CompletedExport {
+  blob: Blob;
+  filename: string;
+  bytes: number;
+  /**
+   * Snapshotted, not read live: the card describes the file that was produced,
+   * and the timeline underneath it can be edited the moment the export ends.
+   */
+  durationSeconds: number;
+  sound: string;
+  /** Set once the export has been kept, so the button can say so. */
+  savedRecordId: string | null;
+  /** Why a save could not be made — the library being full, most likely. */
+  saveError: string | null;
+  saving: boolean;
 }
 
 /**
@@ -85,6 +126,7 @@ export default function TimelineExportPanel({ engines, clips, clipStates, output
   const recordsById = useMemo(() => new Map(records.map((record) => [record.id, record])), [records]);
 
   const [render, setRender] = useState<RenderState | null>(null);
+  const [completed, setCompleted] = useState<CompletedExport | null>(null);
   const [error, setError] = useState<string | null>(null);
   /** Set after a failed browser render when the server can actually take over. */
   const [fallbackEngine, setFallbackEngine] = useState<RenderEngine | null>(null);
@@ -216,6 +258,9 @@ export default function TimelineExportPanel({ engines, clips, clipStates, output
   const runExport = async (engine: RenderEngine) => {
     setError(null);
     setFallbackEngine(null);
+    // One end state at a time: this run replaces the last one rather than
+    // stacking a second card describing an older file.
+    setCompleted(null);
     const controller = new AbortController();
     setRender({ progress: { phase: 'preparing', completed: null }, controller });
 
@@ -265,8 +310,22 @@ export default function TimelineExportPanel({ engines, clips, clipStates, output
         onProgress: (progress) => setRender((prev) => (prev ? { ...prev, progress } : prev)),
       });
 
-      downloadBlob(blob, `timeline-export-${Date.now()}.mp4`);
+      // The download still fires on its own — that is what someone pressing
+      // Export asked for. What is new is that the panel says what it produced
+      // rather than snapping back as though nothing happened.
+      const filename = exportFilename();
+      downloadBlob(blob, filename);
       setRender(null);
+      setCompleted({
+        blob,
+        filename,
+        bytes: blob.size,
+        durationSeconds: totalDuration,
+        sound: soundLabel,
+        savedRecordId: null,
+        saveError: null,
+        saving: false,
+      });
     } catch (err) {
       setRender(null);
       if (err instanceof DOMException && err.name === 'AbortError') return;
@@ -287,6 +346,53 @@ export default function TimelineExportPanel({ engines, clips, clipStates, output
 
   const cancel = () => render?.controller.abort();
 
+  /**
+   * Keeps the finished export in the browser library, as a pinned video.
+   *
+   * Pinned because eviction reclaims unpinned records to stay under the budget,
+   * and an export somebody asked to keep is the last thing that should quietly
+   * disappear. It goes through `useGalleryStore.record` — the one chokepoint for
+   * library writes — so it lands with the same eviction, quota and storage-error
+   * handling every other kept result gets.
+   */
+  const saveToLibrary = async () => {
+    const finished = completed;
+    if (!finished || finished.savedRecordId || finished.saving) return;
+    setCompleted((prev) => (prev ? { ...prev, saving: true, saveError: null } : prev));
+
+    const saved = await useGalleryStore.getState().record({
+      kind: 'video',
+      prompt: `Timeline export · ${formatCompactDuration(finished.durationSeconds)}`,
+      slug: finished.filename.replace(/\.mp4$/, ''),
+      provider: 'timeline',
+      controlValues: {},
+      mimeType: finished.blob.type || 'video/mp4',
+      blob: finished.blob,
+      // The render already knows the frame it produced, so the record does not
+      // have to be probed for it later.
+      width: output.width,
+      height: output.height,
+      fps: output.fps,
+      durationSeconds: finished.durationSeconds,
+      pinned: true,
+    });
+
+    setCompleted((prev) =>
+      prev
+        ? {
+            ...prev,
+            saving: false,
+            savedRecordId: saved?.id ?? null,
+            // `record` returns null after setting the store's own storage
+            // error, which is where the quota message lives.
+            saveError: saved
+              ? null
+              : useGalleryStore.getState().storageError ?? 'Could not save this export.',
+          }
+        : prev
+    );
+  };
+
   // ---- State: rendering ---------------------------------------------------
   if (render) {
     return (
@@ -304,6 +410,75 @@ export default function TimelineExportPanel({ engines, clips, clipStates, output
         <button type="button" onClick={cancel} className="btn-secondary self-start px-3 py-1.5 text-xs">
           <X size={13} /> Cancel
         </button>
+      </div>
+    );
+  }
+
+  // ---- State: finished -----------------------------------------------------
+  // Above every idle branch below: the export that just finished is the most
+  // important thing this panel has to say, and it outranks "add a clip" even if
+  // the timeline was emptied in the meantime.
+  if (completed) {
+    return (
+      <div className="glass-card flex flex-col gap-2.5 p-3.5" data-testid="export-panel">
+        <div className="flex items-start gap-2">
+          <Check size={15} className="mt-0.5 shrink-0 text-emerald-400" aria-hidden />
+          <div className="min-w-0 flex-1">
+            {/* Announced, not just drawn: the render can take minutes and
+                nobody watches the panel for the whole of it. */}
+            <p role="status" className="text-[0.8125rem] font-medium text-[var(--foreground)]">
+              Exported <span className="break-all">{completed.filename}</span>
+            </p>
+            <p className="text-xs text-[var(--foreground-subtle)]">
+              {formatBytes(completed.bytes)} · {formatCompactDuration(completed.durationSeconds)} ·{' '}
+              {completed.sound}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setCompleted(null)}
+            aria-label="Dismiss the finished export"
+            title="Dismiss"
+            className="shrink-0 rounded-md p-1 text-[var(--foreground-subtle)] hover:text-[var(--foreground)]"
+          >
+            <X size={13} />
+          </button>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-1.5">
+          {/* The browser already downloaded it once. This is for the download
+              that was missed, dismissed, or sent to the wrong place — and it
+              costs nothing, because the bytes are still here. */}
+          <button
+            type="button"
+            onClick={() => downloadBlob(completed.blob, completed.filename)}
+            className="btn-secondary px-3 py-1.5 text-xs"
+          >
+            <Download size={13} aria-hidden /> Download
+          </button>
+
+          {completed.savedRecordId ? (
+            <span className="flex items-center gap-1.5 text-xs text-emerald-300">
+              <Check size={13} aria-hidden /> Saved to library
+            </span>
+          ) : (
+            <button
+              type="button"
+              onClick={() => void saveToLibrary()}
+              disabled={completed.saving}
+              className="btn-secondary px-3 py-1.5 text-xs disabled:opacity-50"
+            >
+              {completed.saving ? (
+                <Loader2 size={13} className="animate-spin" aria-hidden />
+              ) : (
+                <Library size={13} aria-hidden />
+              )}
+              {completed.saving ? 'Saving…' : 'Save to library'}
+            </button>
+          )}
+        </div>
+
+        {completed.saveError && <p className="text-xs text-red-300">{completed.saveError}</p>}
       </div>
     );
   }

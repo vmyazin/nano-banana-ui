@@ -8,6 +8,7 @@ import TimelineExportPanel from '../../components/TimelineExportPanel';
 import type { ClipState } from '../../components/TimelineWorkspace';
 import type { RenderEngine, RenderProgress, RenderRequest } from '../../lib/timeline/render/port';
 import { acquireAll, acquireClipMedia } from '../../lib/timeline/acquire';
+import { useGalleryStore } from '../../store/useGalleryStore';
 import type { TimelineClip, TimelineOutput } from '../../store/useTimelineStore';
 
 /**
@@ -320,5 +321,85 @@ describe('TimelineExportPanel', () => {
 
     await waitFor(() => expect(screen.getByText(/1 clip could not be exported/i)).toBeInTheDocument());
     expect(engine.render).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * The panel used to have no state for "finished": it downloaded the file and
+ * reset to the Export button, so the browser's download shelf was the only
+ * evidence anything had happened — no name, no size, and nothing to click if
+ * the download was missed. A review rated that critical, because the exported
+ * file is the single deliverable of the whole feature.
+ */
+describe('TimelineExportPanel — the end state', () => {
+  /** Runs an export to completion and returns the panel. */
+  async function exportOnce(blob = new Blob(['x'.repeat(2048)], { type: 'video/mp4' })) {
+    const engine = stubEngine('webcodecs', { render: vi.fn(async () => blob) });
+    render(
+      <TimelineExportPanel
+        engines={[engine]}
+        clips={[clip()]}
+        clipStates={{ p1: readyState() }}
+        output={OUTPUT}
+      />
+    );
+    await userEvent.click(await screen.findByRole('button', { name: /export/i }));
+    await waitFor(() => expect(engine.render).toHaveBeenCalled());
+    return engine;
+  }
+
+  it('names the file it produced and how big it is', async () => {
+    await exportOnce();
+
+    const done = await screen.findByRole('status');
+    expect(done).toHaveTextContent(/Exported timeline-export-\d+\.mp4/);
+    // 2048 bytes of body, reported the way the rest of the app reports sizes.
+    expect(await screen.findByText(/2\.0 KB/)).toBeInTheDocument();
+  });
+
+  it('offers the download again without re-encoding', async () => {
+    const engine = await exportOnce();
+
+    await userEvent.click(await screen.findByRole('button', { name: /^download$/i }));
+
+    // The point of holding the blob: a missed download costs nothing to repeat.
+    expect(engine.render).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the export as one pinned video when asked', async () => {
+    await exportOnce();
+    const before = useGalleryStore.getState().records.length;
+
+    await userEvent.click(await screen.findByRole('button', { name: /save to library/i }));
+
+    await waitFor(() => expect(screen.getByText(/saved to library/i)).toBeInTheDocument());
+    const records = useGalleryStore.getState().records;
+    expect(records).toHaveLength(before + 1);
+    // Pinned because eviction reclaims unpinned records to stay under the
+    // budget, and an export somebody asked to keep must not quietly vanish.
+    expect(records[0]).toMatchObject({ kind: 'video', pinned: true, provider: 'timeline' });
+    expect(records[0].blob?.size).toBe(2048);
+  });
+
+  it('says so when the library refuses the export rather than looking saved', async () => {
+    await exportOnce();
+    vi.spyOn(useGalleryStore.getState(), 'record').mockImplementation(async () => {
+      useGalleryStore.setState({ storageError: 'This browser is out of storage for kept results.' });
+      return null;
+    });
+
+    await userEvent.click(await screen.findByRole('button', { name: /save to library/i }));
+
+    expect(await screen.findByText(/out of storage/i)).toBeInTheDocument();
+    expect(screen.queryByText(/saved to library/i)).not.toBeInTheDocument();
+  });
+
+  it('goes back to the export button when dismissed', async () => {
+    await exportOnce();
+
+    await userEvent.click(await screen.findByRole('button', { name: /dismiss the finished export/i }));
+
+    expect(await screen.findByRole('button', { name: /export/i })).toBeInTheDocument();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
   });
 });
