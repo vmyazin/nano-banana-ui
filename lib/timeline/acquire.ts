@@ -181,19 +181,19 @@ async function probeFor(recordId: string, blob: Blob): Promise<ProbeResult> {
     // its inputs need silence padded in, so a saved timeline reopened
     // tomorrow would answer neither question it answered yesterday.
     //
-    // The framerate is the expensive half of the open and the one answer the
-    // record *can* carry, so it is only computed when the record has none —
-    // which is what keeps this cheap enough to do on every reload rather than
-    // decoding the whole library again for a number already written down.
-    const demuxed = await probeWithDemuxer(blob, { framerate: record.fps === undefined }).catch(
+    // Older probes collapsed exact 24/30/60 into their NTSC neighbours. Recheck
+    // those ambiguous cached values on the first acquisition this session;
+    // unaffected rates still skip the packet scan, and repeated placements
+    // use demuxFactsByRecord above.
+    const recheckFramerate = record.fps === undefined || [23.976, 29.97, 59.94].includes(record.fps);
+    const demuxed = await probeWithDemuxer(blob, { framerate: recheckFramerate }).catch(
       () => ({}) as DemuxProbeResult
     );
     demuxFactsByRecord.set(recordId, factsOf(demuxed));
 
-    // An old record — kept before the timeline existed, or one the demuxer
-    // could not read a rate off last time — gets its cadence written down now
-    // that the container is open anyway, so it stops abstaining from the vote.
-    if (demuxed.fps !== undefined && record.fps === undefined) {
+    // Preserve the cache if the new probe cannot answer. Otherwise repair it
+    // so the output vote and future acquisitions see the measured cadence.
+    if (demuxed.fps !== undefined && recheckFramerate) {
       cached.fps = demuxed.fps;
       await useGalleryStore.getState().setDimensions(recordId, cached);
     }

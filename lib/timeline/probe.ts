@@ -48,25 +48,23 @@ export function probeDimensions(blob: Blob): Promise<ProbedDimensions> {
 }
 
 /**
- * Rates a person would recognise. `deriveOutputFormat` groups clips by
- * `String(clip.fps)`, so two clips shot at the same rate must produce the same
- * number or they vote against each other instead of together.
- *
- * Ordering is load-bearing where two entries are within tolerance of each other
- * (23.976/24, 29.97/30, 59.94/60): the first match wins, so the NTSC rate is the
- * one both collapse onto. That is deliberate — a 23.976 clip and a 24 clip on one
- * timeline must land in the same bucket, and picking either consistently is what
- * makes them vote together instead of splitting the vote and losing to a third.
- *
- * Exported for its own test: this is the whole framerate feature's decision, and
- * it is pure, so it is the one part of the probe that can be tested without a
- * demuxer jsdom cannot run.
+ * Standard rates used to group measured clip cadences. Nearby integer and NTSC
+ * rates remain distinct: collapsing them changes the timing of exact-rate clips.
+ * Ascending order only breaks equal-distance ties in favour of the lower rate.
  */
 export const COMMON_RATES = [8, 10, 12, 15, 23.976, 24, 25, 29.97, 30, 48, 50, 59.94, 60, 90, 100, 120];
 
-/** Within 2% of a common rate is that rate; anything else keeps two decimals. */
+/** Choose the nearest common rate within 2%; otherwise keep two decimals. */
 export function snapFramerate(raw: number): number {
-  const nearest = COMMON_RATES.find((rate) => Math.abs(raw - rate) <= rate * 0.02);
+  let nearest: number | undefined;
+  let nearestDelta = Infinity;
+  for (const rate of COMMON_RATES) {
+    const delta = Math.abs(raw - rate);
+    if (delta <= rate * 0.02 && delta < nearestDelta) {
+      nearest = rate;
+      nearestDelta = delta;
+    }
+  }
   return nearest ?? Number(raw.toFixed(2));
 }
 

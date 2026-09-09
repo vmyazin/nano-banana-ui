@@ -162,6 +162,27 @@ describe('acquireClipMedia caches the clip framerate', () => {
     expect(useGalleryStore.getState().records[0].fps).toBe(23.976);
   });
 
+  it.each([[23.976, 24], [29.97, 30], [59.94, 60], [23.976, 23.976]])(
+    'rechecks a cached %s rate and saves measured %s', async (oldRate, measured) => {
+      probe.probeWithDemuxer.mockResolvedValue({ fps: measured });
+      useGalleryStore.setState({ records: [video({ blob: new Blob(['x']), pinned: true,
+        bytes: 1, width: 320, height: 240, durationSeconds: 4, fps: oldRate })] });
+      const result = await acquireClipMedia('clip');
+      expect(probe.probeWithDemuxer).toHaveBeenCalledWith(expect.anything(), { framerate: true });
+      expect(result).toMatchObject({ dimensions: { fps: measured } });
+      expect(useGalleryStore.getState().records[0].fps).toBe(measured);
+      await acquireClipMedia('clip');
+      expect(probe.probeWithDemuxer).toHaveBeenCalledTimes(1);
+    }
+  );
+
+  it('retains a cached fractional rate when remeasurement fails', async () => {
+    probe.probeWithDemuxer.mockRejectedValue(new Error('Unreadable'));
+    useGalleryStore.setState({ records: [video({ blob: new Blob(['x']), pinned: true,
+      bytes: 1, width: 320, height: 240, durationSeconds: 4, fps: 23.976 })] });
+    expect(await acquireClipMedia('clip')).toMatchObject({ status: 'ready', dimensions: { fps: 23.976 } });
+  });
+
   it('reuses a cached framerate instead of re-computing it', async () => {
     // Re-probing on every visit to the workspace would decode the whole library
     // again for a number already written down. The demuxer is still opened —
