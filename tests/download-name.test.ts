@@ -39,6 +39,14 @@ describe('model filename codes', () => {
     expect(modelFileCode('comet', 'wan2.7')).toBe('wan-2_7');
   });
 
+  it('names each Gemini model, not the engine, when the run says which one', () => {
+    expect(modelFileCode('gemini', 'gemini-3.1-flash-image')).toBe('gemini-3_1-flash-image');
+    expect(modelFileCode('gemini', 'gemini-3.1-flash-lite-image')).toBe('gemini-3_1-flash-lite-image');
+    expect(modelFileCode('gemini', 'gemini-3-pro-image-preview')).toBe('gemini-3-pro-image');
+    // A run recorded before the picker existed carries no model id.
+    expect(modelFileCode('gemini')).toBe('gemini-3-pro-image');
+  });
+
   it('names the single-model engines from the engine registry', () => {
     expect(modelFileCode('gemini')).toBe('gemini-3-pro-image');
     expect(modelFileCode('cloudflare')).toBe('flux-1-schnell');

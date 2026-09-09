@@ -8,18 +8,26 @@ import type { GenerationAdapter } from '../providers';
 import { resolveConnection } from '../vault';
 import { inlineReferences, recoverStagedImage, stageImage } from './media';
 import { SINGLE_IMAGE_MODELS } from '../../../lib/account/models';
+import { findGeminiImageModel } from '../../../lib/engines/gemini-catalog';
 
 export function validateSynchronousRequest(r: CloudJobRequest) {
   const invalid = () => {throw new AccountError('Review the selected model and image settings.',400,'invalid_settings');};
   if (r.provider !== 'gemini' && r.provider !== 'cloudflare' && r.provider !== 'pollinations') return invalid();
-  if (r.modelId !== SINGLE_IMAGE_MODELS[r.provider] || r.mediaType !== 'image' || !['text','image'].includes(r.inputMode)) return invalid();
+  // Gemini serves three models on one key, so its id is checked against the
+  // catalog; Cloudflare and Pollinations each still run exactly one.
+  const gemini = r.provider === 'gemini' ? findGeminiImageModel(r.modelId) : undefined;
+  if (r.provider === 'gemini' ? !gemini : r.modelId !== SINGLE_IMAGE_MODELS[r.provider]) return invalid();
+  if (r.mediaType !== 'image' || !['text','image'].includes(r.inputMode)) return invalid();
   if (r.inputMode === 'text' && r.referenceIds.length || r.inputMode === 'image' && !r.referenceIds.length) return invalid();
   if (r.provider === 'cloudflare' && (r.inputMode !== 'text' || Object.keys(r.values).length)) return invalid();
   if (r.provider === 'pollinations' && (r.inputMode !== 'text' || Object.keys(r.values).some(key=>key!=='aspectRatio'))) return invalid();
   if (r.referenceIds.length > 14 || Object.keys(r.values).some(key => !['aspectRatio','imageSize','useGoogleSearch'].includes(key))) return invalid();
   if (r.values.aspectRatio !== undefined && !['1:1','16:9','9:16','4:3','3:4','3:2','2:3','21:9'].includes(String(r.values.aspectRatio))) return invalid();
-  if (r.values.imageSize !== undefined && !['1K','2K','4K'].includes(String(r.values.imageSize))) return invalid();
+  // Per model, not per engine: Lite publishes 1K alone and grounds with
+  // nothing, and Google charges for the submission that discovers otherwise.
+  if (r.values.imageSize !== undefined && !(gemini?.sizes ?? ['1K','2K','4K']).includes(String(r.values.imageSize))) return invalid();
   if (r.values.useGoogleSearch !== undefined && typeof r.values.useGoogleSearch !== 'boolean') return invalid();
+  if (r.values.useGoogleSearch === true && gemini && !gemini.supportsGoogleSearch) return invalid();
 }
 
 export const synchronousAdapter: GenerationAdapter = {
@@ -39,7 +47,7 @@ export const synchronousAdapter: GenerationAdapter = {
       return {result:{sources:[{objectKey:key,mimeType}]}};
     }
     const result = r.provider === 'gemini'
-      ? await geminiGenerate({apiKey:connection.secret.apiKey,prompt:r.prompt,referenceImages:await inlineReferences(env,job),config:r.values,singleAttempt:true})
+      ? await geminiGenerate({apiKey:connection.secret.apiKey,model:r.modelId,prompt:r.prompt,referenceImages:await inlineReferences(env,job),config:r.values,singleAttempt:true})
       : await cloudflareGenerate({prompt:r.prompt,accountId:connection.secret.accountId!,token:connection.secret.apiKey});
     return {result:{...await stageImage(env,job,result.imageData,result.mimeType),usage:result.usage}};
   },

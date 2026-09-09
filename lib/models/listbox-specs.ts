@@ -14,7 +14,8 @@ import type { FalInputMode, FalModelDefinition } from '@/lib/fal/types';
 import { resolveFalVariant } from '@/lib/fal/catalog';
 import type { KieInputMode, KieModelDefinition } from '@/lib/kie/types';
 import { resolveKieVariant } from '@/lib/kie/catalog';
-import { falRateLabel } from '@/lib/spend/rates';
+import { falRateLabel, geminiRateLabel } from '@/lib/spend/rates';
+import type { GeminiImageModel } from '@/lib/engines/gemini-catalog';
 
 export type SpecCell =
   | { kind: 'text'; value: string; tone?: 'muted' | 'subtle' }
@@ -33,9 +34,11 @@ const SHAPES: SpecColumn = { key: 'shapes', label: 'Shapes' };
 const FROM: SpecColumn = { key: 'from', label: 'From', align: 'right' };
 const REFS: SpecColumn = { key: 'refs', label: 'Refs', align: 'right' };
 const EDIT: SpecColumn = { key: 'edit', label: 'Edit' };
+const SEARCH: SpecColumn = { key: 'search', label: 'Search' };
 
 export const PROVIDER_VIDEO_COLUMNS: SpecColumn[] = [LENGTH, TIER, SHAPES, FROM];
 export const PROVIDER_IMAGE_COLUMNS: SpecColumn[] = [FROM, REFS, EDIT];
+export const GEMINI_IMAGE_COLUMNS: SpecColumn[] = [FROM, TIER, SEARCH];
 export const FAL_VIDEO_COLUMNS: SpecColumn[] = [LENGTH, TIER, SHAPES, FROM];
 export const KIE_VIDEO_COLUMNS: SpecColumn[] = [LENGTH, TIER, SHAPES];
 export const KIE_IMAGE_COLUMNS: SpecColumn[] = [TIER, SHAPES, REFS];
@@ -237,6 +240,23 @@ export function providerImageSpecs(model: ProviderModel): SpecCell[] {
     fromCell(model),
     model.maxInputImages === undefined ? DASH : text(String(model.maxInputImages)),
     { kind: 'mark', on: model.modes.includes('image'), label: 'Takes a reference image' },
+  ];
+}
+
+/**
+ * Gemini image rows: From · Up to · Search. The aggregator columns do not fit
+ * here — every Gemini model takes the same 14 references and edits — while the
+ * two things that actually separate them are the ceiling each reaches (Lite
+ * stops at 1K) and whether it can ground on Google Search.
+ */
+export function geminiImageSpecs(model: GeminiImageModel): SpecCell[] {
+  const rate = geminiRateLabel(model.id);
+  return [
+    // The label spans the resolutions ($0.0336–0.151 / image); the column says
+    // where it starts, the same question the aggregator From column answers.
+    rate ? text(rate.replace(/^(\$[\d.]+)[–-]\$?[\d.]+/, '$1').replace(/\s*\/\s*/g, '/')) : DASH,
+    text(model.sizes[model.sizes.length - 1]),
+    { kind: 'mark', on: model.supportsGoogleSearch, label: 'Google Search grounding' },
   ];
 }
 

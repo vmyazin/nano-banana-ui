@@ -5,33 +5,77 @@
  * isolation. Dependency-free so server routes and client code can both price.
  */
 
-/** https://ai.google.dev/gemini-api/docs/pricing — Gemini 3 Pro Image, read 2026-09-03. */
-export const GEMINI_IMAGE_RATES = {
-  modelId: 'gemini-3-pro-image-preview',
-  inputUsdPerMillionTokens: 2,
-  outputUsdPerMillionTokens: 120,
+/**
+ * https://ai.google.dev/gemini-api/docs/pricing and
+ * https://ai.google.dev/gemini-api/docs/image-generation — the three Gemini
+ * image models, read 2026-09-09. One block per model, keyed by the id the API
+ * takes, because the three differ by a factor of four at the same resolution
+ * and a ledger that priced them alike would be quietly wrong.
+ *
+ * The token counts are Google's own per-resolution figures, so the published
+ * per-image prices fall out of the arithmetic rather than being pasted beside
+ * it: Pro at 1K is 1120 × $120/M = $0.134, Lite is 1120 × $30/M = $0.0336.
+ */
+export interface GeminiImageRate {
+  inputUsdPerMillionTokens: number;
+  outputUsdPerMillionTokens: number;
   /** Output image tokens by the studio's `imageSize` control. */
-  outputTokensByResolution: { '1K': 1120, '2K': 1120, '4K': 2000 } as Record<string, number>,
-  /** Each reference image counts as this many input tokens. */
-  inputTokensPerImage: 560,
-} as const;
+  outputTokensByResolution: Record<string, number>;
+}
+
+/** Each reference image counts as this many input tokens, on every model. */
+export const GEMINI_INPUT_TOKENS_PER_IMAGE = 560;
+
+export const GEMINI_IMAGE_RATES: Record<string, GeminiImageRate> = {
+  'gemini-3-pro-image-preview': {
+    inputUsdPerMillionTokens: 2,
+    outputUsdPerMillionTokens: 120,
+    outputTokensByResolution: { '1K': 1120, '2K': 1120, '4K': 2000 },
+  },
+  'gemini-3.1-flash-image': {
+    inputUsdPerMillionTokens: 0.5,
+    outputUsdPerMillionTokens: 60,
+    outputTokensByResolution: { '1K': 1120, '2K': 1680, '4K': 2520 },
+  },
+  'gemini-3.1-flash-lite-image': {
+    inputUsdPerMillionTokens: 0.25,
+    outputUsdPerMillionTokens: 30,
+    outputTokensByResolution: { '1K': 1120 },
+  },
+};
+
+/** The model the studio ran before it had a picker, and the fallback for an unknown id. */
+export const DEFAULT_GEMINI_MODEL_ID = 'gemini-3-pro-image-preview';
+
+function geminiRate(modelId: string | undefined): GeminiImageRate {
+  return GEMINI_IMAGE_RATES[modelId ?? ''] ?? GEMINI_IMAGE_RATES[DEFAULT_GEMINI_MODEL_ID];
+}
 
 /** https://kie.ai/pricing — "1 credit ≈ $0.005", read 2026-09-03. */
 export const KIE_USD_PER_CREDIT = 0.005;
 
-export function geminiTokenCost(promptTokens: number, outputTokens: number): number {
+export function geminiTokenCost(
+  modelId: string | undefined,
+  promptTokens: number,
+  outputTokens: number
+): number {
+  const rate = geminiRate(modelId);
   const cost =
-    (promptTokens / 1_000_000) * GEMINI_IMAGE_RATES.inputUsdPerMillionTokens +
-    (outputTokens / 1_000_000) * GEMINI_IMAGE_RATES.outputUsdPerMillionTokens;
+    (promptTokens / 1_000_000) * rate.inputUsdPerMillionTokens +
+    (outputTokens / 1_000_000) * rate.outputUsdPerMillionTokens;
   return Number.isFinite(cost) && cost > 0 ? cost : 0;
 }
 
 /** The estimate the studio has always shown: one output image plus its references. */
-export function geminiResolutionCost(resolution: string | undefined, inputImages: number): number {
-  const table = GEMINI_IMAGE_RATES.outputTokensByResolution;
-  const outputTokens = table[resolution ?? '1K'] ?? table['1K'];
+export function geminiResolutionCost(
+  modelId: string | undefined,
+  resolution: string | undefined,
+  inputImages: number
+): number {
+  const table = geminiRate(modelId).outputTokensByResolution;
+  const outputTokens = table[resolution ?? '1K'] ?? table['1K'] ?? Object.values(table)[0];
   const safeImages = Number.isFinite(inputImages) && inputImages > 0 ? inputImages : 0;
-  return geminiTokenCost(safeImages * GEMINI_IMAGE_RATES.inputTokensPerImage, outputTokens);
+  return geminiTokenCost(modelId, safeImages * GEMINI_INPUT_TOKENS_PER_IMAGE, outputTokens);
 }
 
 /**
@@ -219,4 +263,20 @@ export function falRateLabel(endpointId: string): string | null {
 
   const range = usdRange(Object.values(rate.usdPerRun));
   return range && `${range} / clip`;
+}
+
+/**
+ * What one image costs on a Gemini model at a given resolution, or across all
+ * of them when no resolution is fixed yet. The picker's From column shows the
+ * cheapest — the same question the aggregator rows answer — while the cost line
+ * under the Generate button passes the resolution actually selected.
+ */
+export function geminiRateLabel(modelId: string | undefined, resolution?: string): string | null {
+  const rate = GEMINI_IMAGE_RATES[modelId ?? ''];
+  if (!rate) return null;
+  const tokens = resolution
+    ? [rate.outputTokensByResolution[resolution] ?? rate.outputTokensByResolution['1K']]
+    : Object.values(rate.outputTokensByResolution);
+  const range = usdRange(tokens.map((count) => geminiTokenCost(modelId, 0, count)));
+  return range && `${range} / image`;
 }

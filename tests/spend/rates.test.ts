@@ -1,33 +1,67 @@
 import { describe, expect, it } from 'vitest';
 
 import { FAL_IMAGE_MODEL, FAL_VIDEO_MODELS } from '@/lib/fal/catalog';
+import { GEMINI_IMAGE_MODELS } from '@/lib/engines/gemini-catalog';
 import {
   FAL_RATES,
+  GEMINI_IMAGE_RATES,
   falPublishedCost,
+  geminiRateLabel,
   geminiResolutionCost,
   geminiTokenCost,
   KIE_USD_PER_CREDIT,
 } from '@/lib/spend/rates';
 
 describe('Gemini image rates', () => {
-  it('prices output tokens at the published rate', () => {
-    expect(geminiTokenCost(0, 1120)).toBeCloseTo(0.1344, 6);
-    expect(geminiTokenCost(0, 2000)).toBeCloseTo(0.24, 6);
+  const PRO = 'gemini-3-pro-image-preview';
+  const FLASH = 'gemini-3.1-flash-image';
+  const LITE = 'gemini-3.1-flash-lite-image';
+
+  it('prices output tokens at each model\u2019s published rate', () => {
+    expect(geminiTokenCost(PRO, 0, 1120)).toBeCloseTo(0.1344, 6);
+    expect(geminiTokenCost(PRO, 0, 2000)).toBeCloseTo(0.24, 6);
+    expect(geminiTokenCost(FLASH, 0, 1120)).toBeCloseTo(0.0672, 6);
+    expect(geminiTokenCost(LITE, 0, 1120)).toBeCloseTo(0.0336, 6);
   });
 
   it('adds input tokens at the input rate', () => {
-    expect(geminiTokenCost(560, 0)).toBeCloseTo(0.00112, 6);
+    expect(geminiTokenCost(PRO, 560, 0)).toBeCloseTo(0.00112, 6);
+    expect(geminiTokenCost(LITE, 560, 0)).toBeCloseTo(0.00014, 6);
   });
 
-  it('estimates a resolution the same way the studio always has', () => {
-    expect(geminiResolutionCost('1K', 0)).toBeCloseTo(0.1344, 6);
-    expect(geminiResolutionCost('2K', 0)).toBeCloseTo(0.1344, 6);
-    expect(geminiResolutionCost('4K', 2)).toBeCloseTo(0.24 + 2 * 0.00112, 6);
-    expect(geminiResolutionCost(undefined, 0)).toBeCloseTo(0.1344, 6);
+  it('estimates every published per-image price from its resolution', () => {
+    // https://ai.google.dev/gemini-api/docs/pricing, read 2026-09-09.
+    expect(geminiResolutionCost(PRO, '1K', 0)).toBeCloseTo(0.134, 3);
+    expect(geminiResolutionCost(PRO, '2K', 0)).toBeCloseTo(0.134, 3);
+    expect(geminiResolutionCost(PRO, '4K', 0)).toBeCloseTo(0.24, 3);
+    expect(geminiResolutionCost(FLASH, '1K', 0)).toBeCloseTo(0.067, 3);
+    expect(geminiResolutionCost(FLASH, '2K', 0)).toBeCloseTo(0.101, 3);
+    expect(geminiResolutionCost(FLASH, '4K', 0)).toBeCloseTo(0.151, 3);
+    expect(geminiResolutionCost(LITE, '1K', 0)).toBeCloseTo(0.0336, 4);
+  });
+
+  it('adds each reference image, and answers Pro for an unknown model', () => {
+    expect(geminiResolutionCost(PRO, '4K', 2)).toBeCloseTo(0.24 + 2 * 0.00112, 6);
+    expect(geminiResolutionCost(undefined, undefined, 0)).toBeCloseTo(0.1344, 6);
+    expect(geminiResolutionCost('gemini-9-retired', '1K', 0)).toBeCloseTo(0.1344, 6);
+  });
+
+  it('falls back to a size the model does publish rather than pricing nothing', () => {
+    // Lite has no 4K entry; a stale 4K preference must still price at its 1K rate.
+    expect(geminiResolutionCost(LITE, '4K', 0)).toBeCloseTo(0.0336, 6);
+  });
+
+  it('covers every catalogued model, and labels the picker rows', () => {
+    expect(GEMINI_IMAGE_MODELS.filter((model) => !GEMINI_IMAGE_RATES[model.id])).toEqual([]);
+    // Three places, the same rounding every fal row uses: $0.0336 reads $0.034.
+    expect(geminiRateLabel(LITE)).toBe('$0.034 / image');
+    expect(geminiRateLabel(FLASH)).toBe('$0.067\u20130.151 / image');
+    expect(geminiRateLabel(FLASH, '4K')).toBe('$0.151 / image');
+    expect(geminiRateLabel('gemini-9-retired')).toBeNull();
   });
 
   it('never returns a negative or non-finite figure', () => {
-    expect(geminiTokenCost(Number.NaN, -5)).toBe(0);
+    expect(geminiTokenCost(PRO, Number.NaN, -5)).toBe(0);
   });
 
   it('publishes the Kie credit rate', () => {

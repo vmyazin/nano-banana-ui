@@ -18,7 +18,7 @@ import type { ProviderJob } from '@/store/useProviderJobsStore';
 import { useSpendStore } from '@/store/useSpendStore';
 
 import { excerpt, type SpendEntry } from './ledger';
-import { GEMINI_IMAGE_RATES } from './rates';
+import { DEFAULT_GEMINI_MODEL_ID } from './rates';
 import {
   kieSharers,
   resolveCatalogRate,
@@ -71,7 +71,7 @@ export interface ImageResultCapture {
   webSearch?: boolean;
 }
 
-const GEMINI_MODEL = GEMINI_IMAGE_RATES.modelId;
+const GEMINI_MODEL = DEFAULT_GEMINI_MODEL_ID;
 
 export function captureImageResult(args: ImageResultCapture): void {
   try {
@@ -89,7 +89,7 @@ export function captureImageResult(args: ImageResultCapture): void {
 
     switch (args.engine) {
       case 'gemini':
-        file(withFigure(base, resolveGemini({ usage: args.usage, resolution: args.resolution, inputImages: args.inputImages })));
+        file(withFigure(base, resolveGemini({ usage: args.usage, modelId: base.modelId, resolution: args.resolution, inputImages: args.inputImages })));
         return;
       case 'pollinations':
       case 'cloudflare':

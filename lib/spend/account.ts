@@ -73,6 +73,7 @@ export function buildAccountSpendEntry(args: BuildAccountSpendEntryArgs): Accoun
   if (request.provider === 'gemini') {
     const resolved = resolveGemini({
       usage: result.usage,
+      modelId: request.modelId,
       resolution: typeof request.values.imageSize === 'string' ? request.values.imageSize : undefined,
       inputImages: request.referenceIds.length,
       outputImages: outputs,

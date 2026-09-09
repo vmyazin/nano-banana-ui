@@ -1,4 +1,5 @@
 import { ENGINES } from '@/lib/engines/registry';
+import { findGeminiImageModel } from '@/lib/engines/gemini-catalog';
 import { FAL_IMAGE_MODEL, FAL_VIDEO_MODELS } from '@/lib/fal/catalog';
 import { KIE_MODELS } from '@/lib/kie/catalog';
 import { fallbackFilenameBase, type DownloadMediaType } from '@/lib/media-download';
@@ -24,6 +25,13 @@ function sanitizedCode(modelId: string): string {
 
 /** The filename code for a model, or undefined when nothing identifies it. */
 export function modelFileCode(provider?: string, modelId?: string): string | undefined {
+  // Gemini is a fixed-model engine that grew a catalog: a run says which of the
+  // three made it, so its code has to come from the model before the engine's
+  // own fallback answers "gemini-3-pro-image" for a Lite image.
+  if (provider === 'gemini' && modelId) {
+    const known = findGeminiImageModel(modelId);
+    if (known) return known.fileCode;
+  }
   if (provider && modelId) {
     const catalog =
       provider === 'fal'

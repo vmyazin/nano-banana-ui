@@ -85,6 +85,25 @@ describe('synchronous account generation',()=>{
     await expect(acceptJob(env,'owner','gemini-large-input',{...request,inputMode:'image',referenceIds:['ref']})).rejects.toThrow(/12 MB/);
     expect(db.prepare('SELECT COUNT(*) AS n FROM account_jobs').get()?.n).toBe(0);
   });
+  it('accepts every catalogued Gemini model and holds each to its own limits',async()=>{
+    // One key runs all three, so the id is checked against the catalog rather
+    // than a single hardcoded model — and the limits differ: Nano Banana 2 Lite
+    // publishes 1K alone and cannot ground with Google Search, and either
+    // rejection would otherwise be discovered by a paid submission.
+    expect(()=>validateRequest(env,{...request,modelId:'gemini-3.1-flash-image',values:{imageSize:'4K'}})).not.toThrow();
+    expect(()=>validateRequest(env,{...request,modelId:'gemini-3.1-flash-lite-image',values:{imageSize:'1K'}})).not.toThrow();
+    expect(()=>validateRequest(env,{...request,modelId:'gemini-3.1-flash-lite-image',values:{imageSize:'2K'}})).toThrow();
+    expect(()=>validateRequest(env,{...request,modelId:'gemini-3.1-flash-lite-image',values:{useGoogleSearch:true}})).toThrow();
+    expect(()=>validateRequest(env,{...request,modelId:'gemini-3.1-flash-image',values:{useGoogleSearch:true}})).not.toThrow();
+    expect(()=>validateRequest(env,{...request,modelId:'gemini-4-imaginary-image'})).toThrow();
+  });
+  it('submits the chosen Gemini model to the API',async()=>{
+    const fetchMock=vi.fn().mockResolvedValue(Response.json({candidates:[{content:{parts:[{inlineData:{data:'AQID',mimeType:'image/png'}}]}}]}));vi.stubGlobal('fetch',fetchMock);
+    const job=await acceptJob(env,'owner','gemini-flash-token',{...request,modelId:'gemini-3.1-flash-image'});
+    await runGeneration(env,job.id,step);
+    expect((await getJob(env,job.id))?.state).toBe('saved');
+    expect(String(fetchMock.mock.calls[0][0])).toContain('gemini-3.1-flash-image');
+  });
   it('rejects unsupported settings and aborts malformed base64 staging',async()=>{
     expect(()=>validateRequest(env,{...request,values:{imageSize:'8K'}})).toThrow();
     const job=await acceptJob(env,'owner','gemini-bad-output',request);

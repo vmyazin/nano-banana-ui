@@ -30,6 +30,8 @@ export interface GeminiUsage {
 
 export function resolveGemini(args: {
   usage?: GeminiUsage | null;
+  /** Which Gemini image model ran: the three differ fourfold at the same size. */
+  modelId?: string;
   resolution?: string;
   inputImages: number;
   /** Number of image outputs in this response. Usage metadata already covers all outputs. */
@@ -39,15 +41,15 @@ export function resolveGemini(args: {
   if (usage && Number.isFinite(usage.outputTokens) && usage.outputTokens > 0) {
     const promptTokens = Number.isFinite(usage.promptTokens) ? Math.max(0, usage.promptTokens) : 0;
     return {
-      costUsd: geminiTokenCost(promptTokens, usage.outputTokens),
+      costUsd: geminiTokenCost(args.modelId, promptTokens, usage.outputTokens),
       confidence: 'exact',
       source: 'usage-metadata',
       quantity: { unit: 'token', value: promptTokens + usage.outputTokens },
     };
   }
   const outputImages = Number.isInteger(args.outputImages) && args.outputImages! > 0 ? args.outputImages! : 1;
-  const firstImage = geminiResolutionCost(args.resolution, args.inputImages);
-  const additionalImages = geminiResolutionCost(args.resolution, 0) * (outputImages - 1);
+  const firstImage = geminiResolutionCost(args.modelId, args.resolution, args.inputImages);
+  const additionalImages = geminiResolutionCost(args.modelId, args.resolution, 0) * (outputImages - 1);
   return {
     costUsd: firstImage + additionalImages,
     confidence: 'estimated',

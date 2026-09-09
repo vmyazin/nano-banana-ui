@@ -15,6 +15,11 @@ import { Feature, GenerationConfig } from '@/types';
 import { useFileDrop } from '@/lib/drop/use-file-drop';
 import { metaForFeature, slugify } from '@/lib/example-prompts';
 import { falPublishedCost, geminiResolutionCost } from '@/lib/spend/rates';
+import {
+  geminiImageSize,
+  geminiModelsForFeature,
+  resolveGeminiImageModel,
+} from '@/lib/engines/gemini-catalog';
 import { requestExamplePrompt, requestPromptSlug } from '@/lib/micro-ai/browser';
 import {
   boundedMediaBlob,
@@ -35,7 +40,12 @@ import PromptPanel from '@/components/PromptPanel';
 import { useAppStore } from '@/store/useAppStore';
 import { modelsFor, resolveModel } from '@/lib/providers/catalog';
 import ModelListbox from '@/components/ModelListbox';
-import { PROVIDER_IMAGE_COLUMNS, providerImageSpecs } from '@/lib/models/listbox-specs';
+import {
+  GEMINI_IMAGE_COLUMNS,
+  PROVIDER_IMAGE_COLUMNS,
+  geminiImageSpecs,
+  providerImageSpecs,
+} from '@/lib/models/listbox-specs';
 import type { ProviderId } from '@/lib/providers/types';
 import { prepareReferences } from '@/lib/draft/ingest';
 import { keepUploadedImages } from '@/lib/gallery/keep-upload';
@@ -280,6 +290,8 @@ export default function GenerationInterface({ feature, apiKey, onBack, onOpenCon
   const piapiImageModel = useAppStore((s) => s.piapiImageModel);
   const cometImageModel = useAppStore((s) => s.cometImageModel);
   const setProviderModel = useAppStore((s) => s.setProviderModel);
+  const geminiImageModel = useAppStore((s) => s.geminiImageModel);
+  const setGeminiImageModel = useAppStore((s) => s.setGeminiImageModel);
   const hasCfCreds = !!cfAccountId && !!cfToken;
   const availableEngines = enginesForFeature(feature);
   const activeEngine =
@@ -317,9 +329,37 @@ export default function GenerationInterface({ feature, apiKey, onBack, onOpenCon
   const activeProviderModel = activeProvider
     ? resolveModel(activeProvider, 'image', providerImageModels[activeProvider])
     : null;
-  // What the download filename is tagged with. The single-model engines name
-  // themselves from the engine registry, so only the model-picking ones answer here.
-  const activeModelId = activeProviderModel ?? (storeEngine === 'fal' ? FAL_IMAGE_MODEL.id : undefined);
+  /**
+   * Which Gemini model this press would run. The list is filtered by feature
+   * first — search grounding is the one mode a model can be unable to serve —
+   * so a saved choice of Lite in that mode resolves to a model that can ground
+   * rather than silently dropping the tool at submission.
+   */
+  const geminiModels = useMemo(() => geminiModelsForFeature(feature.id), [feature.id]);
+  const activeGeminiModel = useMemo(
+    () =>
+      geminiModels.find((model) => model.id === geminiImageModel) ??
+      geminiModels[0] ??
+      resolveGeminiImageModel(undefined),
+    [geminiModels, geminiImageModel]
+  );
+  const isGemini = activeEngineId === 'gemini';
+  // What the download filename is tagged with. Cloudflare and Pollinations still
+  // name themselves from the engine registry; Gemini, fal and the aggregators
+  // each answer with the model that actually ran.
+  const activeModelId = activeProviderModel
+    ?? (activeEngineId === 'fal' ? FAL_IMAGE_MODEL.id : isGemini ? activeGeminiModel.id : undefined);
+  /**
+   * The resolutions the engine on screen really offers. Only Gemini varies by
+   * model — Nano Banana 2 Lite publishes 1K alone — and a control that offered
+   * 4K there would be promising a rejected request.
+   */
+  const resolutionOptions = isGemini
+    ? activeGeminiModel.sizes.map((value) => ({ label: value, value }))
+    : RESOLUTION_OPTIONS;
+  const selectedImageSize = isGemini
+    ? geminiImageSize(activeGeminiModel, config.imageSize)
+    : config.imageSize ?? '1K';
 
   /**
    * The ratio list, told what each ratio actually resolves to.
@@ -353,7 +393,7 @@ export default function GenerationInterface({ feature, apiKey, onBack, onOpenCon
   );
 
   const cloudWorkspace = useCloudWorkspace(activeEngine.id);
-  const cloudModelId = activeProviderModel ?? (activeEngine.id === 'fal' ? FAL_IMAGE_MODEL.id : activeEngine.id === 'gemini' || activeEngine.id === 'cloudflare' || activeEngine.id === 'pollinations' ? SINGLE_IMAGE_MODELS[activeEngine.id] : activeEngine.id);
+  const cloudModelId = activeProviderModel ?? (activeEngine.id === 'fal' ? FAL_IMAGE_MODEL.id : activeEngine.id === 'gemini' ? activeGeminiModel.id : activeEngine.id === 'cloudflare' || activeEngine.id === 'pollinations' ? SINGLE_IMAGE_MODELS[activeEngine.id] : activeEngine.id);
   const cloudInputMode = feature.requiresImage ? 'image' : 'text';
   const [cloudSubmitting, setCloudSubmitting] = useState(false);
   /**
@@ -582,7 +622,7 @@ export default function GenerationInterface({ feature, apiKey, onBack, onOpenCon
           config,
           featureId: feature.id,
           apiKey: activeProvider ? providerKeys[activeProvider] : apiKey,
-          model: activeProviderModel ?? undefined,
+          model: activeProviderModel ?? (isGemini ? activeGeminiModel.id : undefined),
           cfAccountId,
           cfToken,
         }),
@@ -632,7 +672,7 @@ export default function GenerationInterface({ feature, apiKey, onBack, onOpenCon
           modelId: activeModelId,
           prompt,
           inputImages: images.length,
-          resolution: config.imageSize,
+          resolution: selectedImageSize,
           usage: result.usage,
           cost: result.cost,
           galleryRecordId,
@@ -663,7 +703,7 @@ export default function GenerationInterface({ feature, apiKey, onBack, onOpenCon
         modelId: activeModelId,
         controlValues: {
           aspect_ratio: config.aspectRatio ?? DEFAULT_ASPECT_RATIO,
-          resolution: config.imageSize ?? '1K',
+          resolution: selectedImageSize,
         },
         mimeType: blob.type || 'image/png',
         sourceUrl: result.startsWith('data:') ? undefined : result,
@@ -712,7 +752,7 @@ export default function GenerationInterface({ feature, apiKey, onBack, onOpenCon
 
   // Cost line, per engine. Gemini's rate is the single table in lib/spend/rates.ts —
   // that file names the vendor page it was read from. Pollinations is free.
-  const estCost = geminiResolutionCost(config.imageSize, images.length);
+  const estCost = geminiResolutionCost(activeGeminiModel.id, selectedImageSize, images.length);
   // Keyed by endpoint, not by model: the two nano-banana variants are priced
   // the same, but the rate table has never known this catalogue's model ids.
   const falImageCost = falPublishedCost(
@@ -720,7 +760,7 @@ export default function GenerationInterface({ feature, apiKey, onBack, onOpenCon
       ? FAL_IMAGE_MODEL.variants.find(candidate => candidate.inputMode === 'image')
       : FAL_IMAGE_MODEL.variants.find(candidate => candidate.inputMode === 'text')
     )?.endpointId ?? '',
-    { resolution: config.imageSize, webSearch: Boolean(config.useGoogleSearch) }
+    { resolution: selectedImageSize, webSearch: Boolean(config.useGoogleSearch) }
   );
   // Aggregator prices are the vendors' published rates, carried on the catalog
   // entry — the units differ per provider, so they are shown as written rather
@@ -742,7 +782,25 @@ export default function GenerationInterface({ feature, apiKey, onBack, onOpenCon
           ? `${falImageCost ? `Est. ≈ $${falImageCost.costUsd.toFixed(3)} / image` : 'fal usage rates apply'} · Nano Banana 2`
           : activeProviderCatalogModel
             ? `${activeProviderCatalogModel.price ?? 'Usage rates apply'} · ${activeProviderCatalogModel.label}`
-            : `Est. ≈ $${estCost.toFixed(2)} / image · Gemini 3 Pro Image`;
+            // Three decimals, not two: Lite is $0.034 an image and "$0.03"
+            // rounds away the very difference the picker exists to show.
+            : `Est. ≈ $${estCost.toFixed(3)} / image · ${activeGeminiModel.label}`;
+
+  /**
+   * Switching model carries the resolution across where it survives and lands
+   * on the model's own floor where it does not: picking Lite at 4K must leave
+   * the control reading 1K, not a size that would be rejected or silently
+   * downgraded at submission.
+   */
+  const handleGeminiModelSelect = (modelId: string) => {
+    setGeminiImageModel(modelId);
+    const next = geminiModels.find((model) => model.id === modelId);
+    if (!next) return;
+    const size = geminiImageSize(next, config.imageSize);
+    if (size !== config.imageSize) {
+      applyConfig({ ...config, imageSize: size as NonNullable<GenerationConfig['imageSize']> });
+    }
+  };
 
   useEffect(() => {
     generateRef.current = () => generateMutation.mutate();
@@ -780,7 +838,7 @@ export default function GenerationInterface({ feature, apiKey, onBack, onOpenCon
           : activeProvider || activeEngine.id === 'pollinations'
             ? {aspectRatio:config.aspectRatio ?? DEFAULT_ASPECT_RATIO, ...(activeProvider === 'piapi' ? {resolution:config.imageSize ?? '1K'} : {})}
             : activeEngine.id === 'cloudflare' ? {}
-              : {aspectRatio:config.aspectRatio ?? DEFAULT_ASPECT_RATIO,imageSize:config.imageSize ?? '1K',useGoogleSearch:Boolean(config.useGoogleSearch)};
+              : {aspectRatio:config.aspectRatio ?? DEFAULT_ASPECT_RATIO,imageSize:selectedImageSize,useGoogleSearch:Boolean(config.useGoogleSearch) && activeGeminiModel.supportsGoogleSearch};
         await cloudWorkspace.submit({modelId:cloudModelId,mediaType:'image',inputMode:cloudInputMode,prompt:cloudPrompt,values},feature.requiresImage ? references.map(reference => reference.file) : [],prompt);
       } catch (caught) {
         if (mountedRef.current && generationOperationRef.current === operation) setError(caught instanceof Error ? caught.message : 'Could not confirm this background job.');
@@ -1018,6 +1076,33 @@ export default function GenerationInterface({ feature, apiKey, onBack, onOpenCon
       <GenerationWorkspaceLayout
         setup={
           <>
+            {/* One Google AI Studio key runs all three Nano Banana models at
+                four times the price spread, so Gemini gets the same rack every
+                other paid engine has rather than a fixed model nobody chose. */}
+            {isGemini && (
+              <section className="glass-card space-y-3 p-3.5 md:p-4">
+                <h3 className="display text-base font-semibold">Model</h3>
+                <div className="space-y-2">
+                  <ModelListbox
+                    label="Model"
+                    accent="image"
+                    columns={GEMINI_IMAGE_COLUMNS}
+                    rows={geminiModels.map((model) => ({
+                      id: model.id,
+                      label: model.label,
+                      cells: geminiImageSpecs(model),
+                    }))}
+                    value={activeGeminiModel.id}
+                    onChange={handleGeminiModelSelect}
+                  />
+                  <p className="px-0.5 text-sm leading-relaxed text-[var(--foreground-muted)]">
+                    <span className="font-medium text-[var(--foreground)]">{activeGeminiModel.label}:</span>{' '}
+                    {activeGeminiModel.note}
+                  </p>
+                </div>
+              </section>
+            )}
+
             {/* Same shape as the Model card in the Kie and fal workspaces: the rack
                 of what this provider serves, with the vendor's own description of the
                 chosen one underneath. */}
@@ -1184,8 +1269,8 @@ export default function GenerationInterface({ feature, apiKey, onBack, onOpenCon
                       </span>
                       <SegmentedToggleGroup
                         label="Resolution"
-                        options={RESOLUTION_OPTIONS}
-                        value={config.imageSize ?? '1K'}
+                        options={resolutionOptions}
+                        value={selectedImageSize}
                         onChange={(value) => applyConfig({
                           ...config,
                           imageSize: value as NonNullable<GenerationConfig['imageSize']>,

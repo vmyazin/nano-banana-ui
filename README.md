@@ -26,7 +26,7 @@ An open-source, multi-engine studio for generating, editing, and composing image
 
 | Engine | Model | Cost | Credentials | Best for |
 |--------|-------|------|-------------|----------|
-| **Google Gemini** | `gemini-3-pro-image-preview` | Paid (API usage) | Google AI Studio API key | All six modes — editing, multi-image, search grounding, 4K |
+| **Google Gemini** | Gemini 3 Pro Image, 3.1 Flash Image, 3.1 Flash Lite Image | Paid (API usage), $0.034–0.24 an image | Google AI Studio API key | All six modes — editing, multi-image, search grounding, 4K |
 | **Pollinations · FLUX** | FLUX via `image.pollinations.ai` | Free | None | Text-to-image only, no key required |
 | **Cloudflare · FLUX** | `@cf/black-forest-labs/flux-1-schnell` | Free daily tier | Cloudflare Account ID + API token | Text-to-image only |
 | **fal.ai** | Nano Banana 2 + 9 curated video models | fal credits | fal API key | All six image modes plus text-to-video, image-to-video, and first-and-last-frame |
@@ -131,8 +131,9 @@ Guest provider credentials, including the fal key, persist in this browser’s `
 2. **Choose an engine** — Gemini or fal for all six modes; Pollinations or Cloudflare for free text-to-image
 3. **Upload images** if the mode requires them
 4. **Enter a prompt** — or click **Gen Example** for an AI-suggested starting point
-5. **Adjust settings** — aspect ratio, quality, and web grounding (available for Gemini and fal)
-6. **Generate** — preview in the lightbox, then download
+5. **Pick a model** — Gemini and the aggregators list what each one costs per image
+6. **Adjust settings** — aspect ratio, quality, and web grounding (available for Gemini and fal)
+7. **Generate** — preview in the lightbox, then download
 
 ### Generating Video with Kie
 
@@ -206,7 +207,11 @@ scene-assembly/
 ## 📝 API & Models
 
 - [Google Gemini Image Generation docs](https://ai.google.dev/gemini-api/docs/image-generation)
-- **Gemini**: `gemini-3-pro-image-preview` — all modes, aspect ratio, 1K/2K/4K, Google Search tool
+- **Gemini**: three models on one key, chosen in the workspace's Model rack —
+  `gemini-3-pro-image-preview` ($0.134 at 1K/2K, $0.24 at 4K),
+  `gemini-3.1-flash-image` ($0.067/$0.101/$0.151 at 1K/2K/4K), and
+  `gemini-3.1-flash-lite-image` ($0.034, 1K only, no Google Search tool).
+  All support every mode, the aspect-ratio control, and reference images
 - **Pollinations**: `image.pollinations.ai` — FLUX text-to-image, aspect-ratio mapping, no auth
 - **Cloudflare**: Workers AI `flux-1-schnell` — fixed output size, 8 inference steps
 - **fal.ai**: Nano Banana 2 for all six image modes plus nine curated video choices. The `lib/fal` adapter uses fal’s [async queue](https://fal.ai/docs/documentation/model-apis/inference/queue), [CDN](https://fal.ai/docs/documentation/model-apis/fal-cdn), and authenticated [pricing API](https://fal.ai/docs/documentation/model-apis/pricing) for key validation.

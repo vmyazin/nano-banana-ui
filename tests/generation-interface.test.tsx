@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import GenerationInterface from '../components/GenerationInterface';
 import { cancelFalJob, runFalImage } from '../lib/fal/browser';
 import { falPublishedCost } from '../lib/spend/rates';
+import { DEFAULT_GEMINI_IMAGE_MODEL } from '../lib/engines/gemini-catalog';
 import { useAppStore } from '../store/useAppStore';
 import { useDraftStore } from '../store/useDraftStore';
 import { FEATURES, type Feature } from '../types';
@@ -100,6 +101,7 @@ describe('GenerationInterface engine selection', () => {
     useDraftStore.getState().reset();
     useAppStore.setState({
       engine: 'kie',
+      geminiImageModel: DEFAULT_GEMINI_IMAGE_MODEL,
       apiKey: 'gemini_test_key',
       cfAccountId: 'cf_account',
       cfToken: 'cf_token',
@@ -229,6 +231,61 @@ describe('GenerationInterface engine selection', () => {
     expect(prompt).toHaveClass('max-h-[16.25rem]', 'overflow-y-auto', 'resize-none');
   });
 
+  it('offers all three Gemini models with their prices, and prices the press', () => {
+    // One Google AI Studio key runs Pro, Nano Banana 2 and Lite at a fourfold
+    // price spread, and the studio used to spend the most expensive of them
+    // without asking. The rack is the same one every aggregator engine has.
+    useAppStore.setState({ engine: 'gemini', geminiImageModel: 'gemini-3-pro-image-preview' });
+    renderInterface(textToImage);
+
+    const rack = screen.getByRole('listbox', { name: 'Model' });
+    expect(within(rack).getAllByRole('option').map((row) => row.textContent)).toEqual([
+      expect.stringContaining('Gemini 3 Pro Image'),
+      expect.stringContaining('Gemini 3.1 Flash Image'),
+      expect.stringContaining('Gemini 3.1 Flash Lite Image'),
+    ]);
+    expect(within(rack).getByRole('option', { name: 'Gemini 3.1 Flash Lite Image' }).textContent).toContain('$0.034');
+    expect(screen.getByText(/Est\. ≈ \$0\.134 \/ image · Gemini 3 Pro Image/)).toBeTruthy();
+
+    fireEvent.click(within(rack).getByRole('option', { name: 'Gemini 3.1 Flash Image' }));
+
+    expect(useAppStore.getState().geminiImageModel).toBe('gemini-3.1-flash-image');
+    // Persisted, or the choice is lost the moment the workspace is left: the
+    // store writes only the fields `partialize` names.
+    expect(useAppStore.persist.getOptions().partialize?.(useAppStore.getState())).toMatchObject({
+      geminiImageModel: 'gemini-3.1-flash-image',
+    });
+    expect(screen.getByText(/Est\. ≈ \$0\.067 \/ image · Gemini 3.1 Flash Image/)).toBeTruthy();
+  });
+
+  it('narrows the resolution control to what the chosen Gemini model publishes', () => {
+    // Lite publishes 1K alone, so a 4K carried over from Pro has to land on 1K
+    // rather than sit in the control as a setting the API would reject.
+    useAppStore.setState({ engine: 'gemini', geminiImageModel: 'gemini-3-pro-image-preview' });
+    renderInterface(textToImage);
+
+    fireEvent.click(screen.getByRole('radio', { name: '4K' }));
+    expect(screen.getByRole('radio', { name: '4K' }).getAttribute('aria-checked')).toBe('true');
+
+    fireEvent.click(within(screen.getByRole('listbox', { name: 'Model' })).getByRole('option', { name: 'Gemini 3.1 Flash Lite Image' }));
+
+    const resolution = screen.getByRole('radiogroup', { name: 'Resolution' });
+    expect(within(resolution).getAllByRole('radio').map((choice) => choice.textContent)).toEqual(['1K']);
+    expect(screen.getByRole('radio', { name: '1K' }).getAttribute('aria-checked')).toBe('true');
+    expect(screen.getByText(/Est\. ≈ \$0\.034 \/ image · Gemini 3.1 Flash Lite Image/)).toBeTruthy();
+  });
+
+  it('hides the Gemini models that cannot ground a search-grounded generation', () => {
+    // Lite refuses the Google Search tool, and a mode whose whole point is
+    // grounding must not list a model that would silently drop it.
+    useAppStore.setState({ engine: 'gemini', geminiImageModel: 'gemini-3.1-flash-lite-image' });
+    renderInterface(searchGrounding);
+
+    const rack = screen.getByRole('listbox', { name: 'Model' });
+    expect(within(rack).queryByRole('option', { name: 'Gemini 3.1 Flash Lite Image' })).toBeNull();
+    expect(within(rack).getByRole('option', { name: 'Gemini 3 Pro Image' }).getAttribute('aria-selected')).toBe('true');
+  });
+
   it('renders Gemini resolution choices as concise horizontal toggles', () => {
     useAppStore.setState({ engine: 'gemini' });
     const queryClient = new QueryClient({
@@ -269,6 +326,7 @@ describe('GenerationInterface fal image generation', () => {
     mockedCancelFalJob.mockReset();
     useAppStore.setState({
       engine: 'fal',
+      geminiImageModel: DEFAULT_GEMINI_IMAGE_MODEL,
       apiKey: 'gemini_test_key',
       cfAccountId: 'cf_account',
       cfToken: 'cf_token',
@@ -1132,6 +1190,7 @@ describe('GenerationInterface prompt validation', () => {
     mockedRunFalImage.mockReset();
     useAppStore.setState({
       engine: 'fal',
+      geminiImageModel: DEFAULT_GEMINI_IMAGE_MODEL,
       apiKey: 'gemini_test_key',
       cfAccountId: 'cf_account',
       cfToken: 'cf_token',
@@ -1189,6 +1248,7 @@ describe('GenerationInterface aspect ratio default', () => {
     vi.unstubAllGlobals();
     useAppStore.setState({
       engine: 'gemini',
+      geminiImageModel: DEFAULT_GEMINI_IMAGE_MODEL,
       apiKey: 'gemini_test_key',
       cfAccountId: 'cf_account',
       cfToken: 'cf_token',
@@ -1230,7 +1290,7 @@ describe('GenerationInterface result stack', () => {
   };
 
   beforeEach(() => {
-    useAppStore.setState({ engine: 'gemini' });
+    useAppStore.setState({ engine: 'gemini', geminiImageModel: DEFAULT_GEMINI_IMAGE_MODEL });
   });
 
   it('keeps earlier results on screen, newest first', async () => {
@@ -1330,6 +1390,7 @@ describe('what the image aspect control promises for the active engine', () => {
     useDraftStore.getState().reset();
     useAppStore.setState({
       engine: 'gemini',
+      geminiImageModel: DEFAULT_GEMINI_IMAGE_MODEL,
       apiKey: 'gemini_test_key',
       runwareApiKey: 'rw_test_key',
       atlasApiKey: 'at_test_key',

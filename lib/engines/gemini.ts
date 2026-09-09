@@ -1,5 +1,7 @@
 import { GoogleGenAI } from '@google/genai';
 
+import { geminiImageSize, resolveGeminiImageModel } from './gemini-catalog';
+
 export interface EngineUsage {
   promptTokens: number;
   outputTokens: number;
@@ -13,6 +15,8 @@ export interface EngineResult {
 }
 
 interface GeminiOpts {
+  /** Which catalogued model runs. An unknown or absent id falls back to Pro. */
+  model?: string;
   prompt?: string;
   images?: string[]; // base64 (already stripped of data: prefix)
   referenceImages?: Array<{data: string; mimeType: string}>;
@@ -26,7 +30,6 @@ interface GeminiOpts {
   apiKey: string;
 }
 
-const MODEL = 'gemini-3-pro-image-preview';
 
 export async function geminiGenerate(opts: GeminiOpts): Promise<EngineResult> {
   const ai = new GoogleGenAI({ apiKey: opts.apiKey, ...(opts.singleAttempt ? {httpOptions:{retryOptions:{attempts:1}}} : {}) });
@@ -44,15 +47,19 @@ export async function geminiGenerate(opts: GeminiOpts): Promise<EngineResult> {
     imageConfig?: { aspectRatio?: string; imageSize?: string };
     tools?: Array<{ googleSearch: Record<string, never> }>;
   } = {};
+  // Both settings are narrowed to the chosen model rather than passed through:
+  // Google rejects an imageSize a model does not publish, and Lite refuses the
+  // search tool outright — and either rejection costs a whole submission.
+  const model = resolveGeminiImageModel(opts.model);
   if (opts.config?.aspectRatio || opts.config?.imageSize) {
     config.imageConfig = {};
     if (opts.config.aspectRatio) config.imageConfig.aspectRatio = opts.config.aspectRatio;
-    if (opts.config.imageSize) config.imageConfig.imageSize = opts.config.imageSize;
+    if (opts.config.imageSize) config.imageConfig.imageSize = geminiImageSize(model, opts.config.imageSize);
   }
-  if (opts.config?.useGoogleSearch) config.tools = [{ googleSearch: {} }];
+  if (opts.config?.useGoogleSearch && model.supportsGoogleSearch) config.tools = [{ googleSearch: {} }];
 
   const response = await ai.models.generateContent({
-    model: MODEL,
+    model: model.id,
     contents: promptParts,
     config,
   });

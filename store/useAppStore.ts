@@ -2,6 +2,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage, type StateStorage } from 'zustand/middleware';
 import type { EngineId } from '@/lib/engines/registry';
+import { DEFAULT_GEMINI_IMAGE_MODEL } from '@/lib/engines/gemini-catalog';
 import type { ImageFormatPreference } from '@/lib/image/policy';
 import { DEFAULT_MODELS } from '@/lib/providers/catalog';
 import type { ProviderId } from '@/lib/providers/types';
@@ -35,6 +36,12 @@ interface AppState {
   apiKey: string;
   /** Selected image generation engine (persisted). */
   engine: EngineId;
+  /**
+   * Which Gemini image model runs (persisted). One key buys Nano Banana Pro,
+   * Nano Banana 2 and Nano Banana 2 Lite, and they differ fourfold in price at
+   * the same resolution, so the choice is worth keeping between visits.
+   */
+  geminiImageModel: string;
   /** Cloudflare Workers AI credentials (persisted). */
   cfAccountId: string;
   cfToken: string;
@@ -90,6 +97,7 @@ interface AppState {
   hasHydrated: boolean;
   setApiKey: (key: string) => void;
   setEngine: (engine: EngineId) => void;
+  setGeminiImageModel: (modelId: string) => void;
   setCfAccountId: (v: string) => void;
   setCfToken: (v: string) => void;
   setKieApiKey: (key: string) => void;
@@ -148,6 +156,7 @@ export const useAppStore = create<AppState>()(
     (set) => ({
       apiKey: '',
       engine: 'gemini',
+      geminiImageModel: DEFAULT_GEMINI_IMAGE_MODEL,
       cfAccountId: '',
       cfToken: '',
       kieApiKey: '',
@@ -175,6 +184,7 @@ export const useAppStore = create<AppState>()(
       hasHydrated: false,
       setApiKey: (key) => set({ apiKey: key }),
       setEngine: (engine) => set({ engine }),
+      setGeminiImageModel: (modelId) => set({ geminiImageModel: modelId }),
       setCfAccountId: (v) => set({ cfAccountId: v }),
       setCfToken: (v) => set({ cfToken: v }),
       setKieApiKey: (key) => set({ kieApiKey: key }),
@@ -205,6 +215,7 @@ export const useAppStore = create<AppState>()(
       partialize: (s) => ({
         apiKey: s.apiKey,
         engine: s.engine,
+        geminiImageModel: s.geminiImageModel,
         cfAccountId: s.cfAccountId,
         cfToken: s.cfToken,
         kieApiKey: s.kieApiKey,

@@ -146,6 +146,19 @@
   held. Do not compensate the AAC priming delay and do not shift audio timestamps
   to make a boundary land on a packet — see the priming comment in that file and
   `docs/codex/specs/2026-09-09-export-audio-endpoint.md`.
+- **A Gemini image model, its price, or its limits** → `lib/engines/gemini-catalog.ts`
+  is the one list, and `lib/spend/rates.ts` holds a rate block per model id. One
+  Google AI Studio key runs all three Nano Banana models at a fourfold price
+  spread, so the id has to travel with the run: the download name, the job
+  label, and the ledger entry each ask the catalog which model produced the
+  image, and a Lite run filed at the Pro rate is wrong by 4x. Capabilities are
+  per model, not per engine — Lite publishes 1K alone and refuses the
+  `googleSearch` tool — and both the browser and
+  `cloud/src/provider-adapters/synchronous.ts` narrow a request to what the
+  chosen model accepts, because a rejected enum costs a whole paid submission.
+  The 512px tier is deliberately absent: Google's own page spells that
+  parameter three different ways. Spec:
+  `docs/superpowers/specs/2026-09-09-gemini-image-model-choice-design.md`.
 - **An image result panel** → render `components/ResultStack.tsx` rather than
   laying out cards inline. It owns the 4-item display cap, the per-card download
   and fullscreen, and the lightbox — a panel that keeps its own `lightboxOpen`

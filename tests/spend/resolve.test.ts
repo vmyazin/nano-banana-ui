@@ -31,6 +31,22 @@ describe('resolveGemini', () => {
       quantity: { unit: 'image', value: 1 },
     });
   });
+  it('prices the model that ran, not the one the engine used to be fixed to', () => {
+    // The same request on all three: Lite is a quarter of Pro at 1K, and a
+    // ledger that priced them alike would overstate a Lite run fourfold.
+    const run = (modelId: string) =>
+      resolveGemini({ usage: { promptTokens: 0, outputTokens: 1120 }, modelId, resolution: '1K', inputImages: 0 }).costUsd;
+    expect(run('gemini-3-pro-image-preview')).toBeCloseTo(0.1344, 6);
+    expect(run('gemini-3.1-flash-image')).toBeCloseTo(0.0672, 6);
+    expect(run('gemini-3.1-flash-lite-image')).toBeCloseTo(0.0336, 6);
+  });
+  it('estimates a model without usage metadata from its own rate', () => {
+    expect(resolveGemini({ usage: null, modelId: 'gemini-3.1-flash-image', resolution: '2K', inputImages: 0 })).toMatchObject({
+      costUsd: expect.closeTo(0.1008, 6),
+      confidence: 'estimated',
+      source: 'catalog-rate',
+    });
+  });
 });
 
 describe('resolveRunware', () => {

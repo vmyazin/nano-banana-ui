@@ -141,7 +141,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     if (isRecord(body) && body.engine === 'kie') return handleKieRequest(body);
     if (isRecord(body) && isProviderId(body.engine)) return handleProviderRequest(body.engine, body);
-    const { engine = 'gemini', prompt, images, config, apiKey, cfAccountId, cfToken } = body;
+    const { engine = 'gemini', prompt, images, config, apiKey, cfAccountId, cfToken, model } = body;
 
     if (!prompt && !images?.length) {
       return NextResponse.json(
@@ -168,7 +168,13 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         );
       }
-      result = await geminiGenerate({ prompt, images, config, apiKey });
+      result = await geminiGenerate({
+        prompt,
+        images,
+        config,
+        apiKey,
+        ...(typeof model === 'string' ? { model } : {}),
+      });
     }
 
     return NextResponse.json({
