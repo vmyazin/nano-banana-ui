@@ -1,5 +1,6 @@
 'use client';
 
+import { Suspense } from 'react';
 import dynamic from 'next/dynamic';
 
 import StudioHeader from '@/components/StudioHeader';
@@ -27,7 +28,7 @@ const TimelineWorkspace = dynamic(() => import('@/components/TimelineWorkspace')
   ),
 });
 
-export default function TimelinePage() {
+function TimelineEditor() {
   /**
    * Two bands: the app's own header, and the editor filling what is left.
    *
@@ -42,5 +43,17 @@ export default function TimelinePage() {
       <StudioHeader active="timeline" fullBleed showChime={false} />
       <TimelineWorkspace />
     </div>
+  );
+}
+
+export default function TimelinePage() {
+  // Suspense boundary required because the header's command palette reads the
+  // URL via nuqs/useSearchParams — the same reason `app/page.tsx` wraps Studio.
+  // Without it the production build fails prerendering this route, which `next
+  // dev` does not surface.
+  return (
+    <Suspense fallback={null}>
+      <TimelineEditor />
+    </Suspense>
   );
 }
