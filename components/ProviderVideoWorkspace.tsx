@@ -23,6 +23,12 @@ import StoredImagePicker from '@/components/StoredImagePicker';
 import GenerationWorkspaceLayout from '@/components/GenerationWorkspaceLayout';
 import ReferenceStack from '@/components/ReferenceStack';
 import { candidatesFromSizes, useAutoAspect } from '@/lib/draft/aspect-match';
+import {
+  APPROXIMATE_LEGEND,
+  hasApproximateSize,
+  sizeDimensions,
+  withDimensions,
+} from '@/lib/providers/output-size';
 import { resolveCatalogRate } from '@/lib/spend/resolve';
 import { carryOverValues } from '@/lib/draft/carry-over';
 import { useFileDrop } from '@/lib/drop/use-file-drop';
@@ -127,9 +133,18 @@ function controlFieldsFor(model: ProviderModel | undefined): ModelControlField[]
       key: 'size',
       label: 'Output size',
       type: 'select',
-      description: 'Only the combinations this model publishes.',
+      // The pixels are what the vendor returns, and some of these tables round:
+      // Seedance's "480p · 9:16" is 496×864, which is not 9:16. The value stays
+      // the bare label — the rate table, `resolveSize` and the carry-over rule
+      // all key off it — so only what is read changes.
+      description: hasApproximateSize(model.sizes)
+        ? `Only the combinations this model publishes. ${APPROXIMATE_LEGEND}`
+        : 'Only the combinations this model publishes.',
       defaultValue: model.sizes[0].label,
-      options: model.sizes.map((size) => ({ label: size.label, value: size.label })),
+      options: model.sizes.map((size) => ({
+        label: withDimensions(size.label, sizeDimensions(size)),
+        value: size.label,
+      })),
     });
   }
   if (model.aspectRatios?.length) fields.push({ key: 'aspectRatio', label: 'Aspect ratio', type: 'select', defaultValue: model.aspectRatios[0], options: model.aspectRatios.map(value => ({ label: value, value })) });

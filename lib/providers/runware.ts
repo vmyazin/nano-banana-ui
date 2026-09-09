@@ -8,6 +8,7 @@ import {
   type ProviderTask,
   type VideoRequest,
 } from './types';
+import { RUNWARE_IMAGE_DIMENSIONS, ratioDimensions, type Dimensions } from './output-size';
 
 /**
  * Runware — one endpoint, one shape: every request is an array of task objects
@@ -20,25 +21,18 @@ import {
  */
 export const RUNWARE_API = 'https://api.runware.ai/v1';
 
-/** Dimensions must be multiples of 64 and paired; these are the ratios the UI offers. */
-const DIMENSIONS: Record<string, [number, number]> = {
-  '1:1': [1024, 1024],
-  '16:9': [1344, 768],
-  '9:16': [768, 1344],
-  '4:3': [1152, 896],
-  '3:4': [896, 1152],
-  '3:2': [1216, 832],
-  '2:3': [832, 1216],
-  '21:9': [1536, 640],
-};
-
 interface RunwareEnvelope {
   data?: Array<Record<string, unknown>>;
   errors?: Array<{ code?: string; message?: string; parameter?: string }>;
 }
 
-function dimensionsFor(aspectRatio?: string): [number, number] {
-  return DIMENSIONS[aspectRatio ?? '1:1'] ?? DIMENSIONS['1:1'];
+/**
+ * Dimensions must be multiples of 64 and paired. The table lives in
+ * `output-size.ts` so the size controls can name the pixels a ratio resolves
+ * to; a second copy would drift from what is sent here.
+ */
+function dimensionsFor(aspectRatio?: string): Dimensions {
+  return ratioDimensions(RUNWARE_IMAGE_DIMENSIONS, aspectRatio);
 }
 
 async function runwareFetch(apiKey: string, tasks: Array<Record<string, unknown>>): Promise<RunwareEnvelope> {

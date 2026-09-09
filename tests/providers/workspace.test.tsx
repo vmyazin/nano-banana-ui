@@ -79,8 +79,42 @@ describe('ProviderVideoWorkspace', () => {
     // LTX-2.5 Fast: eight lengths, and every tier in both orientations.
     expect([...screen.getByRole('combobox', { name: 'Duration' }).querySelectorAll('option')].map((o) => o.textContent))
       .toEqual(['6 seconds', '8 seconds', '10 seconds', '12 seconds', '14 seconds', '16 seconds', '18 seconds', '20 seconds']);
-    expect([...screen.getByRole('combobox', { name: /Output size/ }).querySelectorAll('option')].map((o) => o.textContent))
-      .toEqual(['720p · 16:9', '720p · 9:16', '1080p · 16:9', '1080p · 9:16', '2K · 16:9', '2K · 9:16', '4K · 16:9', '4K · 9:16']);
+    // Every LTX tier is exactly the ratio it names, so the pixels appear and
+    // nothing is marked — and the control says nothing it would have to explain.
+    const size = screen.getByRole('combobox', { name: /Output size/ });
+    expect([...size.querySelectorAll('option')].map((o) => o.textContent))
+      .toEqual([
+        '720p · 16:9 · 1280 × 720',
+        '720p · 9:16 · 720 × 1280',
+        '1080p · 16:9 · 1920 × 1080',
+        '1080p · 9:16 · 1080 × 1920',
+        '2K · 16:9 · 2560 × 1440',
+        '2K · 9:16 · 1440 × 2560',
+        '4K · 16:9 · 3840 × 2160',
+        '4K · 9:16 · 2160 × 3840',
+      ]);
+    expect(size).toHaveAccessibleDescription('Only the combinations this model publishes.');
+  });
+
+  /**
+   * Seedance publishes "480p · 9:16" as 496 × 864, which is 2% off 9:16. The
+   * option has to say so. What it *submits* is still the bare label — the rate
+   * table, `resolveSize` and the carry-over rule all key off it, and
+   * `tests/account/execution.test.tsx` holds that end.
+   */
+  it('marks a size whose pixels only approximate the ratio it names', () => {
+    useAppStore.setState({ runwareVideoModel: 'bytedance:seedance@2.0-mini' });
+    renderWorkspace();
+
+    const size = screen.getByRole('combobox', { name: /Output size/ });
+    const options = [...size.querySelectorAll('option')].map((o) => o.textContent);
+
+    expect(options).toContain('480p · ≈9:16 · 496 × 864');
+    expect(options).toContain('720p · 9:16 · 720 × 1280');
+    expect(options).toContain('720p · 21:9 · 1470 × 630');
+    expect(size).toHaveAccessibleDescription(
+      'Only the combinations this model publishes. “≈” marks a ratio the pixels come close to without being exactly it.'
+    );
   });
 
   it('sends you to connections instead of spending a request without a key', () => {

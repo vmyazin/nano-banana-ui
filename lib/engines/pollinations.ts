@@ -1,16 +1,9 @@
 import type { EngineResult } from './gemini';
+import { POLLINATIONS_IMAGE_DIMENSIONS, ratioDimensions } from '../providers/output-size';
 
-// Free, no-key FLUX text-to-image via Pollinations' classic endpoint.
-// FLUX runs near 1 MP, so map the aspect ratio to ~1 MP dimensions.
-const DIMS: Record<string, [number, number]> = {
-  '1:1': [1024, 1024],
-  '16:9': [1280, 720],
-  '9:16': [720, 1280],
-  '4:3': [1024, 768],
-  '3:4': [768, 1024],
-  '3:2': [1080, 720],
-  '21:9': [1280, 548],
-};
+// Free, no-key FLUX text-to-image via Pollinations' classic endpoint. The
+// ratio→pixel table lives in `output-size.ts` so the image control can name
+// what a ratio resolves to without a second copy of the numbers.
 
 interface PollinationsOpts {
   prompt: string;
@@ -20,7 +13,7 @@ interface PollinationsOpts {
 }
 
 export async function pollinationsResponse(opts: PollinationsOpts): Promise<Response> {
-  const [width, height] = DIMS[opts.aspectRatio ?? '1:1'] ?? [1024, 1024];
+  const [width, height] = ratioDimensions(POLLINATIONS_IMAGE_DIMENSIONS, opts.aspectRatio);
   const seed = Math.floor(Math.random() * 2_000_000_000);
   const url =
     `${opts.apiKey ? 'https://gen.pollinations.ai/image/' : 'https://image.pollinations.ai/prompt/'}${encodeURIComponent(opts.prompt)}` +

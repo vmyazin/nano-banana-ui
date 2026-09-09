@@ -167,6 +167,13 @@
       "request": "launch",
       "command": "ACCOUNT_WORKER_PORT=8841 DEV_FAKE_GENERATION=1 npm run dev -- --port 3141",
       "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "Accurate output dimensions smoke test",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "ACCOUNT_WORKER_PORT=8839 DEV_FAKE_GENERATION=1 npm run dev -- --port 3139",
+      "cwd": "${workspaceFolder}"
     }
   ]
 }

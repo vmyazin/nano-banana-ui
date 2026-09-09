@@ -1,7 +1,7 @@
 // components/GenerationInterface.tsx
 'use client';
 
-import { useState, useRef, useEffect, useCallback, useId } from 'react';
+import { useState, useRef, useEffect, useCallback, useId, useMemo } from 'react';
 import { useCloudWorkspace } from '@/lib/account/useCloudWorkspace';
 import { SINGLE_IMAGE_MODELS } from '@/lib/account/models';
 import { featureImagePrompt } from '@/lib/image/feature-prompt';
@@ -44,6 +44,12 @@ import { usePromptLibraryStore } from '@/store/usePromptLibraryStore';
 import { useGalleryStore } from '@/store/useGalleryStore';
 import { blobFromDataUrl, resultBlob } from '@/lib/gallery/capture';
 import { candidatesFromValues, useAutoAspect } from '@/lib/draft/aspect-match';
+import {
+  APPROXIMATE_LEGEND,
+  imageDimensions,
+  isApproximateLabel,
+  withDimensions,
+} from '@/lib/providers/output-size';
 import { isValueCompatible, type CarryOverField } from '@/lib/draft/carry-over';
 import {
   enginesForFeature,
@@ -278,6 +284,10 @@ export default function GenerationInterface({ feature, apiKey, onBack, onOpenCon
   const availableEngines = enginesForFeature(feature);
   const activeEngine =
     availableEngines.find((e) => e.id === storeEngine) ?? availableEngines[0];
+  // The id alone, so helpers below take a primitive: passing anything aliased
+  // to activeEngine into an imported helper makes the React compiler treat the
+  // object as possibly-mutated and skip optimizing this component.
+  const activeEngineId = activeEngine.id;
 
   // Aggregator credentials and model choices, keyed by engine id so the gating,
   // the model select, and the cost line stay one branch instead of three.
@@ -310,6 +320,37 @@ export default function GenerationInterface({ feature, apiKey, onBack, onOpenCon
   // What the download filename is tagged with. The single-model engines name
   // themselves from the engine registry, so only the model-picking ones answer here.
   const activeModelId = activeProviderModel ?? (storeEngine === 'fal' ? FAL_IMAGE_MODEL.id : undefined);
+
+  /**
+   * The ratio list, told what each ratio actually resolves to.
+   *
+   * A ratio is nominal until an engine turns it into pixels, and the engines
+   * disagree: Runware renders 9:16 at 768×1344 while Pollinations renders it at
+   * 720×1280, and only the second is really 9:16. Engines whose table we do not
+   * publish (Gemini, fal, Kie, PiAPI, Cloudflare) keep the plain label rather
+   * than being shown a number this app invented.
+   */
+  const aspectRatioOptions = useMemo(
+    () =>
+      ASPECT_RATIO_OPTIONS.map((option) => ({
+        value: option.value,
+        label: withDimensions(
+          option.label,
+          imageDimensions(activeEngineId, activeProviderModel ?? undefined, option.value)
+        ),
+      })),
+    [activeEngineId, activeProviderModel]
+  );
+  const aspectRatioApproximates = useMemo(
+    () =>
+      ASPECT_RATIO_OPTIONS.some((option) =>
+        isApproximateLabel(
+          option.label,
+          imageDimensions(activeEngineId, activeProviderModel ?? undefined, option.value)
+        )
+      ),
+    [activeEngineId, activeProviderModel]
+  );
 
   const cloudWorkspace = useCloudWorkspace(activeEngine.id);
   const cloudModelId = activeProviderModel ?? (activeEngine.id === 'fal' ? FAL_IMAGE_MODEL.id : activeEngine.id === 'gemini' || activeEngine.id === 'cloudflare' || activeEngine.id === 'pollinations' ? SINGLE_IMAGE_MODELS[activeEngine.id] : activeEngine.id);
@@ -1116,14 +1157,23 @@ export default function GenerationInterface({ feature, apiKey, onBack, onOpenCon
                       </label>
                       <select
                         id="image-aspect-ratio"
+                        aria-describedby={aspectRatioApproximates ? 'image-aspect-ratio-legend' : undefined}
                         value={config.aspectRatio}
                         onChange={(e) => applyConfig({ ...config, aspectRatio: e.target.value as NonNullable<GenerationConfig['aspectRatio']> })}
                         className="w-full"
                       >
-                        {ASPECT_RATIO_OPTIONS.map((option) => (
+                        {aspectRatioOptions.map((option) => (
                           <option key={option.value} value={option.value}>{option.label}</option>
                         ))}
                       </select>
+                      {aspectRatioApproximates && (
+                        <span
+                          id="image-aspect-ratio-legend"
+                          className="mt-1.5 block text-xs text-[var(--foreground-subtle)]"
+                        >
+                          {APPROXIMATE_LEGEND}
+                        </span>
+                      )}
                     </div>
                     )}
 

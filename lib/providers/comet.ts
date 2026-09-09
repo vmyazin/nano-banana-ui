@@ -8,6 +8,12 @@ import {
   type ProviderTask,
   type VideoRequest,
 } from './types';
+import {
+  COMET_IMAGE_DIMENSIONS,
+  COMET_VIDEO_DIMENSIONS,
+  ratioDimensions,
+  type Dimensions,
+} from './output-size';
 
 /**
  * CometAPI — OpenAI-compatible for images, and a single multipart route for
@@ -19,23 +25,18 @@ import {
  */
 export const COMET_API = 'https://api.cometapi.com';
 
-/** OpenAI-style sizes: a literal WxH, not a ratio. */
-const SIZES: Record<string, string> = {
-  '1:1': '1024x1024',
-  '16:9': '1536x864',
-  '9:16': '864x1536',
-  '4:3': '1152x896',
-  '3:4': '896x1152',
-  '3:2': '1216x832',
-  '2:3': '832x1216',
-  '21:9': '1536x640',
-};
-
-/** Video sizes are exact pixel pairs the vendor documents per model tier. */
-const VIDEO_SIZES: Record<string, string> = {
-  '16:9': '1280x720',
-  '9:16': '720x1280',
-  '1:1': '960x960',
+/**
+ * OpenAI-style sizes: a literal WxH, not a ratio. Both tables live in
+ * `output-size.ts` so the size controls can name the pixels a ratio resolves
+ * to; only the `WxH` spelling belongs here.
+ */
+const sizeString = (
+  table: Record<string, Dimensions>,
+  aspectRatio: string | undefined,
+  fallback?: string
+): string => {
+  const [width, height] = ratioDimensions(table, aspectRatio, fallback);
+  return `${width}x${height}`;
 };
 
 interface CometImageEnvelope {
@@ -70,7 +71,7 @@ export async function cometGenerateImage(request: ImageRequest): Promise<ImageRe
       // Documented constraint: qwen-image rejects n > 1, and one image per run is
       // what this UI asks for anyway.
       n: 1,
-      size: SIZES[request.aspectRatio ?? '1:1'] ?? SIZES['1:1'],
+      size: sizeString(COMET_IMAGE_DIMENSIONS, request.aspectRatio),
     }),
   });
 
@@ -98,10 +99,11 @@ export async function cometCreateVideo(request: VideoRequest): Promise<{ taskId:
   form.set('model', request.model);
   form.set('prompt', request.prompt);
   if (request.durationSeconds !== undefined) form.set('seconds', String(request.durationSeconds));
-  // The vendor documents exact WxH pairs per model; a resolved one wins.
+  // The vendor documents exact WxH pairs per model; a resolved one wins. Video
+  // falls back to landscape, not to the square an image request defaults to.
   form.set(
     'size',
-    request.resolution ?? VIDEO_SIZES[request.aspectRatio ?? '16:9'] ?? VIDEO_SIZES['16:9']
+    request.resolution ?? sizeString(COMET_VIDEO_DIMENSIONS, request.aspectRatio, '16:9')
   );
 
   const reference = request.images?.[0];

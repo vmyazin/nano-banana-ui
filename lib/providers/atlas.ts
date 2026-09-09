@@ -9,6 +9,12 @@ import {
   type VideoInputField,
   type VideoRequest,
 } from './types';
+import {
+  ATLAS_IMAGE_DIMENSIONS,
+  ATLAS_SEEDREAM_DIMENSIONS,
+  isSeedream,
+  ratioDimensions,
+} from './output-size';
 
 /**
  * Atlas Cloud — submit returns a prediction id, then you poll one endpoint for
@@ -20,47 +26,21 @@ import {
  */
 export const ATLAS_API = 'https://api.atlascloud.ai/api/v1';
 
-/** Atlas writes sizes with a star, not an x: "1024*1024". */
-const SIZES: Record<string, string> = {
-  '1:1': '1024*1024',
-  '16:9': '1344*768',
-  '9:16': '768*1344',
-  '4:3': '1152*896',
-  '3:4': '896*1152',
-  '3:2': '1216*832',
-  '2:3': '832*1216',
-  '21:9': '1536*640',
-};
-
 /**
  * Atlas is an aggregator, so a request body is the upstream model's, not one of
  * its own: the same idea wears a different field name per model, and a name the
  * model does not know is dropped in silence rather than rejected. Everything
  * from here to the adapter is quoted from a model's own parameter reference.
  *
- * Seedream v5.0 Pro, to start, will not take any of the sizes above: it requires
- * 1,048,576–4,194,304 output pixels and every one of them is smaller. These are
- * its own published sizes, all inside its 1.5K billing tier (≤2.36M pixels), so
- * a run costs the $0.036 the catalog quotes rather than the 2K tier's price. It
- * publishes no 3:2 or 21:9 size, so those snap to the nearest shape it does.
+ * The two size tables live in `output-size.ts`, with the reasons Seedream needs
+ * its own, so the size controls can name the pixels a ratio resolves to without
+ * a second copy of the numbers. Atlas writes a size with a star, not an x
+ * ("1024*1024"), and that formatting is the only part that belongs here.
  */
-const SEEDREAM_SIZES: Record<string, string> = {
-  '1:1': '1536*1536',
-  '16:9': '2048*1152',
-  '9:16': '1152*2048',
-  '4:3': '1776*1328',
-  '3:4': '1328*1776',
-  '3:2': '1776*1328',
-  '2:3': '1328*1776',
-  '21:9': '2048*1152',
-};
-
-const isSeedream = (model: string) => model.startsWith('bytedance/seedream-');
-
-/** By the model's own size table, since not every model shares one. */
 function imageSize(model: string, aspectRatio: string | undefined): string {
-  const table = isSeedream(model) ? SEEDREAM_SIZES : SIZES;
-  return table[aspectRatio ?? '1:1'] ?? table['1:1'];
+  const table = isSeedream(model) ? ATLAS_SEEDREAM_DIMENSIONS : ATLAS_IMAGE_DIMENSIONS;
+  const [width, height] = ratioDimensions(table, aspectRatio);
+  return `${width}*${height}`;
 }
 
 /** `image` is what the FLUX endpoints take; Seedream's editor takes an array. */

@@ -1312,3 +1312,87 @@ describe('GenerationInterface result stack', () => {
     await waitFor(() => expect(screen.getAllByAltText(/^Generated/)).toHaveLength(2));
   });
 });
+
+/**
+ * The bug: "9:16 (Story/Reels)" was one label for four different results.
+ * Runware renders it at 768 × 1344 and Pollinations at 720 × 1280, and only the
+ * second is really 9:16 — so the control has to say which engine's answer it is
+ * currently offering, per engine and per model.
+ */
+describe('what the image aspect control promises for the active engine', () => {
+  const LEGEND = '“≈” marks a ratio the pixels come close to without being exactly it.';
+
+  const optionsOf = () =>
+    [...screen.getByRole('combobox', { name: 'Aspect Ratio' }).querySelectorAll('option')]
+      .map((option) => option.textContent);
+
+  beforeEach(() => {
+    useDraftStore.getState().reset();
+    useAppStore.setState({
+      engine: 'gemini',
+      apiKey: 'gemini_test_key',
+      runwareApiKey: 'rw_test_key',
+      atlasApiKey: 'at_test_key',
+      cometApiKey: 'cm_test_key',
+    });
+  });
+
+  it('names Runware’s pixels and marks the ratios they only round to', () => {
+    useAppStore.setState({ engine: 'runware' });
+    renderInterface();
+
+    expect(optionsOf()).toContain('1:1 (Square - Instagram Post) · 1024 × 1024');
+    expect(optionsOf()).toContain('≈9:16 (Story/Reels) · 768 × 1344');
+    expect(optionsOf()).toContain('≈16:9 (YouTube Thumbnail) · 1344 × 768');
+    expect(screen.getByRole('combobox', { name: 'Aspect Ratio' })).toHaveAccessibleDescription(LEGEND);
+  });
+
+  it('leaves Pollinations unmarked, because its table really is those ratios', () => {
+    useAppStore.setState({ engine: 'pollinations' });
+    renderInterface();
+
+    expect(optionsOf()).toContain('9:16 (Story/Reels) · 720 × 1280');
+    expect(optionsOf()).toContain('16:9 (YouTube Thumbnail) · 1280 × 720');
+    expect(optionsOf()).toContain('3:2 (Classic Photo) · 1080 × 720');
+    // 1280 × 548 is 0.1% off 21:9 — a rounding, and the only one it has.
+    expect(optionsOf()).toContain('≈21:9 (Ultra Wide) · 1280 × 548');
+  });
+
+  it('says what Seedream substitutes rather than calling a 16:9 frame nearly 21:9', () => {
+    useAppStore.setState({
+      engine: 'atlas',
+      atlasImageModel: 'bytedance/seedream-v5.0-pro/text-to-image',
+    });
+    renderInterface();
+
+    expect(optionsOf()).toContain('21:9 (Ultra Wide) · delivers 16:9 · 2048 × 1152');
+    expect(optionsOf()).toContain('3:2 (Classic Photo) · delivers ≈4:3 · 1776 × 1328');
+    expect(optionsOf()).toContain('9:16 (Story/Reels) · 1152 × 2048');
+    expect(optionsOf()).not.toContain('≈21:9 (Ultra Wide) · 2048 × 1152');
+  });
+
+  it('gives Atlas’s other models the table those models actually use', () => {
+    useAppStore.setState({ engine: 'atlas', atlasImageModel: 'black-forest-labs/flux-schnell' });
+    renderInterface();
+
+    expect(optionsOf()).toContain('≈9:16 (Story/Reels) · 768 × 1344');
+    expect(optionsOf()).not.toContain('9:16 (Story/Reels) · 1152 × 2048');
+  });
+
+  it('names Comet’s pixels, which are exact on 16:9 and a rounding on 4:3', () => {
+    useAppStore.setState({ engine: 'comet' });
+    renderInterface();
+
+    expect(optionsOf()).toContain('16:9 (YouTube Thumbnail) · 1536 × 864');
+    expect(optionsOf()).toContain('9:16 (Story/Reels) · 864 × 1536');
+    expect(optionsOf()).toContain('≈4:3 (Standard) · 1152 × 896');
+  });
+
+  it('leaves an engine that picks its own dimensions exactly as it was', () => {
+    renderInterface();
+
+    expect(optionsOf()).toContain('9:16 (Story/Reels)');
+    expect(optionsOf()).toContain('21:9 (Ultra Wide)');
+    expect(screen.queryByText(LEGEND)).toBeNull();
+  });
+});
