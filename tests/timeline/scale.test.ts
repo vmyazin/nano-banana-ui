@@ -25,17 +25,35 @@ describe('computePps', () => {
     expect(computePps([{ id: 'a', seconds: 10 }], 1000)).toBe(100);
   });
 
-  it('never drops below the readable floor for a long timeline', () => {
-    expect(computePps([{ id: 'a', seconds: 10_000 }], 1000)).toBe(MIN_PPS);
+  it('fits a long timeline rather than scrolling it', () => {
+    // The readable floor used to win here and the track scrolled. Zoom is the
+    // answer to "too small to work with" now; opening already scrolled, with
+    // clips off screen the viewer has no reason to know are there, is not.
+    expect(computePps([{ id: 'a', seconds: 10_000 }], 1000)).toBe(0.1);
+  });
+
+  it('falls back to the readable scale when there is nothing to fit', () => {
+    // Untimed blocks alone already overflow the container, so the timed clips
+    // have a negative budget and no scale can fit them.
+    const pps = computePps(
+      [
+        { id: 'a', seconds: 10 },
+        { id: 'b', seconds: null },
+        { id: 'c', seconds: null },
+      ],
+      200
+    );
+    expect(pps).toBe(MIN_PPS);
   });
 
   it('never stretches a short timeline past the ceiling', () => {
     expect(computePps([{ id: 'a', seconds: 1 }], 1000)).toBe(MAX_PPS);
   });
 
-  it('keeps the shortest clip grabbable even when that means scrolling', () => {
-    // A 0.5s clip at MIN_PPS would be 12px — under the grabbable floor, so
-    // the floor wins and the track scrolls instead.
+  it('fits rather than stretching to keep the shortest clip grabbable', () => {
+    // A short clip beside a long one used to drag the whole track wider than
+    // the container so its trim handles stayed grabbable. It is now shown at
+    // fit and zoomed into when it needs working on.
     const pps = computePps(
       [
         { id: 'a', seconds: 0.5 },
@@ -43,7 +61,26 @@ describe('computePps', () => {
       ],
       1000
     );
-    expect(pps).toBe(MIN_TIMED_BLOCK_WIDTH / 0.5);
+    expect(pps).toBe(1000 / 1000.5);
+    expect(pps).toBeLessThan(MIN_TIMED_BLOCK_WIDTH / 0.5);
+  });
+
+  it('never lays the timeline out wider than the container it is given', () => {
+    // The property the default view is supposed to have, over the shapes that
+    // used to break it: many short clips, one very long one, and a mix.
+    const cases: Array<Array<{ id: string; seconds: number }>> = [
+      Array.from({ length: 12 }, (_, i) => ({ id: `s${i}`, seconds: 0.2 })),
+      [{ id: 'a', seconds: 600 }],
+      [
+        { id: 'a', seconds: 0.3 },
+        { id: 'b', seconds: 45 },
+        { id: 'c', seconds: 2 },
+      ],
+    ];
+
+    for (const blocks of cases) {
+      expect(buildTrackLayout(blocks, 1000).width).toBeLessThanOrEqual(1000);
+    }
   });
 
   it('reserves the untimed blocks’ width before dividing the rest', () => {

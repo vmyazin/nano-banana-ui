@@ -112,10 +112,18 @@
 - **The track's time scale, or zooming it** → everything on the track (blocks,
   ruler, playhead, scrubbing, the drag seams) reads pixels-per-second out of
   `buildTrackLayout`, so change the scale there and never in a component.
-  Zoom is a *multiplier over the fit* (`MIN_ZOOM` 1 = fit, and the floor: at fit
-  the whole timeline is already on screen), applied after `computePps` so it
-  deliberately escapes `MAX_PPS` — that bound answers "how far should this
-  stretch when nobody asked", and a pinch has asked. Untimed blocks keep
+  `computePps` **fits**: the default view never lays the track out wider than
+  its container, and `MAX_PPS` is the only bound left because it can only make
+  the track narrower. The old floors (`MIN_PPS`, and one keeping the shortest
+  clip's trim handles grabbable) are gone from that path — they made a timeline
+  open already scrolled, hiding clips the viewer has no reason to know are
+  there, and zoom now answers "too small to work with" while nothing answers
+  "you cannot look for what you do not know is missing". `MIN_PPS` survives
+  only for a track that cannot be fitted at all (untimed blocks already
+  overflowing). Zoom is a *multiplier over that fit* (`MIN_ZOOM` 1 = fit, and
+  the floor: at fit everything is already on screen), applied after
+  `computePps` so it deliberately escapes `MAX_PPS` — that bound answers "how
+  far should this stretch when nobody asked", and a pinch has asked. Untimed blocks keep
   `UNTIMED_BLOCK_WIDTH` at every zoom because they represent no time. The
   gesture lives in `lib/timeline/use-track-zoom.ts`, and its non-obvious half is
   the **anchor**: a zoom that only rescaled would slide the clip you were

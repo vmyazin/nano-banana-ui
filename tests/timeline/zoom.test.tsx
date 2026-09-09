@@ -1,7 +1,7 @@
 import { fireEvent, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { MAX_ZOOM } from '../../lib/timeline/scale';
+import { FALLBACK_TRACK_WIDTH, MAX_ZOOM } from '../../lib/timeline/scale';
 import { useGalleryStore } from '../../store/useGalleryStore';
 import { useTimelineStore } from '../../store/useTimelineStore';
 import { renderWorkspace, setupTimelineTest, video } from './helpers';
@@ -43,11 +43,24 @@ describe('zooming the timeline track', () => {
     useTimelineStore.getState().addClip('r1');
   });
 
-  it('starts at fit, offering no way out of a scale nobody has left', async () => {
+  it('starts at fit, with the ways out of it visible but inert', async () => {
+    // The controls stay on screen at 100%: a Fit button that only appears once
+    // you are lost arrives too late to be the thing you reach for.
     await renderReady();
 
+    expect(screen.getByTestId('track-zoom-level')).toHaveTextContent('100%');
     expect(screen.getByLabelText(/zoom out/i)).toBeDisabled();
-    expect(screen.queryByLabelText(/fit the timeline/i)).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/fit the timeline/i)).toBeDisabled();
+    expect(screen.getByLabelText(/zoom in/i)).toBeEnabled();
+  });
+
+  it('opens with the whole timeline inside the track, not scrolled', async () => {
+    await renderReady();
+
+    // jsdom measures nothing, so the layout falls back to FALLBACK_TRACK_WIDTH
+    // — the same width the fit is computed against, which is the relationship
+    // being asserted: content never exceeds the container it was fitted to.
+    expect(contentWidth()).toBeLessThanOrEqual(FALLBACK_TRACK_WIDTH);
   });
 
   it('widens the track on a pinch out', async () => {
@@ -92,7 +105,7 @@ describe('zooming the timeline track', () => {
     fireEvent.click(screen.getByLabelText(/fit the timeline/i));
 
     expect(contentWidth()).toBeCloseTo(fit, 1);
-    expect(screen.queryByLabelText(/fit the timeline/i)).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/fit the timeline/i)).toBeDisabled();
   });
 
   it('never zooms out past fit', async () => {
@@ -116,13 +129,14 @@ describe('zooming the timeline track', () => {
     expect(screen.getByLabelText(/zoom in/i)).toBeDisabled();
   });
 
-  it('reports the scale only once it is no longer fit', async () => {
+  it('always reports the scale, so the default is checkable too', async () => {
     await renderReady();
-    expect(screen.queryByText('100%')).not.toBeInTheDocument();
+    const readout = screen.getByTestId('track-zoom-level');
+    expect(readout).toHaveTextContent('100%');
 
     fireEvent.click(screen.getByLabelText(/zoom in/i));
 
-    expect(screen.getByText(/%$/)).toBeInTheDocument();
+    expect(readout).toHaveTextContent('150%');
   });
 });
 

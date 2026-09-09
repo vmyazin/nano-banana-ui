@@ -573,11 +573,17 @@ export default function TimelineTrack({
           out of reach of a mouse and a keyboard. Fit is the way back — without
           it, zooming in is a one-way door. */}
       <div className="mb-1.5 flex items-center justify-end gap-1">
-        {zoomed && (
-          <span className="mr-1 tabular-nums text-[0.65rem] text-[var(--foreground-subtle)]">
-            {Math.round(zoom * 100)}%
-          </span>
-        )}
+        {/* Always on screen, including at 100%. Showing the readout and Fit
+            only once zoomed meant the control that gets you back appeared only
+            after you were already lost, and the scale itself — the thing every
+            width on this track is derived from — was invisible exactly when it
+            was the default someone might want to check. */}
+        <span
+          data-testid="track-zoom-level"
+          className="mr-1 tabular-nums text-[0.65rem] text-[var(--foreground-subtle)]"
+        >
+          {Math.round(zoom * 100)}%
+        </span>
         <button
           type="button"
           onClick={() => zoomBy(1 / 1.5)}
@@ -598,17 +604,16 @@ export default function TimelineTrack({
         >
           <Plus size={12} />
         </button>
-        {zoomed && (
-          <button
-            type="button"
-            onClick={resetZoom}
-            aria-label="Fit the timeline to the track"
-            title="Fit the timeline to the track"
-            className="rounded-md border border-[var(--border)] p-1 text-[var(--foreground-muted)] hover:text-[var(--neon-cyan)]"
-          >
-            <Maximize2 size={12} />
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={resetZoom}
+          disabled={!zoomed}
+          aria-label="Fit the timeline to the track"
+          title="Fit the timeline to the track"
+          className="rounded-md border border-[var(--border)] p-1 text-[var(--foreground-muted)] hover:text-[var(--neon-cyan)] disabled:opacity-30 disabled:hover:text-[var(--foreground-muted)]"
+        >
+          <Maximize2 size={12} />
+        </button>
       </div>
 
       {/* `touch-pan-x` keeps one-finger horizontal scrolling but takes pinch

@@ -38,11 +38,24 @@ export interface TrackLayout {
   pps: number;
 }
 
-/** Below this the ruler is unreadable and clips are unclickable slivers. */
+/**
+ * The fallback scale for a track that cannot be fitted at all — nothing timed
+ * yet, or untimed blocks already filling the width. Not a floor on the fit:
+ * see `computePps`.
+ */
 export const MIN_PPS = 24;
 /** Above this a short timeline stretches into a parody of itself. */
 export const MAX_PPS = 160;
-/** Any clip must stay wide enough to grab its trim handles. */
+/**
+ * The width below which a block's two trim handles (10px each) meet in the
+ * middle and the clip can no longer be trimmed by dragging.
+ *
+ * This used to be a floor on the fit — the track would rather scroll than show
+ * an ungrabbable clip. It no longer is: zoom now answers "this clip is too
+ * small to work with", and the default view fits instead. Kept because it is
+ * still the honest definition of "too small", and the seam targets are sized
+ * against it.
+ */
 export const MIN_TIMED_BLOCK_WIDTH = 56;
 /** A loading or unavailable block: enough room for its message, no time. */
 export const UNTIMED_BLOCK_WIDTH = 132;
@@ -69,8 +82,21 @@ export const clampZoom = (zoom: number): number =>
   Number.isFinite(zoom) ? Math.min(Math.max(zoom, MIN_ZOOM), MAX_ZOOM) : MIN_ZOOM;
 
 /**
- * Fit-to-width, bounded: the timeline fills the container when it can, scrolls
- * when it cannot, and never lets the shortest clip collapse below grabbable.
+ * Fit-to-width: the whole timeline is on screen at the default scale.
+ *
+ * This used to hold two floors — a readable minimum, and one keeping the
+ * shortest clip wide enough to grab its trim handles — and let the track
+ * scroll when they bound. That was the right call while this was the *only*
+ * scale: as the old comment put it, a track that scrolls is usable and a 4px
+ * clip is not. Zoom changed the trade. A clip too small to work with is now
+ * one pinch from being big enough, while a timeline that opens already
+ * scrolled hides clips the viewer has no reason to expect are there — and
+ * that cost has no gesture to undo it, because you cannot look for what you
+ * do not know is missing.
+ *
+ * So the only bound left is the ceiling, which can only ever make the track
+ * narrower than the container. `MIN_PPS` survives as the answer for a track
+ * that cannot be fitted at all rather than as a floor on fitting one.
  */
 export function computePps(blocks: TrackBlockInput[], availableWidth: number): number {
   const width = availableWidth > 0 ? availableWidth : FALLBACK_TRACK_WIDTH;
@@ -83,10 +109,11 @@ export function computePps(blocks: TrackBlockInput[], availableWidth: number): n
   const totalSeconds = timed.reduce((sum, block) => sum + block.seconds, 0);
   const untimedWidth = (blocks.length - timed.length) * UNTIMED_BLOCK_WIDTH;
   const fit = (width - untimedWidth) / totalSeconds;
-  const shortest = Math.min(...timed.map((block) => block.seconds));
-  // The floor that keeps every clip grabbable wins over both clamps: a track
-  // that scrolls is usable, a 4px clip is not.
-  return Math.max(Math.min(Math.max(fit, MIN_PPS), MAX_PPS), MIN_TIMED_BLOCK_WIDTH / shortest);
+  // Untimed blocks can already exceed the container on their own, leaving the
+  // timed clips a negative budget. There is no fitting that, so it falls back
+  // to the readable scale and scrolls.
+  if (!Number.isFinite(fit) || fit <= 0) return MIN_PPS;
+  return Math.min(fit, MAX_PPS);
 }
 
 export function buildTrackLayout(
