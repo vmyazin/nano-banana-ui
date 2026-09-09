@@ -42,11 +42,51 @@ describe('TimelineWorkspace', () => {
     await userEvent.click(add);
     expect(useTimelineStore.getState().timeline.clips).toHaveLength(1);
 
+    // Deleting a file asks first now — see the glyph test below for why.
     await userEvent.click(trash);
+    await userEvent.click(screen.getByRole('button', { name: /delete from library/i }));
     await waitFor(() =>
       expect(useGalleryStore.getState().records.some((record) => record.id === 'clip')).toBe(false)
     );
     expect(screen.queryByRole('button', { name: /add neon tiger to the timeline/i })).not.toBeInTheDocument();
+  });
+
+  /**
+   * The rail and the sequence used to carry the same trash glyph for two very
+   * different consequences: one takes a clip out of the timeline and is
+   * undoable, the other deletes the file from this browser and is not. Nothing
+   * on screen distinguished them, and the destructive one asked nothing.
+   */
+  it('separates removing a clip from the sequence and deleting the file', async () => {
+    renderWorkspace();
+    await userEvent.click(screen.getByRole('button', { name: /add neon tiger to the timeline/i }));
+    const list = await screen.findByTestId('timeline-list');
+
+    const removeFromSequence = within(list).getByRole('button', {
+      name: /remove neon tiger from the timeline/i,
+    });
+    const deleteFile = screen.getByRole('button', { name: /delete neon tiger from your clips/i });
+
+    expect(removeFromSequence.querySelector('svg')).toHaveClass('lucide-x');
+    expect(deleteFile.querySelector('svg')).toHaveClass('lucide-trash-2');
+  });
+
+  it('says what deleting a file costs the timeline, and lets you back out', async () => {
+    renderWorkspace();
+    await userEvent.click(screen.getByRole('button', { name: /add neon tiger to the timeline/i }));
+    await waitFor(() => expect(useTimelineStore.getState().timeline.clips).toHaveLength(1));
+
+    await userEvent.click(screen.getByRole('button', { name: /delete neon tiger from your clips/i }));
+
+    // The cost is the point: a record that is gone is how a clip on the
+    // timeline becomes `missing`, the one unavailable state with nothing to
+    // re-fill it from.
+    expect(screen.getByText(/on this timeline once/i)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: /keep it/i }));
+
+    expect(useGalleryStore.getState().records.some((record) => record.id === 'clip')).toBe(true);
+    expect(useTimelineStore.getState().timeline.clips).toHaveLength(1);
   });
 
   it('keeps an expired clip in place and explains why, rather than dropping it', async () => {

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { DragEvent, KeyboardEvent, PointerEvent as ReactPointerEvent, ReactNode } from 'react';
-import { AlertTriangle, Crop, Maximize2, Minus, Plus, Scan, Trash2, Undo2 } from 'lucide-react';
+import { AlertTriangle, Crop, Maximize2, Minus, Plus, Scan, Undo2, X } from 'lucide-react';
 
 import type { GalleryRecord } from '@/lib/gallery/storage';
 import { UNDECODABLE_WARNING } from '@/lib/timeline/acquire';
@@ -347,7 +347,11 @@ function TrackBlock({
         aria-label={`Remove ${titleOf(record)} from the timeline`}
         className="absolute right-0.5 top-0.5 z-20 rounded-md bg-black/60 p-1 text-[var(--foreground-subtle)] opacity-0 transition-opacity hover:text-[var(--foreground)] focus-visible:opacity-100 group-hover:opacity-100"
       >
-        <Trash2 size={12} />
+        {/* A cross, not a trash can: this takes the clip out of the sequence
+            and leaves the file alone, while the identical glyph in the rail
+            deletes the file for good. Two consequences that far apart cannot
+            share a glyph. */}
+        <X size={12} />
       </button>
 
       {isUnavailable ? (

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import type { DragEvent } from 'react';
-import { AlertTriangle, Crop, GripVertical, Scan, Trash2 } from 'lucide-react';
+import { AlertTriangle, Crop, GripVertical, Scan, X } from 'lucide-react';
 
 import type { GalleryRecord } from '@/lib/gallery/storage';
 import { UNDECODABLE_WARNING } from '@/lib/timeline/acquire';
@@ -222,7 +222,9 @@ function ClipRow({
         aria-label={`Remove ${titleOf(record)} from the timeline`}
         className="btn-secondary shrink-0 px-2 py-1 text-xs"
       >
-        <Trash2 size={13} />
+        {/* See TimelineTrack: a cross removes from the sequence, a trash can
+            deletes the file. */}
+        <X size={13} />
       </button>
     </li>
   );

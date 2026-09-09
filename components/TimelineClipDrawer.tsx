@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useId, useMemo, useState, useSyncExternalStore } from 'react';
 import { Library, Loader2, Plus, Trash2, Video } from 'lucide-react';
 
+import ConfirmDialog from '@/components/ConfirmDialog';
 import LibraryOverlay from '@/components/LibraryOverlay';
 import { useFileDrop } from '@/lib/drop/use-file-drop';
 import type { GalleryRecord } from '@/lib/gallery/storage';
@@ -277,7 +278,7 @@ function ClipRow({
   posterUrl,
   compact,
   onAdd,
-  onDelete,
+  onRequestDelete,
 }: {
   record: GalleryRecord;
   /** Object URL for the record's extracted poster, when it has one. */
@@ -290,7 +291,8 @@ function ClipRow({
    */
   compact: boolean;
   onAdd: (recordId: string) => void;
-  onDelete: (recordId: string) => void;
+  /** Asks for deletion rather than doing it: the drawer confirms first. */
+  onRequestDelete: (record: GalleryRecord) => void;
 }) {
   const title = titleOf(record);
   // Only asked for when there is no poster — decoding a strip to reproduce a
@@ -345,7 +347,7 @@ function ClipRow({
       <div className="flex shrink-0 items-center gap-1">
         <button
           type="button"
-          onClick={() => onDelete(record.id)}
+          onClick={() => onRequestDelete(record)}
           aria-label={`Delete ${title} from Your clips`}
           title={`Delete ${title} from Your clips`}
           style={{ padding: 0 }}
@@ -381,6 +383,22 @@ export default function TimelineClipDrawer({
   const previews = usePreviewUrls(clips);
   useRailDimensions(clips);
   const [pickerOpen, setPickerOpen] = useState(false);
+  /**
+   * The clip whose deletion is being confirmed.
+   *
+   * This trash can and the one on a timeline block used to be the same glyph
+   * doing very different things: that one takes a clip out of the sequence and
+   * is undoable, this one deletes the file from this browser and is not. The
+   * block's control is a cross now, and this one asks first — and says what it
+   * would cost, because a record that is gone is exactly how a clip on the
+   * timeline becomes `missing`, the one unavailable state with nothing to
+   * re-fill it from.
+   */
+  const [confirmingDelete, setConfirmingDelete] = useState<GalleryRecord | null>(null);
+  const placements = useTimelineStore((state) => state.timeline.clips);
+  const placementCount = confirmingDelete
+    ? placements.filter((clip) => clip.recordId === confirmingDelete.id).length
+    : 0;
 
   return (
     <div
@@ -424,6 +442,33 @@ export default function TimelineClipDrawer({
       />
       </div>
 
+      <ConfirmDialog
+        open={confirmingDelete !== null}
+        title="Delete this clip from your library?"
+        description={
+          <>
+            <strong>{confirmingDelete ? titleOf(confirmingDelete) : ''}</strong> is removed from
+            this browser for good — there is no undo for it, and nothing to download it back
+            from.
+            {placementCount > 0 && (
+              <>
+                {' '}
+                It is on this timeline {placementCount === 1 ? 'once' : `${placementCount} times`},
+                and {placementCount === 1 ? 'that clip' : 'those clips'} will be left with no file
+                to play or export.
+              </>
+            )}
+          </>
+        }
+        confirmLabel="Delete from library"
+        cancelLabel="Keep it"
+        onConfirm={() => {
+          onDelete(confirmingDelete!.id);
+          setConfirmingDelete(null);
+        }}
+        onCancel={() => setConfirmingDelete(null)}
+      />
+
       {clips.length === 0 ? (
         <p className="text-[0.8125rem] leading-relaxed text-[var(--foreground-muted)]">
           Generated videos are kept here automatically. Nothing yet — make one, add a file
@@ -449,7 +494,7 @@ export default function TimelineClipDrawer({
               posterUrl={previews.get(record.id)}
               compact={fill}
               onAdd={onAdd}
-              onDelete={onDelete}
+              onRequestDelete={setConfirmingDelete}
             />
           ))}
         </ul>
