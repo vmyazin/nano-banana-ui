@@ -7,12 +7,14 @@ import { AlertTriangle, Crop, GripVertical, Scan, Trash2 } from 'lucide-react';
 import type { GalleryRecord } from '@/lib/gallery/storage';
 import { UNDECODABLE_WARNING } from '@/lib/timeline/acquire';
 import { formatDuration } from '@/lib/timeline/format';
+import { carriesRecord, droppedRecordId } from '@/lib/timeline/drag';
 import { reorderHint, reorderIntent } from '@/lib/timeline/reorder';
 import { trimmedDuration } from '@/lib/timeline/trim';
 import { posterImage } from '@/lib/timeline/poster';
 import { useTimelineStore, type TimelineClip } from '@/store/useTimelineStore';
 import type { ClipState } from '@/components/TimelineWorkspace';
 import RecoverMediaDropZone from '@/components/RecoverMediaDropZone';
+import TimelineDropZone from '@/components/TimelineDropZone';
 import TimelineTrimControl from '@/components/TimelineTrimControl';
 
 interface TimelineListProps {
@@ -22,6 +24,11 @@ interface TimelineListProps {
   onRemove: (clipId: string) => void;
   /** Fires with the repaired record id so every placement of it re-resolves. */
   onRepaired: (recordId: string) => void;
+  /**
+   * Adds a clip dragged out of the rail at `atIndex`. Routed through the
+   * workspace, which owns acquisition — see the same prop on TimelineTrack.
+   */
+  onAdd: (recordId: string, atIndex?: number) => void;
 }
 
 function titleOf(record: GalleryRecord | undefined) {
@@ -54,6 +61,7 @@ function ClipRow({
   total,
   onRemove,
   onRepaired,
+  onAdd,
 }: {
   clip: TimelineClip;
   record: GalleryRecord | undefined;
@@ -62,6 +70,7 @@ function ClipRow({
   total: number;
   onRemove: (clipId: string) => void;
   onRepaired: (recordId: string) => void;
+  onAdd: (recordId: string, atIndex?: number) => void;
 }) {
   const [draggedOver, setDraggedOver] = useState(false);
   const poster = posterImage(record?.posterBlob);
@@ -70,6 +79,16 @@ function ClipRow({
   const handleDrop = (event: DragEvent<HTMLLIElement>) => {
     event.preventDefault();
     setDraggedOver(false);
+
+    // A clip out of the rail inserts at this row, pushing this one down —
+    // the same rule the track follows, so the gesture reads the same in both
+    // layouts even though one runs sideways.
+    const recordId = droppedRecordId(event.dataTransfer);
+    if (recordId) {
+      onAdd(recordId, index);
+      return;
+    }
+
     const draggedId = event.dataTransfer.getData('text/plain');
     if (draggedId && draggedId !== clip.id) {
       useTimelineStore.getState().moveClip(draggedId, index);
@@ -106,6 +125,7 @@ function ClipRow({
       }}
       onDragOver={(event) => {
         event.preventDefault();
+        if (carriesRecord(event.dataTransfer)) event.dataTransfer.dropEffect = 'copy';
         setDraggedOver(true);
       }}
       onDragLeave={() => setDraggedOver(false)}
@@ -219,33 +239,54 @@ export default function TimelineList({
   clipStates,
   onRemove,
   onRepaired,
+  onAdd,
 }: TimelineListProps) {
   const byId = useMemo(() => new Map(records.map((record) => [record.id, record])), [records]);
 
   if (clips.length === 0) {
     return (
-      <div data-testid="timeline-list" className="glass-card p-4 text-center">
+      <TimelineDropZone
+        data-testid="timeline-list"
+        onDropRecord={(recordId) => onAdd(recordId)}
+        className="glass-card border border-dashed border-transparent p-4 text-center transition-colors"
+        activeClassName="border-[var(--neon-cyan)]/60 bg-[var(--neon-cyan)]/5"
+      >
         <p className="text-[0.8125rem] text-[var(--foreground-muted)]">
-          No clips yet. Add one from your clips on the left to start a sequence.
+          No clips yet. Drag one over from your clips, or press its + button.
         </p>
-      </div>
+      </TimelineDropZone>
     );
   }
 
   return (
-    <ul data-testid="timeline-list" className="space-y-2">
-      {clips.map((clip, index) => (
-        <ClipRow
-          key={clip.id}
-          clip={clip}
-          record={byId.get(clip.recordId)}
-          state={clipStates[clip.id]}
-          index={index}
-          total={clips.length}
-          onRemove={onRemove}
-          onRepaired={onRepaired}
-        />
-      ))}
-    </ul>
+    <div className="space-y-2">
+      <ul data-testid="timeline-list" className="space-y-2">
+        {clips.map((clip, index) => (
+          <ClipRow
+            key={clip.id}
+            clip={clip}
+            record={byId.get(clip.recordId)}
+            state={clipStates[clip.id]}
+            index={index}
+            total={clips.length}
+            onRemove={onRemove}
+            onRepaired={onRepaired}
+            onAdd={onAdd}
+          />
+        ))}
+      </ul>
+
+      {/* Dropping on a row inserts above it, so appending needs a target of
+          its own below the last one — the vertical counterpart to the track's
+          tail zone. */}
+      <TimelineDropZone
+        data-testid="list-drop-end"
+        onDropRecord={(recordId) => onAdd(recordId)}
+        className="rounded-lg border border-dashed border-[var(--border)] px-3 py-2 text-center text-xs text-[var(--foreground-subtle)] transition-colors"
+        activeClassName="border-[var(--neon-cyan)]/60 bg-[var(--neon-cyan)]/5 text-[var(--neon-cyan)]"
+      >
+        Drop a clip here to add it to the end
+      </TimelineDropZone>
+    </div>
   );
 }

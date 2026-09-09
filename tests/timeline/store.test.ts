@@ -13,6 +13,22 @@ describe('useTimelineStore', () => {
     expect(ids()).toEqual(['a', 'b']);
   });
 
+  it('inserts at a given index rather than appending', () => {
+    useTimelineStore.getState().addClip('a');
+    useTimelineStore.getState().addClip('c');
+    useTimelineStore.getState().addClip('b', 1);
+    expect(ids()).toEqual(['a', 'b', 'c']);
+  });
+
+  it('clamps an index the timeline no longer has room for', () => {
+    // The index comes from a drop target, and the timeline can change under a
+    // drag in flight — an out-of-range splice would put the clip nowhere.
+    useTimelineStore.getState().addClip('a');
+    useTimelineStore.getState().addClip('b', 99);
+    useTimelineStore.getState().addClip('c', -4);
+    expect(ids()).toEqual(['c', 'a', 'b']);
+  });
+
   it('gives each placement its own id so one record can appear twice', () => {
     const first = useTimelineStore.getState().addClip('a');
     const second = useTimelineStore.getState().addClip('a');

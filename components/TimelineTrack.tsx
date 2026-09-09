@@ -7,6 +7,8 @@ import { AlertTriangle, Crop, Scan, Trash2, Undo2 } from 'lucide-react';
 import type { GalleryRecord } from '@/lib/gallery/storage';
 import { UNDECODABLE_WARNING } from '@/lib/timeline/acquire';
 import { formatDuration } from '@/lib/timeline/format';
+import { carriesRecord, droppedRecordId } from '@/lib/timeline/drag';
+import { useRecordDragActive } from '@/lib/timeline/use-record-drag';
 import { reorderHint, reorderIntent } from '@/lib/timeline/reorder';
 import {
   buildTrackLayout,
@@ -21,6 +23,7 @@ import { usePlayheadStore } from '@/store/usePlayheadStore';
 import { useTimelineStore, type TimelineClip } from '@/store/useTimelineStore';
 import type { ClipState } from '@/components/TimelineWorkspace';
 import RecoverMediaDropZone from '@/components/RecoverMediaDropZone';
+import TimelineDropZone from '@/components/TimelineDropZone';
 import TimelineFilmstrip from '@/components/TimelineFilmstrip';
 
 interface TimelineTrackProps {
@@ -30,6 +33,13 @@ interface TimelineTrackProps {
   onRemove: (clipId: string) => void;
   /** Fires with the repaired record id so every placement of it re-resolves. */
   onRepaired: (recordId: string) => void;
+  /**
+   * Adds a clip dragged out of the rail at `atIndex`. Goes back up to the
+   * workspace rather than straight to the store because the workspace owns
+   * acquisition — a placement added behind its back would sit there with no
+   * media, no duration and no way into an export.
+   */
+  onAdd: (recordId: string, atIndex?: number) => void;
 }
 
 function titleOf(record: GalleryRecord | undefined) {
@@ -56,6 +66,14 @@ function usePreviewUrl(blob: Blob | undefined) {
 
 const clampValue = (value: number, min: number, max: number) =>
   Math.min(Math.max(value, min), max);
+
+/**
+ * How wide a seam's drop target is, in px. Wide enough to hit while dragging,
+ * narrow enough that two adjacent seams on a short clip stay distinguishable —
+ * `MIN_TIMED_BLOCK_WIDTH` (56) is the narrowest a block can be, so at 20 the
+ * two seams either side of one still leave its middle reachable.
+ */
+const SEAM_WIDTH = 20;
 
 /** jsdom implements setPointerCapture but rejects synthetic pointer ids; a drag works fine without capture there. */
 function capturePointer(element: Element, pointerId: number) {
@@ -197,6 +215,7 @@ function TrackBlock({
   total,
   onRemove,
   onRepaired,
+  onAdd,
 }: {
   clip: TimelineClip;
   record: GalleryRecord | undefined;
@@ -207,6 +226,7 @@ function TrackBlock({
   total: number;
   onRemove: (clipId: string) => void;
   onRepaired: (recordId: string) => void;
+  onAdd: (recordId: string, atIndex?: number) => void;
 }) {
   const [draggedOver, setDraggedOver] = useState(false);
   // While a trim handle is held, the block must not be draggable at all —
@@ -237,6 +257,16 @@ function TrackBlock({
   const handleDrop = (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     setDraggedOver(false);
+
+    // A clip out of the rail is a new placement, and it lands *here* — at this
+    // block's index, pushing this one later — which is the same rule reorder
+    // already follows, so one drop gesture means one thing on this track.
+    const recordId = droppedRecordId(event.dataTransfer);
+    if (recordId) {
+      onAdd(recordId, index);
+      return;
+    }
+
     const draggedId = event.dataTransfer.getData('text/plain');
     if (draggedId && draggedId !== clip.id) {
       useTimelineStore.getState().moveClip(draggedId, index);
@@ -284,6 +314,7 @@ function TrackBlock({
       }}
       onDragOver={(event) => {
         event.preventDefault();
+        if (carriesRecord(event.dataTransfer)) event.dataTransfer.dropEffect = 'copy';
         setDraggedOver(true);
       }}
       onDragLeave={() => setDraggedOver(false)}
@@ -427,12 +458,15 @@ export default function TimelineTrack({
   clipStates,
   onRemove,
   onRepaired,
+  onAdd,
 }: TimelineTrackProps) {
   const byId = useMemo(() => new Map(records.map((record) => [record.id, record])), [records]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const [availableWidth, setAvailableWidth] = useState(0);
   const scrubbingRef = useRef(false);
+  // Seams exist only for the duration of a drag they could serve.
+  const dragging = useRecordDragActive();
 
   useEffect(() => {
     const element = scrollRef.current;
@@ -489,11 +523,16 @@ export default function TimelineTrack({
 
   if (clips.length === 0) {
     return (
-      <div data-testid="timeline-track" className="glass-card p-4 text-center">
+      <TimelineDropZone
+        data-testid="timeline-track"
+        onDropRecord={(recordId) => onAdd(recordId)}
+        className="glass-card border border-dashed border-transparent p-4 text-center transition-colors"
+        activeClassName="border-[var(--neon-cyan)]/60 bg-[var(--neon-cyan)]/5"
+      >
         <p className="text-[0.8125rem] text-[var(--foreground-muted)]">
-          No clips yet. Add one from your clips on the left to start a sequence.
+          No clips yet. Drag one over from your clips, or press its + button.
         </p>
-      </div>
+      </TimelineDropZone>
     );
   }
 
@@ -537,21 +576,73 @@ export default function TimelineTrack({
             ))}
           </div>
 
-          <div role="list" aria-label="Timeline clips" className="flex items-stretch pt-1.5">
-            {clips.map((clip, index) => (
-              <TrackBlock
-                key={clip.id}
-                clip={clip}
-                record={byId.get(clip.recordId)}
-                state={clipStates[clip.id]}
-                width={layout.blocks[index]?.width ?? 0}
-                pps={layout.pps}
-                index={index}
-                total={clips.length}
-                onRemove={onRemove}
-                onRepaired={onRepaired}
-              />
-            ))}
+          {/* The drop targets are siblings of the list, not children of it:
+              `role="list"` may only contain `listitem`s, and a drop zone is
+              not one. */}
+          <div className="relative flex items-stretch pt-1.5">
+            <div role="list" aria-label="Timeline clips" className="flex items-stretch">
+              {clips.map((clip, index) => (
+                <TrackBlock
+                  key={clip.id}
+                  clip={clip}
+                  record={byId.get(clip.recordId)}
+                  state={clipStates[clip.id]}
+                  width={layout.blocks[index]?.width ?? 0}
+                  pps={layout.pps}
+                  index={index}
+                  total={clips.length}
+                  onRemove={onRemove}
+                  onRepaired={onRepaired}
+                  onAdd={onAdd}
+                />
+              ))}
+            </div>
+
+            {/* The track's own tail. A seam inserts *before* a clip, so without
+                somewhere past the last one there is no drag that means "put it
+                at the end" — the whole reason to drag rather than press the
+                rail's + button. It fills the slack the blocks leave, so on a
+                short timeline it is most of the row. */}
+            <TimelineDropZone
+              data-testid="track-drop-end"
+              onDropRecord={(recordId) => onAdd(recordId)}
+              className="min-w-12 flex-1 self-stretch rounded-r-md border border-dashed border-transparent transition-colors"
+              activeClassName="border-[var(--neon-cyan)]/60 bg-[var(--neon-cyan)]/5"
+            />
+
+            {/* One target per seam, overlaid on the boundary between two
+                clips. Blocks butt straight up against each other on a
+                pixel-exact time scale, so the boundary is a line with no
+                width — there is nothing to aim at, and dropping "on a clip"
+                cannot say whether you meant before or after it. These give the
+                seam a real target and a caret showing where the clip will go.
+
+                Absolutely positioned, and mounted only while a rail drag is in
+                flight: taking up layout space would push every block sideways
+                and desynchronise the ruler and playhead from the clips, and a
+                permanent overlay would eat the reorder drags, trim handles and
+                remove buttons underneath it. */}
+            {dragging &&
+              clips.map((clip, index) => (
+                <TimelineDropZone
+                  key={`seam-${clip.id}`}
+                  data-testid={`track-seam-${index}`}
+                  onDropRecord={(recordId) => onAdd(recordId, index)}
+                  // Centred on the seam, except at the head where half of it
+                  // would hang outside the scroll container and be clipped.
+                  style={{
+                    left: Math.max(0, (layout.blocks[index]?.x ?? 0) - SEAM_WIDTH / 2),
+                    width: SEAM_WIDTH,
+                  }}
+                  className="group absolute inset-y-0 z-30 flex justify-center"
+                  activeClassName="z-40"
+                >
+                  <span
+                    aria-hidden
+                    className="h-full w-0.5 rounded-full bg-[var(--neon-cyan)]/25 transition-all group-data-[drop-active=true]:w-1 group-data-[drop-active=true]:bg-[var(--neon-cyan)]"
+                  />
+                </TimelineDropZone>
+              ))}
           </div>
 
           {layout.totalSeconds > 0 && (

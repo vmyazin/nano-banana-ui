@@ -90,7 +90,11 @@ interface TimelineState {
   /** What the next undo would put back, for labelling the control. */
   undoLabel: string | null;
   undo: () => void;
-  addClip: (recordId: string) => string;
+  /**
+   * Appends, or inserts at `atIndex` when one is given — a clip dragged from
+   * the rail lands where it was dropped, not always at the end.
+   */
+  addClip: (recordId: string, atIndex?: number) => string;
   removeClip: (clipId: string) => void;
   /**
    * Id-based, not index-based: two drag surfaces plus async state updates make a
@@ -145,12 +149,17 @@ export const useTimelineStore = create<TimelineState>()(
             };
           }),
 
-        addClip: (recordId) => {
+        addClip: (recordId, atIndex) => {
           const id = placementId();
-          edit((timeline) => ({
-            ...timeline,
-            clips: [...timeline.clips, { id, recordId, fit: 'contain' }],
-          }));
+          edit((timeline) => {
+            const clips = [...timeline.clips];
+            // Clamped rather than trusted: the index comes from a drop target,
+            // and the timeline can have changed under a drag in flight.
+            const at =
+              atIndex === undefined ? clips.length : Math.max(0, Math.min(atIndex, clips.length));
+            clips.splice(at, 0, { id, recordId, fit: 'contain' });
+            return { ...timeline, clips };
+          });
           return id;
         },
 

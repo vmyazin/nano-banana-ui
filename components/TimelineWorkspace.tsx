@@ -164,9 +164,12 @@ export default function TimelineWorkspace({
     }
   }, []);
 
+  // `atIndex` is where a drag from the rail was dropped; the rail's own `+`
+  // button omits it and appends. Acquisition is identical either way — where a
+  // placement sits on the timeline has nothing to do with fetching its bytes.
   const addClip = useCallback(
-    async (recordId: string) => {
-      const placementId = useTimelineStore.getState().addClip(recordId);
+    async (recordId: string, atIndex?: number) => {
+      const placementId = useTimelineStore.getState().addClip(recordId, atIndex);
       await resolveClip(placementId, recordId);
     },
     [resolveClip]
@@ -276,6 +279,21 @@ export default function TimelineWorkspace({
   const budgetBytes = DEFAULT_GALLERY_BUDGET.maxBytes;
   const storagePct = Math.min(100, (storedBytes / budgetBytes) * 100);
 
+  /**
+   * Filling the budget is not a cosmetic milestone here: `lib/gallery/eviction`
+   * reclaims unpinned records to stay under it, and a reclaimed record is
+   * exactly how a clip on this timeline turns into `missing`. The meter read
+   * the same cyan at 5% as at 99%, so the one moment it had something to say
+   * was the one moment it looked identical to every other.
+   */
+  const storagePressure = storagePct >= 90 ? 'critical' : storagePct >= 75 ? 'high' : 'fine';
+  const storageBarClass =
+    storagePressure === 'critical'
+      ? 'bg-red-400'
+      : storagePressure === 'high'
+        ? 'bg-amber-300'
+        : 'bg-[var(--neon-cyan)]';
+
   // Wider than the 1400px column the generation workspaces share: the track
   // lays every clip out side by side, so it is the one surface that keeps
   // earning width. Matches the page column `app/page.tsx` gives the timeline,
@@ -353,15 +371,31 @@ export default function TimelineWorkspace({
               onKeepAudioChange={(keepAudio) => useTimelineStore.getState().setKeepAudio(keepAudio)}
               onMatchClips={() => useTimelineStore.getState().matchClips()}
             />
-            <p className="flex items-center gap-1.5 text-[0.8125rem] text-[var(--foreground-muted)]">
+            <p
+              className="flex items-center gap-1.5 text-[0.8125rem] text-[var(--foreground-muted)]"
+              title={
+                storagePressure === 'fine'
+                  ? undefined
+                  : 'Your library evicts unpinned files to stay under this budget, which is how a clip on the timeline goes missing. Delete what you no longer need.'
+              }
+            >
               <HardDrive size={13} className="text-[var(--foreground-subtle)]" />
               {formatBytes(storedBytes)} of {formatBytes(budgetBytes)} stored
               <span className="h-1.5 w-16 overflow-hidden rounded-full bg-[var(--surface)]">
                 <span
-                  className="block h-full rounded-full bg-[var(--neon-cyan)]"
+                  data-storage-pressure={storagePressure}
+                  className={`block h-full rounded-full ${storageBarClass}`}
                   style={{ width: `${storagePct}%` }}
                 />
               </span>
+              {/* Spelled out, not just coloured: the bar alone cannot be read
+                  by anyone who cannot see the colour change, and this is the
+                  point at which clips start disappearing. */}
+              {storagePressure !== 'fine' && (
+                <span className={storagePressure === 'critical' ? 'text-red-300' : 'text-amber-300'}>
+                  — nearly full, so unpinned files may be evicted
+                </span>
+              )}
             </p>
           </div>
 
@@ -382,6 +416,7 @@ export default function TimelineWorkspace({
                 clipStates={clipStates}
                 onRemove={removeClip}
                 onRepaired={repairedRecord}
+                onAdd={(recordId, atIndex) => void addClip(recordId, atIndex)}
               />
             </>
           ) : (
@@ -392,6 +427,7 @@ export default function TimelineWorkspace({
                 clipStates={clipStates}
                 onRemove={removeClip}
                 onRepaired={repairedRecord}
+                onAdd={(recordId, atIndex) => void addClip(recordId, atIndex)}
               />
               <TimelineExportPanel engines={engines} clips={clips} clipStates={clipStates} output={output} />
             </>

@@ -6,6 +6,8 @@ import { Library, Loader2, Plus, Trash2, Video } from 'lucide-react';
 import LibraryOverlay from '@/components/LibraryOverlay';
 import { useFileDrop } from '@/lib/drop/use-file-drop';
 import type { GalleryRecord } from '@/lib/gallery/storage';
+import { startRecordDrag } from '@/lib/timeline/drag';
+import { formatDuration } from '@/lib/timeline/format';
 import { importLocalVideos } from '@/lib/timeline/import-local';
 import { posterImage } from '@/lib/timeline/poster';
 
@@ -155,6 +157,13 @@ export default function TimelineClipDrawer({
       <div className="flex items-center gap-2">
         <Video size={15} className="text-[var(--neon-purple)]" />
         <h3 className="display text-sm font-semibold">Your clips</h3>
+        {/* The rail scrolls inside itself now, so its length is no longer the
+            cue for how much is in here. */}
+        {clips.length > 0 && (
+          <span className="ml-auto tabular-nums text-xs text-[var(--foreground-subtle)]">
+            {clips.length}
+          </span>
+        )}
       </div>
 
       <ImportTile />
@@ -183,29 +192,54 @@ export default function TimelineClipDrawer({
           from your device, or pull one in from your library.
         </p>
       ) : (
-        <ul className="space-y-2">
+        /* Capped and scrolled internally. Uncapped, a real library made this
+           column thousands of pixels tall — and because it is the *first* cell
+           of the workspace grid, that pushed the track and Export off screen
+           entirely on narrow layouts, and left the wide column with one very
+           long rail beside a short editor. `overscroll-behavior: contain`
+           (from `dialog-scroll-region`) stops a flick through the rail from
+           carrying on into the page underneath it. */
+        <ul className="dialog-scroll-region -mr-1 max-h-[22rem] space-y-2 overflow-y-auto pr-1 lg:max-h-[32rem]">
           {clips.map((record) => {
             const preview = previews.get(record.id);
             const title = titleOf(record);
             return (
               <li
                 key={record.id}
-                className="flex items-center gap-2.5 rounded-lg border border-[var(--border)] bg-[var(--background-elevated)]/60 p-2"
+                // Draggable straight onto the timeline, where the drop decides
+                // the position. The `+` button beside it stays the keyboard
+                // (and touch) route and still appends — dragging adds placement
+                // to an action that was always available, rather than becoming
+                // the only way to do it.
+                draggable
+                onDragStart={(event) => startRecordDrag(event.dataTransfer, record.id, title)}
+                className="flex cursor-grab items-center gap-2.5 rounded-lg border border-[var(--border)] bg-[var(--background-elevated)]/60 p-2 active:cursor-grabbing"
               >
                 <div className="flex aspect-video w-16 shrink-0 items-center justify-center overflow-hidden rounded-md bg-black/40">
                   {preview ? (
                     /* eslint-disable-next-line @next/next/no-img-element */
-                    <img src={preview} alt="" className="h-full w-full object-cover" />
+                    <img src={preview} alt="" draggable={false} className="h-full w-full object-cover" />
                   ) : (
                     <Video size={14} className="text-[var(--foreground-subtle)]" />
                   )}
                 </div>
-                <p
-                  className="line-clamp-2 min-w-0 flex-1 text-[0.8125rem] leading-snug text-[var(--foreground)]"
-                  title={record.prompt}
-                >
-                  {title}
-                </p>
+                <div className="min-w-0 flex-1">
+                  <p
+                    className="line-clamp-2 text-[0.8125rem] leading-snug text-[var(--foreground)]"
+                    title={record.prompt}
+                  >
+                    {title}
+                  </p>
+                  {/* Absent until something has measured the file — a generated
+                      clip only gets a duration once it has been acquired. An
+                      empty line is better than a guess, but where it is known
+                      it is the one fact that decides which clip to reach for. */}
+                  {record.durationSeconds !== undefined && (
+                    <p className="mt-0.5 tabular-nums text-[0.7rem] text-[var(--foreground-subtle)]">
+                      {formatDuration(record.durationSeconds)}
+                    </p>
+                  )}
+                </div>
                 <div className="flex shrink-0 items-center gap-1">
                   <button
                     type="button"

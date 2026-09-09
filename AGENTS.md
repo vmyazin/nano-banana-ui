@@ -86,6 +86,29 @@
   hand-over the moment the viewer unmutes or pauses; nothing on touch or under
   reduced motion. `tests/media/hover-play-adoption.test.ts` lists the files and
   fails on a bare `<video>`; the timeline preview is the one deliberate exception.
+- **Anything dropped onto the timeline** → the payload contract is
+  `lib/timeline/drag.ts`, and the two drops that do not land on an existing clip
+  (an empty timeline, the space past the last clip) are
+  `components/TimelineDropZone.tsx`. Two gestures share one `DataTransfer` and
+  must never be confused: dragging a **block already on the timeline** is a move
+  that reorders (`text/plain` = placement id), while dragging a **clip out of the
+  rail** is a copy that inserts (`TIMELINE_RECORD_MIME` = record id). Every drop
+  target asks `droppedRecordId` first and falls through to reorder, because a
+  record id handed to `moveClip` matches no placement — so a mixed-up drop fails
+  silently rather than loudly. **Where it lands** is a seam, not a clip: the wide
+  track overlays a drop target on each block boundary (`track-seam-<i>`, offset
+  from `TrackBlockLayout.x`) plus a tail zone, because blocks butt together on a
+  pixel-exact time scale and "on a clip" cannot say before-or-after. Those seams
+  are absolutely positioned and mounted only while `useRecordDragActive()` is
+  true — taking real layout space would shift every block and desynchronise the
+  ruler and playhead, and a permanent overlay would eat the reorder drags, trim
+  handles and remove buttons underneath. Two rules the browser enforces and jsdom does not:
+  ask **`types`, never `getData`, during dragover** (the payload is protected
+  until the drop, so a value check never highlights), and `preventDefault` only
+  for a drag you can actually use, or the zone swallows every file and link
+  dropped on it. A drop must route through `TimelineWorkspace`'s `onAdd`, never
+  the store directly — the workspace owns acquisition, and a placement added
+  behind its back has no media, no duration and no way into an export.
 - **An image result panel** → render `components/ResultStack.tsx` rather than
   laying out cards inline. It owns the 4-item display cap, the per-card download
   and fullscreen, and the lightbox — a panel that keeps its own `lightboxOpen`
