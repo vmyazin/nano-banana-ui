@@ -109,6 +109,23 @@
   dropped on it. A drop must route through `TimelineWorkspace`'s `onAdd`, never
   the store directly — the workspace owns acquisition, and a placement added
   behind its back has no media, no duration and no way into an export.
+- **The track's time scale, or zooming it** → everything on the track (blocks,
+  ruler, playhead, scrubbing, the drag seams) reads pixels-per-second out of
+  `buildTrackLayout`, so change the scale there and never in a component.
+  Zoom is a *multiplier over the fit* (`MIN_ZOOM` 1 = fit, and the floor: at fit
+  the whole timeline is already on screen), applied after `computePps` so it
+  deliberately escapes `MAX_PPS` — that bound answers "how far should this
+  stretch when nobody asked", and a pinch has asked. Untimed blocks keep
+  `UNTIMED_BLOCK_WIDTH` at every zoom because they represent no time. The
+  gesture lives in `lib/timeline/use-track-zoom.ts`, and its non-obvious half is
+  the **anchor**: a zoom that only rescaled would slide the clip you were
+  looking at off screen, so the instant under the gesture is recorded and
+  restored in a `useLayoutEffect` once the new width exists (a passive effect
+  paints one frame at the wrong offset). Anchor on *time*, never on a fraction
+  of content width — untimed blocks make width non-uniform and a ratio drifts.
+  `wheel`/`touchmove` are attached natively with `passive: false` because both
+  must `preventDefault` or the browser zooms the page instead, and the scroller
+  needs `touch-pan-x` to keep one-finger panning while claiming the pinch.
 - **An image result panel** → render `components/ResultStack.tsx` rather than
   laying out cards inline. It owns the 4-item display cap, the per-card download
   and fullscreen, and the lightbox — a panel that keeps its own `lightboxOpen`

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   FALLBACK_TRACK_WIDTH,
   MAX_PPS,
+  MAX_ZOOM,
   MIN_PPS,
   MIN_TIMED_BLOCK_WIDTH,
   UNTIMED_BLOCK_WIDTH,
@@ -58,6 +59,56 @@ describe('computePps', () => {
 
   it('falls back to a sane width when nothing has been measured', () => {
     expect(computePps([{ id: 'a', seconds: 10 }], 0)).toBe(FALLBACK_TRACK_WIDTH / 10);
+  });
+});
+
+describe('zooming the time scale', () => {
+  it('is fit-to-width at zoom 1, so the default is unchanged', () => {
+    const blocks = [{ id: 'a', seconds: 10 }];
+    expect(buildTrackLayout(blocks, 1000, 1).pps).toBe(buildTrackLayout(blocks, 1000).pps);
+  });
+
+  it('multiplies the fit scale, stretching the track past the viewport', () => {
+    const layout = buildTrackLayout([{ id: 'a', seconds: 10 }], 1000, 3);
+    expect(layout.pps).toBe(300);
+    expect(layout.width).toBe(3000);
+    // The clock is untouched: zooming changes pixels per second, never seconds.
+    expect(layout.totalSeconds).toBe(10);
+  });
+
+  it('escapes MAX_PPS, because that bound is about the automatic fit', () => {
+    // Trimming to a tenth of a second is the reason to zoom, and at fit scale
+    // that is a couple of pixels. A pinch has asked; the auto-fit had not.
+    const layout = buildTrackLayout([{ id: 'a', seconds: 1 }], 1000, 4);
+    expect(layout.pps).toBe(MAX_PPS * 4);
+  });
+
+  it('refuses to zoom out past fit, where everything is already on screen', () => {
+    const fit = buildTrackLayout([{ id: 'a', seconds: 10 }], 1000).pps;
+    expect(buildTrackLayout([{ id: 'a', seconds: 10 }], 1000, 0.25).pps).toBe(fit);
+  });
+
+  it('clamps a runaway zoom rather than producing an unrenderable track', () => {
+    const layout = buildTrackLayout([{ id: 'a', seconds: 10 }], 1000, 10_000);
+    expect(layout.pps).toBe(100 * MAX_ZOOM);
+  });
+
+  it('leaves an untimed block its fixed width at every zoom', () => {
+    // It represents no time, so there is nothing about it for a time scale to
+    // magnify — and a magnified one would push the timed blocks off the clock.
+    const layout = buildTrackLayout(
+      [{ id: 'a', seconds: 4 }, { id: 'b', seconds: null }],
+      800,
+      5
+    );
+    expect(layout.blocks[1].width).toBe(UNTIMED_BLOCK_WIDTH);
+  });
+
+  it('keeps time and pixels invertible while zoomed', () => {
+    // The playhead, the ruler and scrubbing all go through these two, so a
+    // zoom that broke the round trip would put the playhead off the clips.
+    const layout = buildTrackLayout([{ id: 'a', seconds: 8 }], 900, 6);
+    expect(xToTime(layout, timeToX(layout, 3.25))).toBeCloseTo(3.25);
   });
 });
 

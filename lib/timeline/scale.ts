@@ -50,6 +50,25 @@ export const UNTIMED_BLOCK_WIDTH = 132;
 export const FALLBACK_TRACK_WIDTH = 960;
 
 /**
+ * Zoom is a multiplier over the fit-to-width scale, not a scale of its own.
+ *
+ * 1 is fit, and it is also the floor: at fit the whole timeline is already on
+ * screen, so zooming out past it would only shrink the clips into a corner of
+ * an empty track. (When `computePps`'s grabbable-clip floor has already pushed
+ * the track wider than the viewport, 1 is simply as far out as it goes.)
+ *
+ * The ceiling is deliberately far past `MAX_PPS`, which the multiply
+ * intentionally escapes: `MAX_PPS` answers "how far should the track stretch
+ * when *nobody asked*", and a pinch has asked. Trimming to a tenth of a second
+ * is the reason to zoom at all, and at fit scale that is a couple of pixels.
+ */
+export const MIN_ZOOM = 1;
+export const MAX_ZOOM = 12;
+
+export const clampZoom = (zoom: number): number =>
+  Number.isFinite(zoom) ? Math.min(Math.max(zoom, MIN_ZOOM), MAX_ZOOM) : MIN_ZOOM;
+
+/**
  * Fit-to-width, bounded: the timeline fills the container when it can, scrolls
  * when it cannot, and never lets the shortest clip collapse below grabbable.
  */
@@ -70,8 +89,16 @@ export function computePps(blocks: TrackBlockInput[], availableWidth: number): n
   return Math.max(Math.min(Math.max(fit, MIN_PPS), MAX_PPS), MIN_TIMED_BLOCK_WIDTH / shortest);
 }
 
-export function buildTrackLayout(blocks: TrackBlockInput[], availableWidth: number): TrackLayout {
-  const pps = computePps(blocks, availableWidth);
+export function buildTrackLayout(
+  blocks: TrackBlockInput[],
+  availableWidth: number,
+  zoom = MIN_ZOOM
+): TrackLayout {
+  // Applied *after* `computePps`, so the viewer's zoom is not re-clamped by
+  // bounds that exist to keep the automatic fit sensible. Untimed blocks keep
+  // their fixed width at every zoom: they represent no time, so there is
+  // nothing about them for a time scale to magnify.
+  const pps = computePps(blocks, availableWidth) * clampZoom(zoom);
   const laid: TrackBlockLayout[] = [];
   let x = 0;
   let clock = 0;

@@ -1,8 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { DragEvent, KeyboardEvent, PointerEvent as ReactPointerEvent } from 'react';
-import { AlertTriangle, Crop, Scan, Trash2, Undo2 } from 'lucide-react';
+import { AlertTriangle, Crop, Maximize2, Minus, Plus, Scan, Trash2, Undo2 } from 'lucide-react';
 
 import type { GalleryRecord } from '@/lib/gallery/storage';
 import { UNDECODABLE_WARNING } from '@/lib/timeline/acquire';
@@ -11,12 +11,14 @@ import { carriesRecord, droppedRecordId } from '@/lib/timeline/drag';
 import { useRecordDragActive } from '@/lib/timeline/use-record-drag';
 import { reorderHint, reorderIntent } from '@/lib/timeline/reorder';
 import {
+  MAX_ZOOM,
   buildTrackLayout,
   rulerTicks,
   timeToX,
   xToTime,
   type TrackLayout,
 } from '@/lib/timeline/scale';
+import { useTrackZoom } from '@/lib/timeline/use-track-zoom';
 import { MIN_TRIMMED_SECONDS, isTrimmed, resolveTrim, trimmedDuration } from '@/lib/timeline/trim';
 import { posterImage } from '@/lib/timeline/poster';
 import { usePlayheadStore } from '@/store/usePlayheadStore';
@@ -477,6 +479,16 @@ export default function TimelineTrack({
     return () => observer.disconnect();
   }, []);
 
+  // Read by the zoom gesture through a ref, never as a dependency: the gesture
+  // has to ask the layout that is *currently* on screen where its anchor is,
+  // and a listener re-attached on every layout change would drop a pinch in
+  // flight the moment it started changing the layout.
+  const layoutRef = useRef<TrackLayout | null>(null);
+  const { zoom, zoomed, zoomBy, reset: resetZoom, anchorRef } = useTrackZoom({
+    scrollRef,
+    timeAtContentX: (x) => (layoutRef.current ? xToTime(layoutRef.current, x) : 0),
+  });
+
   const layout: TrackLayout = useMemo(
     () =>
       buildTrackLayout(
@@ -490,10 +502,28 @@ export default function TimelineTrack({
                 : null,
           };
         }),
-        availableWidth
+        availableWidth,
+        zoom
       ),
-    [clips, clipStates, availableWidth]
+    [clips, clipStates, availableWidth, zoom]
   );
+  useEffect(() => {
+    layoutRef.current = layout;
+  });
+
+  // The zoom's other half. A zoom that only changed the scale would slide the
+  // clip you were looking at off screen, because the content grows under a
+  // fixed scroll position — so the instant the gesture was over is put back
+  // where it was. It has to be a layout effect: the scroll position depends on
+  // the new content width, and doing it in a passive effect shows one painted
+  // frame at the wrong offset, which reads as a jump.
+  useLayoutEffect(() => {
+    const anchor = anchorRef.current;
+    const scroller = scrollRef.current;
+    if (!anchor || !scroller) return;
+    anchorRef.current = null;
+    scroller.scrollLeft = Math.max(0, timeToX(layout, anchor.time) - anchor.viewportX);
+  }, [layout, anchorRef]);
 
   const time = usePlayheadStore((state) => state.time);
   const playing = usePlayheadStore((state) => state.playing);
@@ -538,7 +568,52 @@ export default function TimelineTrack({
 
   return (
     <div data-testid="timeline-track" className="glass-card min-w-0 p-3.5">
-      <div ref={scrollRef} className="overflow-x-auto pb-1">
+      {/* Buttons as well as the pinch, for the same reason reordering has
+          Alt+arrow: a gesture that exists only for a trackpad puts the scale
+          out of reach of a mouse and a keyboard. Fit is the way back — without
+          it, zooming in is a one-way door. */}
+      <div className="mb-1.5 flex items-center justify-end gap-1">
+        {zoomed && (
+          <span className="mr-1 tabular-nums text-[0.65rem] text-[var(--foreground-subtle)]">
+            {Math.round(zoom * 100)}%
+          </span>
+        )}
+        <button
+          type="button"
+          onClick={() => zoomBy(1 / 1.5)}
+          disabled={!zoomed}
+          aria-label="Zoom out"
+          title="Zoom out"
+          className="rounded-md border border-[var(--border)] p-1 text-[var(--foreground-muted)] hover:text-[var(--neon-cyan)] disabled:opacity-30 disabled:hover:text-[var(--foreground-muted)]"
+        >
+          <Minus size={12} />
+        </button>
+        <button
+          type="button"
+          onClick={() => zoomBy(1.5)}
+          disabled={zoom >= MAX_ZOOM}
+          aria-label="Zoom in"
+          title="Zoom in"
+          className="rounded-md border border-[var(--border)] p-1 text-[var(--foreground-muted)] hover:text-[var(--neon-cyan)] disabled:opacity-30 disabled:hover:text-[var(--foreground-muted)]"
+        >
+          <Plus size={12} />
+        </button>
+        {zoomed && (
+          <button
+            type="button"
+            onClick={resetZoom}
+            aria-label="Fit the timeline to the track"
+            title="Fit the timeline to the track"
+            className="rounded-md border border-[var(--border)] p-1 text-[var(--foreground-muted)] hover:text-[var(--neon-cyan)]"
+          >
+            <Maximize2 size={12} />
+          </button>
+        )}
+      </div>
+
+      {/* `touch-pan-x` keeps one-finger horizontal scrolling but takes pinch
+          away from the browser's page zoom, so the gesture reaches the track. */}
+      <div ref={scrollRef} className="touch-pan-x overflow-x-auto pb-1">
         <div className="relative" style={{ width: layout.width, minWidth: '100%' }}>
           {/* The ruler is the scrub surface: clicking a clip must stay a
               selection/reorder gesture, so time lives up here — the same split
