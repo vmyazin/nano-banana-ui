@@ -1,0 +1,306 @@
+<!--
+  PARITY REFERENCE — Timeline editor, Variant A "Fixed NLE shell"
+  Extracted from design-explorations/timeline-editor.html (2026-09-08).
+  Source components: TimelineWorkspace / TimelineTrack / TimelinePreview / TimelineExportPanel / TimelineClipDrawer / TimelineOutputFormat
+  Renders standalone, filling the viewport. Screenshot at 1280 x 560 to diff against the real app.
+  Deliberate deviation from the 4-up mock: type is at the app's real token scale
+  (--text-ui 14px / --text-ui-sm 13px / block caption 10.4px), not the ~11% downscale the
+  comparison page rendered at. Proportions and layout are otherwise identical.
+
+  REVISED 2026-09-09, during implementation: the exploration drew a custom 52px editor bar.
+  The decision taken was to reuse the studio's real header instead (extracted to
+  components/StudioHeader.tsx), running full-bleed on this route, without the generation
+  chime, and Undo / New / the storage meter moved down into the track band's head.
+  This file reflects that, so parity is measured against what was actually agreed.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Timeline editor — Variant A reference</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@500;600&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --tint-hue: 190;
+      --tint: var(--tint-hue) 60% 85%;
+      --background: hsl(var(--tint-hue) 38% 5%);
+      --background-elevated: hsl(var(--tint-hue) 32% 8%);
+      --surface: hsl(var(--tint) / 0.02);
+      --foreground: #ecf5f5;
+      --foreground-muted: #8fa5a7;
+      --foreground-subtle: #7a8d8f;
+      --neon-cyan: #00fff9;
+      --neon-purple: #bd00ff;
+      --brand-accent: #ffed4e;
+      --border: hsl(var(--tint) / 0.075);
+      --border-hover: hsl(var(--tint) / 0.17);
+      --border-input: hsl(var(--tint) / 0.14);
+      --radius: 11px;
+      --radius-sm: 8px;
+      --text-ui: 0.875rem;
+      --text-ui-sm: 0.8125rem;
+      --font-sans: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      --font-mono: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; height: 100%; }
+    body {
+      font-family: var(--font-sans);
+      letter-spacing: -0.011em;
+      background: var(--background);
+      color: var(--foreground);
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      line-height: 1.4;
+      font-size: var(--text-ui-sm);
+      overflow: hidden;
+      user-select: none;
+    }
+
+    .shell { height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
+
+    .glass-card {
+      background: hsl(var(--tint-hue) 32% 8% / 0.6);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+    }
+    .eyebrow {
+      font-family: var(--font-mono); font-size: 0.625rem; letter-spacing: 0.2em;
+      text-transform: uppercase; color: var(--neon-cyan); font-weight: 600;
+    }
+    .eyebrow.mut { color: var(--foreground-subtle); }
+    .display { font-weight: 600; letter-spacing: -0.02em; }
+    .mut { color: var(--foreground-muted); }
+    .sub { color: var(--foreground-subtle); }
+    .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+    .spacer { flex: 1; }
+
+    .btn-secondary {
+      display: inline-flex; align-items: center; gap: 6px; padding: 6px 11px;
+      border-radius: var(--radius-sm); border: 1px solid var(--border-input);
+      color: var(--foreground-muted); background: var(--surface); font-size: 0.75rem;
+    }
+    .btn-primary {
+      display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+      width: 100%; padding: 9px 12px; border-radius: var(--radius-sm);
+      background: linear-gradient(135deg, #00fff9, #6ee7f5);
+      color: #04191a; font-weight: 600; font-size: var(--text-ui-sm);
+    }
+    .pill {
+      display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 999px;
+      border: 1px solid var(--border-input); color: var(--foreground-subtle); font-size: 0.6875rem;
+    }
+    .num {
+      display: inline-block; min-width: 46px; padding: 3px 6px; border-radius: 6px;
+      border: 1px solid var(--border-input); background: rgba(0, 0, 0, 0.35);
+      text-align: right; font-variant-numeric: tabular-nums; color: var(--foreground); font-size: var(--text-ui-sm);
+    }
+
+    /* ---- App header (shared with the studio) ---- */
+    .appbar {
+      display: flex; align-items: center; justify-content: space-between; gap: 16px; flex: none;
+      padding: 14px 24px; border-bottom: 1px solid var(--border);
+      background: hsl(var(--tint-hue) 38% 5% / 0.72);
+    }
+    .brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .brand .rule { width: 1px; height: 14px; background: var(--border-hover); }
+    .logo { font-weight: 700; letter-spacing: -0.04em; font-size: 1.125rem; line-height: 1; }
+    .logo span { display: block; }
+    .seg { display: flex; gap: 2px; padding: 3px; border: 1px solid var(--border); border-radius: 10px; }
+    .seg i { font-style: normal; padding: 5px 12px; border-radius: 7px; color: var(--foreground-muted); font-size: var(--text-ui-sm); }
+    .seg i.on { background: rgba(0, 255, 249, 0.15); color: var(--neon-cyan); }
+    .meter { display: flex; align-items: center; gap: 8px; color: var(--foreground-muted); font-size: 0.75rem; }
+    .meter span { display: block; width: 64px; height: 6px; border-radius: 999px; background: hsl(var(--tint) / 0.14); overflow: hidden; }
+    .meter span i { display: block; height: 100%; width: 21%; background: var(--neon-cyan); border-radius: 999px; }
+    .btn-key {
+      display: inline-flex; align-items: center; gap: 7px; padding: 8px 14px; border-radius: var(--radius-sm);
+      background: linear-gradient(135deg, #00fff9, #6ee7f5); color: #04191a; font-weight: 600; font-size: var(--text-ui-sm);
+    }
+
+    /* ---- Body: pool | viewer | side ---- */
+    .body { flex: 1; min-height: 0; display: grid; grid-template-columns: 240px 1fr 264px; gap: 10px; padding: 10px; }
+
+    .pool { display: flex; flex-direction: column; gap: 8px; padding: 10px; min-height: 0; }
+    .pool-head { display: flex; align-items: center; gap: 8px; }
+    .pool-list { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding-right: 4px; }
+    .pool-list::-webkit-scrollbar { width: 5px; }
+    .pool-list::-webkit-scrollbar-thumb { background: rgba(191, 240, 240, 0.18); border-radius: 999px; }
+    .rail-item {
+      display: flex; gap: 10px; align-items: center; padding: 7px; flex: none;
+      border: 1px solid var(--border); border-radius: var(--radius-sm); background: hsl(var(--tint-hue) 32% 8% / 0.6);
+    }
+    .thumb { width: 54px; height: 32px; border-radius: 5px; flex: none; }
+    .rail-item p { margin: 0; font-size: var(--text-ui-sm); line-height: 1.3; }
+    .rail-item .sub { font-size: 0.6875rem; }
+
+    .viewer { display: flex; flex-direction: column; gap: 8px; padding: 10px; min-height: 0; }
+    .viewer-head { display: flex; align-items: center; gap: 10px; }
+    .stage { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; }
+    .frame { background: #000; border-radius: var(--radius-sm); overflow: hidden; position: relative; height: 100%; aspect-ratio: 16 / 9; }
+    .frame .letter { position: absolute; inset: 0; }
+    .transport { display: flex; align-items: center; gap: 10px; }
+    .key {
+      width: 28px; height: 28px; flex: none; border: 1px solid var(--border-input); border-radius: var(--radius-sm);
+      display: flex; align-items: center; justify-content: center; color: var(--foreground-muted); font-size: 0.75rem;
+    }
+    .key.on { color: var(--neon-cyan); }
+    .scrub { position: relative; flex: 1; height: 4px; border-radius: 999px; background: hsl(var(--tint) / 0.12); }
+    .scrub > u { position: absolute; left: 0; top: 0; bottom: 0; width: 33.3%; background: var(--neon-cyan); border-radius: 999px; text-decoration: none; }
+    .scrub > i { position: absolute; top: -4px; width: 1px; height: 12px; background: var(--foreground-subtle); }
+    .scrub > b { position: absolute; left: 33.3%; top: -4px; width: 12px; height: 12px; margin-left: -6px; border-radius: 999px; background: var(--neon-cyan); }
+    .time { font-family: var(--font-mono); font-size: 0.75rem; color: var(--foreground-muted); font-variant-numeric: tabular-nums; }
+    .note { display: flex; gap: 6px; align-items: flex-start; color: var(--foreground-subtle); font-size: 0.75rem; margin: 0; }
+
+    .side { display: flex; flex-direction: column; gap: 10px; padding: 10px; }
+    .side-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; color: var(--foreground-muted); font-size: var(--text-ui-sm); }
+    .rule { height: 1px; background: var(--border); }
+    .check { width: 13px; height: 13px; border-radius: 3px; background: var(--neon-cyan); flex: none; }
+
+    /* ---- Splitter ---- */
+    .split { flex: none; height: 11px; display: flex; align-items: center; justify-content: center; cursor: row-resize; }
+    .split i { display: block; width: 52px; height: 3px; border-radius: 999px; background: hsl(var(--tint) / 0.22); }
+
+    /* ---- Track ---- */
+    .track { flex: none; height: 216px; margin: 0 10px 10px; padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 8px; }
+    .track-head { display: flex; align-items: center; gap: 10px; }
+    .zoom { display: flex; align-items: center; gap: 5px; }
+    .zoom i {
+      font-style: normal; width: 22px; height: 22px; border: 1px solid var(--border-input); border-radius: 6px;
+      display: flex; align-items: center; justify-content: center; color: var(--foreground-muted); font-size: 0.75rem;
+    }
+    .scale { position: relative; flex: 1; min-height: 0; }
+    .ruler { position: relative; height: 24px; border-bottom: 1px solid var(--border); font-family: var(--font-mono); font-size: 0.625rem; color: var(--foreground-subtle); }
+    .ruler i { position: absolute; bottom: 0; width: 1px; height: 6px; background: hsl(var(--tint) / 0.3); }
+    .ruler b { position: absolute; bottom: 8px; font-weight: 500; transform: translateX(3px); }
+    .blocks { display: flex; align-items: stretch; position: relative; margin-top: 7px; height: 96px; }
+    .block { border: 1px solid var(--border); background: hsl(var(--tint-hue) 32% 8% / 0.75); overflow: hidden; position: relative; }
+    .block:first-child { border-radius: 6px 0 0 6px; }
+    .block .cap { padding: 4px 6px; }
+    .block .cap p { margin: 0; font-size: 0.65rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 500; }
+    .block .cap span { font-family: var(--font-mono); font-size: 0.6rem; color: var(--foreground-muted); }
+    .strip { position: relative; overflow: hidden; height: 58px; }
+    .strip::after {
+      content: ''; position: absolute; inset: 0;
+      background-image: repeating-linear-gradient(90deg, rgba(8,16,18,0) 0 34px, rgba(8,16,18,0.55) 34px 35px);
+      opacity: 0.85;
+    }
+    .tail { flex: 1; min-width: 28px; border: 1px dashed hsl(var(--tint) / 0.13); border-radius: 0 6px 6px 0; }
+    .playhead { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--neon-cyan); z-index: 5; }
+    .playhead::before { content: ''; position: absolute; top: 0; left: -5px; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid var(--neon-cyan); }
+
+    .g1 { background: linear-gradient(115deg, #312e81, #c7d2fe); }
+    .g2 { background: linear-gradient(115deg, #78350f, #fde68a); }
+    .g3 { background: linear-gradient(115deg, #4c1d95, #f0abfc); }
+    .g4 { background: linear-gradient(115deg, #0c4a6e, #e0f2fe); }
+    .g5 { background: linear-gradient(115deg, #064e3b, #a7f3d0); }
+    .g6 { background: linear-gradient(115deg, #7e22ce, #22d3ee); }
+  </style>
+</head>
+<body>
+  <div class="shell">
+
+    <div class="appbar">
+      <div class="brand">
+        <div class="logo"><span>Scene</span><span>Assembly</span></div>
+        <span class="rule"></span>
+        <span class="eyebrow mut">Multi-engine image &amp; video studio</span>
+      </div>
+      <div class="seg"><i>Image</i><i>Video</i><i class="on">Timeline</i></div>
+      <div style="display:flex; align-items:center; gap:8px;">
+        <div class="btn-secondary">Library</div>
+        <div class="btn-secondary">⌘ K</div>
+        <div class="btn-key">Add API Keys</div>
+      </div>
+    </div>
+
+    <div class="body">
+      <aside class="glass-card pool">
+        <div class="pool-head">
+          <span class="display" style="font-size: var(--text-ui);">Your clips</span>
+          <span class="sub mono" style="margin-left:auto; font-size:0.75rem;">7</span>
+        </div>
+        <div class="btn-secondary" style="justify-content:center;">＋ Import from device</div>
+        <div class="btn-secondary" style="justify-content:center;">Add from library</div>
+        <div class="pool-list">
+          <div class="rail-item"><span class="thumb g1"></span><p>a quiet ocean at dusk<br /><span class="sub mono">0:08</span></p></div>
+          <div class="rail-item"><span class="thumb g2"></span><p>brass diving bell<br /><span class="sub mono">0:06</span></p></div>
+          <div class="rail-item"><span class="thumb g3"></span><p>neon rooftop<br /><span class="sub mono">0:05</span></p></div>
+          <div class="rail-item"><span class="thumb g4"></span><p>moonlit palms<br /><span class="sub mono">0:12</span></p></div>
+          <div class="rail-item"><span class="thumb g6"></span><p>arcade dolly 4s<br /><span class="sub mono">0:04</span></p></div>
+          <div class="rail-item"><span class="thumb g5"></span><p>kelp dive<br /><span class="sub mono">0:11</span></p></div>
+        </div>
+      </aside>
+
+      <section class="glass-card viewer">
+        <div class="viewer-head">
+          <span class="eyebrow">Preview</span>
+          <span class="sub" style="margin-left:auto;">5 clips · 0:42</span>
+        </div>
+        <div class="stage">
+          <div class="frame"><div class="letter g1"></div></div>
+        </div>
+        <div class="transport">
+          <span class="key">▶</span>
+          <span class="key on">🔊</span>
+          <span class="scrub"><u></u><b></b><i style="left:19%"></i><i style="left:33.3%"></i><i style="left:45.2%"></i><i style="left:73.8%"></i></span>
+          <span class="time">0:14 / 0:42</span>
+        </div>
+        <p class="note">ⓘ Playback only — cuts land on whole clips rather than exact frames.</p>
+      </section>
+
+      <aside class="glass-card side">
+        <div>
+          <div class="eyebrow mut" style="margin-bottom:8px;">Output</div>
+          <div class="side-row"><span class="num">1920</span> × <span class="num">1080</span></div>
+          <div class="side-row" style="margin-top:8px;">@ <span class="num" style="min-width:36px;">30</span> fps <span class="pill">auto</span></div>
+          <div class="side-row" style="margin-top:10px;"><span class="check"></span> Keep audio</div>
+        </div>
+        <div class="rule"></div>
+        <div class="btn-primary">⭳ Export 42s · with audio</div>
+        <p class="note">Renders in this browser. No upload.</p>
+      </aside>
+    </div>
+
+    <div class="split"><i></i></div>
+
+    <section class="glass-card track">
+      <div class="track-head">
+        <span class="eyebrow">Timeline</span>
+        <span class="sub">5 clips · 0:42</span>
+        <div class="spacer"></div>
+        <div class="meter">412 MB of 2.0 GB stored <span><i></i></span></div>
+        <div class="btn-secondary">↺ Undo remove clip</div>
+        <div class="btn-secondary">＋ New</div>
+        <span class="sub mono" style="font-size:0.6875rem;">100%</span>
+        <div class="zoom"><i>−</i><i>＋</i><i>⤢</i></div>
+      </div>
+      <div class="scale">
+        <div class="ruler">
+          <i style="left:0%"></i><b style="left:0%">0:00</b>
+          <i style="left:11.9%"></i><b style="left:11.9%">0:05</b>
+          <i style="left:23.8%"></i><b style="left:23.8%">0:10</b>
+          <i style="left:35.7%"></i><b style="left:35.7%">0:15</b>
+          <i style="left:47.6%"></i><b style="left:47.6%">0:20</b>
+          <i style="left:59.5%"></i><b style="left:59.5%">0:25</b>
+          <i style="left:71.4%"></i><b style="left:71.4%">0:30</b>
+          <i style="left:83.3%"></i><b style="left:83.3%">0:35</b>
+          <i style="left:95.2%"></i><b style="left:95.2%">0:40</b>
+        </div>
+        <div class="blocks">
+          <div class="block" style="width:19.0%"><div class="strip g1"></div><div class="cap"><p>a quiet ocean at dusk</p><span>0:08</span></div></div>
+          <div class="block" style="width:14.3%"><div class="strip g2"></div><div class="cap"><p>brass diving bell</p><span>0:06</span></div></div>
+          <div class="block" style="width:11.9%"><div class="strip g3"></div><div class="cap"><p>neon rooftop</p><span>0:05</span></div></div>
+          <div class="block" style="width:28.6%"><div class="strip g4"></div><div class="cap"><p>moonlit palms</p><span>0:12</span></div></div>
+          <div class="block" style="width:26.2%"><div class="strip g5"></div><div class="cap"><p>kelp dive</p><span>0:11</span></div></div>
+          <div class="playhead" style="left:33.3%"></div>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</body>
+</html>

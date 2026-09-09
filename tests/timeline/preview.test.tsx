@@ -83,20 +83,58 @@ describe('TimelinePreview — object URL lifecycle', () => {
     expect(created).toHaveLength(1);
   });
 
-  it('revokes every URL it created when the clip list changes, leaking none', () => {
+  /**
+   * These three replace one assertion that said the *entire* batch of URLs is
+   * revoked whenever the clip list changes at all. That is how the leak was
+   * avoided, and it is also what made the preview go black: `ready` changes
+   * identity every time any one clip resolves, so restoring a saved timeline
+   * revoked the URL the video element was still loading, once per clip. The
+   * invariant worth keeping is narrower — release what left, keep what stayed.
+   */
+  it('keeps the URL of a clip that is still on the timeline', () => {
+    // Modelled the way the workspace actually accumulates `clipStates`: a
+    // placement is resolved once, and adding a third clip does not hand the
+    // first two new bytes. Rebuilding every state (as `statesFor` does) would
+    // be a repair of all three, which is a different case — covered below.
     const first = [clip('a'), clip('b')];
-    const { rerender } = render(<TimelinePreview clips={first} clipStates={statesFor(first)} output={OUTPUT} />);
+    const states = statesFor(first);
+    const { rerender } = render(<TimelinePreview clips={first} clipStates={states} output={OUTPUT} />);
     const firstBatch = [...created];
     expect(firstBatch).toHaveLength(2);
-    expect(revoked).toHaveLength(0);
 
-    const second = [clip('a'), clip('b'), clip('c')];
-    rerender(<TimelinePreview clips={second} clipStates={statesFor(second)} output={OUTPUT} />);
+    const second = [...first, clip('c')];
+    rerender(
+      <TimelinePreview clips={second} clipStates={{ ...states, c: ready() }} output={OUTPUT} />
+    );
 
-    // The previous batch is released as soon as a new one replaces it —
-    // otherwise a session of adding and removing clips accumulates a live
-    // blob reference per edit.
-    expect(revoked).toEqual(expect.arrayContaining(firstBatch));
+    expect(revoked).not.toEqual(expect.arrayContaining(firstBatch));
+    expect(created).toHaveLength(3);
+  });
+
+  it('revokes the URL of a clip that has left, leaking none', () => {
+    const first = [clip('a'), clip('b')];
+    const states = statesFor(first);
+    const { rerender } = render(<TimelinePreview clips={first} clipStates={states} output={OUTPUT} />);
+    const [urlA, urlB] = created;
+
+    rerender(<TimelinePreview clips={[clip('a')]} clipStates={states} output={OUTPUT} />);
+
+    expect(revoked).toContain(urlB);
+    expect(revoked).not.toContain(urlA);
+  });
+
+  it('replaces the URL when a placement comes back holding different bytes', () => {
+    // What a repair does: same placement id, a different file behind it. An id
+    // alone cannot see that, so a stale URL would keep pointing at the blob the
+    // user just replaced.
+    const clips = [clip('a')];
+    const { rerender } = render(<TimelinePreview clips={clips} clipStates={statesFor(clips)} output={OUTPUT} />);
+    const first = created[0];
+
+    rerender(<TimelinePreview clips={clips} clipStates={statesFor(clips)} output={OUTPUT} />);
+
+    expect(revoked).toContain(first);
+    expect(created).toHaveLength(2);
   });
 
   it('revokes everything still outstanding on unmount', () => {

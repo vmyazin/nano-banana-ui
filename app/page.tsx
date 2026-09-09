@@ -4,38 +4,25 @@
 import { Suspense, useEffect, useLayoutEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useQueryState } from 'nuqs';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Key, Check, Command as CommandIcon, Library as LibraryIcon, Film, Volume2, VolumeX, CircleDollarSign, CircleUserRound } from 'lucide-react';
-import ApiKeyConfig from '@/components/ApiKeyConfig';
-import LibraryOverlay from '@/components/LibraryOverlay';
 import { usePromptLibraryStore } from '@/store/usePromptLibraryStore';
 import FeatureSelector from '@/components/FeatureSelector';
 import ProviderLogo from '@/components/ProviderLogo';
-import { BrandWordmark } from '@/components/BrandMark';
-import { setChimeEnabled } from '@/lib/notify/chime';
+import { brand } from '@/lib/brand';
 import { ENGINE_DOCS } from '@/lib/engines/docs';
 import type { EngineId } from '@/lib/engines/registry';
-import { CommandPalette } from '@/components/CommandPalette';
+import StudioHeader from '@/components/StudioHeader';
 import VideoWorkspace from '@/components/VideoWorkspace';
 import { Feature, FEATURES } from '@/types';
-import { brand } from '@/lib/brand';
 import { useAppStore } from '@/store/useAppStore';
 import { useAccountStore } from '@/store/useAccountStore';
+import { useConnectionsDialog } from '@/store/useConnectionsDialog';
 
 // Lazy-load the heavy generation workspace so the landing bundle stays light.
 const GenerationInterface = dynamic(() => import('@/components/GenerationInterface'), {
-  ssr: false,
-  loading: () => (
-    <div className="flex items-center justify-center py-16">
-      <div className="loading-spinner" />
-    </div>
-  ),
-});
-
-// Same pattern: the timeline workspace pulls in WebCodecs/mediabunny-adjacent
-// code paths that have no business in the landing bundle.
-const TimelineWorkspace = dynamic(() => import('@/components/TimelineWorkspace'), {
   ssr: false,
   loading: () => (
     <div className="flex items-center justify-center py-16">
@@ -54,7 +41,6 @@ function Studio() {
   const kieApiKey = useAppStore((s) => s.kieApiKey);
   const falApiKey = useAppStore((s) => s.falApiKey);
   const hasHydrated = useAppStore((s) => s.hasHydrated);
-  const chimeOnComplete = useAppStore((s) => s.chimeOnComplete);
   /**
    * The session resolves a moment after paint, so the footer waits for a
    * definite answer before offering to sign anyone in: until then the row reads
@@ -72,11 +58,11 @@ function Studio() {
 
   // View is driven by the URL (?feature=<id>) so it deep-links, supports
   // browser back/forward, and survives a refresh.
+  const router = useRouter();
   const [featureId, setFeatureId] = useQueryState('feature', { history: 'push' });
   const [workspace, setWorkspace] = useQueryState('workspace', { history: 'push' });
   const [videoMode, setVideoMode] = useQueryState('videoMode', { history: 'push' });
-  const activeWorkspace =
-    workspace === 'video' ? 'video' : workspace === 'timeline' ? 'timeline' : 'image';
+  const activeWorkspace = workspace === 'video' ? 'video' : 'image';
   const activeVideoMode =
     videoMode === 'image' || videoMode === 'frames' || videoMode === 'reference'
       ? videoMode
@@ -85,14 +71,13 @@ function Studio() {
     FEATURES.find((f) => f.id === featureId) ?? null;
   const selectFeature = (feature: Feature) => setFeatureId(feature.id);
   const clearFeature = () => setFeatureId(null);
-  // The timeline runs the account console's wide column rather than the
-  // studio's 7xl one: a horizontal track of clips beside the export panel is
-  // the widest thing in the app, and 7xl crops the track first. The header
-  // widens with it so the wordmark stays flush with the content's left edge —
-  // the same rule AccountPageShell follows for the console.
-  const columnWidth = activeWorkspace === 'timeline' ? 'max-w-[110rem]' : 'max-w-7xl';
+  // The timeline used to widen this column to the account console's 110rem,
+  // because a horizontal track beside the export panel is the widest thing in
+  // the app. It runs on /timeline now with a shell of its own, so the studio is
+  // back to one width.
+  const columnWidth = 'max-w-7xl';
 
-  const selectWorkspace = (nextWorkspace: 'image' | 'video' | 'timeline') => {
+  const selectWorkspace = (nextWorkspace: 'image' | 'video') => {
     if (nextWorkspace === 'image') {
       void setWorkspace(null);
       return;
@@ -100,6 +85,16 @@ function Studio() {
     void setFeatureId(null);
     void setWorkspace(nextWorkspace);
   };
+
+  /**
+   * `?workspace=timeline` was how the editor was reached before it had a route,
+   * so bookmarks and any link already in the wild still point here. Sent on
+   * rather than 404'd or silently shown the image workspace, and `replace` so
+   * Back does not bounce between the two.
+   */
+  useEffect(() => {
+    if (workspace === 'timeline') router.replace('/timeline');
+  }, [workspace, router]);
   /**
    * Send a finished image on as the opening frame of a clip. The frame itself
    * travels through the seed store; this only moves the user to the workspace
@@ -110,165 +105,19 @@ function Studio() {
     void setWorkspace('video');
     void setVideoMode('image');
   };
-  const [keyDialogOpen, setKeyDialogOpen] = useState(false);
   /**
-   * Which engine the dialog was opened for. A workspace asks for its own key, so
-   * that card opens outlined and focused; the header CTA and ⌘K pass nothing and
-   * get the plain dialog.
+   * A workspace missing a key opens the connections dialog focused on its own
+   * provider. The dialog itself belongs to `StudioHeader` now, so the request
+   * travels through the store rather than down through props.
    */
-  const [keyDialogFocus, setKeyDialogFocus] = useState<EngineId | undefined>(undefined);
-  const openConnections = (provider?: EngineId) => {
-    setKeyDialogFocus(provider);
-    setKeyDialogOpen(true);
-  };
-  const [paletteOpen, setPaletteOpen] = useState(false);
-  const [libraryOpen, setLibraryOpen] = useState(false);
-  // ⌘K can aim at either library section; the header button always opens results.
-  const [libraryTab, setLibraryTab] = useState<'results' | 'prompts'>('results');
-  const openLibrary = (tab: 'results' | 'prompts' = 'results') => {
-    setLibraryTab(tab);
-    setLibraryOpen(true);
-  };
+  const openConnections = useConnectionsDialog((state) => state.openConnections);
 
   return (
-    <div className="min-h-screen relative w-full overflow-x-hidden">
-      {/* Header — sticky, hairline border, backdrop blur (Linear/Vercel nav) */}
-      <header className="sticky top-0 z-50 border-b border-[var(--border)] bg-[hsl(var(--tint-hue)_38%_5%/0.72)] backdrop-blur-xl">
-        <div className={`w-full ${columnWidth} mx-auto px-6 sm:px-8 md:px-12 lg:px-16 py-3.5 md:py-4`}>
-          <div className="flex items-center justify-between gap-4">
-            <Link
-              href="/"
-              aria-label="Go to Scene Assembly home"
-              className="block min-w-0 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--neon-cyan)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]"
-            >
-              <motion.div
-                initial={{ opacity: 0, y: -8 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="brand-mark flex items-center gap-2.5 min-w-0"
-              >
-                <h1 className="flex min-w-0">
-                  <span className="sr-only">{brand.name}</span>
-                  <BrandWordmark className="h-8 w-auto flex-shrink-0 text-[var(--foreground)] sm:h-9" />
-                </h1>
-                <span className="hidden md:inline-block h-3.5 w-px bg-[var(--border-hover)]" />
-                <span className="hidden md:inline eyebrow">{brand.tagline}</span>
-              </motion.div>
-            </Link>
-
-            <nav aria-label="Workspace" className="flex items-center rounded-xl border border-[var(--border)] bg-[var(--background-elevated)]/70 p-1">
-              <button
-                type="button"
-                onClick={() => selectWorkspace('image')}
-                className={`rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors sm:px-3 sm:text-sm ${activeWorkspace === 'image' ? 'bg-[var(--brand-accent)]/15 text-[var(--brand-accent)]' : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)]'}`}
-              >
-                Image
-              </button>
-              <button
-                type="button"
-                onClick={() => selectWorkspace('video')}
-                className={`rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors sm:px-3 sm:text-sm ${activeWorkspace === 'video' ? 'bg-[var(--neon-purple)]/15 text-[var(--neon-purple)]' : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)]'}`}
-              >
-                Video
-              </button>
-              <button
-                type="button"
-                onClick={() => selectWorkspace('timeline')}
-                title="Timeline"
-                className={`flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors sm:px-3 sm:text-sm ${activeWorkspace === 'timeline' ? 'bg-[var(--neon-cyan)]/15 text-[var(--neon-cyan)]' : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)]'}`}
-              >
-                <Film size={13} className="sm:hidden" aria-hidden />
-                <span className="hidden sm:inline">Timeline</span>
-              </button>
-            </nav>
-
-            <motion.div
-              initial={{ opacity: 0, y: -8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.05 }}
-              className="flex items-center gap-2 flex-shrink-0"
-            >
-              <button
-                onClick={() => openLibrary()}
-                className="inline-flex items-center gap-1.5 rounded-[9px] border border-[var(--border)] px-2.5 py-2 text-xs text-[var(--foreground-muted)] transition-colors hover:border-[var(--border-hover)] hover:text-[var(--foreground)]"
-                title="Kept results and saved prompts"
-              >
-                <LibraryIcon size={13} />
-                <span className="hidden sm:inline">Library</span>
-              </button>
-
-              <button
-                onClick={() => setChimeEnabled(!chimeOnComplete)}
-                className="hidden sm:inline-flex items-center rounded-[9px] border border-[var(--border)] px-2.5 py-2 text-[var(--foreground-muted)] transition-colors hover:border-[var(--border-hover)] hover:text-[var(--foreground)]"
-                title={chimeOnComplete ? 'Mute the chime when a generation finishes' : 'Play a chime when a generation finishes'}
-                aria-label={chimeOnComplete ? 'Mute the chime when a generation finishes' : 'Play a chime when a generation finishes'}
-                aria-pressed={chimeOnComplete}
-              >
-                {chimeOnComplete ? <Volume2 size={13} /> : <VolumeX size={13} />}
-              </button>
-
-              <button
-                onClick={() => setPaletteOpen(true)}
-                className="hidden sm:inline-flex items-center gap-1.5 text-xs text-[var(--foreground-muted)] hover:text-[var(--foreground)] border border-[var(--border)] hover:border-[var(--border-hover)] rounded-[9px] px-2.5 py-2 transition-colors"
-                title="Open command menu (⌘K)"
-              >
-                <CommandIcon size={13} />
-                <span className="font-mono">K</span>
-              </button>
-
-              <button
-                onClick={() => openConnections()}
-                className={`${hasKey ? 'btn-secondary' : 'btn-primary'} text-sm`}
-                title={hasKey ? 'Update your API keys' : 'Add your API keys'}
-              >
-                {hasKey ? (
-                  <>
-                    <Check size={15} className="text-emerald-400" />
-                    <span className="hidden sm:inline">API&nbsp;Key</span>
-                    <span className="sm:hidden">Key</span>
-                  </>
-                ) : (
-                  <>
-                    <Key size={15} />
-                    <span className="hidden sm:inline">Add&nbsp;API&nbsp;Keys</span>
-                    <span className="sm:hidden">Add&nbsp;Keys</span>
-                  </>
-                )}
-              </button>
-            </motion.div>
-          </div>
-        </div>
-      </header>
-
-      {/* API Key dialog (controlled by the header CTA) */}
-      <ApiKeyConfig
-        open={keyDialogOpen}
-        onOpenChange={setKeyDialogOpen}
-        focusProvider={keyDialogFocus}
-      />
-
-      {/* ⌘K command palette */}
-      <CommandPalette
-        open={paletteOpen}
-        onOpenChange={setPaletteOpen}
-        onOpenApiKey={() => openConnections()}
-        onOpenLibrary={openLibrary}
-      />
-
-      {/* Kept results and saved prompts */}
-      {/* Keyed on the tab: ⌘K's "Saved prompts" remounts the overlay so it
-          lands on that section instead of whatever was last selected. */}
-      {/* A clip added from the library has nowhere visible to land unless the
-          editor comes forward with it, so this is the one caller that follows
-          the clip instead of only closing. */}
-      <LibraryOverlay
-        key={libraryTab}
-        open={libraryOpen}
-        onOpenChange={setLibraryOpen}
-        initialTab={libraryTab}
-        onAddedToTimeline={() => {
-          setLibraryOpen(false);
-          selectWorkspace('timeline');
-        }}
+    <div className="relative min-h-screen w-full overflow-x-hidden">
+      <StudioHeader
+        active={activeWorkspace}
+        onSelectWorkspace={selectWorkspace}
+        columnWidth={columnWidth}
       />
 
       {/* Main Content */}
@@ -288,16 +137,6 @@ function Studio() {
                 onExit={() => selectWorkspace('image')}
                 onOpenConnections={openConnections}
               />
-            </motion.div>
-          ) : activeWorkspace === 'timeline' ? (
-            <motion.div
-              key="timeline"
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.18 }}
-            >
-              <TimelineWorkspace onExit={() => selectWorkspace('image')} />
             </motion.div>
           ) : !selectedFeature ? (
             <motion.div

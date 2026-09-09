@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import type { DragEvent, KeyboardEvent, PointerEvent as ReactPointerEvent } from 'react';
+import type { DragEvent, KeyboardEvent, PointerEvent as ReactPointerEvent, ReactNode } from 'react';
 import { AlertTriangle, Crop, Maximize2, Minus, Plus, Scan, Trash2, Undo2 } from 'lucide-react';
 
 import type { GalleryRecord } from '@/lib/gallery/storage';
@@ -42,6 +42,20 @@ interface TimelineTrackProps {
    * media, no duration and no way into an export.
    */
   onAdd: (recordId: string, atIndex?: number) => void;
+  /**
+   * Fill the band the shell gives it: the scroller takes the leftover height
+   * and the blocks grow into it, so dragging the splitter makes the clips
+   * taller rather than adding empty space under them. Off in the document
+   * layout, where the track is as tall as its contents.
+   */
+  fill?: boolean;
+  /**
+   * Project-level controls — undo, new, the storage meter — rendered in the
+   * band's head beside the zoom. They sit here rather than in the app header
+   * because the header is shared with the studio, and because everything they
+   * act on is the timeline this band is showing.
+   */
+  actions?: ReactNode;
 }
 
 function titleOf(record: GalleryRecord | undefined) {
@@ -215,6 +229,7 @@ function TrackBlock({
   pps,
   index,
   total,
+  fill,
   onRemove,
   onRepaired,
   onAdd,
@@ -226,6 +241,7 @@ function TrackBlock({
   pps: number;
   index: number;
   total: number;
+  fill: boolean;
   onRemove: (clipId: string) => void;
   onRepaired: (recordId: string) => void;
   onAdd: (recordId: string, atIndex?: number) => void;
@@ -349,7 +365,11 @@ function TrackBlock({
           )}
         </div>
       ) : (
-        <div className="relative h-16 w-full cursor-grab overflow-hidden bg-black/40 active:cursor-grabbing">
+        <div
+          className={`relative w-full cursor-grab overflow-hidden bg-black/40 active:cursor-grabbing ${
+            fill ? 'min-h-9 flex-1' : 'h-16'
+          }`}
+        >
           {/* A strip of stills across the block, not one poster stretched over
               it: the block's width is its trimmed duration, so what belongs
               there is what happens *during* the clip. The single still stays
@@ -371,7 +391,7 @@ function TrackBlock({
         </div>
       )}
 
-      <div className="min-w-0 space-y-0.5 px-1.5 py-1">
+      <div className="min-w-0 shrink-0 space-y-0.5 px-1.5 py-1">
         <p className="truncate text-[0.65rem] font-medium text-[var(--foreground)]">
           {titleOf(record)}
         </p>
@@ -461,6 +481,8 @@ export default function TimelineTrack({
   onRemove,
   onRepaired,
   onAdd,
+  fill = false,
+  actions,
 }: TimelineTrackProps) {
   const byId = useMemo(() => new Map(records.map((record) => [record.id, record])), [records]);
 
@@ -553,26 +575,46 @@ export default function TimelineTrack({
 
   if (clips.length === 0) {
     return (
+      <div className={fill ? 'flex h-full min-h-0 flex-col gap-1.5' : 'space-y-1.5'}>
+        {actions && (
+          <div className="flex shrink-0 items-center justify-end gap-2">{actions}</div>
+        )}
       <TimelineDropZone
         data-testid="timeline-track"
         onDropRecord={(recordId) => onAdd(recordId)}
-        className="glass-card border border-dashed border-transparent p-4 text-center transition-colors"
+        className={`glass-card border border-dashed border-transparent p-4 text-center transition-colors ${
+          fill ? 'flex h-full items-center justify-center' : ''
+        }`}
         activeClassName="border-[var(--neon-cyan)]/60 bg-[var(--neon-cyan)]/5"
       >
         <p className="text-[0.8125rem] text-[var(--foreground-muted)]">
           No clips yet. Drag one over from your clips, or press its + button.
         </p>
       </TimelineDropZone>
+      </div>
     );
   }
 
   return (
-    <div data-testid="timeline-track" className="glass-card min-w-0 p-3.5">
+    <div
+      data-testid="timeline-track"
+      className={`glass-card min-w-0 p-3.5 ${fill ? 'flex h-full min-h-0 flex-col' : ''}`}
+    >
       {/* Buttons as well as the pinch, for the same reason reordering has
           Alt+arrow: a gesture that exists only for a trackpad puts the scale
           out of reach of a mouse and a keyboard. Fit is the way back — without
           it, zooming in is a one-way door. */}
-      <div className="mb-1.5 flex items-center justify-end gap-1">
+      <div className="mb-1.5 flex shrink-0 items-center gap-2">
+        {/* Names the band. In the shell this row is the track's only header —
+            the workspace above it has its own — so without this the largest
+            surface on screen is labelled by nothing but a zoom percentage. */}
+        <span className="eyebrow text-[var(--neon-cyan)]">Timeline</span>
+        <span className="text-xs text-[var(--foreground-subtle)]">
+          {clips.length} {clips.length === 1 ? 'clip' : 'clips'}
+          {layout.totalSeconds > 0 ? ` · ${formatDuration(layout.totalSeconds)}` : ''}
+        </span>
+        <div className="min-w-0 flex-1" />
+        {actions}
         {/* Always on screen, including at 100%. Showing the readout and Fit
             only once zoomed meant the control that gets you back appeared only
             after you were already lost, and the scale itself — the thing every
@@ -618,8 +660,14 @@ export default function TimelineTrack({
 
       {/* `touch-pan-x` keeps one-finger horizontal scrolling but takes pinch
           away from the browser's page zoom, so the gesture reaches the track. */}
-      <div ref={scrollRef} className="touch-pan-x overflow-x-auto pb-1">
-        <div className="relative" style={{ width: layout.width, minWidth: '100%' }}>
+      <div
+        ref={scrollRef}
+        className={`touch-pan-x overflow-x-auto pb-1 ${fill ? 'min-h-0 flex-1' : ''}`}
+      >
+        <div
+          className={`relative ${fill ? 'flex h-full flex-col' : ''}`}
+          style={{ width: layout.width, minWidth: '100%' }}
+        >
           {/* The ruler is the scrub surface: clicking a clip must stay a
               selection/reorder gesture, so time lives up here — the same split
               the desktop editors use. */}
@@ -639,7 +687,7 @@ export default function TimelineTrack({
             onPointerCancel={() => {
               scrubbingRef.current = false;
             }}
-            className="relative h-6 cursor-crosshair touch-none select-none border-b border-[var(--border)]"
+            className="relative h-6 shrink-0 cursor-crosshair touch-none select-none border-b border-[var(--border)]"
           >
             {ticks.map((tick) => (
               <div
@@ -659,7 +707,7 @@ export default function TimelineTrack({
           {/* The drop targets are siblings of the list, not children of it:
               `role="list"` may only contain `listitem`s, and a drop zone is
               not one. */}
-          <div className="relative flex items-stretch pt-1.5">
+          <div className={`relative flex items-stretch pt-1.5 ${fill ? 'min-h-0 flex-1' : ''}`}>
             <div role="list" aria-label="Timeline clips" className="flex items-stretch">
               {clips.map((clip, index) => (
                 <TrackBlock
@@ -671,6 +719,7 @@ export default function TimelineTrack({
                   pps={layout.pps}
                   index={index}
                   total={clips.length}
+                  fill={fill}
                   onRemove={onRemove}
                   onRepaired={onRepaired}
                   onAdd={onAdd}

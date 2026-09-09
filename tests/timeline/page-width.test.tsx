@@ -1,4 +1,4 @@
-import { render } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import Home from '../../app/page';
@@ -6,8 +6,13 @@ import Home from '../../app/page';
 // The workspace the page is on comes from the query string, which is the only
 // input these assertions need; everything heavy the page mounts is stubbed.
 const workspaceValue = { current: null as string | null };
+const replace = vi.fn();
 
 vi.mock('next/dynamic', () => ({ default: () => () => null }));
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ replace, push: vi.fn(), prefetch: vi.fn() }),
+  usePathname: () => '/',
+}));
 vi.mock('nuqs', () => ({
   useQueryState: (key: string) => [key === 'workspace' ? workspaceValue.current : null, vi.fn()],
 }));
@@ -31,24 +36,45 @@ function renderAt(workspace: string | null) {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  replace.mockClear();
   workspaceValue.current = null;
 });
 
+/**
+ * The timeline used to widen this page to the account console's 110rem column.
+ * It runs on /timeline with a shell of its own now — a fixed three-band editor
+ * rather than a document — so the studio is back to one width, and the only
+ * thing left here is the way in and the way old links get there.
+ */
 describe('studio page column', () => {
-  it('gives the timeline the account console’s wide column, header included', () => {
-    const { main, header } = renderAt('timeline');
-
-    expect(main.className).toContain('max-w-[110rem]');
-    expect(main.className).not.toContain('max-w-7xl');
-    // Widened together, or the wordmark stops lining up with the content.
-    expect(header.className).toContain('max-w-[110rem]');
-  });
-
-  it.each([null, 'video'])('leaves the %s workspace on the studio column', (workspace) => {
+  it.each([null, 'video'])('keeps the %s workspace on the studio column', (workspace) => {
     const { main, header } = renderAt(workspace);
 
     expect(main.className).toContain('max-w-7xl');
     expect(main.className).not.toContain('max-w-[110rem]');
     expect(header.className).toContain('max-w-7xl');
+  });
+});
+
+describe('reaching the timeline editor', () => {
+  it('sends the switcher to the editor route', () => {
+    renderAt(null);
+
+    expect(screen.getByTitle('Timeline')).toHaveAttribute('href', '/timeline');
+  });
+
+  it('forwards the query param the editor used to live behind', () => {
+    // ?workspace=timeline is in bookmarks and in links already shared, so it
+    // has to land somewhere real. `replace`, not `push`: Back should leave the
+    // editor, not bounce between it and the redirect.
+    renderAt('timeline');
+
+    expect(replace).toHaveBeenCalledWith('/timeline');
+  });
+
+  it('leaves the studio column alone while it forwards', () => {
+    const { main } = renderAt('timeline');
+
+    expect(main.className).toContain('max-w-7xl');
   });
 });

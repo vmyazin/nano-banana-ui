@@ -3,6 +3,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import Home from '../app/page';
 
 vi.mock('next/dynamic', () => ({ default: () => () => null }));
+// The studio forwards ?workspace=timeline to the editor's own route, so it
+// asks for a router these suites never mount one for.
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ replace: vi.fn(), push: vi.fn(), prefetch: vi.fn() }),
+  usePathname: () => '/',
+}));
 vi.mock('nuqs', () => ({ useQueryState: () => [null, vi.fn()] }));
 vi.mock('framer-motion', () => ({
   AnimatePresence: ({ children }: { children: React.ReactNode }) => children,
@@ -43,6 +49,10 @@ describe('Home', () => {
    * browser DOM check found `innerText: ""`, `title: null`, `aria-label:
    * null`, and `getByRole('button', { name: /timeline/i })` timing out.
    *
+   * It is a link now rather than a button — the editor moved to /timeline, so
+   * reaching it is a navigation — but the collapse, and the reason the name has
+   * to survive it, are unchanged.
+   *
    * That collapse is pure CSS (`display: none` on the label span). This
    * suite never loads the compiled stylesheet into jsdom, so
    * `getComputedStyle` reports the UA default (visible) for that span no
@@ -53,11 +63,12 @@ describe('Home', () => {
    * fix: that the button carries an explicit `title` fallback, independent
    * of whether the label span is visible.
    */
-  it('keeps an accessible name on the Timeline nav button independent of its collapsible label', () => {
+  it('keeps an accessible name on the Timeline nav link independent of its collapsible label', () => {
     vi.spyOn(window, 'scrollTo').mockImplementation(() => undefined);
     render(<Home />);
 
-    const timelineButton = screen.getByRole('button', { name: /timeline/i });
-    expect(timelineButton).toHaveAttribute('title', 'Timeline');
+    const timelineLink = screen.getByRole('link', { name: /timeline/i });
+    expect(timelineLink).toHaveAttribute('title', 'Timeline');
+    expect(timelineLink).toHaveAttribute('href', '/timeline');
   });
 });

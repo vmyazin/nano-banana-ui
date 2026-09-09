@@ -15,6 +15,13 @@ interface TimelinePreviewProps {
   clipStates: Record<string, ClipState>;
   /** The frame being exported — the shape this preview has to be, or fit is a lie. */
   output: TimelineOutput;
+  /**
+   * Size the frame from the height it is given rather than from a viewport
+   * constant. The editor shell hands the preview an elastic band — that band is
+   * what absorbs an awkward viewport ratio, and a frame capped at `60vh` inside
+   * it would either overflow the band or leave it half empty.
+   */
+  fill?: boolean;
 }
 
 type ReadyEntry = { clip: TimelineClip; state: Extract<ClipState, { status: 'ready' }> };
@@ -43,7 +50,7 @@ const PREVIEW_MAX_HEIGHT = '60vh';
  * exact frame boundaries. Proving that means running the render pipeline in
  * real time, which is a later slice.
  */
-export default function TimelinePreview({ clips, clipStates, output }: TimelinePreviewProps) {
+export default function TimelinePreview({ clips, clipStates, output, fill = false }: TimelinePreviewProps) {
   const ready = useMemo<ReadyEntry[]>(
     () =>
       clips
@@ -86,17 +93,73 @@ export default function TimelinePreview({ clips, clipStates, output }: TimelineP
     if (store.time > sequence.total) store.setTime(sequence.total);
   }, [sequence.total]);
 
-  const urls = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const entry of ready) map.set(entry.clip.id, URL.createObjectURL(entry.state.blob));
-    return map;
+  /**
+   * One object URL per placement, created once and kept until that placement
+   * goes away.
+   *
+   * It used to be a plain `useMemo` over `ready`, which rebuilt the whole map
+   * every time the array changed identity — and `ready` changes identity every
+   * time *any* clip resolves. Restoring a saved timeline resolves each clip in
+   * turn, so the map was rebuilt once per clip and each rebuild revoked the URL
+   * the video element was still loading: the slot ended at `readyState: 0` on a
+   * black frame, with `ERR_FILE_NOT_FOUND` in the console for a blob that had
+   * been valid a moment earlier. Keyed by placement id, only what actually
+   * left is revoked.
+   */
+  const heldRef = useRef(new Map<string, { blob: Blob; url: string }>());
+  const [urls, setUrls] = useState<ReadonlyMap<string, string>>(() => new Map());
+
+  /**
+   * One object URL per placement, created once and kept until that placement
+   * goes away or comes back holding different bytes.
+   *
+   * This used to be a `useMemo` that rebuilt the whole map from `ready` — and
+   * `ready` changes identity every time *any* clip resolves. Restoring a saved
+   * timeline resolves each clip in turn, so the map was rebuilt once per clip
+   * and every rebuild revoked the URL the video element was still loading: the
+   * slot ended at `readyState: 0` on a black frame, with `ERR_FILE_NOT_FOUND`
+   * logged for a blob that had been valid moments earlier.
+   *
+   * It lives in an effect rather than in render because creating and revoking
+   * URLs is a side effect with a lifetime, and the bookkeeping it needs is a
+   * ref. `loadInto` already returns early for a placement whose URL has not
+   * arrived, and it depends on `urls`, so the slot loads on the commit after
+   * one appears rather than missing it.
+   */
+  useEffect(() => {
+    const held = heldRef.current;
+    const wanted = new Map(ready.map((entry) => [entry.clip.id, entry.state.blob]));
+    let changed = false;
+
+    for (const [id, entry] of [...held]) {
+      // Gone, or holding different bytes than it did: a repaired clip keeps its
+      // placement id and arrives as a new blob, so identity — not the id alone
+      // — decides whether the URL still describes the clip.
+      if (wanted.get(id) === entry.blob) continue;
+      URL.revokeObjectURL(entry.url);
+      held.delete(id);
+      changed = true;
+    }
+    for (const entry of ready) {
+      if (held.has(entry.clip.id)) continue;
+      held.set(entry.clip.id, {
+        blob: entry.state.blob,
+        url: URL.createObjectURL(entry.state.blob),
+      });
+      changed = true;
+    }
+
+    if (changed) setUrls(new Map([...held].map(([id, entry]) => [id, entry.url])));
   }, [ready]);
 
+  // Whatever is still held when the preview goes away.
   useEffect(() => {
+    const held = heldRef.current;
     return () => {
-      for (const url of urls.values()) URL.revokeObjectURL(url);
+      for (const entry of held.values()) URL.revokeObjectURL(entry.url);
+      held.clear();
     };
-  }, [urls]);
+  }, []);
 
   // Two plain refs rather than an array of them: an array built during render
   // is itself a render value, so everything reached through it reads as
@@ -161,6 +224,11 @@ export default function TimelinePreview({ clips, clipStates, output }: TimelineP
       const element = (slot === 0 ? slotARef : slotBRef).current;
       if (!element) return;
       if (!clipId) {
+        // A slot that is already blank is left alone: `urls` now settles in an
+        // effect, so emptying the timeline runs this path once for the sequence
+        // change and again when the URLs go, and a second `load()` on an
+        // already-empty element is work that buys nothing.
+        if (loadedRef.current[slot] === null) return;
         loadedRef.current[slot] = null;
         element.pause?.();
         element.removeAttribute('src');
@@ -370,8 +438,12 @@ export default function TimelinePreview({ clips, clipStates, output }: TimelineP
   const audible = soundOn && exportHasSound;
 
   return (
-    <div className="glass-card space-y-2.5 p-3.5">
-      <div className="flex items-center justify-between gap-2">
+    <div
+      className={
+        fill ? 'glass-card flex h-full min-h-0 flex-col gap-2.5 p-3.5' : 'glass-card space-y-2.5 p-3.5'
+      }
+    >
+      <div className="flex shrink-0 items-center justify-between gap-2">
         <p className="eyebrow">Preview</p>
         {sequence.segments.length > 0 && (
           <p className="text-xs text-[var(--foreground-subtle)]">
@@ -382,17 +454,35 @@ export default function TimelinePreview({ clips, clipStates, output }: TimelineP
       </div>
 
       {/* The export frame, not a fixed 16:9 box: a vertical timeline previewed
-          in a landscape box shows framing that no export will produce. */}
+          in a landscape box shows framing that no export will produce.
+
+          Two ways to be that shape. In the document layout the frame is capped
+          against the viewport, because nothing else is holding it. In the shell
+          it is capped against *the band it was given*, which is what a size
+          container plus `cqw`/`cqh` buy: the frame is the largest box of this
+          ratio that fits the space left over, so a 9:16 timeline in a short
+          landscape window comes out small and correct rather than pushing the
+          track off screen. Both keep width and height derived from one ratio —
+          a max-height alone would cap the height while `w-full` held the width,
+          quietly turning a tall format back into a wide box. */}
       <div
-        className="relative mx-auto w-full overflow-hidden rounded-lg bg-black"
+        className={
+          fill
+            ? 'flex min-h-0 flex-1 items-center justify-center'
+            : 'contents'
+        }
+        style={fill ? { containerType: 'size' } : undefined}
+      >
+      <div
+        className={`relative overflow-hidden rounded-lg bg-black ${fill ? '' : 'mx-auto w-full'}`}
         style={{
           aspectRatio: `${output.width} / ${output.height}`,
-          // The pair matters: a max-height alone caps the height while `w-full`
-          // holds the width, which silently breaks the ratio back into a wide
-          // box. Capping the width to what that height allows keeps the frame
-          // honest and lets a tall format centre itself instead.
-          maxHeight: PREVIEW_MAX_HEIGHT,
-          maxWidth: `calc(${PREVIEW_MAX_HEIGHT} * ${output.width} / ${output.height})`,
+          ...(fill
+            ? { width: `min(100cqw, calc(100cqh * ${output.width / output.height}))` }
+            : {
+                maxHeight: PREVIEW_MAX_HEIGHT,
+                maxWidth: `calc(${PREVIEW_MAX_HEIGHT} * ${output.width} / ${output.height})`,
+              }),
         }}
         data-testid="preview-frame"
       >
@@ -428,9 +518,10 @@ export default function TimelinePreview({ clips, clipStates, output }: TimelineP
           </div>
         )}
       </div>
+      </div>
 
       {sequence.segments.length > 0 && (
-        <div className="flex items-center gap-2.5">
+        <div className="flex shrink-0 items-center gap-2.5">
           <button
             type="button"
             onClick={toggle}
@@ -489,7 +580,7 @@ export default function TimelinePreview({ clips, clipStates, output }: TimelineP
         </div>
       )}
 
-      <p className="flex items-start gap-1.5 text-xs text-[var(--foreground-subtle)]">
+      <p className="flex shrink-0 items-start gap-1.5 text-xs text-[var(--foreground-subtle)]">
         <Info size={12} className="mt-0.5 shrink-0" />
         {/* The caption names only what is still untrue about this preview. It
             used to say "silent" unconditionally, which stopped being right the

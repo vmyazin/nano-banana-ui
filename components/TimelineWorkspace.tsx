@@ -7,6 +7,7 @@ import { DEFAULT_GALLERY_BUDGET } from '@/lib/gallery/eviction';
 import { deriveOutputFormat } from '@/lib/timeline/derive-output';
 import { acquireClipMedia, type ClipMedia, type Unavailable } from '@/lib/timeline/acquire';
 import type { RenderEngine } from '@/lib/timeline/render/port';
+import { useTrackHeight } from '@/lib/timeline/use-track-height';
 import { useGalleryStore } from '@/store/useGalleryStore';
 import { useTimelineStore } from '@/store/useTimelineStore';
 import ConfirmDialog from '@/components/ConfirmDialog';
@@ -29,7 +30,6 @@ import TimelineTrack from '@/components/TimelineTrack';
 export type ClipState = ClipMedia | Unavailable | { status: 'loading' };
 
 interface TimelineWorkspaceProps {
-  onExit: () => void;
   /**
    * Test seam: fires with the current `clipStates` map whenever it changes.
    * `app/page.tsx` never passes this — `clipStates` is otherwise private to
@@ -54,10 +54,7 @@ function formatBytes(bytes: number) {
   return `${value < 10 ? value.toFixed(1) : Math.round(value)} ${units[unit]}`;
 }
 
-export default function TimelineWorkspace({
-  onExit,
-  onClipStatesChange,
-}: TimelineWorkspaceProps) {
+export default function TimelineWorkspace({ onClipStatesChange }: TimelineWorkspaceProps = {}) {
   const records = useGalleryStore((state) => state.records);
   // Gates the restore-on-mount effect below. Resolving before the gallery has
   // hydrated would look up records in an empty store and report every clip as
@@ -287,56 +284,110 @@ export default function TimelineWorkspace({
    * was the one moment it looked identical to every other.
    */
   const storagePressure = storagePct >= 90 ? 'critical' : storagePct >= 75 ? 'high' : 'fine';
-  const storageBarClass =
-    storagePressure === 'critical'
-      ? 'bg-red-400'
-      : storagePressure === 'high'
-        ? 'bg-amber-300'
-        : 'bg-[var(--neon-cyan)]';
+  const storageLabel = `${formatBytes(storedBytes)} of ${formatBytes(budgetBytes)} stored`;
 
-  // Wider than the 1400px column the generation workspaces share: the track
-  // lays every clip out side by side, so it is the one surface that keeps
-  // earning width. Matches the page column `app/page.tsx` gives the timeline,
-  // so this cap never silently undoes it.
+  // The band the splitter moves. Only meaningful in the fixed shell below —
+  // the narrow layout is a scrolling document, where every card is as tall as
+  // it needs to be and there is no fixed budget to divide.
+  const track = useTrackHeight();
+
+  /**
+   * How full the library is. It rides in the track band's head rather than the
+   * app header above, which is shared with the studio — and it belongs near the
+   * clips, because filling this budget is what evicts an unpinned file and turns
+   * a clip on this timeline into a missing one.
+   */
+  const storageMeter = (
+      <p
+        className="hidden items-center gap-1.5 text-xs text-[var(--foreground-muted)] xl:flex"
+        title={
+          storagePressure === 'fine'
+            ? undefined
+            : 'Your library evicts unpinned files to stay under this budget, which is how a clip on the timeline goes missing. Delete what you no longer need.'
+        }
+      >
+        <HardDrive size={13} className="text-[var(--foreground-subtle)]" aria-hidden />
+        {storageLabel}
+        <span className="h-1.5 w-16 overflow-hidden rounded-full bg-[hsl(var(--tint)/0.14)]">
+          <span
+            data-storage-pressure={storagePressure}
+            className={`block h-full rounded-full ${
+              storagePressure === 'critical'
+                ? 'bg-red-400'
+                : storagePressure === 'high'
+                  ? 'bg-amber-300'
+                  : 'bg-[var(--neon-cyan)]'
+            }`}
+            style={{ width: `${storagePct}%` }}
+          />
+        </span>
+        {/* Spelled out, not just coloured — the bar alone cannot be read by
+            anyone who cannot see the colour change, and this is the point at
+            which clips start disappearing. */}
+        {storagePressure !== 'fine' && (
+          <span className={storagePressure === 'critical' ? 'text-red-300' : 'text-amber-300'}>
+            — nearly full, so unpinned files may be evicted
+          </span>
+        )}
+      </p>
+  );
+
+  /**
+   * The two controls that change the project as a whole, at the top of the
+   * right column — above the format and the export, which are the other things
+   * in this editor that are about the piece rather than about one clip.
+   *
+   * Rendered as nothing at all when neither applies: undo appears only once
+   * there is something to put back, and New only once there is something to
+   * clear, so an untouched timeline shows no row rather than an empty one.
+   */
+  const projectActions =
+    undoLabel || clips.length > 0 ? (
+      <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+        {undoLabel && (
+          <button
+            type="button"
+            onClick={() => useTimelineStore.getState().undo()}
+            className="btn-secondary shrink-0 px-3 py-1.5 text-xs"
+          >
+            <RotateCcw size={13} /> Undo {undoLabel}
+          </button>
+        )}
+        {clips.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setConfirmingNew(true)}
+            className="btn-secondary shrink-0 px-3 py-1.5 text-xs"
+          >
+            <FilePlus2 size={13} /> New
+          </button>
+        )}
+      </div>
+    ) : null;
+
+  /**
+   * The editor shell.
+   *
+   * Three bands, and only the middle one is elastic: the bar is 52px, the track
+   * is whatever the splitter says, and the viewer row takes the rest. That is
+   * the whole fix for the bug this layout was drawn for — the preview used to
+   * be sized by its own `max-height` inside a scrolling page, so a short
+   * landscape window spent its entire height on a 16:9 frame and pushed the
+   * track (the thing being edited) below the fold. Here the frame is the part
+   * that gives, and the track's floor is `MIN_TRACK_HEIGHT`.
+   *
+   * Only at `lg`. Below that the same components go back to being a document
+   * that scrolls, because three fixed bands plus a rail do not fit a phone —
+   * and `TimelineList`, not `TimelineTrack`, is the layout that works there.
+   */
   return (
-    <div className="mx-auto w-full max-w-[110rem] space-y-3.5 sm:space-y-4" data-timeline-width={isWide ? 'wide' : 'narrow'}>
-      <section className="glass-card p-3.5 md:p-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex min-w-0 items-center gap-3">
-            <button type="button" onClick={onExit} className="btn-secondary shrink-0 px-3 py-2 text-sm">
-              Back
-            </button>
-            <div>
-              <p className="eyebrow mb-1 text-[var(--neon-cyan)]">Timeline</p>
-              <h2 className="display text-lg font-semibold sm:text-xl">Assemble your clips</h2>
-            </div>
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
-            {/* Undo first, and only when there is something to undo — the
-                affordance that makes New safe to offer at all. Removing a
-                clip is otherwise unrecoverable: an imported clip is pinned
-                with no source URL to fetch it back from. */}
-            {undoLabel && (
-              <button
-                type="button"
-                onClick={() => useTimelineStore.getState().undo()}
-                className="btn-secondary shrink-0 px-3 py-2 text-xs"
-              >
-                <RotateCcw size={13} /> Undo {undoLabel}
-              </button>
-            )}
-            {clips.length > 0 && (
-              <button
-                type="button"
-                onClick={() => setConfirmingNew(true)}
-                className="btn-secondary shrink-0 px-3 py-2 text-xs"
-              >
-                <FilePlus2 size={13} /> New
-              </button>
-            )}
-          </div>
-        </div>
-      </section>
+    <div
+      data-timeline-width={isWide ? 'wide' : 'narrow'}
+      // `flex-1` of the route's 100dvh column, not `100dvh` itself: the shared
+      // header is a band above this one, and claiming the whole viewport here
+      // would push the track down by exactly the header's height.
+      className="flex min-h-0 flex-1 flex-col overflow-hidden"
+    >
 
       <ConfirmDialog
         open={confirmingNew}
@@ -345,7 +396,7 @@ export default function TimelineWorkspace({
           <>
             This removes {clips.length === 1 ? 'the clip' : `all ${clips.length} clips`} from the
             timeline and resets the output settings. Your library files stay where they are, and
-            you can undo this from the header.
+            you can undo this from the bar above.
           </>
         }
         confirmLabel="Start new project"
@@ -354,86 +405,114 @@ export default function TimelineWorkspace({
         onCancel={() => setConfirmingNew(false)}
       />
 
-      <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-[280px_1fr] lg:gap-4">
-        <TimelineClipDrawer
-          records={records}
-          onAdd={(recordId) => void addClip(recordId)}
-          onDelete={(recordId) => void useGalleryStore.getState().remove(recordId)}
-        />
+      {isWide ? (
+        <>
+          <div className="grid min-h-0 flex-1 grid-cols-[17rem_minmax(0,1fr)_16.5rem] gap-2.5 p-2.5">
+            <TimelineClipDrawer
+              fill
+              records={records}
+              onAdd={(recordId) => void addClip(recordId)}
+              onDelete={(recordId) => void useGalleryStore.getState().remove(recordId)}
+            />
 
-        <div className="min-w-0 space-y-3.5">
+            <TimelinePreview fill clips={clips} clipStates={clipStates} output={output} />
+
+            {/* Two cards rather than one panel with a rule inside it: the
+                export panel owns its own surface and swaps between seven
+                states (rendering, unavailable, server fallback…), so folding
+                it into a shared card would mean it could no longer be the
+                thing that decides what that card looks like. */}
+            <aside className="flex min-h-0 flex-col gap-2.5 overflow-y-auto">
+              {projectActions}
+              <div className="glass-card shrink-0 p-3.5">
+                <TimelineOutputFormat
+                  output={output}
+                  onEdit={(patch) => useTimelineStore.getState().setOutput(patch)}
+                  onKeepAudioChange={(keepAudio) => useTimelineStore.getState().setKeepAudio(keepAudio)}
+                  onMatchClips={() => useTimelineStore.getState().matchClips()}
+                />
+              </div>
+              <TimelineExportPanel engines={engines} clips={clips} clipStates={clipStates} output={output} />
+            </aside>
+          </div>
+
+          {/* A real separator, not a decorative grip: it is focusable and takes
+              arrow keys, because a band you can only resize by dragging an
+              11px strip is a band a keyboard user cannot resize at all. */}
+          <div
+            role="separator"
+            aria-label="Resize the timeline track"
+            aria-orientation="horizontal"
+            aria-valuemin={track.min}
+            aria-valuemax={track.max}
+            aria-valuenow={track.height}
+            tabIndex={0}
+            data-testid="track-splitter"
+            data-dragging={track.dragging ? 'true' : 'false'}
+            onPointerDown={track.onPointerDown}
+            onKeyDown={track.onKeyDown}
+            className="group flex h-2.5 shrink-0 cursor-row-resize touch-none items-center justify-center focus-visible:outline-none"
+          >
+            <span
+              aria-hidden
+              className={`block h-[3px] w-13 rounded-full transition-colors ${
+                track.dragging
+                  ? 'bg-[var(--neon-cyan)]'
+                  : 'bg-[hsl(var(--tint)/0.22)] group-hover:bg-[hsl(var(--tint)/0.4)] group-focus-visible:bg-[var(--neon-cyan)]'
+              }`}
+              style={{ width: '3.25rem' }}
+            />
+          </div>
+
+          <div className="min-h-0 shrink-0 px-2.5 pb-2.5" style={{ height: track.height }}>
+            <TimelineTrack
+              fill
+              actions={storageMeter}
+              clips={clips}
+              records={records}
+              clipStates={clipStates}
+              onRemove={removeClip}
+              onRepaired={repairedRecord}
+              onAdd={(recordId, atIndex) => void addClip(recordId, atIndex)}
+            />
+          </div>
+        </>
+      ) : (
+        <div className="min-h-0 flex-1 space-y-3.5 overflow-y-auto p-3.5">
+          <TimelineClipDrawer
+            records={records}
+            onAdd={(recordId) => void addClip(recordId)}
+            onDelete={(recordId) => void useGalleryStore.getState().remove(recordId)}
+          />
+
           <TimelinePreview clips={clips} clipStates={clipStates} output={output} />
 
-          <div className="glass-card flex flex-wrap items-center justify-between gap-3 p-3.5">
+          <div className="glass-card p-3.5">
             <TimelineOutputFormat
               output={output}
               onEdit={(patch) => useTimelineStore.getState().setOutput(patch)}
               onKeepAudioChange={(keepAudio) => useTimelineStore.getState().setKeepAudio(keepAudio)}
               onMatchClips={() => useTimelineStore.getState().matchClips()}
             />
-            <p
-              className="flex items-center gap-1.5 text-[0.8125rem] text-[var(--foreground-muted)]"
-              title={
-                storagePressure === 'fine'
-                  ? undefined
-                  : 'Your library evicts unpinned files to stay under this budget, which is how a clip on the timeline goes missing. Delete what you no longer need.'
-              }
-            >
-              <HardDrive size={13} className="text-[var(--foreground-subtle)]" />
-              {formatBytes(storedBytes)} of {formatBytes(budgetBytes)} stored
-              <span className="h-1.5 w-16 overflow-hidden rounded-full bg-[var(--surface)]">
-                <span
-                  data-storage-pressure={storagePressure}
-                  className={`block h-full rounded-full ${storageBarClass}`}
-                  style={{ width: `${storagePct}%` }}
-                />
-              </span>
-              {/* Spelled out, not just coloured: the bar alone cannot be read
-                  by anyone who cannot see the colour change, and this is the
-                  point at which clips start disappearing. */}
-              {storagePressure !== 'fine' && (
-                <span className={storagePressure === 'critical' ? 'text-red-300' : 'text-amber-300'}>
-                  — nearly full, so unpinned files may be evicted
-                </span>
-              )}
-            </p>
           </div>
 
-          {/* Design spec §7: Export sits in the track header at lg+ and beneath
-              the list below — different positions per layout, so it is placed
-              inside each branch rather than shared above them. Exactly one of
-              the two branches renders at a time (the same mutual exclusivity
-              TimelineTrack/TimelineList already have), so this never mounts
-              two live instances of the panel, or two copies of its state or
-              engine selection — both branches pass the same `clipStates` and
-              `engines` this component already owns. */}
-          {isWide ? (
-            <>
-              <TimelineExportPanel engines={engines} clips={clips} clipStates={clipStates} output={output} />
-              <TimelineTrack
-                clips={clips}
-                records={records}
-                clipStates={clipStates}
-                onRemove={removeClip}
-                onRepaired={repairedRecord}
-                onAdd={(recordId, atIndex) => void addClip(recordId, atIndex)}
-              />
-            </>
-          ) : (
-            <>
-              <TimelineList
-                clips={clips}
-                records={records}
-                clipStates={clipStates}
-                onRemove={removeClip}
-                onRepaired={repairedRecord}
-                onAdd={(recordId, atIndex) => void addClip(recordId, atIndex)}
-              />
-              <TimelineExportPanel engines={engines} clips={clips} clipStates={clipStates} output={output} />
-            </>
-          )}
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {storageMeter}
+            {projectActions}
+          </div>
+
+          <TimelineList
+            clips={clips}
+            records={records}
+            clipStates={clipStates}
+            onRemove={removeClip}
+            onRepaired={repairedRecord}
+            onAdd={(recordId, atIndex) => void addClip(recordId, atIndex)}
+          />
+
+          <TimelineExportPanel engines={engines} clips={clips} clipStates={clipStates} output={output} />
         </div>
-      </div>
+      )}
     </div>
   );
 }

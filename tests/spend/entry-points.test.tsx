@@ -3,6 +3,12 @@ import { describe, expect, it, vi } from 'vitest';
 
 // Same mocks as tests/page-scroll-position.test.tsx, which also renders Home.
 vi.mock('next/dynamic', () => ({ default: () => () => null }));
+// The studio forwards ?workspace=timeline to the editor's own route, so it
+// asks for a router these suites never mount one for.
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ replace: vi.fn(), push: vi.fn(), prefetch: vi.fn() }),
+  usePathname: () => '/',
+}));
 vi.mock('nuqs', () => ({ useQueryState: () => [null, vi.fn()] }));
 vi.mock('framer-motion', () => ({
   AnimatePresence: ({ children }: { children: React.ReactNode }) => children,

@@ -7,6 +7,12 @@ import ApiKeyConfig from '../../components/ApiKeyConfig';
 import { useAppStore } from '../../store/useAppStore';
 
 vi.mock('next/dynamic', () => ({ default: () => () => null }));
+// The studio forwards ?workspace=timeline to the editor's own route, so it
+// asks for a router these suites never mount one for.
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ replace: vi.fn(), push: vi.fn(), prefetch: vi.fn() }),
+  usePathname: () => '/',
+}));
 vi.mock('nuqs', () => ({ useQueryState: () => [null, vi.fn()] }));
 vi.mock('@/components/CommandPalette', () => ({ CommandPalette: () => null }));
 vi.mock('@/components/FeatureSelector', () => ({ default: () => null }));
