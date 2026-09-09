@@ -91,6 +91,21 @@ export interface DemuxProbe {
   hasAudio?: boolean;
 }
 
+export interface DemuxProbeOptions {
+  /**
+   * Whether to compute the framerate. Defaults to `true`.
+   *
+   * This is the expensive half of the open: `computeFrameRateMetrics` walks
+   * packets, while every other answer here comes out of the container header.
+   * A record whose `fps` is already cached has no need of it, and skipping it
+   * is what makes re-opening the demuxer on a reloaded timeline cheap enough
+   * to do at all — the rest of the open is what tells us whether this browser
+   * can decode the clip and whether it has sound, and neither of those can be
+   * cached onto the record (see `demuxFactsByRecord` in acquire.ts).
+   */
+  framerate?: boolean;
+}
+
 /**
  * Everything the demuxer can tell us about a clip, in one open.
  *
@@ -105,16 +120,16 @@ export interface DemuxProbe {
  * The demuxer is loaded with a dynamic `import()` so mediabunny stays out of the
  * main bundle — it arrives with the timeline workspace or not at all.
  */
-export function probeWithDemuxer(blob: Blob): Promise<DemuxProbe> {
+export function probeWithDemuxer(blob: Blob, options: DemuxProbeOptions = {}): Promise<DemuxProbe> {
   // The loser of this race keeps running to its own `finally`, so the Input is
   // disposed even when the timeout has already answered for it.
   return Promise.race([
-    readWithDemuxer(blob),
+    readWithDemuxer(blob, options.framerate !== false),
     new Promise<DemuxProbe>((resolve) => setTimeout(() => resolve({}), PROBE_TIMEOUT_MS)),
   ]);
 }
 
-async function readWithDemuxer(blob: Blob): Promise<DemuxProbe> {
+async function readWithDemuxer(blob: Blob, withFramerate: boolean): Promise<DemuxProbe> {
   try {
     const { ALL_FORMATS, BlobSource, Input } = await import('mediabunny');
     const input = new Input({ formats: ALL_FORMATS, source: new BlobSource(blob) });
@@ -136,7 +151,10 @@ async function readWithDemuxer(blob: Blob): Promise<DemuxProbe> {
       // the moment the container is open — surfacing "your browser cannot
       // decode this clip" at add time, next to "expired", beats discovering it
       // minutes into an export.
-      const [fps, decodable] = await Promise.all([readFramerate(track), readDecodable(track)]);
+      const [fps, decodable] = await Promise.all([
+        withFramerate ? readFramerate(track) : undefined,
+        readDecodable(track),
+      ]);
       const probe: DemuxProbe = {};
       if (fps !== undefined) probe.fps = fps;
       if (decodable !== undefined) probe.decodable = decodable;

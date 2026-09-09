@@ -11,7 +11,9 @@ import { __resetDecodeCacheForTests, acquireClipMedia } from '../../lib/timeline
 // needs a demuxer rather than a video element, and jsdom has neither.
 const probe = vi.hoisted(() => ({
   probeDimensions: vi.fn(async () => ({ width: 1920, height: 1080, durationSeconds: 5 })),
-  probeWithDemuxer: vi.fn(async (): Promise<{ fps?: number; decodable?: boolean }> => ({ fps: 24 })),
+  probeWithDemuxer: vi.fn(
+    async (): Promise<{ fps?: number; decodable?: boolean; hasAudio?: boolean }> => ({ fps: 24 })
+  ),
 }));
 vi.mock('../../lib/timeline/probe', () => probe);
 vi.mock('../../lib/video-frame', () => ({
@@ -160,9 +162,11 @@ describe('acquireClipMedia caches the clip framerate', () => {
     expect(useGalleryStore.getState().records[0].fps).toBe(23.976);
   });
 
-  it('reuses a cached framerate instead of re-opening the demuxer', async () => {
+  it('reuses a cached framerate instead of re-computing it', async () => {
     // Re-probing on every visit to the workspace would decode the whole library
-    // again for a number already written down.
+    // again for a number already written down. The demuxer is still opened —
+    // decodability and audio are session facts no record can carry — but the
+    // framerate scan, which is the part that walks packets, is skipped.
     useGalleryStore.setState({
       records: [
         video({ blob: new Blob(['x']), pinned: true, bytes: 1, width: 1280, height: 720, durationSeconds: 8, fps: 30 }),
@@ -172,7 +176,28 @@ describe('acquireClipMedia caches the clip framerate', () => {
     const result = await acquireClipMedia('clip');
 
     expect(result).toMatchObject({ status: 'ready', dimensions: { fps: 30, width: 1280 } });
-    expect(probe.probeWithDemuxer).not.toHaveBeenCalled();
+    expect(probe.probeDimensions).not.toHaveBeenCalled();
+    expect(probe.probeWithDemuxer).toHaveBeenCalledWith(expect.anything(), { framerate: false });
+  });
+
+  it('writes a cadence onto a record that has dimensions but no framerate', async () => {
+    // Kept before the timeline existed, so it has width and height but never
+    // voted on cadence. The container is open anyway on this path, so the rate
+    // is computed once and written down rather than abstaining forever.
+    probe.probeWithDemuxer.mockResolvedValue({ fps: 24 });
+    useGalleryStore.setState({
+      records: [
+        video({ blob: new Blob(['x']), pinned: true, bytes: 1, width: 1280, height: 720, durationSeconds: 8 }),
+      ],
+    });
+
+    const result = await acquireClipMedia('clip');
+
+    expect(probe.probeWithDemuxer).toHaveBeenCalledWith(expect.anything(), { framerate: true });
+    expect(result).toMatchObject({ status: 'ready', dimensions: { fps: 24 } });
+    expect(useGalleryStore.getState().records[0].fps).toBe(24);
+    // The cached dimensions are still the record's own — this path never
+    // re-measures what the video element already answered.
     expect(probe.probeDimensions).not.toHaveBeenCalled();
   });
 });
@@ -248,6 +273,43 @@ describe('acquireClipMedia surfaces browser decode support at add time', () => {
 
     expect(probe.probeWithDemuxer).not.toHaveBeenCalled();
     expect(second).toMatchObject({ status: 'ready', decodable: false });
+  });
+
+  /**
+   * The handover's open item 1: `probeFor` short-circuited on cached dimensions,
+   * and dimensions persist to IndexedDB while the demuxer's answers do not. So
+   * every clip on a *reloaded* timeline reported neither — no decode warning,
+   * and no way for Export to say whether the file will have sound.
+   */
+  it('re-opens the demuxer for a reloaded clip whose dimensions were already cached', async () => {
+    probe.probeWithDemuxer.mockResolvedValue({ decodable: false, hasAudio: true });
+    useGalleryStore.setState({
+      records: [
+        video({ blob: new Blob(['x']), pinned: true, bytes: 1, width: 1920, height: 1080, durationSeconds: 4, fps: 30 }),
+      ],
+    });
+
+    const result = await acquireClipMedia('clip');
+
+    expect(result).toMatchObject({ status: 'ready', decodable: false, hasAudio: true });
+  });
+
+  it('asks the demuxer once per record, even when it has no answer to give', async () => {
+    // An unreadable container must not be re-opened by every further placement
+    // of the same clip only to be told nothing again.
+    probe.probeWithDemuxer.mockResolvedValue({});
+    useGalleryStore.setState({
+      records: [video({ blob: new Blob(['x']), pinned: true, bytes: 1 })],
+    });
+
+    expect(await acquireClipMedia('clip')).toMatchObject({ status: 'ready' });
+    probe.probeWithDemuxer.mockClear();
+
+    const second = await acquireClipMedia('clip');
+
+    expect(probe.probeWithDemuxer).not.toHaveBeenCalled();
+    expect(second).not.toHaveProperty('decodable');
+    expect(second).not.toHaveProperty('hasAudio');
   });
 
   it('never lets the decode probe throw out of an add', async () => {

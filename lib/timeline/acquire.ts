@@ -160,15 +160,44 @@ interface ProbeResult extends DemuxFacts {
 async function probeFor(recordId: string, blob: Blob): Promise<ProbeResult> {
   const record = useGalleryStore.getState().records.find((r) => r.id === recordId);
   if (record?.width && record.height) {
-    return {
-      dimensions: {
-        width: record.width,
-        height: record.height,
-        durationSeconds: record.durationSeconds ?? 0,
-        fps: record.fps,
-      },
-      ...demuxFactsByRecord.get(recordId),
+    const cached: ClipDimensions = {
+      width: record.width,
+      height: record.height,
+      durationSeconds: record.durationSeconds ?? 0,
+      fps: record.fps,
     };
+
+    // Already asked this session — the second placement of a clip must not
+    // re-open the demuxer just to be told what the first placement learned.
+    const remembered = demuxFactsByRecord.get(recordId);
+    if (remembered) return { dimensions: cached, ...remembered };
+
+    // Nothing remembered, but the dimensions are cached: this is a reloaded
+    // timeline. `decodable` and `hasAudio` are facts about *this browser* and
+    // *this session*, so neither is on the record — and without an open here
+    // they would stay undefined for the rest of the tab's life. That is not
+    // harmless: `hasAudio` is what lets Export say "with audio" or "silent"
+    // before anything is encoded and what tells the server engine which of
+    // its inputs need silence padded in, so a saved timeline reopened
+    // tomorrow would answer neither question it answered yesterday.
+    //
+    // The framerate is the expensive half of the open and the one answer the
+    // record *can* carry, so it is only computed when the record has none —
+    // which is what keeps this cheap enough to do on every reload rather than
+    // decoding the whole library again for a number already written down.
+    const demuxed = await probeWithDemuxer(blob, { framerate: record.fps === undefined }).catch(
+      () => ({}) as DemuxProbeResult
+    );
+    demuxFactsByRecord.set(recordId, factsOf(demuxed));
+
+    // An old record — kept before the timeline existed, or one the demuxer
+    // could not read a rate off last time — gets its cadence written down now
+    // that the container is open anyway, so it stops abstaining from the vote.
+    if (demuxed.fps !== undefined && record.fps === undefined) {
+      cached.fps = demuxed.fps;
+      await useGalleryStore.getState().setDimensions(recordId, cached);
+    }
+    return { dimensions: cached, ...factsOf(demuxed) };
   }
 
   // Both probes read the same bytes and neither depends on the other, so they
@@ -178,19 +207,30 @@ async function probeFor(recordId: string, blob: Blob): Promise<ProbeResult> {
   // decode warning are both worth less than an add that works.
   const [probed, demuxed] = await Promise.all([
     probeDimensions(blob),
-    probeWithDemuxer(blob).catch(() => ({}) as Awaited<ReturnType<typeof probeWithDemuxer>>),
+    probeWithDemuxer(blob).catch(() => ({}) as DemuxProbeResult),
   ]);
   const dimensions: ClipDimensions = demuxed.fps === undefined ? probed : { ...probed, fps: demuxed.fps };
 
-  const facts: DemuxFacts = {};
-  if (demuxed.decodable !== undefined) facts.decodable = demuxed.decodable;
-  if (demuxed.hasAudio !== undefined) facts.hasAudio = demuxed.hasAudio;
-  if (Object.keys(facts).length > 0) demuxFactsByRecord.set(recordId, facts);
+  const facts = factsOf(demuxed);
+  // Memoized even when empty: "the demuxer had no answer for this file" is
+  // itself worth remembering, or every further placement of an unreadable
+  // clip re-opens it to be told nothing again.
+  demuxFactsByRecord.set(recordId, facts);
 
   // Only the four fields the record is allowed to carry are written through the
   // store; the demuxer's other answers stay in memory (see `demuxFactsByRecord`).
   await useGalleryStore.getState().setDimensions(recordId, dimensions);
   return { dimensions, ...facts };
+}
+
+type DemuxProbeResult = Awaited<ReturnType<typeof probeWithDemuxer>>;
+
+/** The demuxer's session-scoped answers, keeping "could not tell" genuinely absent. */
+function factsOf(demuxed: DemuxProbeResult): DemuxFacts {
+  const facts: DemuxFacts = {};
+  if (demuxed.decodable !== undefined) facts.decodable = demuxed.decodable;
+  if (demuxed.hasAudio !== undefined) facts.hasAudio = demuxed.hasAudio;
+  return facts;
 }
 
 /** Test-only: clears the per-session demuxer memo. */
