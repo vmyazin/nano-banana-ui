@@ -134,6 +134,18 @@
   `wheel`/`touchmove` are attached natively with `passive: false` because both
   must `preventDefault` or the browser zooms the page instead, and the scroller
   needs `touch-pan-x` to keep one-finger panning while claiming the pinch.
+- **Audio in a browser export** → `lib/timeline/render/webcodecs.ts` drives its own
+  `AudioEncoder` into an `EncodedAudioPacketSource`, and never `AudioBufferSource`,
+  because that source encodes and muxes in one step: its packets are in the file
+  before the video endpoint is known, and AAC's 1024-sample grid does not land on
+  that endpoint — which is how a twelve-second timeline shipped a 12.074667 s
+  container around a 12.000000 s video stream. The cut happens at the mux boundary
+  (`lib/timeline/render/audio-endpoint.ts`), against `emittedTotal / fps` read after
+  the video flush, never against the running total: mid-export that number is a
+  lower bound, so only packets it already covers may be muxed early and the rest is
+  held. Do not compensate the AAC priming delay and do not shift audio timestamps
+  to make a boundary land on a packet — see the priming comment in that file and
+  `docs/codex/specs/2026-09-09-export-audio-endpoint.md`.
 - **An image result panel** → render `components/ResultStack.tsx` rather than
   laying out cards inline. It owns the 4-item display cap, the per-card download
   and fullscreen, and the lightbox — a panel that keeps its own `lightboxOpen`

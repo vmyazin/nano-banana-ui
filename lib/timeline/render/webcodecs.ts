@@ -1,4 +1,8 @@
 import {
+  packetSettledBy,
+  trimPacketToEndpoint,
+} from '@/lib/timeline/render/audio-endpoint';
+import {
   fitRect,
   type RenderEngine,
   type RenderProgress,
@@ -36,6 +40,43 @@ const AUDIO_CHANNELS = 2;
 const AUDIO_BITRATE = 192_000;
 
 /**
+ * AAC-LC packs a fixed 1024 sample frames into every packet — 21.333 ms at
+ * 48 kHz. This is the grid `audio-endpoint.ts` is written against.
+ */
+const AAC_FRAMES_PER_PACKET = 1024;
+
+/**
+ * The presented duration, in seconds, to stamp on one AAC-LC packet coming out
+ * of the encoder.
+ *
+ * `EncodedAudioChunk.duration` is nullable in the WebCodecs spec — Chrome fills
+ * it, but nothing requires a browser to — and mediabunny's
+ * `EncodedPacket.fromEncodedChunk` turns an absent one into a zero-duration
+ * packet (`(chunk.duration ?? 0) / 1e6`). The endpoint rule reads
+ * `timestamp + duration`, so a zero there makes the last packet look like it
+ * presents nothing: `packetSettledBy` settles it early and `trimPacketToEndpoint`
+ * never shortens the tail the container's duration hangs on — which is exactly
+ * the 12.074667 s-around-12 s bug this whole path exists to prevent. Because
+ * AAC-LC's packet is always 1024 frames, the grid supplies the number the
+ * encoder omitted. A reported duration is preserved as-is.
+ *
+ * Scoped to this file's explicitly configured AAC-LC encoder: the fallback is
+ * only correct because the packet size is fixed and known.
+ */
+export function aacPacketDurationSeconds(reportedDurationMicros: number | null): number {
+  if (reportedDurationMicros != null) return reportedDurationMicros / 1_000_000;
+  return AAC_FRAMES_PER_PACKET / AUDIO_SAMPLE_RATE;
+}
+
+/**
+ * How many sample frames go into the encoder at once: ten AAC packets' worth,
+ * ~213 ms. Small enough that `encodeQueueSize` backpressure means something and
+ * a copy of the planar block is not a large allocation, large enough that a
+ * long clip is not thousands of `AudioData` objects.
+ */
+const AUDIO_CHUNK_FRAMES = 10_240;
+
+/**
  * Known and measured: this path lands the sound 2112 samples — 44 ms — behind
  * the picture, which is the AAC encoder's standard priming delay played as
  * real audio because neither WebCodecs nor the muxer writes the edit list that
@@ -47,6 +88,10 @@ const AUDIO_BITRATE = 192_000;
  * sits well under the ~125 ms at which a lag becomes detectable, while a lead
  * is detectable from ~45 ms — so of the two ways to be wrong, this is the one
  * nobody hears.
+ *
+ * The *end* of the track is a separate question with a separate answer, in
+ * `audio-endpoint.ts`: nothing here shifts audio, but the packet that runs past
+ * the last video frame is cut back to it.
  */
 
 const NO_WEBCODECS =
@@ -100,6 +145,45 @@ export function outputFramesBefore(timeSeconds: number, fps: number): number {
 export function clipFrameCount(durationSeconds: number, fps: number): number {
   if (!(durationSeconds > 0) || !(fps > 0)) return 1;
   return Math.max(1, Math.round(durationSeconds * fps));
+}
+
+/** One block of sample frames on its way to the audio encoder. */
+export interface AudioChunkPlan {
+  /** Offset of this block inside the clip's own buffer, in sample frames. */
+  offset: number;
+  /** How many sample frames this block carries. */
+  frames: number;
+  /** Presentation timestamp for the block, in microseconds. */
+  timestampMicros: number;
+}
+
+/**
+ * Cut one clip's rendered buffer into encoder-sized blocks, timestamped from a
+ * cursor that runs across the whole timeline.
+ *
+ * The cursor is what keeps the audio unshifted: block timestamps are the
+ * running sample count, so clip two's sound starts exactly where clip one's
+ * stopped and nothing is nudged to make a boundary land on a packet. The
+ * blocks tile the buffer exactly — no gap, no overlap — because a dropped
+ * remainder would pull every clip after it out of sync with its picture.
+ */
+export function planAudioChunks(
+  cursorFrames: number,
+  bufferFrames: number,
+  sampleRate: number,
+  chunkFrames: number = AUDIO_CHUNK_FRAMES
+): AudioChunkPlan[] {
+  if (!(bufferFrames > 0) || !(sampleRate > 0) || !(chunkFrames > 0)) return [];
+
+  const plans: AudioChunkPlan[] = [];
+  for (let offset = 0; offset < bufferFrames; offset += chunkFrames) {
+    plans.push({
+      offset,
+      frames: Math.min(chunkFrames, bufferFrames - offset),
+      timestampMicros: Math.round(((cursorFrames + offset) * 1_000_000) / sampleRate),
+    });
+  }
+  return plans;
 }
 
 function abortError(): DOMException {
@@ -207,9 +291,9 @@ async function renderInBrowser(
 ): Promise<Blob> {
   const {
     ALL_FORMATS,
-    AudioBufferSource,
     BlobSource,
     BufferTarget,
+    EncodedAudioPacketSource,
     EncodedPacket,
     EncodedPacketSink,
     EncodedVideoPacketSource,
@@ -318,6 +402,7 @@ async function renderInBrowser(
     // the version of this that leaks a VideoEncoder holding a hardware session.
     let decoder: VideoDecoder | null = null;
     let encoder: VideoEncoder | null = null;
+    let audioEncoder: AudioEncoder | null = null;
     let outputFile: InstanceType<typeof Output> | null = null;
     /**
      * The most recent decoded frame: the one that fills the next output slot.
@@ -353,6 +438,15 @@ async function renderInBrowser(
       } catch {
         /* already gone */
       }
+      // The audio encoder is a third codec holding a real resource now that the
+      // export drives it itself, so it is torn down on exactly the paths the
+      // other two are — an abort between two clips used to have nothing of its
+      // own to release, and this is the line that keeps that true.
+      try {
+        if (audioEncoder && audioEncoder.state !== 'closed') audioEncoder.close();
+      } catch {
+        /* already gone */
+      }
     };
 
     const throwIfBroken = () => {
@@ -369,7 +463,7 @@ async function renderInBrowser(
      * error instead of hanging the export forever.
      */
     const drainQueue = async (
-      codec: VideoDecoder | VideoEncoder,
+      codec: VideoDecoder | VideoEncoder | AudioEncoder,
       queueSize: () => number,
       limit: number
     ) => {
@@ -408,17 +502,15 @@ async function renderInBrowser(
       const videoSource = new EncodedVideoPacketSource('avc');
       mp4.addVideoTrack(videoSource, { frameRate: fps });
 
+      // Encoded packets rather than `AudioBufferSource`, which encodes and muxes
+      // in one step and so gives nothing to cut at: its packets reach the file
+      // the moment a buffer is handed over, and the last of them always runs
+      // past the picture (see `audio-endpoint.ts`). Driving the AudioEncoder
+      // here costs the resample/downmix that source did for free — which is why
+      // `clipAudioBuffer` still exists and still does it — and buys the mux
+      // boundary the endpoint rule needs.
       const audioSource = prepared.some((clip) => clip.hasAudio)
-        ? new AudioBufferSource({
-            codec: 'aac',
-            // An explicit bitrate rather than a quality level, so the two
-            // engines aim at the same number (ffmpeg-args.ts passes `-b:a`),
-            // and an explicit codec string because that is the one
-            // `unavailableReason` asked this browser about — mediabunny would
-            // otherwise derive it, and derives HE-AAC at low sample rates.
-            bitrate: AUDIO_BITRATE,
-            fullCodecString: AAC_CODEC,
-          })
+        ? new EncodedAudioPacketSource('aac')
         : null;
       if (audioSource) mp4.addAudioTrack(audioSource);
 
@@ -453,6 +545,124 @@ async function renderInBrowser(
         // AVCC, which is the form the ISOBMFF muxer writes into the avcC box.
         avc: { format: 'avc' },
       });
+
+      // ---- The audio encoder, and the queue of packets waiting to learn where
+      // the picture ends.
+      //
+      // A packet is muxed as soon as it is *settled* — wholly inside the frames
+      // already emitted — because the endpoint only ever moves later while the
+      // export runs, so a settled packet can never need trimming. Everything
+      // still in flight is held to the end, where the true endpoint is known.
+      // The queue drains between clips, so it holds at most a clip's encoded
+      // audio plus encoder delay, rather than the whole track.
+      type PendingAudio = {
+        packet: InstanceType<typeof EncodedPacket>;
+        meta: EncodedAudioChunkMetadata | undefined;
+      };
+      const pendingAudio: PendingAudio[] = [];
+      /**
+       * The first decoder config the encoder reports. It rides along with
+       * whichever packet is muxed first, not with whichever packet it arrived
+       * on: mediabunny needs it on the first `add`, and the packet it came with
+       * is not guaranteed to be the one that survives to get there.
+       */
+      let audioConfigMeta: EncodedAudioChunkMetadata | undefined;
+      let audioTrackStarted = false;
+      /** Sample frames handed to the encoder so far, across all clips. */
+      let audioCursorFrames = 0;
+
+      if (audioSource) {
+        const encodedAudio = new AudioEncoder({
+          output: (chunk, meta) => {
+            audioConfigMeta ??= meta?.decoderConfig ? meta : undefined;
+            // A browser that leaves chunk.duration null (the spec allows it)
+            // would give the endpoint rule a zero-duration packet; supply the
+            // fixed AAC-LC packet span instead, and leave a reported one alone.
+            const packet = EncodedPacket.fromEncodedChunk(chunk);
+            pendingAudio.push({
+              packet:
+                chunk.duration == null
+                  ? packet.clone({ duration: aacPacketDurationSeconds(chunk.duration) })
+                  : packet,
+              meta,
+            });
+          },
+          error: noteError,
+        });
+        audioEncoder = encodedAudio;
+        encodedAudio.configure({
+          // An explicit bitrate rather than a quality level, so the two engines
+          // aim at the same number (ffmpeg-args.ts passes `-b:a`), and the full
+          // codec string because that is the one `unavailableReason` asked this
+          // browser about — a derived one can come back as HE-AAC.
+          codec: AAC_CODEC,
+          sampleRate: AUDIO_SAMPLE_RATE,
+          numberOfChannels: AUDIO_CHANNELS,
+          bitrate: AUDIO_BITRATE,
+        });
+      }
+
+      /**
+       * Mux every held packet that is settled by `settledSeconds`. With
+       * `final`, the number is the export's real endpoint instead of a lower
+       * bound, so what is left is cut to it and the queue empties.
+       */
+      const muxSettledAudio = async (settledSeconds: number, final: boolean) => {
+        if (!audioSource) return;
+        while (pendingAudio.length > 0) {
+          if (!final && !packetSettledBy(pendingAudio[0].packet, settledSeconds)) break;
+          const entry = pendingAudio.shift()!;
+          const packet = final ? trimPacketToEndpoint(entry.packet, settledSeconds) : entry.packet;
+          if (!packet) continue;
+          await audioSource.add(packet, audioTrackStarted ? entry.meta : audioConfigMeta);
+          audioTrackStarted = true;
+        }
+      };
+
+      /**
+       * One clip's rendered audio into the encoder, timestamped from the
+       * running cursor so nothing is shifted at a clip boundary.
+       */
+      const encodeAudioBuffer = async (buffer: AudioBuffer) => {
+        const encodedAudio = audioEncoder;
+        if (!encodedAudio) return;
+
+        const channels: Float32Array[] = [];
+        for (let channel = 0; channel < AUDIO_CHANNELS; channel += 1) {
+          channels.push(buffer.getChannelData(Math.min(channel, buffer.numberOfChannels - 1)));
+        }
+
+        for (const chunk of planAudioChunks(audioCursorFrames, buffer.length, AUDIO_SAMPLE_RATE)) {
+          throwIfBroken();
+          await drainQueue(encodedAudio, () => encodedAudio.encodeQueueSize, ENCODE_QUEUE_LIMIT);
+
+          // Planar: every channel's block laid end to end, which is the layout
+          // `getChannelData` already hands back and so needs no interleave.
+          const planar = new Float32Array(chunk.frames * AUDIO_CHANNELS);
+          for (let channel = 0; channel < AUDIO_CHANNELS; channel += 1) {
+            planar.set(
+              channels[channel].subarray(chunk.offset, chunk.offset + chunk.frames),
+              channel * chunk.frames
+            );
+          }
+
+          const data = new AudioData({
+            format: 'f32-planar',
+            sampleRate: AUDIO_SAMPLE_RATE,
+            numberOfFrames: chunk.frames,
+            numberOfChannels: AUDIO_CHANNELS,
+            timestamp: chunk.timestampMicros,
+            data: planar,
+          });
+          try {
+            encodedAudio.encode(data);
+          } finally {
+            data.close();
+          }
+        }
+
+        audioCursorFrames += buffer.length;
+      };
 
       /**
        * Composite one source frame into one output slot and hand it to the
@@ -558,18 +768,21 @@ async function renderInBrowser(
         // frame and the timeline has no hole in it.
 
         // ---- This clip's audio, cut to the video that was actually emitted
-        // for it rather than to the length it was predicted to have.
-        // `AudioBufferSource` lays buffers end to end, so every clip must
-        // contribute its exact share — including a mute one, whose silence is
-        // what keeps the clips after it lined up with their own pictures.
-        if (audioSource && emittedTotal > clipBase) {
+        // for it rather than to the length it was predicted to have. The
+        // buffers still go in end to end, so every clip must contribute its
+        // exact share — including a mute one, whose silence is what keeps the
+        // clips after it lined up with their own pictures.
+        if (audioEncoder && emittedTotal > clipBase) {
           const buffer = await clipAudioBuffer(clip.media, {
             offsetSeconds: clip.audioOffset,
             durationSeconds: (emittedTotal - clipBase) / fps,
             hasAudio: clip.hasAudio,
           });
           throwIfBroken();
-          await audioSource.add(buffer);
+          await encodeAudioBuffer(buffer);
+          // Everything the frames emitted so far already cover can go to the
+          // muxer now; the rest waits for the endpoint.
+          await muxSettledAudio(emittedTotal / fps, false);
         }
       }
 
@@ -577,11 +790,25 @@ async function renderInBrowser(
       await videoEncoder.flush();
       await muxChain;
       throwIfBroken();
+
+      // ---- The endpoint, at the one moment it is knowable: every frame that
+      // is going to be emitted has been, so the picture presents through
+      // `emittedTotal / fps` — 288 frames at 24 fps is 12.000000 s — and the
+      // audio still in the queue is cut to exactly that. Read from what was
+      // emitted rather than from the frame count predicted in phase 1, because
+      // a clip that decodes short emits fewer frames than it was planned to and
+      // the file has to match the picture that exists.
+      if (audioEncoder) {
+        await audioEncoder.flush();
+        throwIfBroken();
+        await muxSettledAudio(emittedTotal / fps, true);
+        throwIfBroken();
+      }
       // Clip durations round, so the running fraction can stop a frame or two
       // short of the estimate. Say it finished rather than leaving it at 98%.
       onProgress({ phase: 'encoding', completed: 1 });
 
-      // Both codecs are done. Release them before finalizing, which is the
+      // Every codec is done. Release them before finalizing, which is the
       // memory-hungry step for a fastStart: 'in-memory' file.
       closeCodecs();
 
