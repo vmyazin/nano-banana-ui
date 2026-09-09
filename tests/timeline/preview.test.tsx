@@ -266,3 +266,82 @@ describe('TimelinePreview — a sequence that changes underneath the playhead', 
     expect(screen.getByText(/cuts land on whole clips rather than exact frames/i)).toBeInTheDocument();
   });
 });
+
+/**
+ * Both render engines carry audio now, so a preview that is silent by
+ * construction no longer matches what gets exported — you would approve a cut
+ * without hearing what lands on it. The rule is symmetry: the preview is
+ * audible exactly when the export will be, and never otherwise.
+ */
+describe('TimelinePreview — sound', () => {
+  function readyWithAudio(hasAudio?: boolean): ClipState {
+    return { ...(ready() as Extract<ClipState, { status: 'ready' }>), ...(hasAudio === undefined ? {} : { hasAudio }) };
+  }
+
+  it('starts muted, and says so, rather than making noise unasked', () => {
+    const clips = [clip('a')];
+    render(<TimelinePreview clips={clips} clipStates={statesFor(clips)} output={OUTPUT} />);
+
+    expect((screen.getByTestId('preview-slot-0') as HTMLVideoElement).muted).toBe(true);
+    expect(screen.getByLabelText(/unmute preview/i)).toBeInTheDocument();
+    expect(screen.getByText(/this export will keep audio/i)).toBeInTheDocument();
+  });
+
+  it('unmutes only the slot on screen, never the one preloading the next clip', () => {
+    const clips = [clip('a'), clip('b')];
+    render(<TimelinePreview clips={clips} clipStates={statesFor(clips)} output={OUTPUT} />);
+
+    fireEvent.click(screen.getByLabelText(/unmute preview/i));
+
+    // The idle slot is parked on clip B's first frame; audible, it would play
+    // the next clip's opening over the top of the one being watched.
+    expect((screen.getByTestId('preview-slot-0') as HTMLVideoElement).muted).toBe(false);
+    expect((screen.getByTestId('preview-slot-1') as HTMLVideoElement).muted).toBe(true);
+    expect(screen.getByLabelText(/mute preview/i)).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('offers no sound at all when the export is silent by choice', () => {
+    // Unmuting here would let someone approve an edit by an audio track the
+    // downloaded file will not contain.
+    const clips = [clip('a')];
+    render(
+      <TimelinePreview
+        clips={clips}
+        clipStates={statesFor(clips)}
+        output={{ ...OUTPUT, keepAudio: false }}
+      />
+    );
+
+    expect(screen.queryByLabelText(/unmute preview/i)).not.toBeInTheDocument();
+    expect((screen.getByTestId('preview-slot-0') as HTMLVideoElement).muted).toBe(true);
+    expect(screen.getByText(/silent, like this export/i)).toBeInTheDocument();
+  });
+
+  it('offers no sound when every clip is known to have no audio track', () => {
+    const clips = [clip('a'), clip('b')];
+    render(
+      <TimelinePreview
+        clips={clips}
+        clipStates={{ a: readyWithAudio(false), b: readyWithAudio(false) }}
+        output={OUTPUT}
+      />
+    );
+
+    expect(screen.queryByLabelText(/unmute preview/i)).not.toBeInTheDocument();
+  });
+
+  it('keeps sound on offer for a clip the probe could not answer for', () => {
+    // Same direction as the Export button: assume audio unless certain, since
+    // promising silence and delivering sound is the worse way to be wrong.
+    const clips = [clip('a'), clip('b')];
+    render(
+      <TimelinePreview
+        clips={clips}
+        clipStates={{ a: readyWithAudio(false), b: readyWithAudio(undefined) }}
+        output={OUTPUT}
+      />
+    );
+
+    expect(screen.getByLabelText(/unmute preview/i)).toBeInTheDocument();
+  });
+});

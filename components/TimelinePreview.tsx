@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Info, Pause, Play } from 'lucide-react';
+import { Info, Pause, Play, Volume2, VolumeX } from 'lucide-react';
 
 import { formatDuration, formatElapsed } from '@/lib/timeline/format';
 import { resolveTrim } from '@/lib/timeline/trim';
@@ -34,11 +34,14 @@ const PREVIEW_MAX_HEIGHT = '60vh';
  *
  * The frame is the output frame, and each clip sits in it under its own `fit`
  * — the two things the render actually does with a clip, so Contain and Cover
- * can be judged here rather than discovered in a downloaded file.
+ * can be judged here rather than discovered in a downloaded file. Sound is the
+ * third: the preview is audible exactly when the export will be (see
+ * `exportHasSound`), because both engines carry audio now and a preview that
+ * was silent by construction let a cut be approved without hearing it.
  *
  * Still not a proof of the export: cuts land on whole clips rather than at
- * exact frame boundaries, and there is no audio. Proving those means running
- * the render pipeline in real time, which is a later slice.
+ * exact frame boundaries. Proving that means running the render pipeline in
+ * real time, which is a later slice.
  */
 export default function TimelinePreview({ clips, clipStates, output }: TimelinePreviewProps) {
   const ready = useMemo<ReadyEntry[]>(
@@ -105,6 +108,14 @@ export default function TimelinePreview({ clips, clipStates, output }: TimelineP
   /** Which clip each element currently holds, so a slot is never reloaded with what it already has. */
   const loadedRef = useRef<[string | null, string | null]>([null, null]);
   const [activeSlot, setActiveSlot] = useState(0);
+  /**
+   * Whether the viewer has asked to hear the preview. Starts off: play is one
+   * click away at all times (Space, even), and a preview that makes noise the
+   * first time it is touched is the wrong default on a page nobody expects
+   * sound from. It is a session gesture, not part of the timeline — nothing
+   * about the exported file changes with it.
+   */
+  const [soundOn, setSoundOn] = useState(false);
   // The playhead lives in a shared store rather than component state: the
   // track renders the same clock and scrubs it, and neither component should
   // need to know the other exists. This component stays the playback engine —
@@ -206,12 +217,44 @@ export default function TimelinePreview({ clips, clipStates, output }: TimelineP
       const trim = loadedId ? trims.get(loadedId) : undefined;
       const inPoint = trim?.start ?? 0;
       usePlayheadStore.getState().setTime(segment.start + Math.max(0, element.currentTime - inPoint));
+
       // A trimmed clip has to be stopped at its out-point: the element would
       // otherwise play the source's own tail, which is not on this timeline.
+      //
+      // Safe to reach more than once at a single cut, which the frame-rate
+      // check below makes likely: `onEnded` resolves the next clip from what
+      // the *element* is loaded with, not from the playhead, and that does not
+      // change until the swap has re-rendered — so a repeat lands on the same
+      // clip rather than advancing past it.
       if (trim && element.currentTime >= trim.end - 0.02) element.dispatchEvent(new Event('ended'));
     };
     element.addEventListener('timeupdate', onTime);
-    return () => element.removeEventListener('timeupdate', onTime);
+
+    // `timeupdate` fires about four times a second, which is fine for a
+    // read-out but not for a cut: it left a trimmed clip playing up to ~250ms
+    // of footage the timeline says is not there, and the overshoot was visible
+    // precisely on the short trims people make. `requestVideoFrameCallback`
+    // fires once per presented frame, so the out-point lands within a frame of
+    // where it was set. It only runs while frames are being presented — i.e.
+    // while playing — which is the only time the out-point can be crossed;
+    // `timeupdate` stays for seeking and for browsers without it.
+    const withFrames = element as HTMLVideoElement & {
+      requestVideoFrameCallback?: (callback: () => void) => number;
+      cancelVideoFrameCallback?: (handle: number) => void;
+    };
+    let handle: number | undefined;
+    if (typeof withFrames.requestVideoFrameCallback === 'function') {
+      const onFrame = () => {
+        onTime();
+        handle = withFrames.requestVideoFrameCallback?.(onFrame);
+      };
+      handle = withFrames.requestVideoFrameCallback(onFrame);
+    }
+
+    return () => {
+      element.removeEventListener('timeupdate', onTime);
+      if (handle !== undefined) withFrames.cancelVideoFrameCallback?.(handle);
+    };
   }, [activeSlot, sequence, trims]);
 
   // A clip ending is a swap, not a load: the idle element is already holding
@@ -310,6 +353,22 @@ export default function TimelinePreview({ clips, clipStates, output }: TimelineP
 
   const pending = clips.length - ready.length;
 
+  /**
+   * Whether the exported file will carry sound — the same judgement
+   * `TimelineExportPanel` makes, and deliberately the same way round: a clip
+   * the probe could not answer for is assumed to have audio, because promising
+   * silence and then delivering sound is the worse way to be wrong.
+   *
+   * This gates the whole sound control, so the preview can only ever be as
+   * audible as the export is. Offering "unmute" on a timeline exported with
+   * `keepAudio` off would let someone approve an edit by an audio track the
+   * file they download will not contain — the exact class of lie the frame
+   * ratio and per-clip fit are already here to avoid.
+   */
+  const exportHasSound =
+    output.keepAudio && !ready.every((entry) => entry.state.hasAudio === false);
+  const audible = soundOn && exportHasSound;
+
   return (
     <div className="glass-card space-y-2.5 p-3.5">
       <div className="flex items-center justify-between gap-2">
@@ -337,9 +396,13 @@ export default function TimelinePreview({ clips, clipStates, output }: TimelineP
         }}
         data-testid="preview-frame"
       >
+        {/* Only the slot on screen is ever unmuted. The idle one is holding the
+            *next* clip parked at its first frame, and a preloading element that
+            can make noise would play the following clip's opening over the top
+            of the one being watched. */}
         <video
           ref={slotARef}
-          muted
+          muted={!(audible && activeSlot === 0)}
           playsInline
           preload="auto"
           data-testid="preview-slot-0"
@@ -349,7 +412,7 @@ export default function TimelinePreview({ clips, clipStates, output }: TimelineP
         />
         <video
           ref={slotBRef}
-          muted
+          muted={!(audible && activeSlot === 1)}
           playsInline
           preload="auto"
           data-testid="preview-slot-1"
@@ -377,6 +440,24 @@ export default function TimelinePreview({ clips, clipStates, output }: TimelineP
           >
             {playing ? <Pause size={14} /> : <Play size={14} />}
           </button>
+
+          {/* Absent, not disabled, when the export is silent: a control that
+              cannot change anything is noise, and its absence is itself the
+              answer — there is no sound in this timeline to hear. */}
+          {exportHasSound && (
+            <button
+              type="button"
+              onClick={() => setSoundOn((on) => !on)}
+              aria-pressed={soundOn}
+              aria-label={soundOn ? 'Mute preview' : 'Unmute preview'}
+              title={soundOn ? 'Mute preview' : 'Unmute preview'}
+              className={`shrink-0 rounded-md border border-[var(--border)] p-1.5 hover:text-[var(--neon-cyan)] ${
+                soundOn ? 'text-[var(--neon-cyan)]' : 'text-[var(--foreground-muted)]'
+              }`}
+            >
+              {soundOn ? <Volume2 size={14} /> : <VolumeX size={14} />}
+            </button>
+          )}
 
           <div className="relative flex-1">
             <input
@@ -410,9 +491,18 @@ export default function TimelinePreview({ clips, clipStates, output }: TimelineP
 
       <p className="flex items-start gap-1.5 text-xs text-[var(--foreground-subtle)]">
         <Info size={12} className="mt-0.5 shrink-0" />
+        {/* The caption names only what is still untrue about this preview. It
+            used to say "silent" unconditionally, which stopped being right the
+            moment both engines learned to carry audio: the export can have
+            sound, so a preview that never does is a divergence worth naming
+            rather than a property to state as fact. */}
         {pending > 0
           ? `Playing ${ready.length} of ${clips.length} clips — the rest are not ready, so this is not the full sequence.`
-          : 'Playback only — silent, and cuts land on whole clips rather than exact frames.'}
+          : exportHasSound
+            ? soundOn
+              ? 'Playback only — cuts land on whole clips rather than exact frames.'
+              : 'Muted — this export will keep audio, so unmute to hear what you are cutting. Cuts land on whole clips rather than exact frames.'
+            : 'Silent, like this export — cuts land on whole clips rather than exact frames.'}
       </p>
     </div>
   );
