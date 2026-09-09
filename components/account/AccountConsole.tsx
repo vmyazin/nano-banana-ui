@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Cloud, LogOut, WalletCards } from 'lucide-react';
 
 import CloudAssetGrid from './CloudAssetGrid';
@@ -67,6 +68,7 @@ export default function AccountConsole({
   onManageKeys: () => void;
 }) {
   const ownerId = account.id;
+  const router = useRouter();
   /**
    * Deep link from the job queue card. That card is now only a count, so the
    * page it points at has to arrive already showing the jobs it counted —
@@ -320,7 +322,13 @@ export default function AccountConsole({
               </p>
             </div>
           ) : (
-            <CloudAssetGrid assets={assets} ownerId={ownerId} columns={4} onChanged={library.refresh} />
+            /* Same follow-through as the studio header's library overlay: a clip
+               placed from here lands on a timeline the viewer cannot see, so the
+               console has to move to the editor with it — a toast alone reads as
+               a button that filed the clip somewhere unnamed. The grid fires this
+               only after the placement succeeds, so a failed add stays on the
+               account page with its error toast. */
+            <CloudAssetGrid assets={assets} ownerId={ownerId} columns={4} onAddedToTimeline={() => router.push('/timeline')} onChanged={library.refresh} />
           )}
         </div>
 
