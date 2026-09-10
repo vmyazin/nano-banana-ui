@@ -1,0 +1,140 @@
+# Deploys the account Worker, which the web app cannot deploy for itself.
+#
+# Vercel ships the browser on every push to `main`; the Worker used to be
+# deployed by hand, so the two halves could sit at different commits. That is
+# not a theoretical risk — it has broken production twice. On 2026-09-06 the
+# library filters and the spend total vanished because the browser read fields
+# a stale Worker did not send yet, and on 2026-09-09 background generation on
+# the two new Gemini models was refused by a validator that had never heard of
+# them. Both looked correct locally, where `wrangler dev` serves the working
+# tree. See docs/deployment.md.
+name: Deploy account Worker
+
+on:
+  push:
+    branches: [main]
+    paths:
+      # The Worker's own source, config and migrations.
+      - 'cloud/**'
+      # NOT optional. The Worker bundle imports ~19 modules from `lib/` at build
+      # time — the provider catalogs, the engines, the spend resolvers, the
+      # account contracts — so a change under `lib/` can alter what the deployed
+      # Worker accepts while touching nothing in `cloud/`. That is exactly the
+      # 2026-09-09 failure: the new model catalog lived in
+      # `lib/engines/gemini-catalog.ts`. Verify the current list with:
+      #   rg -o "from '(\.\./)+lib/[^']+'" cloud/src
+      - 'lib/**'
+      # A change to this file must be able to deploy itself.
+      - '.github/workflows/deploy-account-worker.yml'
+  # Escape hatch: redeploy the current `main` without an empty commit, e.g.
+  # after rotating a secret or rolling back.
+  workflow_dispatch:
+
+# Deliberately never cancels an in-flight run. A cancelled `wrangler deploy`
+# can land mid-upload, and the Worker is the half that holds encrypted
+# credentials; a queued second run costs a minute, a torn deploy costs more.
+concurrency:
+  group: deploy-account-worker
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # Not a secret — the same id is pinned in `cloud/wrangler.jsonc`, so that
+      # an unrelated signed-in Cloudflare account cannot receive this deploy.
+      # Set here as well because `wrangler d1` resolves the account before it
+      # reads that config and otherwise fails with "More than one account
+      # available" on a token that can see two.
+      CLOUDFLARE_ACCOUNT_ID: 7f64edc36bdefec27b66e6ff9b2dcc3d
+    steps:
+      # Named first so the run says what is missing. Without it the failure
+      # surfaces several minutes later as a Cloudflare auth error, which reads
+      # like a broken pipeline rather than an unset secret.
+      - name: Require the Cloudflare token
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          if [ -z "${CLOUDFLARE_API_TOKEN:-}" ]; then
+            echo "::error::Set the CLOUDFLARE_API_TOKEN repository secret (Settings → Secrets and variables → Actions). It needs Workers Scripts:Edit, D1:Edit and Workflows:Edit on the Rapid Systems account."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.32.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: cloud/pnpm-lock.yaml
+
+      # The Worker is its own pnpm project; the root install is not needed to
+      # bundle or test it.
+      - name: Install Worker dependencies
+        working-directory: cloud
+        run: pnpm install --frozen-lockfile
+
+      # Gates the deploy on the suite that covers the request validators, the
+      # provider adapters and the spend ledger. Nothing else runs tests on
+      # `main` today, so this is the only thing standing between a bad merge and
+      # production.
+      - name: Test
+        working-directory: cloud
+        run: pnpm test
+
+      - name: Typecheck
+        working-directory: cloud
+        run: pnpm typecheck
+
+      # Ordering dependency, stated where it is enforced: the Worker queries the
+      # current schema on its first request, so a deploy that lands ahead of its
+      # migration serves errors until the migration follows.
+      #
+      # This step reports rather than applies. Applying a schema change to the
+      # production database is not something to do unattended from a push — it
+      # is the one step here that cannot be rolled back by redeploying — so a
+      # pending migration stops the pipeline and asks for a person:
+      #   pnpm --dir cloud exec wrangler d1 migrations apply scene-assembly-accounts --remote
+      - name: Check for unapplied D1 migrations
+        working-directory: cloud
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          output=$(pnpm exec wrangler d1 migrations list scene-assembly-accounts --remote 2>&1)
+          echo "$output"
+          # Wrangler prints "No migrations to apply!" when the remote schema is
+          # current; anything else means files are waiting.
+          if ! grep -q "No migrations to apply" <<<"$output"; then
+            echo "::error::Unapplied D1 migrations. Apply them, then re-run this workflow."
+            exit 1
+          fi
+
+      - name: Deploy
+        working-directory: cloud
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: pnpm exec wrangler deploy
+
+      # A deploy that reports success and then fails to boot is the failure mode
+      # worth catching here: `/health` is unauthenticated and touches no vendor.
+      - name: Verify the deployed Worker answers
+        run: |
+          set -euo pipefail
+          origin=https://scene-assembly-accounts.vasily-or-simon-account.workers.dev
+          for attempt in 1 2 3 4 5; do
+            code=$(curl -fsS -o /dev/null -w '%{http_code}' "$origin/health" || true)
+            if [ "$code" = "200" ]; then
+              echo "Worker healthy on attempt $attempt."
+              exit 0
+            fi
+            echo "Attempt $attempt: /health returned ${code:-no response}; retrying."
+            sleep 5
+          done
+          echo "::error::The deployed Worker never returned 200 from /health."
+          exit 1

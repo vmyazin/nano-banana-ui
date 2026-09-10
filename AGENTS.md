@@ -26,8 +26,12 @@
   profile and is unreachable from outside the page.
 
 - **A feature that renders locally but is missing on the deployed site** → suspect the
-  Worker before the component. Vercel deploys `main` automatically while the account
-  Worker is deployed by hand (`cd cloud && npx wrangler deploy`), so the browser can run
+  Worker before the component. Both halves now deploy on a push to `main` — Vercel
+  through its Git integration, the account Worker through
+  `.github/workflows/deploy-account-worker.yml` — but they are still two deploys that
+  can disagree: the workflow only fires for `cloud/**` and `lib/**`, it stops rather
+  than applying a pending D1 migration, and it can simply have failed. Check its run
+  before reading the component, because the browser can still run
   a commit whose API is not live yet — and a *missing* response field is not an error:
   the payload still parses and the UI takes its empty branch, which is why the library
   filter pills and the spend total vanished in production on 2026-09-06 while both were

@@ -4,6 +4,10 @@ The live app runs on **Vercel** at <https://sceneassembly.mzork.com>. Pushes to
 `main` on `github.com/vmyazin/nano-banana-ui` deploy automatically through
 Vercel's Git integration; there is no deploy script to run by hand.
 
+The account Worker deploys automatically too, since 2026-09-09 — see
+[Deploying the account Worker](#deploying-the-account-worker). It used to be a
+manual step, and the gap between the two halves broke production twice.
+
 It previously ran on a single VPS behind nginx, under pm2, redeployed by a
 systemd timer polling `origin/main` every minute. That path is kept — see
 [Self-hosting](#self-hosting-the-former-vps-path) — but it is no longer the one
@@ -157,11 +161,39 @@ zero queued object deletions. Native provider execution remains disabled, so
 paid generation, durable provider completion and backup restoration remain
 launch acceptance work.
 
+### Deploying the account Worker
+
+`.github/workflows/deploy-account-worker.yml` deploys it on every push to `main`
+that touches `cloud/**`, `lib/**`, or the workflow itself, and can also be run
+on demand from the Actions tab. The pipeline is: Worker tests, typecheck, a
+guard that **reports** unapplied D1 migrations rather than applying them, then
+`wrangler deploy`, then a `/health` check.
+
+Two things about it are not incidental:
+
+- **`lib/**` has to be in the path filter.** The Worker bundle imports around
+  nineteen modules from `lib/` — provider catalogs, engines, spend resolvers,
+  account contracts — so a change there can alter what the deployed Worker
+  accepts while touching nothing under `cloud/`. List them with
+  `rg -o "from '(\.\./)+lib/[^']+'" cloud/src`.
+- **Migrations are never applied unattended.** The Worker queries the current
+  schema on its first request, so a migration must land first; applying one to
+  the production database is also the single step here that redeploying cannot
+  undo. A pending migration fails the run and waits for a person:
+  `pnpm --dir cloud exec wrangler d1 migrations apply scene-assembly-accounts --remote`.
+
+It needs one repository secret, `CLOUDFLARE_API_TOKEN`, with Workers
+Scripts:Edit, D1:Edit and Workflows:Edit on the Rapid Systems account. The
+account id is not a secret and is pinned in both `cloud/wrangler.jsonc` and the
+workflow, so a token that can see several accounts cannot misdeliver the deploy.
+To roll back, deploy an earlier version from the Cloudflare dashboard or
+`wrangler rollback`; the workflow only ever ships the current `main`.
+
 ### Worker redeploy — 2026-09-06 library filters and spend totals
 
-The Worker deploys by hand while the web app deploys automatically on every push
-to `main`. Anything the browser reads from a *new* Worker field therefore
-disappears silently in production until the Worker is redeployed: the response
+*Historical: this is the failure that motivated the automation above; the Worker
+deployed by hand at the time.* Anything the browser reads from a *new* Worker
+field disappears silently in production until the Worker is redeployed: the response
 still parses, the field is just absent, so the UI takes its empty branch instead
 of erroring. That is what happened here — production ran version
 `2bfca5fe` (built before `ffb1e42`), so `/api/account/assets` returned no
@@ -179,6 +211,17 @@ unauthenticated caller.
 Worker's deployed timestamp against the commit that added the field it reads
 before looking at the component.** `npx wrangler deployments list` in `cloud/`
 gives the former; `git log -S<field>` gives the latter.
+
+### Worker skew — 2026-09-09 Gemini Flash background jobs
+
+The same failure, one shape further on: the picker offered Gemini 3.1 Flash
+Image and Flash Lite Image, and every background job on them came back
+*"Review the selected model and image settings."* That string exists only in
+`validateSynchronousRequest`, so the browser half was fine and the deployed
+Worker — six hours older than the commit — was rejecting model ids it had never
+heard of. Note that the change touching the Worker's behaviour lived entirely in
+`lib/engines/gemini-catalog.ts`, with nothing under `cloud/` in that commit;
+that is why the workflow's path filter watches `lib/**`.
 
 ### Follow-up — 2026-09-05 approved account backend deployment
 
