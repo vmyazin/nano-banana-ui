@@ -248,7 +248,7 @@ never fires. The repo already knows this (`lib/timeline/filmstrip.ts`). So the s
 
 ## Rollout
 
-Four commits in one worktree. A new player at seven call sites in one change is miserable to
+Five commits in one worktree. A new player at seven call sites in one change is miserable to
 bisect.
 
 1. Design exploration, and the pick.
@@ -256,4 +256,10 @@ bisect.
 3. `TimelinePreview` adopts `Transport`. Deliberately the first consumer: it exercises the
    decoration slot and forced-full density, and it already has tests that would catch a
    regression.
-4. `VideoPlayer`, then the seven call sites, then the inverted adoption test.
+4. `VideoPlayer` + its event-mirror test. Still unreferenced by any surface.
+5. The seven call sites, then the inverted adoption test.
+
+Steps 4 and 5 are separate because a fault in the player and a fault in one caller's props
+present identically as "the clip is wrong", and splitting them makes the bisect answer which.
+
+Plan: `docs/superpowers/plans/2026-09-10-video-player.md`.
