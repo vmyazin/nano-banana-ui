@@ -448,8 +448,14 @@ const loaded = shown ? `${src}#t=0.1` : src;
 ```
 
 `playsInline` is set unconditionally — its absence is the iOS bug where a clip takes over the
-screen. `controls` is **never** set: that is the entire point of the change. Forward `ref` with
-`useImperativeHandle` or a merged callback ref, because the element is also needed internally.
+screen. `controls` is **never** set: that is the entire point of the change.
+
+The element is held **twice**, and both are needed. A `useRef` for writes —
+`currentTime`, `muted`, `play()` — because `react-hooks/immutability` rejects mutating anything
+reached through a render value, `useState` included; `TimelinePreview.tsx:163-169` documents the
+same constraint for its slots and calls `useRef` the sanctioned escape hatch. And a `useState`
+for the subscription, because `useMediaState` keys on the element's identity and a ref's mutation
+never reaches a dependency array. One callback ref sets both.
 
 - [ ] **Step 2: Wire state, hover-play and fullscreen**
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState, type Ref } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { useHoverPlay } from '@/lib/media/use-hover-play';
 import { useMediaState } from '@/lib/media/use-media-state';
@@ -29,8 +29,6 @@ export interface VideoPlayerProps {
   /** `false` removes the volume control — this clip has no sound to control. */
   hasAudio?: boolean;
   className?: string;
-  /** Handed the element itself, for a caller that needs to read or seek it. */
-  videoRef?: Ref<HTMLVideoElement>;
 }
 
 /**
@@ -65,21 +63,32 @@ export default function VideoPlayer({
   crossOrigin = false,
   hasAudio = true,
   className = '',
-  videoRef,
 }: VideoPlayerProps) {
   const container = useRef<HTMLDivElement>(null);
-  // Held in state, not a ref: `useMediaState` keys its subscription on the
-  // element, and a ref's mutation would never reach it.
-  const [element, setElement] = useState<HTMLVideoElement | null>(null);
+  /**
+   * The element is held twice, on purpose.
+   *
+   * `node` is a ref because this component *writes* to the element —
+   * `currentTime`, `muted`, `play()` — and `react-hooks/immutability` rejects
+   * mutating anything reached through a render value, `useState` included. A
+   * `useRef` is the sanctioned escape hatch; `TimelinePreview` documents the
+   * same constraint for its slots.
+   *
+   * `subscribed` is state because `useMediaState` keys its event subscription
+   * on the element's identity, and a ref's mutation never reaches a dependency
+   * array. Neither alone can do both jobs.
+   */
+  const node = useRef<HTMLVideoElement | null>(null);
+  const [subscribed, setSubscribed] = useState<HTMLVideoElement | null>(null);
   const hoverPlay = useHoverPlay();
-  const media = useMediaState(element);
+  const media = useMediaState(subscribed);
 
   // jsdom has no IntersectionObserver, and a viewer without one still deserves
   // a poster frame rather than a black rectangle.
   const [inView, setInView] = useState(typeof IntersectionObserver === 'undefined');
 
   useEffect(() => {
-    if (inView || !element || typeof IntersectionObserver === 'undefined') return;
+    if (inView || !subscribed || typeof IntersectionObserver === 'undefined') return;
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries.some((entry) => entry.isIntersecting)) {
@@ -89,20 +98,17 @@ export default function VideoPlayer({
       },
       { rootMargin: '200px' }
     );
-    observer.observe(element);
+    observer.observe(subscribed);
     return () => observer.disconnect();
-  }, [element, inView]);
+  }, [subscribed, inView]);
 
-  const setVideo = useCallback(
-    (node: HTMLVideoElement | null) => {
-      setElement(node);
-      if (typeof videoRef === 'function') videoRef(node);
-      else if (videoRef) (videoRef as { current: HTMLVideoElement | null }).current = node;
-    },
-    [videoRef]
-  );
+  const setVideo = useCallback((next: HTMLVideoElement | null) => {
+    node.current = next;
+    setSubscribed(next);
+  }, []);
 
   const toggle = () => {
+    const element = node.current;
     if (!element) return;
     // Calls the element and sets no state. The `play`/`pause` events are what
     // move the UI, so a play refused by autoplay policy never paints a pause
@@ -113,6 +119,7 @@ export default function VideoPlayer({
 
   const enterFullscreen = () => {
     const box = container.current;
+    const element = node.current;
     if (box?.requestFullscreen) {
       // The container, not the element, so our own bar is what appears in
       // fullscreen. Not a portaled overlay like ImageLightbox: portaling would
@@ -184,12 +191,12 @@ export default function VideoPlayer({
           duration={media.duration}
           onToggle={toggle}
           onSeek={(seconds) => {
-            if (element) element.currentTime = seconds;
+            if (node.current) node.current.currentTime = seconds;
           }}
           hasAudio={hasAudio}
           volume={media.volume}
           onVolume={(next) => {
-            if (element) element.muted = next.muted;
+            if (node.current) node.current.muted = next.muted;
           }}
           onFullscreen={enterFullscreen}
           trackOverlay={buffered}

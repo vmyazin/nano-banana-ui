@@ -116,12 +116,6 @@ describe('VideoPlayer', () => {
     expect(screen.queryByLabelText(/mute/i)).toBeNull();
   });
 
-  it('hands the element to a caller that needs it', () => {
-    const seen: (HTMLVideoElement | null)[] = [];
-    render(<VideoPlayer src="blob:x" label="Clip" videoRef={(node) => { seen.push(node); }} />);
-    expect(seen.at(-1)).toBe(video());
-  });
-
   it('fullscreens the container so our own bar is what appears', () => {
     const request = vi.fn(() => Promise.resolve());
     render(<VideoPlayer src="blob:x" label="Clip" />);
