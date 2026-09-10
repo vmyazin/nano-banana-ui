@@ -19,14 +19,39 @@ interface PromptPanelProps {
    * cyan running around a disabled control invites an edit that goes nowhere.
    */
   paused?: boolean;
+  /**
+   * There is already a prompt written, so stop inviting one.
+   *
+   * The runner is an ambient "type something here". Once something is typed it
+   * has nothing left to say, and a lap of cyan circling a person's own sentence
+   * is decoration over the thing they are reading.
+   *
+   * A prop rather than the panel watching its own textarea, even though it
+   * already reaches into children for focus: a prompt restored from the draft
+   * store arrives as a React value change and fires no `input` event, so a
+   * panel that learned only from typing would animate over a prompt it could
+   * not see.
+   */
+  hasPrompt?: boolean;
 }
 
 function isTextarea(target: EventTarget | null): target is HTMLTextAreaElement {
   return target instanceof HTMLTextAreaElement;
 }
 
-export default function PromptPanel({ children, className = '', paused = false }: PromptPanelProps) {
-  const [runnerVisible, setRunnerVisible] = useState(!paused);
+export default function PromptPanel({
+  children,
+  className = '',
+  paused = false,
+  hasPrompt = false,
+}: PromptPanelProps) {
+  /**
+   * Two unrelated reasons to hold still, kept apart in the props because they
+   * are different facts about the panel, and combined only here: nothing can be
+   * submitted, or nothing needs asking for.
+   */
+  const quiet = paused || hasPrompt;
+  const [runnerVisible, setRunnerVisible] = useState(!quiet);
   const textareaFocusedRef = useRef(false);
   const repeatTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -49,15 +74,16 @@ export default function PromptPanel({ children, className = '', paused = false }
   }, []);
 
 
-  // Adjusted during render rather than in an effect: pausing stops the current
-  // lap and any pending repeat, and un-pausing hands the panel one fresh lap, so
-  // connecting a key visibly returns the panel to life.
-  const [wasPaused, setWasPaused] = useState(paused);
-  if (wasPaused !== paused) {
-    setWasPaused(paused);
+  // Adjusted during render rather than in an effect: going quiet stops the
+  // current lap and any pending repeat, and coming back hands the panel one
+  // fresh lap — so connecting a key returns the panel to life, and emptying the
+  // box brings the invitation back.
+  const [wasQuiet, setWasQuiet] = useState(quiet);
+  if (wasQuiet !== quiet) {
+    setWasQuiet(quiet);
     // A repeat timer already in flight needs no cancelling: the runner cannot
-    // render while paused, and un-pausing sets it visible anyway.
-    setRunnerVisible(!paused);
+    // render while quiet, and coming back sets it visible anyway.
+    setRunnerVisible(!quiet);
   }
 
   const handleAnimationEnd = () => {
@@ -86,7 +112,7 @@ export default function PromptPanel({ children, className = '', paused = false }
       onFocusCapture={handleFocusCapture}
       onBlurCapture={handleBlurCapture}
     >
-      {runnerVisible && !paused && (
+      {runnerVisible && !quiet && (
         <svg
           aria-hidden="true"
           focusable="false"

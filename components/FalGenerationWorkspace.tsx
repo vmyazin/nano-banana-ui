@@ -870,7 +870,7 @@ function FalGenerationWorkspaceSession({
           </>
         }
         prompt={
-          <PromptPanel paused={gated}>
+          <PromptPanel paused={gated} hasPrompt={prompt.trim().length > 0}>
             <div className="flex items-center justify-between gap-3">
               <label htmlFor="fal-video-prompt" className="display block text-base font-semibold">Prompt</label>
               <button

@@ -1340,7 +1340,7 @@ export default function GenerationInterface({ feature, apiKey, onBack, onOpenCon
           </>
         }
         prompt={
-          <PromptPanel>
+          <PromptPanel hasPrompt={prompt.trim().length > 0}>
             <div className="flex items-center justify-between gap-2 flex-wrap">
               <h3 className="display text-base sm:text-lg font-semibold">
                 Prompt

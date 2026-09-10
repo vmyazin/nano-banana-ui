@@ -101,6 +101,63 @@ describe('PromptPanel', () => {
     expect(screen.getByTestId('prompt-panel-runner')).toBeInTheDocument();
   });
 
+  it('never runs while a prompt is already written', () => {
+    // The runner is an invitation to type; with something typed it has nothing
+    // left to say, and a lap around a person's own sentence is decoration.
+    render(
+      <PromptPanel hasPrompt>
+        <textarea id="p" defaultValue="a rainy neon arcade" />
+      </PromptPanel>
+    );
+    expect(screen.queryByTestId('prompt-panel-runner')).toBeNull();
+
+    // Not merely a suppressed first lap: no repeat arrives later either.
+    act(() => void vi.advanceTimersByTime(30_000));
+    expect(screen.queryByTestId('prompt-panel-runner')).toBeNull();
+  });
+
+  it('goes quiet the moment a prompt is written, mid-lap', () => {
+    const { rerender } = render(
+      <PromptPanel>
+        <textarea id="p" />
+      </PromptPanel>
+    );
+    expect(screen.getByTestId('prompt-panel-runner')).toBeInTheDocument();
+
+    rerender(
+      <PromptPanel hasPrompt>
+        <textarea id="p" defaultValue="x" />
+      </PromptPanel>
+    );
+    expect(screen.queryByTestId('prompt-panel-runner')).toBeNull();
+  });
+
+  it('brings the invitation back when the box is emptied', () => {
+    const { rerender } = render(
+      <PromptPanel hasPrompt>
+        <textarea id="p" defaultValue="x" />
+      </PromptPanel>
+    );
+    expect(screen.queryByTestId('prompt-panel-runner')).toBeNull();
+
+    rerender(
+      <PromptPanel>
+        <textarea id="p" />
+      </PromptPanel>
+    );
+    expect(screen.getByTestId('prompt-panel-runner')).toBeInTheDocument();
+  });
+
+  it('stays quiet for a gated panel even with the box empty', () => {
+    // The two reasons are independent: nothing can be submitted here.
+    render(
+      <PromptPanel paused>
+        <textarea id="p" />
+      </PromptPanel>
+    );
+    expect(screen.queryByTestId('prompt-panel-runner')).toBeNull();
+  });
+
   it('clears the queued repeat when unmounted', () => {
     const view = renderPanel();
     finishRunnerLap(screen.getByTestId('prompt-panel-runner'));
