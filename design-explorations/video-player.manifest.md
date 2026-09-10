@@ -34,12 +34,24 @@ Classes: ✅ Real (reliably populated) · ⚠️ Sometimes (often absent) · ❌
 | Poster / opening frame | `src` + `#t=0.1` seek | ⚠️ Sometimes | Needs a decodable source and enough of a fetch to paint. `posterBlob` exists on the record but **0 of 12** seeded records carry it, which is why the player seeks instead of using a poster attribute |
 | Fullscreen button (A, B, D) | `document.fullscreenEnabled` | ⚠️ Sometimes | Absent in an iframe without `allow="fullscreen"`, and iOS Safari only fullscreens the element. The spec omits the button when no handler is passed |
 
-## Gaps to resolve at implementation
+## Gap decisions — resolved 2026-09-10, variant B chosen
 
-1. **`hasAudio` cannot be detected**, so every variant as drawn shows a volume control on clips
-   that may be silent. Options: leave it (a mute toggle on silent audio is harmless), or probe
-   `webkitAudioDecodedByteCount` / `mozHasAudio` / `audioTracks` and accept that Chrome answers
-   for none of them. The spec's current answer is to show it and let only informed callers opt out.
-2. **Duration is unknown on first paint.** Variants A, B and D all reserve space for a readout
-   that is briefly absent, so each needs a stable-width placeholder or the bar reflows the moment
-   metadata lands.
+Every ⚠️ and ❌ row above has a decision; none is a silent null-check.
+
+| Gap | Class | Decision | Why |
+| --- | --- | --- | --- |
+| `hasAudio` — is there an audio track? | ❌ Aspirational | **Show the control always.** Only `TimelinePreview` passes `hasAudio={false}`, from `exportHasSound` | Probing would make the control's *presence* browser-dependent (Chrome supports none of the vendor properties), which is the inconsistency this change exists to remove. A mute toggle on a silent clip is harmless |
+| `duration` unknown on first paint | ⚠️ Sometimes | **Designed placeholder.** `0:00 / –:–` in `tabular-nums` at reserved width from first paint | Hiding it reflows the bar mid-load, worst on the grid cells where it is least wanted. The element stays designed rather than absent |
+| Cut markers on an overlaid bar | ✅ Real (timeline only) | **1px × 10px ticks at `rgba(236,245,245,.75)`** over the track, via `trackOverlay` | Cyan ticks vanish against the played portion of the track, which is itself cyan — a cut already passed would become invisible |
+| Buffered ranges | ⚠️ Sometimes | **Cut from the build.** Deliberately drawn in no variant | A `blob:` URL already in memory reports one range covering the whole clip and some browsers report none; both mean nothing useful to draw, and painting it would read as a second progress fill |
+| Poster / opening frame (`posterBlob` 0/12) | ⚠️ Sometimes | **Derive it.** The player appends `#t=0.1` and lets the element seek | Reaches 100% of records without a stored poster, which is why no seeded record needs one |
+| Fullscreen availability | ⚠️ Sometimes | **Designed absence.** The button renders only when a handler is passed; iOS falls back to `webkitEnterFullscreen` | A control that cannot work is noise, and its absence is itself the answer — the precedent `TimelinePreview` already sets for its mute button |
+
+### One deliberate deviation from the exploration
+
+The exploration drew B's bar **always visible at both densities**. The build reveals the full-density
+bar on hover or focus and keeps only the compact bar always visible. Recorded here because it is a
+knowing departure from the reference: on a large result frame the viewer is judging the framing of
+the image, so the scrim must be off it at rest, while in a 180px cell the bar is the affordance
+that says the clip is playable. `video-player-B.reference.html` therefore depicts the full bar in
+its **revealed** state, which is the state parity is diffed against.

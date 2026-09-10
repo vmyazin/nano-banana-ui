@@ -3,6 +3,37 @@
 Status: Approved design
 Date: 2026-09-10
 
+## Follow-up decision — 2026-09-10
+
+Supersedes the **Appearance** section's density rules below. The design exploration
+(`design-explorations/video-player.html`) produced four treatments and **variant B, floating
+scrim**, was chosen; its parity reference is `design-explorations/video-player-B.reference.html`.
+Four consequences, each resolved with the user rather than defaulted:
+
+1. **Both densities overlay the frame on a scrim.** The spec below said full density sits *below*
+   the frame as `TimelinePreview`'s row does; it does not. One overlaid bar at both sizes is the
+   reason B was picked — it is the only treatment where the compact and full bars are the same
+   object rather than a bar and a reduced version of it.
+2. **Reveal is inverted from the spec below.** Compact is **always visible**; full **reveals on
+   hover or focus-within**, pinned visible on coarse pointers. The spec had this the other way
+   around. The reason for the swap: on a large result frame the viewer is judging framing, so the
+   bottom of the image must be clear at rest, while in a 180px cell the bar is the affordance that
+   says the thing is playable at all. Reduced motion removes the *fade* and nothing else: pinning the
+   full bar visible under that preference would take the clean resting frame away from exactly
+   the people who asked for less movement.
+3. **`hasAudio` shows the control always.** No cross-browser way exists to detect an audio track
+   — Chrome supports none of `mozHasAudio`, `webkitAudioDecodedByteCount` or `audioTracks` — and
+   probing would make the control's *presence* vary by browser, which is the inconsistency this
+   whole change exists to remove. A mute toggle on a silent clip is harmless. Only
+   `TimelinePreview` passes `false`, because `exportHasSound` genuinely knows.
+4. **The time readout reserves its width from first paint**, rendering `0:00 / –:–` in
+   `tabular-nums` until `durationchange` lands. A hidden-until-known readout reflows the bar
+   mid-load, which is worst on the grid cells where it is least wanted.
+5. **Cut markers are 1px × 10px ticks at `rgba(236,245,245,.75)`** over the track, carrying the
+   intent from `TimelinePreview.tsx:566-575` onto the scrim. Not cyan: cyan ticks disappear
+   against the played portion of the track, which is itself cyan, so a cut already passed would
+   become invisible.
+
 ## Context
 
 Every clip in the app is a bare `<video controls>`: `GalleryGrid`, `ProviderVideoWorkspace`,

@@ -218,19 +218,22 @@ const shown = held ?? time;
 />
 ```
 
-**Compact is not just a narrower full bar** — it overlays the frame, so it needs reveal rules the
-full bar does not:
+**Reveal is per density, and inverted from the original spec** — see the spec's 2026-09-10
+follow-up note. Compact is always visible; full reveals on hover or focus.
 
 ```tsx
-// Revealed on hover or when anything inside it has focus, so a keyboard user is
-// not seeking a bar they cannot see. `:focus-within` rather than a focus
-// handler: the range, the play button and the volume control all count, and one
-// CSS rule beats three listeners.
+// Compact (a 180px cell): always visible. The bar is what tells the viewer the
+// cell is playable at all, so hiding it until hover hides the affordance.
+const compactBar = 'opacity-100';
+
+// Full (a large result frame): clear at rest, because the viewer is judging the
+// framing of the image and the scrim sits over the bottom of it.
 //
-// Pinned visible when the pointer is coarse — there is no hover on touch, so a
-// reveal-on-hover bar is simply an absent bar — and never faded under reduced
-// motion, which asks for no unrequested movement rather than no visibility.
-const scrim = 'transition-opacity motion-reduce:transition-none opacity-0 ' +
+// `:focus-within` rather than a focus handler — the range, the play button and
+// the volume control all count, and one CSS rule beats three listeners. Pinned
+// on coarse pointers because there is no hover on touch, so a reveal-on-hover
+// bar is simply an absent bar. Reduced motion removes the fade, never the bar.
+const fullBar = 'transition-opacity motion-reduce:transition-none opacity-0 ' +
   'group-hover:opacity-100 focus-within:opacity-100 ' +
   '[@media(pointer:coarse)]:opacity-100 motion-reduce:opacity-100';
 ```

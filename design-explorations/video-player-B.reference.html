@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<!--
+  Variant B — Floating scrim. Parity reference for the in-house video player.
+  Chosen 2026-09-10. Spec: docs/superpowers/specs/2026-09-10-video-player-design.md
+  Fixture: scripts/seed-browser-gallery.js — "arcade-dolly-4s" (fal) full,
+  "skylight-rain-push" (kie) compact. Gradients are the fixture's own colours.
+  This file is the single source of truth for the Step 5 parity diff. The
+  scrubbers are real input[type=range] driven by --pct, so this CSS is what
+  lands in app/globals.css.
+
+  Deviation from the 4-up exploration, decided 2026-09-10: the bar is always
+  visible at COMPACT density only. At FULL density it reveals on hover/focus,
+  because the viewer is judging the framing of a large result and the scrim
+  must be off the image at rest. The full panels below are pinned to their
+  REVEALED state (.is-shown) so parity has something to diff; the last panel
+  shows the at-rest state instead.
+  Reduced motion drops the fade only — it does not pin the full bar visible.
+-->
+<title>Variant B · Floating scrim — parity reference</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@500&display=swap" rel="stylesheet" />
+<style>
+  * { box-sizing:border-box; }
+  html,body { margin:0; padding:0; }
+  body { background:#081113; color:#ecf5f5; padding:40px;
+    font-family:'Geist',-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif; }
+  .row { display:flex; gap:40px; align-items:flex-start; flex-wrap:wrap; }
+  .lbl { font-family:'Geist Mono',ui-monospace,Menlo,monospace; font-size:9.5px; font-weight:500;
+    letter-spacing:.18em; text-transform:uppercase; color:#7a8d8f; margin-bottom:10px; }
+  .panel { width:520px; max-width:100%; }
+  .cell { width:180px; }
+
+  /* ---- the player ---- */
+  .vp { position:relative; overflow:hidden; border-radius:8px; background:#000; }
+  .vp-frame { display:block; width:100%; aspect-ratio:16/9;
+    background:linear-gradient(135deg,#7e22ce,#22d3ee); }
+  .cell .vp-frame { aspect-ratio:4/3; background:linear-gradient(135deg,#0c4a6e,#e0f2fe); }
+
+  .vp-bar { position:absolute; inset:auto 0 0 0; display:flex; align-items:center; gap:10px;
+    padding:22px 12px 10px;
+    background:linear-gradient(to top, rgba(8,17,19,.92), rgba(8,17,19,.55) 55%, transparent); }
+  .vp-bar.is-compact { padding:18px 8px 8px; gap:7px; }
+
+  /* Full density hides at rest and reveals on hover or focus-within: the viewer
+     is judging the framing of a large result, so the scrim must be off the image
+     until they reach for a control. Compact never hides — in a 180px cell the
+     bar is the affordance that says the clip is playable at all.
+
+     Pinned on coarse pointers, because there is no hover on touch and a
+     reveal-on-hover bar is simply an absent bar. Reduced motion removes the
+     FADE and nothing else: pinning the bar visible there would take the clean
+     resting frame away from exactly the people who asked for less movement. */
+  .vp-bar.is-full { opacity:0; transition:opacity .18s ease; }
+  .vp:hover .vp-bar.is-full,
+  .vp-bar.is-full:focus-within { opacity:1; }
+  @media (pointer:coarse) { .vp-bar.is-full { opacity:1; } }
+  @media (prefers-reduced-motion:reduce) { .vp-bar.is-full { transition:none; } }
+  /* Reference-only: pin the revealed state so a screenshot can be diffed. */
+  .vp-bar.is-full.is-shown { opacity:1; }
+
+  .vp-btn { display:inline-flex; align-items:center; justify-content:center; background:none;
+    border:0; padding:0; color:#ecf5f5; cursor:pointer; font-size:16px; line-height:1; }
+  .vp-btn:hover { color:#00fff9; }
+  .is-compact .vp-btn { font-size:14px; }
+  .vp-time { font-family:'Geist Mono',ui-monospace,Menlo,monospace; font-size:10.5px; font-weight:500;
+    color:#ecf5f5; font-variant-numeric:tabular-nums; white-space:nowrap; }
+
+  .vp-track { position:relative; flex:1; min-width:0; display:flex; align-items:center; }
+  .vp-marks { position:absolute; inset:0; pointer-events:none; }
+  .vp-mark { position:absolute; top:50%; transform:translateY(-50%); width:1px; height:10px;
+    background:rgba(236,245,245,.75); }
+
+  .transport-range { -webkit-appearance:none; appearance:none; background:transparent;
+    width:100%; margin:0; display:block; cursor:pointer; height:14px; --pct:42%; }
+  .transport-range:focus-visible { outline:none; box-shadow:0 0 0 3px rgba(0,255,249,.12); border-radius:999px; }
+  .transport-range::-webkit-slider-runnable-track { height:4px; border-radius:999px;
+    background:linear-gradient(to right,#00fff9 0 var(--pct), rgba(236,245,245,.28) var(--pct) 100%); }
+  .transport-range::-moz-range-track { height:4px; border-radius:999px;
+    background:linear-gradient(to right,#00fff9 0 var(--pct), rgba(236,245,245,.28) var(--pct) 100%); }
+  .transport-range::-webkit-slider-thumb { -webkit-appearance:none; appearance:none; width:14px; height:14px;
+    background:#ecf5f5; border:2px solid #00fff9; border-radius:999px; margin-top:-5px; }
+  .transport-range::-moz-range-thumb { width:14px; height:14px; background:#ecf5f5;
+    border:2px solid #00fff9; border-radius:999px; }
+  .is-compact .transport-range { height:12px; }
+  .is-compact .transport-range::-webkit-slider-thumb { width:12px; height:12px; margin-top:-4px; }
+  .is-compact .transport-range::-moz-range-thumb { width:12px; height:12px; }
+</style>
+</head>
+<body>
+  <div class="row">
+    <div class="panel">
+      <div class="lbl">Full density · 520px result panel · &ldquo;arcade dolly 4s&rdquo; · fal</div>
+      <div class="vp">
+        <div class="vp-frame"></div>
+        <div class="vp-bar is-full is-shown">
+          <button class="vp-btn" aria-label="Pause"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor" aria-hidden="true"><path d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg></button>
+          <span class="vp-track">
+            <input class="transport-range" type="range" min="0" max="4" step="0.01" value="1.7" aria-label="Playback position" />
+          </span>
+          <button class="vp-btn" aria-label="Mute"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></svg></button>
+          <span class="vp-time">0:01 / 0:04</span>
+          <button class="vp-btn" aria-label="Fullscreen"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 9V4h5M20 15v5h-5M20 9V4h-5M4 15v5h5"/></svg></button>
+        </div>
+      </div>
+    </div>
+
+    <div class="cell">
+      <div class="lbl">Compact · 180px cell</div>
+      <div class="vp">
+        <div class="vp-frame"></div>
+        <div class="vp-bar is-compact">
+          <button class="vp-btn" aria-label="Pause"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor" aria-hidden="true"><path d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg></button>
+          <span class="vp-track">
+            <input class="transport-range" type="range" min="0" max="4" step="0.01" value="1.7" aria-label="Playback position" />
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="lbl">Full density · timeline preview · cut markers via trackOverlay</div>
+      <div class="vp">
+        <div class="vp-frame"></div>
+        <div class="vp-bar is-full is-shown">
+          <button class="vp-btn" aria-label="Pause"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor" aria-hidden="true"><path d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg></button>
+          <span class="vp-track">
+            <input class="transport-range" type="range" min="0" max="4" step="0.01" value="1.7" aria-label="Preview position" />
+            <span class="vp-marks"><span class="vp-mark" style="left:38%"></span><span class="vp-mark" style="left:71%"></span></span>
+          </span>
+          <button class="vp-btn" aria-label="Mute"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></svg></button>
+          <span class="vp-time">0:01 / 0:04</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row" style="margin-top:44px">
+    <div class="panel">
+      <div class="lbl">Full density &middot; AT REST &middot; bar hidden until hover or focus</div>
+      <div class="vp">
+        <div class="vp-frame"></div>
+        <div class="vp-bar is-full">
+          <button class="vp-btn" aria-label="Pause"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor" aria-hidden="true"><path d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg></button>
+          <span class="vp-track">
+            <input class="transport-range" type="range" min="0" max="4" step="0.01" value="1.7" aria-label="Playback position" />
+          </span>
+          <span class="vp-time">0:01 / 0:04</span>
+        </div>
+      </div>
+      <p style="font-size:12px;color:#8fa5a7;max-width:520px">Hover it. This is the state a viewer
+      sees while judging the framing of a generated clip &mdash; the reason the full bar hides and
+      the compact one does not.</p>
+    </div>
+
+    <div class="panel">
+      <div class="lbl">Full density &middot; duration not yet known</div>
+      <div class="vp">
+        <div class="vp-frame"></div>
+        <div class="vp-bar is-full is-shown">
+          <button class="vp-btn" aria-label="Play"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg></button>
+          <span class="vp-track">
+            <input class="transport-range" type="range" min="0" max="0" step="0.01" value="0" style="--pct:0%" aria-label="Playback position" />
+          </span>
+          <span class="vp-time">0:00 / &ndash;:&ndash;&ndash;</span>
+        </div>
+      </div>
+      <p style="font-size:12px;color:#8fa5a7;max-width:520px">The readout holds its width from
+      first paint, so nothing shifts when <code>durationchange</code> lands.</p>
+    </div>
+  </div>
+</body>
+</html>
