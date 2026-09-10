@@ -251,9 +251,9 @@ export default function GalleryGrid({
                 <img src={preview.url} alt={titleOf(record)} className="h-full w-full object-contain" />
               ) : preview ? (
                 /* A kept clip with no poster: its own bytes. */
-                <VideoPlayer src={preview.url} label={titleOf(record)} className="h-full w-full" />
+                <VideoPlayer src={preview.url} label={titleOf(record)} reveal="always" className="h-full w-full" />
               ) : record.kind === 'video' && record.sourceUrl ? (
-                <VideoPlayer src={record.sourceUrl} label={titleOf(record)} className="h-full w-full" />
+                <VideoPlayer src={record.sourceUrl} label={titleOf(record)} reveal="always" className="h-full w-full" />
               ) : (
                 <p className="px-4 text-center text-xs text-[var(--foreground-subtle)]">
                   This result was not kept and its provider link has expired.

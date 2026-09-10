@@ -1,7 +1,11 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
-import Transport, { COMPACT_MAX_PX, type TransportProps } from '@/components/video/Transport';
+import Transport, {
+  COMPACT_MAX_PX,
+  SEEK_STEP_S,
+  type TransportProps,
+} from '@/components/video/Transport';
 
 const base: TransportProps = {
   playing: false,
@@ -42,20 +46,32 @@ describe('Transport', () => {
     expect(screen.queryByText(/0:00/)).toBeNull();
   });
 
-  it('keeps the compact bar visible and reveals the full bar on hover', () => {
-    // The asymmetry is deliberate: a large frame stays clear while the viewer
-    // judges framing; a 180px cell needs the bar to say it is playable.
+  it('rests visible at compact density and reveals on hover at full', () => {
     const { rerender } = render(<Transport {...base} density="compact" />);
+    expect(screen.getByTestId('transport')).toHaveAttribute('data-reveal', 'always');
     expect(screen.getByTestId('transport').className).not.toMatch(/opacity-0/);
+
     rerender(<Transport {...base} density="full" />);
-    const full = screen.getByTestId('transport').className;
-    expect(full).toMatch(/opacity-0/);
-    expect(full).toMatch(/group-hover:opacity-100/);
-    expect(full).toMatch(/focus-within:opacity-100/);
-    expect(full).toMatch(/pointer:coarse/);
+    const full = screen.getByTestId('transport');
+    expect(full).toHaveAttribute('data-reveal', 'hover');
+    expect(full.className).toMatch(/opacity-0/);
+    expect(full.className).toMatch(/group-hover:opacity-100/);
+    expect(full.className).toMatch(/focus-within:opacity-100/);
+    expect(full.className).toMatch(/pointer:coarse/);
     // Reduced motion drops the fade only — never pins the bar visible.
-    expect(full).toMatch(/motion-reduce:transition-none/);
-    expect(full).not.toMatch(/motion-reduce:opacity-100/);
+    expect(full.className).toMatch(/motion-reduce:transition-none/);
+    expect(full.className).not.toMatch(/motion-reduce:opacity-100/);
+  });
+
+  it('lets a wide grid rest visible, which width alone cannot decide', () => {
+    // The real gallery cell is ~392px, so it measures as `full` and would
+    // hover-reveal — the opposite of what a grid wants. Reveal is the caller's
+    // to state, not something to infer from a measurement.
+    render(<Transport {...base} density="full" reveal="always" />);
+    const bar = screen.getByTestId('transport');
+    expect(bar).toHaveAttribute('data-density', 'full');
+    expect(bar).toHaveAttribute('data-reveal', 'always');
+    expect(bar.className).not.toMatch(/opacity-0/);
   });
 
   it('hides volume when the media has no audio', () => {
@@ -109,6 +125,41 @@ describe('Transport', () => {
     expect(readout.className).toMatch(/tabular-nums/);
     rerender(<Transport {...base} duration={4} time={1} />);
     expect(screen.getByText('0:01 / 0:04').className).toMatch(/min-width:11ch/);
+  });
+
+  it('seeks a useful distance per arrow press rather than one step', () => {
+    // The native controls this replaces seek 5s per press. At the range's own
+    // 0.05 step it would take eighty presses to cross a four-second clip, so
+    // arrows are handled rather than left to the element.
+    const onSeek = vi.fn();
+    render(<Transport {...base} duration={8} time={2} onSeek={onSeek} />);
+    fireEvent.keyDown(position(), { key: 'ArrowRight' });
+    expect(onSeek).toHaveBeenLastCalledWith(2 + SEEK_STEP_S);
+    fireEvent.keyDown(position(), { key: 'ArrowLeft' });
+    expect(onSeek).toHaveBeenLastCalledWith(2);
+  });
+
+  it('does not let an arrow press walk off either end', () => {
+    const onSeek = vi.fn();
+    const { rerender } = render(<Transport {...base} duration={8} time={0} onSeek={onSeek} />);
+    fireEvent.keyDown(position(), { key: 'ArrowLeft' });
+    expect(onSeek).toHaveBeenLastCalledWith(0);
+    // Release, as a real key press does: until keyup the held value stands,
+    // which is what stops an incoming time from fighting a drag.
+    fireEvent.keyUp(position());
+
+    rerender(<Transport {...base} duration={8} time={8} onSeek={onSeek} />);
+    fireEvent.keyDown(position(), { key: 'ArrowRight' });
+    expect(onSeek).toHaveBeenLastCalledWith(8);
+  });
+
+  it('leaves Home and End to the platform', () => {
+    // The element already implements them, and re-implementing would be a
+    // second source of truth for the same behaviour.
+    const onSeek = vi.fn();
+    render(<Transport {...base} duration={8} time={4} onSeek={onSeek} />);
+    fireEvent.keyDown(position(), { key: 'End' });
+    expect(onSeek).not.toHaveBeenCalled();
   });
 
   it('clamps a held value when the duration shrinks underneath it', () => {

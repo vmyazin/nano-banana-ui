@@ -16,6 +16,19 @@ import { UNKNOWN_DURATION, formatDuration, formatElapsed } from '@/lib/timeline/
  */
 export const COMPACT_MAX_PX = 260;
 
+/**
+ * How far one arrow press moves the playhead, in seconds.
+ *
+ * The `step` below stays fine so a dragged thumb is precise, but `step` is also
+ * what an arrow key moves by — and at 0.05s that is eighty presses to cross a
+ * four-second clip. The native controls this player replaces seek five seconds
+ * per press, so leaving it would have been a regression dressed as a restyle.
+ *
+ * One second rather than five: a generated clip is often shorter than five
+ * seconds, where a five-second jump can only ever land on an end.
+ */
+export const SEEK_STEP_S = 1;
+
 export interface TransportProps {
   playing: boolean;
   /** Seconds. */
@@ -38,6 +51,19 @@ export interface TransportProps {
    * identical "Play" buttons.
    */
   label?: string;
+  /**
+   * Whether the bar rests visible or waits to be reached for.
+   *
+   * A separate axis from `density` on purpose. Density answers "which controls
+   * fit", which is measurable from width; reveal answers "should the picture be
+   * clear at rest", which is a fact about the surface that only the caller
+   * knows. Conflating them made the gallery grid hover-reveal, because its
+   * cells are ~392px in the real layout and so measure as `full` — the opposite
+   * of what a grid wants.
+   *
+   * Defaults to `always` at compact density and `hover` at full.
+   */
+  reveal?: 'always' | 'hover';
   /**
    * Appended to the play button's tooltip. Only for a consumer that owns a real
    * keyboard binding for it — the timeline preview binds Space.
@@ -67,6 +93,7 @@ export default function Transport({
   onFullscreen,
   trackOverlay,
   label,
+  reveal,
   toggleTitle,
   density = 'auto',
 }: TransportProps) {
@@ -104,12 +131,12 @@ export default function Transport({
   const showFullscreen = Boolean(onFullscreen) && !compact;
 
   /**
-   * Compact is always visible; full reveals on hover or focus.
+   * A grid rests visible; a result panel waits to be reached for.
    *
    * The asymmetry is the point. On a large result frame the viewer is judging
    * the framing of a generated clip, so the scrim has to be off the image until
-   * they reach for a control. In a 180px cell the bar is the affordance that
-   * says the thing is playable at all, and hiding it hides that.
+   * they reach for a control. In a grid the bar is the affordance that says the
+   * thing is playable at all, and hiding it hides that.
    *
    * `focus-within` rather than focus handlers: the button, the range and the
    * volume slider all count, and one rule beats three listeners. Pinned on
@@ -118,10 +145,12 @@ export default function Transport({
    * fade and nothing else — pinning it visible there would take the clean
    * resting frame away from exactly the people who asked for less movement.
    */
-  const revealClasses = compact
-    ? ''
-    : 'opacity-0 transition-opacity duration-200 group-hover:opacity-100 focus-within:opacity-100 ' +
-      'motion-reduce:transition-none [@media(pointer:coarse)]:opacity-100';
+  const resting = reveal ?? (compact ? 'always' : 'hover');
+  const revealClasses =
+    resting === 'always'
+      ? ''
+      : 'opacity-0 transition-opacity duration-200 group-hover:opacity-100 focus-within:opacity-100 ' +
+        'motion-reduce:transition-none [@media(pointer:coarse)]:opacity-100';
 
   const iconSize = compact ? 14 : 16;
   /** `Play` alone when unnamed, `Play <media>` when the caller named it. */
@@ -132,6 +161,7 @@ export default function Transport({
       ref={bar}
       data-testid="transport"
       data-density={compact ? 'compact' : 'full'}
+      data-reveal={resting}
       className={`transport-scrim absolute inset-x-0 bottom-0 flex items-center ${
         compact ? 'gap-[7px] px-2 pb-2 pt-[18px]' : 'gap-2.5 px-3 pb-2.5 pt-[22px]'
       } ${revealClasses}`}
@@ -152,7 +182,7 @@ export default function Transport({
           className="transport-range"
           min={0}
           max={duration || 0}
-          step={0.01}
+          step={0.05}
           value={shown}
           // The fill is painted by the track off this percentage, because
           // ::-moz-range-progress and ::-webkit-progress-value are not both
@@ -161,6 +191,20 @@ export default function Transport({
           aria-label={label ? `${label} position` : 'Playback position'}
           onChange={(event) => {
             const next = Number(event.target.value);
+            setHeld(next);
+            onSeek(next);
+          }}
+          onKeyDown={(event) => {
+            const direction =
+              event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0;
+            if (!direction) return;
+            // Replaces the range's own `step` movement, which is deliberately
+            // finer than anyone wants to travel a clip with.
+            event.preventDefault();
+            const next = Math.min(
+              Math.max(shown + direction * SEEK_STEP_S, 0),
+              duration || 0
+            );
             setHeld(next);
             onSeek(next);
           }}

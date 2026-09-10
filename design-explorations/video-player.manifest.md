@@ -47,6 +47,14 @@ Every ⚠️ and ❌ row above has a decision; none is a silent null-check.
 | Poster / opening frame (`posterBlob` 0/12) | ⚠️ Sometimes | **Derive it.** The player appends `#t=0.1` and lets the element seek | Reaches 100% of records without a stored poster, which is why no seeded record needs one |
 | Fullscreen availability | ⚠️ Sometimes | **Designed absence.** The button renders only when a handler is passed; iOS falls back to `webkitEnterFullscreen` | A control that cannot work is noise, and its absence is itself the answer — the precedent `TimelinePreview` already sets for its mute button |
 
+### Corrected after the browser smoke test
+
+The exploration drew the compact cell at **180px**. The real gallery cell is **~392px**, which
+measures as full density — so tying "rests visible" to density made the grid hover-reveal, the
+opposite of the decision recorded above. Reveal became its own prop. Worth noting for the next
+exploration: a mock's chosen width is a claim about the product that is worth checking against the
+running layout before decisions are built on it.
+
 ### One deliberate deviation from the exploration
 
 The exploration drew B's bar **always visible at both densities**. The build reveals the full-density

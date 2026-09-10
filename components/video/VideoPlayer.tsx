@@ -28,6 +28,13 @@ export interface VideoPlayerProps {
   crossOrigin?: boolean;
   /** `false` removes the volume control — this clip has no sound to control. */
   hasAudio?: boolean;
+  /**
+   * Whether the bar rests visible. Grids pass `'always'`, because there the bar
+   * is what says the clip is playable; a result panel keeps the default and
+   * stays clear until reached for, since the viewer is judging the framing.
+   * Not derivable from width — a gallery cell is ~392px in the real layout.
+   */
+  reveal?: 'always' | 'hover';
   className?: string;
 }
 
@@ -62,6 +69,7 @@ export default function VideoPlayer({
   transport = 'auto',
   crossOrigin = false,
   hasAudio = true,
+  reveal,
   className = '',
 }: VideoPlayerProps) {
   const container = useRef<HTMLDivElement>(null);
@@ -186,6 +194,7 @@ export default function VideoPlayer({
       {transport !== 'none' && (
         <Transport
           label={label}
+          reveal={reveal}
           playing={media.playing}
           time={media.time}
           duration={media.duration}

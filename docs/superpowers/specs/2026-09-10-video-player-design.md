@@ -34,6 +34,28 @@ Four consequences, each resolved with the user rather than defaulted:
    against the played portion of the track, which is itself cyan, so a cut already passed would
    become invisible.
 
+### Two corrections from the browser smoke test — 2026-09-10
+
+Both were invisible to the test suite and to the design exploration, and both are the reason the
+plan makes a real-browser pass a hard gate rather than a formality.
+
+6. **Reveal is its own prop, not a consequence of density.** Point 2 above was implemented as
+   "compact rests visible, full reveals on hover", which read correctly against the exploration's
+   180px cell. The real gallery cell is **~392px**, so it measures as `full` and hover-revealed —
+   the exact opposite of the decision. Density answers *which controls fit*, which width can
+   decide; reveal answers *should the picture be clear at rest*, which only the caller knows.
+   `Transport` and `VideoPlayer` therefore take `reveal?: 'always' | 'hover'`, defaulting to
+   `always` at compact and `hover` at full, and the two grid surfaces pass `always` explicitly.
+
+7. **Arrow keys seek `SEEK_STEP_S` (1s), not one `step`.** Keeping `<input type="range">` was
+   justified partly by its free arrow-key seeking — but `step` governs both drag precision and
+   arrow distance, and at 0.05s an arrow press is eighty presses to cross a four-second clip. The
+   native controls being replaced seek five seconds per press, so shipping that would have been a
+   regression dressed as a restyle. `step` stays 0.05 for the pointer and `ArrowLeft`/`ArrowRight`
+   are handled explicitly. One second rather than five, because a generated clip is often shorter
+   than five seconds, where a five-second jump can only ever land on an end. `Home` and `End` are
+   left to the element, which already implements them.
+
 ## Context
 
 Every clip in the app is a bare `<video controls>`: `GalleryGrid`, `ProviderVideoWorkspace`,
