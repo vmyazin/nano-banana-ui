@@ -132,10 +132,16 @@ export default function StudioHeader({
                 animate={{ opacity: 1, y: 0 }}
                 className="brand-mark flex min-w-0 items-center gap-2.5"
               >
-                <h1 className="flex min-w-0">
+                {/* A `<span>`, not an `<h1>`: this wordmark is a link home on
+                    every route, so as a heading it repeated the product name as
+                    the top-level heading of pages that already had their own
+                    (`/spend` and `/account` each carried a second `<h1>`). Each
+                    route owns its heading now — `/` gets one from
+                    `components/marketing/LandingIntro.tsx`. */}
+                <span className="flex min-w-0">
                   <span className="sr-only">{brand.name}</span>
                   <BrandWordmark className="h-8 w-auto flex-shrink-0 text-[var(--foreground)] sm:h-9" />
-                </h1>
+                </span>
                 <span className="hidden h-3.5 w-px bg-[var(--border-hover)] md:inline-block" />
                 <span className="eyebrow hidden md:inline">{brand.tagline}</span>
               </motion.div>

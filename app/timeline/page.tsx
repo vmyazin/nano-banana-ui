@@ -40,6 +40,11 @@ function TimelineEditor() {
    */
   return (
     <div className="flex h-[100dvh] flex-col overflow-hidden">
+      {/* The route's heading, for anyone navigating by them. Visually hidden
+          because the editor's own bar already says where you are, and the
+          wordmark above stopped being an `<h1>` when each route took over its
+          own heading. */}
+      <h1 className="sr-only">Timeline</h1>
       <StudioHeader active="timeline" fullBleed showChime={false} />
       <TimelineWorkspace />
     </div>

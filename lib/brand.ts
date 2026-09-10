@@ -21,9 +21,18 @@ export const brand = {
   siteUrl: 'https://sceneassembly.mzork.com',
   /** Document / social card title: "Scene Assembly — Multi-engine image & video studio" */
   metaTitle: 'Scene Assembly — Multi-engine image & video studio',
-  /** Search / social description — provider-neutral, engines named as capabilities. */
+  /**
+   * Search / social description. Leads on the choice being made — which engine
+   * suits this job — then names the engines as capabilities, then the pricing
+   * model, because "no monthly subscription" is the objection a searcher is
+   * weighing before they click.
+   *
+   * Longer than the ~155 characters Google renders, so the tail ("connect your
+   * keys and pay as you go") may truncate in a result. Everything load-bearing
+   * sits in the first two sentences on purpose.
+   */
   metaDescription:
-    'A multi-engine AI studio — generate and edit images with Gemini and FLUX, and create video with Veo, Kling, and Seedance.',
+    'Scene Assembly — pick the right engine for the job. Generate and edit images with Gemini; create video with Veo, Kling, or Seedance. No monthly subscription — connect your keys and pay as you go.',
   /** Open Graph image alt text. */
   ogImageAlt: 'Scene Assembly — a multi-engine image and video studio',
   maintainer: {
