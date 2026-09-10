@@ -1,7 +1,7 @@
 # Deployment
 
 The live app runs on **Vercel** at <https://sceneassembly.mzork.com>. Pushes to
-`main` on `github.com/vmyazin/nano-banana-ui` deploy automatically through
+`main` on `github.com/vmyazin/scene-assembly` deploy automatically through
 Vercel's Git integration; there is no deploy script to run by hand.
 
 The account Worker deploys automatically too, since 2026-09-09 — see

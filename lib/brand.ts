@@ -17,7 +17,7 @@ export const brand = {
   heroBlurb: 'Generate and edit images and video across multiple engines.',
   /** Footer credit line product label (links to the repo). */
   shortName: 'Scene Assembly',
-  githubUrl: 'https://github.com/vmyazin/nano-banana-ui',
+  githubUrl: 'https://github.com/vmyazin/scene-assembly',
   siteUrl: 'https://sceneassembly.mzork.com',
   /** Document / social card title: "Scene Assembly — Multi-engine image & video studio" */
   metaTitle: 'Scene Assembly — Multi-engine image & video studio',

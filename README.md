@@ -104,7 +104,7 @@ to a deterministic regex slugifier. Nothing breaks either way.
 ### Installation
 
 ```bash
-git clone https://github.com/vmyazin/nano-banana-ui.git scene-assembly
+git clone https://github.com/vmyazin/scene-assembly.git
 cd scene-assembly
 corepack enable
 pnpm install
