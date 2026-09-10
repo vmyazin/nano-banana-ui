@@ -52,6 +52,7 @@ import { carryOverValues } from '@/lib/draft/carry-over';
 import { FRAME_EXTRACTION_ERROR, isVideoFile, lastFrameAsImageFile } from '@/lib/video-frame';
 import type { EngineId } from '@/lib/engines/registry';
 import VideoPlayer from '@/components/video/VideoPlayer';
+import JobElapsed from '@/components/JobElapsed';
 
 interface FalGenerationWorkspaceProps {
   inputMode: FalInputMode;
@@ -190,7 +191,14 @@ function JobCard({
           {/* A queued or running job has nothing else moving on the card until the
               video lands, so the spinner is the only sign polling is still alive. */}
           {!isFalJobTerminal(job.state) && <Loader2 aria-hidden className="animate-spin" size={12} />}
-          {statusCopy[job.state]}
+          {/* Its own element, not more text in the pill: the state is what a
+              reader scans for, and it stays exactly matchable. */}
+          <span>{statusCopy[job.state]}</span>
+          <span aria-hidden="true">·</span>
+          <JobElapsed
+            startedAt={job.createdAt}
+            finishedAt={isFalJobTerminal(job.state) ? job.updatedAt : undefined}
+          />
         </span>
         {/* The model, not the request ID: it is what tells two jobs apart at a
             glance, and it stays true after the picker has moved on. The ID is

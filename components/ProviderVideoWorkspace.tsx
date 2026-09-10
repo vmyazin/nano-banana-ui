@@ -58,6 +58,7 @@ import { usePromptLibraryStore } from '@/store/usePromptLibraryStore';
 import { useProviderJobsStore, type ProviderJob } from '@/store/useProviderJobsStore';
 import { useSeedFrameStore } from '@/store/useSeedFrameStore';
 import VideoPlayer from '@/components/video/VideoPlayer';
+import JobElapsed from '@/components/JobElapsed';
 
 /**
  * Video for Runware, Atlas Cloud, and CometAPI, laid out the way the Kie and
@@ -905,13 +906,20 @@ export default function ProviderVideoWorkspace({
               <span
                 className={`rounded-full border px-2.5 py-1 text-xs ${latestJob.state === 'error' ? 'border-red-500/30 bg-red-500/10 text-red-300' : latestJob.state === 'success' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' : 'border-amber-500/30 bg-amber-500/10 text-amber-200'}`}
               >
-                {latestJob.state === 'queued'
-                  ? 'Queued'
-                  : latestJob.state === 'running'
-                    ? 'Generating'
-                    : latestJob.state === 'success'
-                      ? `Done${latestJob.cost !== undefined ? ` · $${latestJob.cost.toFixed(3)}` : ''}`
-                      : 'Failed'}
+                <span>
+                  {latestJob.state === 'queued'
+                    ? 'Queued'
+                    : latestJob.state === 'running'
+                      ? 'Generating'
+                      : latestJob.state === 'success'
+                        ? `Done${latestJob.cost !== undefined ? ` · $${latestJob.cost.toFixed(3)}` : ''}`
+                        : 'Failed'}
+                </span>
+                <span aria-hidden="true">{' · '}</span>
+                <JobElapsed
+                  startedAt={latestJob.createdAt}
+                  finishedAt={isTerminal(latestJob.state) ? latestJob.updatedAt : undefined}
+                />
               </span>
             )}
           </div>
@@ -926,7 +934,10 @@ export default function ProviderVideoWorkspace({
               <div className="space-y-3 p-5 text-center">
                 <Loader2 className="mx-auto animate-spin text-[var(--neon-purple)]" size={34} />
                 <p className="text-sm text-[var(--foreground-muted)]">
-                  {label} is working on your video.
+                  {label} is working on your video.{' '}
+                  {/* From the job's `createdAt`, so it counts the queue too and
+                      survives a reload — the wait a person actually feels. */}
+                  <JobElapsed startedAt={latestJob.createdAt} className="text-[var(--foreground)]" />
                 </p>
                 {typeof latestJob.progress === 'number' && (
                   <p className="font-mono text-xs text-[var(--neon-purple)]">

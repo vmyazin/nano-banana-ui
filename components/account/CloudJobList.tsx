@@ -4,7 +4,8 @@ import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import type { CloudJobView } from '@/lib/account/contracts';
-import { JOB_STATE_LABELS as labels, JOB_STATE_TONES as tones, isRemovableJob } from '@/lib/account/job-status';
+import { JOB_STATE_LABELS as labels, JOB_STATE_TONES as tones, isActiveJob, isRemovableJob } from '@/lib/account/job-status';
+import JobElapsed from '@/components/JobElapsed';
 const stopTrackingDescription='The provider may still finish and charge for this job. Scene Assembly will stop checking and saving new outputs. Existing saved assets remain; temporary downloads keep their existing deadline. Check the provider history before starting another generation.';
 export default function CloudJobList({jobs,onResume,onCancel,onDismiss,onRemove,busy=false,limit=5}:{jobs:CloudJobView[];onResume:(id:string)=>void;onCancel?:(id:string)=>void;onDismiss?:(id:string)=>void;onRemove?:(ids:string[])=>void;busy?:boolean;limit?:number}) {
   const [dismissing,setDismissing]=useState<CloudJobView|null>(null);
@@ -18,6 +19,7 @@ export default function CloudJobList({jobs,onResume,onCancel,onDismiss,onRemove,
     {removable.length>1&&<div className="mb-2 flex justify-end"><button disabled={busy} type="button" onClick={()=>setClearing(true)} className="text-xs text-[var(--foreground-muted)] underline underline-offset-4 hover:text-[var(--foreground)] disabled:opacity-50">Clear {removable.length} finished jobs</button></div>}
     <ul className="space-y-2">{shown.map(job=><li key={job.id} className="rounded-lg border border-[var(--border)] bg-[var(--background)]/40 p-3">
     <div className="flex items-center justify-between gap-3"><p className="truncate text-sm">{job.request.prompt}</p><div className="flex shrink-0 items-center gap-2"><span className={`text-xs font-semibold ${job.state==='failed'&&job.errorCode==='tracking_stopped'?'text-[var(--foreground-muted)]':tones[job.state]}`}>{job.state==='failed'&&job.errorCode==='tracking_stopped'?'Tracking stopped':labels[job.state]}</span>
+      <JobElapsed className="text-xs text-[var(--foreground-muted)]" startedAt={job.createdAt} finishedAt={isActiveJob(job)?undefined:job.updatedAt}/>
       {/* Unconfirmed on purpose: this removes a finished record, while the saved
           asset and the spend entry it describes both stay. The destructive
           decision was the one already taken to stop tracking. */}

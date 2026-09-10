@@ -5,6 +5,7 @@ import { useAccountStore } from '@/store/useAccountStore';
 import { useJobQueueStore } from '@/store/useJobQueueStore';
 import { jobSummary } from '@/lib/account/job-label';
 import { JOB_STATE_LABELS, JOB_STATE_TONES, isActiveJob, needsAttention } from '@/lib/account/job-status';
+import JobElapsed from '@/components/JobElapsed';
 
 const LIMIT = 5;
 
@@ -71,7 +72,14 @@ export default function JobQueueOverlay() {
             <span className="truncate text-[var(--foreground-muted)]">{jobSummary(job.request)}</span>
             <span className="flex shrink-0 items-center gap-1">
               <span className={JOB_STATE_TONES[job.state]}>
-                {job.state === 'failed' && job.errorCode === 'tracking_stopped' ? 'Tracking stopped' : JOB_STATE_LABELS[job.state]}
+                <span>
+                  {job.state === 'failed' && job.errorCode === 'tracking_stopped' ? 'Tracking stopped' : JOB_STATE_LABELS[job.state]}
+                </span>
+                <span aria-hidden="true">{' · '}</span>
+                <JobElapsed
+                  startedAt={job.createdAt}
+                  finishedAt={isActiveJob(job) ? undefined : job.updatedAt}
+                />
               </span>
               {needsAttention(job) && (
                 <button

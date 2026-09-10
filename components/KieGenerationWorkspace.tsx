@@ -49,6 +49,7 @@ import {
 } from '@/lib/providers/auto-retry';
 import type { EngineId } from '@/lib/engines/registry';
 import VideoPlayer from '@/components/video/VideoPlayer';
+import JobElapsed from '@/components/JobElapsed';
 
 interface KieGenerationWorkspaceProps {
   mediaType: MediaType;
@@ -644,7 +645,12 @@ export default function KieGenerationWorkspace({
             </div>
             {latestJob && (
               <span className={`rounded-full border px-2.5 py-1 text-xs ${latestJob.state === 'fail' ? 'border-red-500/30 bg-red-500/10 text-red-300' : latestJob.state === 'success' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' : 'border-amber-500/30 bg-amber-500/10 text-amber-200'}`}>
-                {latestJob.state === 'queuing' ? 'Queued' : latestJob.state === 'generating' ? 'Generating' : latestJob.state}
+                <span>{latestJob.state === 'queuing' ? 'Queued' : latestJob.state === 'generating' ? 'Generating' : latestJob.state}</span>
+                <span aria-hidden="true">{' · '}</span>
+                <JobElapsed
+                  startedAt={latestJob.createdAt}
+                  finishedAt={isKieJobTerminal(latestJob.state) ? latestJob.updatedAt : undefined}
+                />
               </span>
             )}
           </div>
@@ -656,7 +662,10 @@ export default function KieGenerationWorkspace({
                 ) : latestJob && !isKieJobTerminal(latestJob.state) ? (
                   <div className="space-y-3 p-5 text-center">
                     <Loader2 className="mx-auto animate-spin text-[var(--neon-cyan)]" size={34} />
-                    <p className="text-sm text-[var(--foreground-muted)]">Kie is working on your {mediaType}.</p>
+                    <p className="text-sm text-[var(--foreground-muted)]">
+                      Kie is working on your {mediaType}.{' '}
+                      <JobElapsed startedAt={latestJob.createdAt} className="text-[var(--foreground)]" />
+                    </p>
                     {typeof latestJob.progress === 'number' && <p className="font-mono text-xs text-[var(--neon-cyan)]">{Math.round(latestJob.progress * 100)}%</p>}
                   </div>
                 ) : latestJob?.state === 'fail' ? (

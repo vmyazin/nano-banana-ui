@@ -11,9 +11,10 @@ import { knownAccountAssetFilenameBase } from '@/lib/account/asset-name';
 import { useAccountStore } from '@/store/useAccountStore';
 import { downloadAccountAsset } from '@/lib/account/download';
 import { accountRequest } from '@/lib/account/client';
-import { isListedJob } from '@/lib/account/job-status';
+import { isListedJob , isActiveJob} from '@/lib/account/job-status';
 import type { CloudAsset, CloudJobRequest } from '@/lib/account/contracts';
 import VideoPlayer from '@/components/video/VideoPlayer';
+import JobElapsed from '@/components/JobElapsed';
 import CloudJobList from './CloudJobList';
 import { AccountSurface } from './AccountSurface';
 import TemporaryAssetNotice from './TemporaryAssetNotice';
@@ -23,7 +24,10 @@ export default function CloudJobPanel({provider,modelId,mediaType,inputMode,onCo
   const jobs=allJobs.filter(j=>j.provider===provider&&j.request.modelId===modelId&&j.request.mediaType===mediaType&&j.request.inputMode===inputMode);
   const assets=allAssets.filter(a=>a.metadata.provider===provider&&a.metadata.modelId===modelId&&a.kind===mediaType&&a.metadata.inputMode===inputMode);
   const pending=useRef(false),[busy,setBusy]=useState(false);
-  const active=jobs.some(j=>['queued','submitting','running','saving'].includes(j.state));
+  // `isActiveJob` rather than a fourth copy of the state list: the timer needs
+  // the running job itself, and two answers to "is this in flight" on one line
+  // is how they drift.
+  const active=jobs.some(isActiveJob);
   /** Downloads the clip into the browser library, then places it — the same
    *  route the library's own card takes, so a placement resolves identically. */
   async function addClipToTimeline(asset:CloudAsset){
@@ -73,7 +77,7 @@ export default function CloudJobPanel({provider,modelId,mediaType,inputMode,onCo
     <div><h3 className="display flex items-center gap-2 text-base font-semibold"><Cloud size={17} className="text-cyan-300" aria-hidden="true"/>Result</h3><p className="mt-1 text-xs text-[var(--foreground-muted)]">Saved to your account when complete. You can leave this page.</p></div>
     <CloudJobList jobs={jobs.filter(isListedJob)} busy={busy} onResume={id=>void changeJob(id,'resume')} onCancel={id=>void changeJob(id,'cancel')} onDismiss={id=>void changeJob(id,'dismiss')} onRemove={ids=>void removeJobs(ids)} />
     <TemporaryAssetNotice assets={assets} />
-    {mediaType==='image'?<ResultStack items={assets.map(a=>({id:a.id,src:`/api/account/assets/${a.id}/content`,mimeType:a.mimeType,label:a.expiresAt?'Temporary result':undefined}))} isGenerating={active} pendingLabel="Your job is running." downloadingId={downloading} filenameBase={item=>{const asset=assets.find(a=>a.id===item.id);return asset?knownAccountAssetFilenameBase(asset):item.id;}} onUseAsFirstFrame={onContinueFromFrame} onDownload={item=>{const asset=assets.find(a=>a.id===item.id);if(asset)return download(asset);}} emptyState={<p className="p-5 text-center text-sm text-[var(--foreground-muted)]">Your saved images will appear here.</p>}/>:assets[0]?<><VideoPlayer crossOrigin label="Saved video" src={`/api/account/assets/${assets[0].id}/content`} className="w-full rounded-xl"/><button type="button" disabled={Boolean(downloading)} onClick={()=>void download(assets[0])} className="btn-secondary justify-center"><Download size={16} aria-hidden="true"/>Download video</button></>:<div className="flex flex-1 flex-col items-center justify-center gap-3 text-sm text-[var(--foreground-muted)]">{active&&<Loader2 className="animate-spin text-cyan-300" aria-hidden="true"/>}{active?'Your background video job is running.':'Your saved video will appear here.'}</div>}
+    {mediaType==='image'?<ResultStack items={assets.map(a=>({id:a.id,src:`/api/account/assets/${a.id}/content`,mimeType:a.mimeType,label:a.expiresAt?'Temporary result':undefined}))} isGenerating={active} pendingLabel="Your job is running." downloadingId={downloading} filenameBase={item=>{const asset=assets.find(a=>a.id===item.id);return asset?knownAccountAssetFilenameBase(asset):item.id;}} onUseAsFirstFrame={onContinueFromFrame} onDownload={item=>{const asset=assets.find(a=>a.id===item.id);if(asset)return download(asset);}} emptyState={<p className="p-5 text-center text-sm text-[var(--foreground-muted)]">Your saved images will appear here.</p>}/>:assets[0]?<><VideoPlayer crossOrigin label="Saved video" src={`/api/account/assets/${assets[0].id}/content`} className="w-full rounded-xl"/><button type="button" disabled={Boolean(downloading)} onClick={()=>void download(assets[0])} className="btn-secondary justify-center"><Download size={16} aria-hidden="true"/>Download video</button></>:<div className="flex flex-1 flex-col items-center justify-center gap-3 text-sm text-[var(--foreground-muted)]">{active&&<Loader2 className="animate-spin text-cyan-300" aria-hidden="true"/>}{active?<span>Your background video job is running.{' '}<JobElapsed className="text-[var(--foreground)]" startedAt={jobs.find(isActiveJob)?.createdAt}/></span>:'Your saved video will appear here.'}</div>}
     {mediaType==='video'&&assets[0]&&<LastFrameActions key={assets[0].id} videoUrl={`/api/account/assets/${assets[0].id}/content`} filenameBase={knownAccountAssetFilenameBase(assets[0])} onContinue={onContinueFromFrame}/>}
     {/* The clip's other exits. `Continue from last frame` above is the one the
         app always had; these are the two it was missing — the frame as a
