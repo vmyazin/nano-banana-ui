@@ -111,6 +111,17 @@ describe('Transport', () => {
     expect(screen.getByText('0:01 / 0:04').className).toMatch(/min-width:11ch/);
   });
 
+  it('clamps a held value when the duration shrinks underneath it', () => {
+    // A clip removed from a timeline mid-drag shortens the sequence. The hold
+    // must not survive as a position that no longer exists.
+    const { rerender } = render(<Transport {...base} duration={12} time={0} />);
+    fireEvent.change(position(), { target: { value: '11' } });
+    expect(screen.getByText('0:11 / 0:12')).toBeInTheDocument();
+
+    rerender(<Transport {...base} duration={4} time={0} />);
+    expect(screen.getByText('0:04 / 0:04')).toBeInTheDocument();
+  });
+
   it('clamps a time past the end instead of overflowing the range', () => {
     render(<Transport {...base} duration={4} time={9} />);
     expect(position().value).toBe('4');

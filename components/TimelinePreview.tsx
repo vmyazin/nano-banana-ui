@@ -1,10 +1,11 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Info, Pause, Play, Volume2, VolumeX } from 'lucide-react';
+import { Info } from 'lucide-react';
 
-import { formatDuration, formatElapsed } from '@/lib/timeline/format';
 import { resolveTrim } from '@/lib/timeline/trim';
+import { formatDuration } from '@/lib/timeline/format';
+import Transport from '@/components/video/Transport';
 import { buildSequence, locate, type PlaybackSequence } from '@/lib/timeline/playback';
 import { usePlayheadStore } from '@/store/usePlayheadStore';
 import type { TimelineClip, TimelineOutput } from '@/store/useTimelineStore';
@@ -474,7 +475,9 @@ export default function TimelinePreview({ clips, clipStates, output, fill = fals
         style={fill ? { containerType: 'size' } : undefined}
       >
       <div
-        className={`relative overflow-hidden rounded-lg bg-black ${fill ? '' : 'mx-auto w-full'}`}
+        // `group` is the hover target for the transport's reveal: the bar is
+        // revealed by resting on the frame, not on the bar itself.
+        className={`group relative overflow-hidden rounded-lg bg-black ${fill ? '' : 'mx-auto w-full'}`}
         style={{
           aspectRatio: `${output.width} / ${output.height}`,
           ...(fill
@@ -517,68 +520,50 @@ export default function TimelinePreview({ clips, clipStates, output, fill = fals
             </p>
           </div>
         )}
+
+        {/* The shared bar, over the frame rather than under it. This component
+            stays the playback engine — it owns two elements driven by one
+            clock, which is why it renders `Transport` directly instead of going
+            through `VideoPlayer`, which owns a single element and its own time.
+
+            `density="full"` rather than measured: the preview frame is always
+            the large surface, and a narrow window should not silently drop the
+            readout and the sound control a person is mid-decision about. */}
+        {sequence.segments.length > 0 && (
+          <Transport
+            density="full"
+            label="Preview"
+            playing={playing}
+            time={shownTime}
+            duration={sequence.total}
+            onToggle={toggle}
+            toggleTitle={playing ? 'Pause (Space)' : 'Play (Space)'}
+            onSeek={(seconds) => usePlayheadStore.getState().seek(seconds)}
+            /* Absent, not disabled, when the export is silent: a control that
+               cannot change anything is noise, and its absence is itself the
+               answer — there is no sound in this timeline to hear. */
+            hasAudio={exportHasSound}
+            /* One level and a toggle, not a slider: `soundOn` is a session
+               gesture and nothing about the exported file changes with it. */
+            volume={{ level: 1, muted: !soundOn }}
+            onVolume={(next) => setSoundOn(!next.muted)}
+            /* The preview is not a fullscreen surface — it is a frame for
+               judging cuts, and the track beside it is half the point. */
+            trackOverlay={sequence.segments.slice(1).map((segment) => (
+              /* Where the cuts fall, so the sequence reads as several clips
+                 even though it plays as one. Light rather than cyan: cyan
+                 disappears against the played portion of the track, which is
+                 itself cyan, so a cut already passed would become invisible. */
+              <span
+                key={segment.id}
+                className="absolute top-1/2 h-2.5 w-px -translate-y-1/2 bg-[rgba(236,245,245,0.75)]"
+                style={{ left: `${(segment.start / sequence.total) * 100}%` }}
+              />
+            ))}
+          />
+        )}
       </div>
       </div>
-
-      {sequence.segments.length > 0 && (
-        <div className="flex shrink-0 items-center gap-2.5">
-          <button
-            type="button"
-            onClick={toggle}
-            aria-label={playing ? 'Pause preview' : 'Play preview'}
-            title={playing ? 'Pause (Space)' : 'Play (Space)'}
-            className="shrink-0 rounded-md border border-[var(--border)] p-1.5 text-[var(--foreground-muted)] hover:text-[var(--neon-cyan)]"
-          >
-            {playing ? <Pause size={14} /> : <Play size={14} />}
-          </button>
-
-          {/* Absent, not disabled, when the export is silent: a control that
-              cannot change anything is noise, and its absence is itself the
-              answer — there is no sound in this timeline to hear. */}
-          {exportHasSound && (
-            <button
-              type="button"
-              onClick={() => setSoundOn((on) => !on)}
-              aria-pressed={soundOn}
-              aria-label={soundOn ? 'Mute preview' : 'Unmute preview'}
-              title={soundOn ? 'Mute preview' : 'Unmute preview'}
-              className={`shrink-0 rounded-md border border-[var(--border)] p-1.5 hover:text-[var(--neon-cyan)] ${
-                soundOn ? 'text-[var(--neon-cyan)]' : 'text-[var(--foreground-muted)]'
-              }`}
-            >
-              {soundOn ? <Volume2 size={14} /> : <VolumeX size={14} />}
-            </button>
-          )}
-
-          <div className="relative flex-1">
-            <input
-              type="range"
-              min={0}
-              max={sequence.total}
-              step={0.05}
-              value={shownTime}
-              onChange={(event) => usePlayheadStore.getState().seek(Number(event.target.value))}
-              aria-label="Preview position"
-              className="w-full"
-            />
-            {/* Where the cuts fall, so the sequence reads as several clips even
-                though it plays as one. */}
-            <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-full">
-              {sequence.segments.slice(1).map((segment) => (
-                <span
-                  key={segment.id}
-                  className="absolute top-1/2 h-2 w-px -translate-y-1/2 bg-[var(--foreground-subtle)]"
-                  style={{ left: `${(segment.start / sequence.total) * 100}%` }}
-                />
-              ))}
-            </div>
-          </div>
-
-          <p className="shrink-0 tabular-nums text-xs text-[var(--foreground-muted)]">
-            {formatElapsed(shownTime)} / {formatDuration(sequence.total)}
-          </p>
-        </div>
-      )}
 
       <p className="flex shrink-0 items-start gap-1.5 text-xs text-[var(--foreground-subtle)]">
         <Info size={12} className="mt-0.5 shrink-0" />

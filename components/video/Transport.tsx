@@ -32,8 +32,17 @@ export interface TransportProps {
   onFullscreen?: () => void;
   /** Painted over the scrub track: cut markers, buffered spans. */
   trackOverlay?: ReactNode;
-  /** Names the media this bar controls, for the scrubber's accessible name. */
+  /**
+   * Names the media this bar controls. Every control is labelled with it, so a
+   * screen reader in a gallery hears "Play arcade dolly 4s" rather than eight
+   * identical "Play" buttons.
+   */
   label?: string;
+  /**
+   * Appended to the play button's tooltip. Only for a consumer that owns a real
+   * keyboard binding for it — the timeline preview binds Space.
+   */
+  toggleTitle?: string;
   density?: 'auto' | 'full' | 'compact';
 }
 
@@ -58,6 +67,7 @@ export default function Transport({
   onFullscreen,
   trackOverlay,
   label,
+  toggleTitle,
   density = 'auto',
 }: TransportProps) {
   const bar = useRef<HTMLDivElement>(null);
@@ -82,7 +92,10 @@ export default function Transport({
   // this an arriving `timeupdate` rewrites `value` mid-drag and hauls the thumb
   // backwards under the pointer.
   const [held, setHeld] = useState<number | null>(null);
-  const shown = held ?? Math.min(Math.max(time, 0), duration || 0);
+  // The held value still gets clamped. It wins over an incoming `time`, but the
+  // duration can shrink underneath a held thumb — a clip removed from a
+  // timeline mid-drag — and an unclamped hold then reads past the end.
+  const shown = Math.min(Math.max(held ?? time, 0), duration || 0);
   const release = () => setHeld(null);
 
   // All three, so a half-wired consumer gets no control rather than a dead one.
@@ -111,6 +124,8 @@ export default function Transport({
       'motion-reduce:transition-none [@media(pointer:coarse)]:opacity-100';
 
   const iconSize = compact ? 14 : 16;
+  /** `Play` alone when unnamed, `Play <media>` when the caller named it. */
+  const name = (verb: string) => (label ? `${verb} ${label}` : verb);
 
   return (
     <div
@@ -124,7 +139,8 @@ export default function Transport({
       <button
         type="button"
         onClick={onToggle}
-        aria-label={playing ? 'Pause' : 'Play'}
+        aria-label={name(playing ? 'Pause' : 'Play')}
+        title={toggleTitle}
         className="shrink-0 text-[#ecf5f5] transition-colors hover:text-[var(--neon-cyan)]"
       >
         {playing ? <Pause size={iconSize} /> : <Play size={iconSize} />}
@@ -164,7 +180,7 @@ export default function Transport({
         <button
           type="button"
           onClick={() => onVolume({ level: volume.level, muted: !volume.muted })}
-          aria-label={volume.muted ? 'Unmute' : 'Mute'}
+          aria-label={name(volume.muted ? 'Unmute' : 'Mute')}
           aria-pressed={!volume.muted}
           className="shrink-0 text-[#ecf5f5] transition-colors hover:text-[var(--neon-cyan)]"
         >
@@ -185,7 +201,7 @@ export default function Transport({
         <button
           type="button"
           onClick={onFullscreen}
-          aria-label="Fullscreen"
+          aria-label={name('Fullscreen')}
           className="shrink-0 text-[#ecf5f5] transition-colors hover:text-[var(--neon-cyan)]"
         >
           <Maximize2 size={iconSize} />
