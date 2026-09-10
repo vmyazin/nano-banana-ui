@@ -1,0 +1,601 @@
+<!--
+  EXPLORATION TEMPLATE — explore-design skill
+  Brand: Scene Assembly (DESIGN.md + app/globals.css), light-adapted. See _brand.md.
+
+  How to use:
+  - Brand init (references/brand-init.md) copies this file once per repo to
+    design-explorations/_template.html with the repo's real --brand-* / --accent-* / font values
+    applied; explorations then copy THAT file to design-explorations/<short-name>.html. Only use
+    this neutral file directly as a scan-only fallback when brand init couldn't run.
+  - Replace tokens in the page header
+  - Duplicate the .variant block for each direction (A, B, C, D…)
+  - The .preview-frame is intentionally a clean white surface — variants paint inside it
+  - The page chrome (background, header, labels) stays consistent. Do not restyle it per variant.
+
+  Title:     Video player transport &mdash; four directions            e.g. "Team payment page — four directions"
+  Subtitle:  One in-house bar to replace native &lt;video controls&gt; at every clip surface, drawn at both densities the spec requires: a 520px result panel and a 180px gallery cell.         e.g. "Hero + pricing card explorations for first-time payment"
+  Spec:      docs/superpowers/specs/2026-09-10-video-player-design.md        e.g. "specs/team-payment-revamp.md"
+  Date:      2026-09-10             e.g. "2026-06-24"
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Video player transport &mdash; four directions</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@500;600&display=swap" rel="stylesheet" />
+  <style>
+    /* ----------------------------------------------------------------
+       SCENE ASSEMBLY — light adaptation of the repo brand.
+       Source: DESIGN.md ("The Illuminated Workbench") + app/globals.css.
+       The product is a dark teal workbench; the chrome translates that onto
+       light paper — canvas #081012 becomes ink, signal cyan / motion violet /
+       marker yellow become accents, Geist + Geist Mono stay. Quiet enough that
+       a dark variant preview can sit inside it without a fight.
+    ---------------------------------------------------------------- */
+    :root {
+      --brand-50: #e4f2f2;
+      --brand-100: #bfe4e4;
+      --brand-300: #4e8e91;
+      --brand-500: #076c70;   /* signal cyan #00fff9, contrast-fixed for paper */
+      --brand-700: #05494d;
+      --accent-50: #f4e9fd;
+      --accent-500: #7b16aa;  /* motion violet #bd00ff */
+      --accent-700: #5b0f7d;
+      --marker: #ffed4e;      /* marker yellow, used flat on ink only */
+      --magenta: #bd0059;     /* output magenta #ff006e */
+      --ink: #081012;         /* workbench canvas */
+      --ink-soft: #33474a;
+      --ink-mute: #6d8386;
+      --line: #d6e6e6;
+      --line-soft: #e7f0f0;
+      --paper: #ffffff;
+      --bg: #f1f7f7;
+      --font-sans: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      --font-mono: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      --shadow-sm: 0 1px 2px rgba(8, 16, 18, 0.05), 0 1px 1px rgba(8, 16, 18, 0.03);
+      --shadow-md: 0 16px 40px -26px rgba(8, 16, 18, 0.45), 0 2px 6px rgba(8, 16, 18, 0.04);
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      font-family: var(--font-sans);
+      letter-spacing: -0.011em;
+      background: var(--bg);
+      color: var(--ink);
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      line-height: 1.5;
+    }
+
+    .page {
+      max-width: 1320px;
+      margin: 0 auto;
+      padding: 72px 48px 160px;
+    }
+
+    /* ---------- Page header ---------- */
+    .doc-header {
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 40px;
+      margin-bottom: 80px;
+    }
+    .doc-eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      font-weight: 600;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--brand-700);
+      background: var(--brand-50);
+      padding: 6px 12px;
+      border-radius: 999px;
+      margin-bottom: 20px;
+    }
+    .doc-eyebrow::before {
+      content: '';
+      width: 6px;
+      height: 6px;
+      border-radius: 999px;
+      background: var(--brand-500);
+    }
+    .doc-title {
+      font-family: var(--font-sans);
+      font-size: 54px;
+      line-height: 1.02;
+      font-weight: 600;
+      letter-spacing: -0.035em;
+      margin: 0 0 16px;
+      color: var(--ink);
+    }
+    .doc-subtitle {
+      font-size: 19px;
+      color: var(--ink-soft);
+      max-width: 720px;
+      margin: 0 0 32px;
+      line-height: 1.45;
+    }
+    .doc-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 24px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--ink-mute);
+    }
+    .doc-meta > div { display: flex; gap: 6px; }
+    .doc-meta b {
+      color: var(--ink-soft);
+      font-weight: 600;
+    }
+
+    /* ---------- Variant section ---------- */
+    .variant {
+      margin-bottom: 96px;
+    }
+    .variant:last-child { margin-bottom: 0; }
+
+    .variant-head {
+      display: grid;
+      grid-template-columns: 64px 1fr;
+      gap: 20px;
+      align-items: start;
+      margin-bottom: 28px;
+    }
+    .variant-letter {
+      width: 48px;
+      height: 48px;
+      border-radius: 999px;
+      background: var(--ink);
+      color: var(--marker);
+      font-family: var(--font-mono);
+      font-weight: 600;
+      font-size: 19px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      letter-spacing: -0.02em;
+    }
+    .variant-meta h2 {
+      margin: 4px 0 6px;
+      font-size: 25px;
+      font-weight: 600;
+      letter-spacing: -0.03em;
+      color: var(--ink);
+    }
+    .variant-tradeoff {
+      font-size: 15px;
+      color: var(--ink-soft);
+      margin: 0;
+      max-width: 760px;
+    }
+    .variant-tradeoff b {
+      color: var(--brand-500);
+      font-weight: 600;
+    }
+
+    /* ---------- Preview frame ---------- */
+    .preview-frame {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      box-shadow: var(--shadow-md);
+      overflow: hidden;
+      margin-left: 84px;
+      position: relative;
+    }
+    .preview-frame::before {
+      content: '';
+      position: absolute;
+      top: 14px;
+      left: 16px;
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      background: #d5e7e7;
+      box-shadow: 18px 0 0 #d5e7e7, 36px 0 0 #d5e7e7;
+      z-index: 2;
+    }
+    .preview-frame-bar {
+      background: #f5fafa;
+      border-bottom: 1px solid var(--line-soft);
+      padding: 14px 16px 14px 76px;
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--ink-mute);
+      font-weight: 600;
+    }
+    .preview {
+      padding: 0;
+      min-height: 200px;
+    }
+
+    /* ---------- Analysis ---------- */
+    .variant-analysis {
+      margin: 24px 0 0 84px;
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 24px;
+    }
+    .analysis-block {
+      padding: 18px 20px;
+      border: 1px solid var(--line);
+      border-radius: 11px;
+      background: var(--paper);
+    }
+    .analysis-block h4 {
+      margin: 0 0 6px;
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      font-weight: 600;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--brand-500);
+    }
+    .analysis-block.is-risk h4 { color: var(--magenta); }
+    .analysis-block.is-pick h4 { color: var(--accent-700); }
+    .analysis-block p {
+      margin: 0;
+      font-size: 14px;
+      line-height: 1.55;
+      color: var(--ink-soft);
+    }
+
+    /* ---------- Decision row ---------- */
+    .decision {
+      position: relative;
+      overflow: hidden;
+      margin-top: 120px;
+      padding: 40px 48px;
+      background: var(--ink);
+      color: #ecf5f5;
+      border-radius: 16px;
+    }
+    .decision::before {
+      content: '';
+      position: absolute;
+      inset: 0 0 auto;
+      height: 1px;
+      background: linear-gradient(to right, transparent, var(--marker), transparent);
+      opacity: 0.45;
+    }
+    .decision h3 {
+      font-family: var(--font-sans);
+      font-size: 26px;
+      font-weight: 600;
+      letter-spacing: -0.03em;
+      margin: 0 0 8px;
+    }
+    .decision-sub {
+      color: #8fa5a7;
+      font-size: 14px;
+      margin: 0 0 28px;
+    }
+    .decision-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 20px;
+    }
+    .decision-cell b {
+      display: block;
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--marker);
+      margin-bottom: 6px;
+      font-weight: 600;
+    }
+    .decision-cell span {
+      font-size: 15px;
+      color: #ecf5f5;
+      line-height: 1.45;
+    }
+
+    /* ---------- Responsive ---------- */
+    @media (max-width: 900px) {
+      .page { padding: 40px 20px 80px; }
+      .doc-title { font-size: 36px; }
+      .variant-head { grid-template-columns: 48px 1fr; gap: 12px; }
+      .preview-frame { margin-left: 0; }
+      .variant-analysis { margin-left: 0; grid-template-columns: 1fr; }
+    }
+
+    /* ---------- Variant preview reset ----------
+       Anything inside .preview is the variant's own canvas.
+       Use scoped class prefixes per variant (.va-, .vb-, .vc-, .vd-)
+       to avoid cross-bleed of styles between variants.
+    */
+
+    /* ---------- Shared product stage (the dark app inside light chrome) ---------- */
+    .stage { display:grid; grid-template-columns:minmax(0,1fr) 212px; gap:28px; padding:28px; background:#081113; align-items:start; }
+    @media (max-width:900px){ .stage{ grid-template-columns:minmax(0,1fr); } }
+    .stage-label { font-family:var(--font-mono); font-size:9.5px; font-weight:600; letter-spacing:.18em;
+      text-transform:uppercase; color:#7a8d8f; margin-bottom:10px; }
+    .frame { aspect-ratio:16/9; background:linear-gradient(135deg,#7e22ce,#22d3ee); border-radius:8px; position:relative; overflow:hidden; }
+    .frame.is-cell { aspect-ratio:4/3; background:linear-gradient(135deg,#0c4a6e,#e0f2fe); }
+    .cell { width:180px; }
+    .prod { color:#ecf5f5; font-family:var(--font-sans); }
+    .t-time { font-family:var(--font-mono); font-size:10.5px; font-weight:500; color:#8fa5a7; font-variant-numeric:tabular-nums; white-space:nowrap; }
+    .t-btn { display:inline-flex; align-items:center; justify-content:center; background:none; border:0; padding:0;
+      color:#8fa5a7; cursor:pointer; font-size:14px; line-height:1; }
+    .t-btn:hover { color:#00fff9; }
+    /* Every scrubber below is a real input[type=range] driven by --pct, so the
+       winning variant's CSS moves into app/globals.css unchanged. */
+    .rng { -webkit-appearance:none; appearance:none; background:transparent; width:100%; margin:0; display:block; cursor:pointer; }
+    .rng:focus-visible { outline:none; box-shadow:0 0 0 3px rgba(0,255,249,.12); border-radius:2px; }
+    .rng::-moz-range-thumb { border:0; }
+
+    /* ================= A · Instrument rail ================= */
+    .va-bar { display:flex; align-items:center; gap:12px; margin-top:10px; padding-top:10px;
+      border-top:1px solid rgba(194,232,240,.09); }
+    .va-track { flex:1; position:relative; }
+    .va-cut { position:absolute; top:50%; transform:translateY(-50%); width:1px; height:8px; background:#7a8d8f; pointer-events:none; }
+
+    .va-rng { --pct:42%; height:10px; }
+    .va-rng::-webkit-slider-runnable-track { height:2px; border-radius:2px;
+      background:linear-gradient(to right, #00fff9 0 var(--pct), rgba(194,232,240,.14) var(--pct) 100%); }
+    .va-rng::-moz-range-track { height:2px; border-radius:2px;
+      background:linear-gradient(to right, #00fff9 0 var(--pct), rgba(194,232,240,.14) var(--pct) 100%); }
+    .va-rng::-webkit-slider-thumb { -webkit-appearance:none; appearance:none; width:2px; height:10px;
+      background:#00fff9; border-radius:2px; margin-top:-4.0px; box-shadow:0 0 6px rgba(0,255,249,.6); }
+    .va-rng::-moz-range-thumb { width:2px; height:10px; background:#00fff9;
+      border-radius:2px; box-shadow:0 0 6px rgba(0,255,249,.6); }
+    .va-cbar { display:flex; align-items:center; gap:8px; margin-top:8px; }
+
+    .va-rng-c { --pct:42%; height:8px; }
+    .va-rng-c::-webkit-slider-runnable-track { height:2px; border-radius:2px;
+      background:linear-gradient(to right, #00fff9 0 var(--pct), rgba(194,232,240,.14) var(--pct) 100%); }
+    .va-rng-c::-moz-range-track { height:2px; border-radius:2px;
+      background:linear-gradient(to right, #00fff9 0 var(--pct), rgba(194,232,240,.14) var(--pct) 100%); }
+    .va-rng-c::-webkit-slider-thumb { -webkit-appearance:none; appearance:none; width:2px; height:8px;
+      background:#00fff9; border-radius:2px; margin-top:-3.0px;  }
+    .va-rng-c::-moz-range-thumb { width:2px; height:8px; background:#00fff9;
+      border-radius:2px;  }
+
+    /* ================= B · Floating scrim ================= */
+    .vb-scrim { position:absolute; inset:auto 0 0 0; padding:22px 12px 10px;
+      background:linear-gradient(to top, rgba(8,17,19,.92), rgba(8,17,19,.55) 55%, transparent);
+      display:flex; align-items:center; gap:10px; }
+
+    .vb-rng { --pct:42%; height:14px; }
+    .vb-rng::-webkit-slider-runnable-track { height:4px; border-radius:999px;
+      background:linear-gradient(to right, #00fff9 0 var(--pct), rgba(236,245,245,.28) var(--pct) 100%); }
+    .vb-rng::-moz-range-track { height:4px; border-radius:999px;
+      background:linear-gradient(to right, #00fff9 0 var(--pct), rgba(236,245,245,.28) var(--pct) 100%); }
+    .vb-rng::-webkit-slider-thumb { -webkit-appearance:none; appearance:none; width:14px; height:14px;
+      background:#ecf5f5; border-radius:999px; margin-top:-5.0px; border:2px solid #00fff9; }
+    .vb-rng::-moz-range-thumb { width:14px; height:14px; background:#ecf5f5;
+      border-radius:999px; border:2px solid #00fff9; }
+    .vb-scrim .t-btn { color:#ecf5f5; font-size:16px; }
+    .vb-scrim .t-time { color:#ecf5f5; }
+
+    .vb-rng-c { --pct:42%; height:12px; }
+    .vb-rng-c::-webkit-slider-runnable-track { height:4px; border-radius:999px;
+      background:linear-gradient(to right, #00fff9 0 var(--pct), rgba(236,245,245,.28) var(--pct) 100%); }
+    .vb-rng-c::-moz-range-track { height:4px; border-radius:999px;
+      background:linear-gradient(to right, #00fff9 0 var(--pct), rgba(236,245,245,.28) var(--pct) 100%); }
+    .vb-rng-c::-webkit-slider-thumb { -webkit-appearance:none; appearance:none; width:12px; height:12px;
+      background:#ecf5f5; border-radius:999px; margin-top:-4.0px; border:2px solid #00fff9; }
+    .vb-rng-c::-moz-range-thumb { width:12px; height:12px; background:#ecf5f5;
+      border-radius:999px; border:2px solid #00fff9; }
+    .vb-scrim.is-c { padding:18px 8px 8px; gap:7px; }
+
+    /* ================= C · Minimal seam ================= */
+    .vc-seam { position:absolute; inset:auto 0 0 0; }
+
+    .vc-rng { --pct:42%; height:3px; }
+    .vc-rng::-webkit-slider-runnable-track { height:3px; border-radius:0px;
+      background:linear-gradient(to right, #00fff9 0 var(--pct), rgba(8,17,19,.55) var(--pct) 100%); }
+    .vc-rng::-moz-range-track { height:3px; border-radius:0px;
+      background:linear-gradient(to right, #00fff9 0 var(--pct), rgba(8,17,19,.55) var(--pct) 100%); }
+    .vc-rng::-webkit-slider-thumb { -webkit-appearance:none; appearance:none; width:3px; height:3px;
+      background:#00fff9; border-radius:0px; margin-top:0.0px;  }
+    .vc-rng::-moz-range-thumb { width:3px; height:3px; background:#00fff9;
+      border-radius:0px;  }
+    .vc-hover { position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+      background:rgba(8,17,19,.35); opacity:0; transition:opacity .18s ease; }
+    .frame:hover .vc-hover, .vc-hover:focus-within { opacity:1; }
+    @media (prefers-reduced-motion:reduce){ .vc-hover{ transition:none; } }
+    .vc-round { width:46px; height:46px; border-radius:999px; background:rgba(8,17,19,.72);
+      border:1px solid rgba(0,255,249,.35); color:#ecf5f5; font-size:18px; }
+    .vc-meta { position:absolute; right:8px; bottom:10px; }
+
+    /* ================= D · Console ================= */
+    .vd-shell { background:#0e1a1c; border:1px solid rgba(194,232,240,.075); border-radius:11px; padding:10px; }
+    .vd-shell .frame { border-radius:6px; box-shadow:inset 0 0 0 1px rgba(0,0,0,.5); }
+    .vd-bar { display:flex; align-items:center; gap:12px; padding:12px 4px 2px; }
+
+    .vd-rng { --pct:42%; height:6px; }
+    .vd-rng::-webkit-slider-runnable-track { height:6px; border-radius:3px;
+      background:linear-gradient(to right, #00fff9 0 var(--pct), rgba(8,17,19,.9) var(--pct) 100%); }
+    .vd-rng::-moz-range-track { height:6px; border-radius:3px;
+      background:linear-gradient(to right, #00fff9 0 var(--pct), rgba(8,17,19,.9) var(--pct) 100%); }
+    .vd-rng::-webkit-slider-thumb { -webkit-appearance:none; appearance:none; width:6px; height:6px;
+      background:#ecf5f5; border-radius:999px; margin-top:0.0px; box-shadow:0 0 0 1px rgba(0,255,249,.5); }
+    .vd-rng::-moz-range-thumb { width:6px; height:6px; background:#ecf5f5;
+      border-radius:999px; box-shadow:0 0 0 1px rgba(0,255,249,.5); }
+    .vd-vol { width:54px; flex:none; }
+
+    .vd-vol-rng { --pct:70%; height:4px; }
+    .vd-vol-rng::-webkit-slider-runnable-track { height:4px; border-radius:2px;
+      background:linear-gradient(to right, #8fa5a7 0 var(--pct), rgba(8,17,19,.9) var(--pct) 100%); }
+    .vd-vol-rng::-moz-range-track { height:4px; border-radius:2px;
+      background:linear-gradient(to right, #8fa5a7 0 var(--pct), rgba(8,17,19,.9) var(--pct) 100%); }
+    .vd-vol-rng::-webkit-slider-thumb { -webkit-appearance:none; appearance:none; width:4px; height:4px;
+      background:#ecf5f5; border-radius:999px; margin-top:0.0px;  }
+    .vd-vol-rng::-moz-range-thumb { width:4px; height:4px; background:#ecf5f5;
+      border-radius:999px;  }
+    .vd-bar-c { padding:8px 2px 2px; gap:8px; }
+  </style>
+</head>
+<body>
+  <main class="page">
+
+    <header class="doc-header">
+      <div class="doc-eyebrow">Design exploration</div>
+      <h1 class="doc-title">Video player transport &mdash; four directions</h1>
+      <p class="doc-subtitle">One in-house bar to replace native &lt;video controls&gt; at every clip surface, drawn at both densities the spec requires: a 520px result panel and a 180px gallery cell.</p>
+      <div class="doc-meta">
+        <div><b>Spec</b> docs/superpowers/specs/2026-09-10-video-player-design.md</div>
+        <div><b>Generated</b> 2026-09-10</div>
+        <div><b>Variants</b> 4</div>
+      </div>
+    </header>
+
+
+    <!-- ===== VARIANT A ===== -->
+    <section class="variant">
+      <div class="variant-head">
+        <div class="variant-letter">A</div>
+        <div class="variant-meta">
+          <h2>Instrument rail</h2>
+          <p class="variant-tradeoff">
+            <b>Optimizes for</b> literal fidelity to &ldquo;controls read as precise instruments&rdquo; <b>&middot;  Tradeoff</b> the thinnest hit targets of the four &mdash; a 10px thumb is a small thing to grab on a trackpad
+          </p>
+        </div>
+      </div>
+      <div class="preview-frame">
+        <div class="preview-frame-bar">Variant A &middot; instrument rail</div>
+        <div class="preview">
+          <div class="stage">
+            <div>
+              <div class="stage-label">Full density &middot; result panel &middot; &ldquo;arcade dolly 4s&rdquo; &middot; fal</div>
+              <div class="prod"><div class="frame"></div><div class="va-bar"><button class="t-btn" aria-label="Pause"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor" aria-hidden="true"><path d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg></button><span class="va-track"><input class="rng va-rng" type="range" min="0" max="4" step="0.01" value="1.7" aria-label="Playback position"><span class="va-cut" style="left:38%"></span><span class="va-cut" style="left:71%"></span></span><button class="t-btn" aria-label="Mute"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></svg></button><span class="t-time">0:01 / 0:04</span><button class="t-btn" aria-label="Fullscreen"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 9V4h5M20 15v5h-5M20 9V4h-5M4 15v5h5"/></svg></button></div></div>
+            </div>
+            <div>
+              <div class="stage-label">Compact &middot; 180px cell &middot; &ldquo;skylight rain push&rdquo;</div>
+              <div class="cell prod"><div class="frame is-cell"></div><div class="va-cbar"><button class="t-btn" aria-label="Play"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg></button><input class="rng va-rng-c" type="range" min="0" max="4" step="0.01" value="1.7" aria-label="Playback position"></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="variant-analysis">
+        <div class="analysis-block"><h4>What works</h4><p>A 2px track with one cyan-glow thumb reads as measurement rather than media playback, and the mono readout matches the eyebrow type already in the app. Because the bar sits below the frame it never covers the result &mdash; the thing the viewer actually came to look at.</p></div>
+        <div class="analysis-block is-risk"><h4>What risks</h4><p>The 2px track is the smallest pointer target here, and the compact rendering drops to 8px of thumb. It also adds roughly 34px of vertical chrome to every gallery cell, which multiplies down a grid.</p></div>
+        <div class="analysis-block is-pick"><h4>Pick this if</h4><p>the clip is the subject and the controls should stay out of the picture entirely.</p></div>
+      </div>
+    </section>
+
+    <!-- ===== VARIANT B ===== -->
+    <section class="variant">
+      <div class="variant-head">
+        <div class="variant-letter">B</div>
+        <div class="variant-meta">
+          <h2>Floating scrim</h2>
+          <p class="variant-tradeoff">
+            <b>Optimizes for</b> one identical treatment at both densities, and the largest touch targets <b>&middot;  Tradeoff</b> permanently covers the bottom fifth of the frame, so the last band of every result is read through a gradient
+          </p>
+        </div>
+      </div>
+      <div class="preview-frame">
+        <div class="preview-frame-bar">Variant B &middot; floating scrim</div>
+        <div class="preview">
+          <div class="stage">
+            <div>
+              <div class="stage-label">Full density &middot; result panel &middot; &ldquo;arcade dolly 4s&rdquo; &middot; fal</div>
+              <div class="prod"><div class="frame"><div class="vb-scrim"><button class="t-btn" aria-label="Pause"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor" aria-hidden="true"><path d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg></button><input class="rng vb-rng" type="range" min="0" max="4" step="0.01" value="1.7" aria-label="Playback position"><button class="t-btn" aria-label="Mute"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></svg></button><span class="t-time">0:01 / 0:04</span><button class="t-btn" aria-label="Fullscreen"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 9V4h5M20 15v5h-5M20 9V4h-5M4 15v5h5"/></svg></button></div></div></div>
+            </div>
+            <div>
+              <div class="stage-label">Compact &middot; 180px cell &middot; &ldquo;skylight rain push&rdquo;</div>
+              <div class="cell prod"><div class="frame is-cell"><div class="vb-scrim is-c"><button class="t-btn" aria-label="Pause"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor" aria-hidden="true"><path d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg></button><input class="rng vb-rng-c" type="range" min="0" max="4" step="0.01" value="1.7" aria-label="Playback position"></div></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="variant-analysis">
+        <div class="analysis-block"><h4>What works</h4><p>The most conventional reading of a video player, so nobody has to learn it &mdash; and the only variant whose compact and full bars are structurally the same object, which is exactly the &ldquo;recognisably the same instrument&rdquo; goal. A 14px thumb is comfortable on touch.</p></div>
+        <div class="analysis-block is-risk"><h4>What risks</h4><p>It sits on top of the image. For a generation tool that is a real cost: the bottom of a 9:16 portrait clip is content someone is judging, and a scrim over it changes what they see. Reveal-on-hover fixes that at the price of the cross-density consistency that is the variant&rsquo;s whole argument.</p></div>
+        <div class="analysis-block is-pick"><h4>Pick this if</h4><p>conventional beats bespoke, and you would rather nobody think about the player at all.</p></div>
+      </div>
+    </section>
+
+    <!-- ===== VARIANT C ===== -->
+    <section class="variant">
+      <div class="variant-head">
+        <div class="variant-letter">C</div>
+        <div class="variant-meta">
+          <h2>Minimal seam</h2>
+          <p class="variant-tradeoff">
+            <b>Optimizes for</b> the least chrome possible &mdash; a resting cell shows a 3px line and nothing else <b>&middot;  Tradeoff</b> hides every control but the scrubber until hover, so the player is nearly invisible on touch
+          </p>
+        </div>
+      </div>
+      <div class="preview-frame">
+        <div class="preview-frame-bar">Variant C &middot; minimal seam</div>
+        <div class="preview">
+          <div class="stage">
+            <div>
+              <div class="stage-label">Full density &middot; result panel &middot; &ldquo;arcade dolly 4s&rdquo; &middot; fal</div>
+              <div class="prod"><div class="frame"><div class="vc-hover"><button class="t-btn vc-round" style="" aria-label="Pause"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor" aria-hidden="true"><path d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg></button></div><span class="t-time vc-meta">0:01 / 0:04</span><div class="vc-seam"><input class="rng vc-rng" type="range" min="0" max="4" step="0.01" value="1.7" aria-label="Playback position"></div></div></div>
+            </div>
+            <div>
+              <div class="stage-label">Compact &middot; 180px cell &middot; &ldquo;skylight rain push&rdquo;</div>
+              <div class="cell prod"><div class="frame is-cell"><div class="vc-hover"><button class="t-btn vc-round" style="width:38px;height:38px;font-size:15px;" aria-label="Pause"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor" aria-hidden="true"><path d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg></button></div><div class="vc-seam"><input class="rng vc-rng" type="range" min="0" max="4" step="0.01" value="1.7" aria-label="Playback position"></div></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="variant-analysis">
+        <div class="analysis-block"><h4>What works</h4><p>At rest a gallery of twelve clips is twelve clean frames with a thin cyan progress line, which is the quietest a grid can be while still showing progress. The centred round play button on hover is a strong, obvious affordance.</p></div>
+        <div class="analysis-block is-risk"><h4>What risks</h4><p>It leans hardest on hover, and the spec requires the compact bar pinned visible on coarse pointers &mdash; which on touch collapses this into something close to B, so the two read differently on desktop and nearly identically on a phone. Volume and fullscreen have nowhere to live in this layout yet.</p></div>
+        <div class="analysis-block is-pick"><h4>Pick this if</h4><p>the gallery is the primary surface and its calm at rest matters more than discoverability.</p></div>
+      </div>
+    </section>
+
+    <!-- ===== VARIANT D ===== -->
+    <section class="variant">
+      <div class="variant-head">
+        <div class="variant-letter">D</div>
+        <div class="variant-meta">
+          <h2>Console</h2>
+          <p class="variant-tradeoff">
+            <b>Optimizes for</b> explicitness &mdash; every control present, labelled, and comfortably sized at full density <b>&middot;  Tradeoff</b> the heaviest chrome, and the recessed frame makes the result look smaller than it is
+          </p>
+        </div>
+      </div>
+      <div class="preview-frame">
+        <div class="preview-frame-bar">Variant D &middot; console</div>
+        <div class="preview">
+          <div class="stage">
+            <div>
+              <div class="stage-label">Full density &middot; result panel &middot; &ldquo;arcade dolly 4s&rdquo; &middot; fal</div>
+              <div class="vd-shell prod"><div class="frame"></div><div class="vd-bar"><button class="t-btn" aria-label="Pause"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor" aria-hidden="true"><path d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg></button><input class="rng vd-rng" type="range" min="0" max="4" step="0.01" value="1.7" aria-label="Playback position"><span class="t-time">0:01 / 0:04</span><button class="t-btn" aria-label="Mute"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></svg></button><input class="rng vd-vol-rng vd-vol" type="range" min="0" max="1" step="0.01" value="0.7" aria-label="Volume"><button class="t-btn" aria-label="Fullscreen"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 9V4h5M20 15v5h-5M20 9V4h-5M4 15v5h5"/></svg></button></div></div>
+            </div>
+            <div>
+              <div class="stage-label">Compact &middot; 180px cell &middot; &ldquo;skylight rain push&rdquo;</div>
+              <div class="cell"><div class="vd-shell prod"><div class="frame is-cell"></div><div class="vd-bar vd-bar-c"><button class="t-btn" aria-label="Play"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg></button><input class="rng vd-rng" type="range" min="0" max="4" step="0.01" value="1.7" aria-label="Playback position"></div></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="variant-analysis">
+        <div class="analysis-block"><h4>What works</h4><p>The only variant that shows a real volume slider rather than a mute toggle, and the elevated shell ties the player to the glass-card surfaces already in the app. A 6px track is easy to hit and reads clearly at a glance.</p></div>
+        <div class="analysis-block is-risk"><h4>What risks</h4><p>It frames the result in furniture. On a page whose entire job is presenting a generated clip, a bezel and a control console compete with the thing being presented &mdash; and the compact rendering throws away almost everything the variant argues for, so the two densities read as different components. Measured: its shell padding shrinks the 180px cell&rsquo;s frame to 158&times;119, against 180&times;135 in every other variant &mdash; the clip itself comes out smaller.</p></div>
+        <div class="analysis-block is-pick"><h4>Pick this if</h4><p>the result panel is the primary surface and you want the controls to feel like equipment.</p></div>
+      </div>
+    </section>
+
+    <!-- ===== Decision row ===== -->
+    <section class="decision">
+      <h3>How to pick a direction</h3>
+      <p class="decision-sub">A one-line rubric for choosing one of these to take forward.</p>
+      <div class="decision-grid">
+        <div class="decision-cell"><b>If you want &rarr;</b><span><b>A</b> &middot; The clip is the subject and the controls should stay out of the picture entirely.</span></div>
+        <div class="decision-cell"><b>If you want &rarr;</b><span><b>B</b> &middot; Conventional beats bespoke, and you would rather nobody think about the player at all.</span></div>
+        <div class="decision-cell"><b>If you want &rarr;</b><span><b>C</b> &middot; The gallery is the primary surface and its calm at rest matters more than discoverability.</span></div>
+        <div class="decision-cell"><b>If you want &rarr;</b><span><b>D</b> &middot; The result panel is the primary surface and you want the controls to feel like equipment.</span></div>
+      </div>
+    </section>
+
+  </main>
+</body>
+</html>
