@@ -45,7 +45,6 @@ import { requestExamplePrompt, requestPromptSlug } from '@/lib/micro-ai/browser'
 import { getProviderVideoStatus, pollDelayMs, submitProviderVideo } from '@/lib/providers/browser';
 import { modelsFor } from '@/lib/providers/catalog';
 import ModelListbox from '@/components/ModelListbox';
-import { useHoverPlay } from '@/lib/media/use-hover-play';
 import { PROVIDER_VIDEO_COLUMNS, providerVideoSpecs } from '@/lib/models/listbox-specs';
 import { frameSlotLabel } from '@/lib/providers/frames';
 import type { ProviderId, ProviderMode, ProviderModel } from '@/lib/providers/types';
@@ -58,6 +57,7 @@ import { useDraftStore } from '@/store/useDraftStore';
 import { usePromptLibraryStore } from '@/store/usePromptLibraryStore';
 import { useProviderJobsStore, type ProviderJob } from '@/store/useProviderJobsStore';
 import { useSeedFrameStore } from '@/store/useSeedFrameStore';
+import VideoPlayer from '@/components/video/VideoPlayer';
 
 /**
  * Video for Runware, Atlas Cloud, and CometAPI, laid out the way the Kie and
@@ -228,7 +228,6 @@ export default function ProviderVideoWorkspace({
     valuesByModel[modelKey] ?? carryOverValues(fields, defaultValuesFor(fields), controlValues);
 
   const [modelSearch, setModelSearch] = useState('');
-  const hoverPlay = useHoverPlay();
 
   const [error, setError] = useState<string | null>(null);
   const [isGeneratingExample, setIsGeneratingExample] = useState(false);
@@ -918,12 +917,10 @@ export default function ProviderVideoWorkspace({
           </div>
           <div className="flex min-h-[300px] flex-1 items-center justify-center overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--background-elevated)]/70">
             {resultUrl ? (
-              <video
+              <VideoPlayer
                 src={resultUrl}
-                controls
-                playsInline
-                className="h-full max-h-[520px] w-full bg-black"
-                {...hoverPlay}
+                label="Generated video"
+                className="h-full max-h-[520px] w-full"
               />
             ) : latestJob && !isTerminal(latestJob.state) ? (
               <div className="space-y-3 p-5 text-center">

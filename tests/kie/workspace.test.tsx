@@ -107,7 +107,7 @@ describe('Kie generation workspace', () => {
     expect(screen.getByRole('button', { name: 'From library' })).toBeInTheDocument();
   });
 
-  it('renders a completed video as a native preview with an immediate download action', () => {
+  it('renders a completed video in the in-house player with an immediate download action', () => {
     useKieJobsStore.getState().upsertJob({
       id: 'video_task_1',
       taskId: 'video_task_1',
@@ -131,7 +131,11 @@ describe('Kie generation workspace', () => {
       />
     );
 
-    expect(container.querySelector('video')?.getAttribute('src')).toBe('https://temp.kie.ai/video.mp4');
+    // `#t=0.1` is the player's opening-frame seek; the download anchor below
+    // still carries the bare URL, which is the one a viewer receives.
+    expect(container.querySelector('video')?.getAttribute('src')).toBe(
+      'https://temp.kie.ai/video.mp4#t=0.1'
+    );
     expect((container.querySelector('a[download]') as HTMLAnchorElement).href).toBe('https://temp.kie.ai/video.mp4');
   });
 

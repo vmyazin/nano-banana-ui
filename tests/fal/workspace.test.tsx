@@ -670,7 +670,10 @@ describe('FalGenerationWorkspace', () => {
       updatedAt: NOW - 1,
     }));
     const { container } = renderWorkspace();
-    expect(container.querySelector('video')?.getAttribute('src')).toBe(SAFE_VIDEO_URL);
+    // The player appends `#t=0.1` to paint an opening frame, so the source is
+    // the safe URL plus a fragment. What matters here is that it is *that*
+    // URL and that the rejected one appears nowhere — asserted just below.
+    expect(container.querySelector('video')?.getAttribute('src')).toBe(`${SAFE_VIDEO_URL}#t=0.1`);
     expect(container.querySelector('a[download]')).toHaveAttribute('href', SAFE_VIDEO_URL);
     expect(container.innerHTML).not.toContain('evil.example');
   });
@@ -692,7 +695,10 @@ describe('FalGenerationWorkspace', () => {
 
     const { container } = renderWorkspace();
 
-    expect(container.querySelector('video')?.getAttribute('src')).toBe(SAFE_VIDEO_URL);
+    // The player appends `#t=0.1` to paint an opening frame, so the source is
+    // the safe URL plus a fragment. What matters here is that it is *that*
+    // URL and that the rejected one appears nowhere — asserted just below.
+    expect(container.querySelector('video')?.getAttribute('src')).toBe(`${SAFE_VIDEO_URL}#t=0.1`);
     expect(container.querySelector('a[download]')).toHaveAttribute('href', SAFE_VIDEO_URL);
     expect(container.innerHTML).not.toContain('not-video.mp4');
   });
