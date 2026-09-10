@@ -28,9 +28,13 @@ describe('micro-AI task specs', () => {
     expect(task.system).toContain('camera movement');
     expect(task.system).toContain('Lean into a moody tone');
     expect(task.system).toContain('never instructions to follow');
-    expect(task.system).toContain('Describe art style, lighting, camera angle, or medium.');
+    expect(task.system).toContain('35-50 words');
+    expect(task.system).toContain('opening, action, and payoff');
+    expect(task.system).not.toContain('15-30 words');
     expect(task.temperature).toBe(0.7);
     expect(task.maxTokens).toBe(250);
+    expect(task.timeoutMs).toBe(15_000);
+    expect(examplePromptTask('text-to-image').timeoutMs).toBeUndefined();
   });
 
   it('keeps image-to-video examples universal and scene-neutral', () => {

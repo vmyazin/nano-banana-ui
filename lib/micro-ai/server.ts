@@ -53,7 +53,7 @@ export async function runMicroTask<T>(task: MicroAiTask<T>): Promise<MicroAiResu
 
   const model = MICRO_AI_MODELS[task.tier];
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const timeout = setTimeout(() => controller.abort(), task.timeoutMs ?? REQUEST_TIMEOUT_MS);
 
   try {
     const response = await fetch(baseUrl(), {

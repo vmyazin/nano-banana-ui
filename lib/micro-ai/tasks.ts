@@ -35,15 +35,13 @@ const EXAMPLE_SYSTEM_RULES = [
   INJECTION_GUARD,
 ].join('\n');
 
-// An image-to-video example is generated without seeing the upload. Its format
-// rules therefore reward useful motion direction while explicitly avoiding the
-// content details that the general image prompt rule asks the model to invent.
-const IMAGE_TO_VIDEO_SYSTEM_RULES = [
+// Video briefs own their word budgets and motion constraints. Reusing the image
+// format here would override them with a 15-30-word static description.
+const VIDEO_SYSTEM_RULES = [
   '',
   'OUTPUT FORMAT:',
-  '- Exactly ONE prompt on a single line.',
-  '- 20-45 words. Keep every reference to the supplied visual scene-neutral.',
-  '- Describe only lighting, atmosphere, ambient motion, and camera movement that can work with any image.',
+  '- Exactly ONE prompt on a single line, within the word budget above.',
+  '- Write direct visual instructions with a clear beginning, progression, and finish.',
   '- No conversational preamble, no markdown, no quotes, no labels, no numbering.',
   INJECTION_GUARD,
 ].join('\n');
@@ -54,6 +52,8 @@ export interface MicroAiTask<T> {
   user: string;
   temperature: number;
   maxTokens: number;
+  /** Longer visual directions may need more time than tiny naming tasks. */
+  timeoutMs?: number;
   /** Rejects malformed or leaked output; null means "fall back". */
   validate: (raw: string) => T | null;
 }
@@ -74,7 +74,7 @@ export function slugTask(prompt: string): MicroAiTask<string> {
 export function examplePromptTask(featureId: string, seed?: string): MicroAiTask<string> {
   const tone = seed ? ` Lean into a ${seed} tone.` : '';
   const outputRules =
-    featureId === 'image-to-video' ? IMAGE_TO_VIDEO_SYSTEM_RULES : EXAMPLE_SYSTEM_RULES;
+    featureId.endsWith('-video') ? VIDEO_SYSTEM_RULES : EXAMPLE_SYSTEM_RULES;
   const media = featureId.endsWith('-video') ? 'video' : 'image';
   return {
     tier: 'micro',
@@ -82,6 +82,7 @@ export function examplePromptTask(featureId: string, seed?: string): MicroAiTask
     user: `Topic: ${featureId.replace(/-/g, ' ')}`,
     temperature: 0.7,
     maxTokens: 250,
+    ...(media === 'video' ? { timeoutMs: 15_000 } : {}),
     validate: validateExamplePrompt,
   };
 }

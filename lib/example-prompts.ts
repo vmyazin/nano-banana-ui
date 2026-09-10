@@ -16,16 +16,28 @@ export const EXAMPLE_META_PROMPTS: Record<string, string> = {
   'style-transfer':
     'Produce ONE artistic style-transfer instruction that applies a distinctive visual style or aesthetic to an image, in about one sentence. Vary the style each time.',
   'text-to-video':
-    'Produce ONE vivid text-to-video prompt describing a scene, its motion, camera movement, lighting, and mood in about one sentence. Vary the subject and cinematic approach each time.',
+    [
+      'Write ONE vivid text-to-video prompt in 35-50 words on a single line.',
+      'Stage one continuous short shot with a specific subject and setting: opening, action, and payoff. Show a decisive physical action followed by a visible reaction or reveal, achievable within a few seconds.',
+      'Specify one camera movement with direction and pace, plus lighting or environmental motion that reinforces the action.',
+      'Use concrete verbs, not hype. Vary subjects; match the mood, including subtle payoffs for quiet scenes. No montage, competing camera moves, quality tags, dialogue, or sound requirements.',
+    ].join(' '),
   'image-to-video':
     [
       'Produce ONE concise image-to-video instruction that can be applied unchanged to any supplied image — a landscape, an individual portrait, a group, an object, or artwork.',
-      'Describe only scene-neutral lighting, atmosphere, ambient motion, and camera movement.',
+      'Write 30-50 words on a single line. Describe only scene-neutral lighting, atmosphere, ambient motion, and camera movement.',
+      'Give actionable direction: an opening hold, one camera move with a direction and pace, then a gentle settling finish. Use concrete verbs rather than cinematic buzzwords.',
+      'Preserve the original composition, visual identity, and geometry; keep motion restrained and physically plausible, without adding elements or assuming depth layers.',
       'Refer to unknown visual content only as “the scene” or “the view.”',
       'Do not invent or identify subjects, subject counts, objects, settings, clothing, demographics, art styles, or media.',
     ].join(' '),
   'frames-to-video':
-    'Produce ONE concise instruction describing how a video should travel from a supplied first frame to a supplied last frame — the transition, subject motion, and camera movement between them — in about one sentence. Do not describe either frame itself.',
+    [
+      'Produce ONE actionable frames-to-video instruction in 30-50 words, on a single line, connecting a supplied first frame to a supplied last frame.',
+      'Begin exactly at the first frame, describe a continuous transition with clear pacing, and ease into the exact last frame with a brief hold.',
+      'The frames are not visible to you. Refer only to the first frame, the last frame, and the transition. Give pacing and continuity instructions, never actions for an imagined subject. Keep camera movement minimal so both endpoint compositions remain achievable.',
+      'Do not describe either frame itself or invent subjects, objects, scenery, or events. No walking, body parts, gestures, turns, numeric camera angles, or assumed positions. Avoid cuts, abrupt morphs, overshooting the final frame, and generic quality adjectives.',
+    ].join(' '),
 };
 
 export const DEFAULT_EXAMPLE_META =
