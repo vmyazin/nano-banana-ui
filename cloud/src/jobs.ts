@@ -3,10 +3,27 @@ import { hash, type Env } from './security';
 import type { Provider } from './vault';
 import { MAX_INLINE_INPUT_BYTES } from './limits';
 export const FREE_BYTES = 1_000_000_000;
-export const MAX_ACTIVE_JOBS = 3;
+export const MAX_ACTIVE_JOBS = 10;
 export const MAX_GLOBAL_ACTIVE_JOBS = 100;
 export const IMAGE_RESERVATION = 64_000_000;
-export const VIDEO_RESERVATION = 256_000_000;
+/**
+ * Room booked per job before its output exists, so concurrent jobs cannot
+ * collectively promise more than the quota holds.
+ *
+ * The video figure is derived from `MAX_ACTIVE_JOBS`, not from a file size:
+ * ten jobs must fit inside `FREE_BYTES`, and 10 x 96 MB is 960 MB. It was
+ * 256 MB, which capped video at three concurrent jobs however high the job
+ * count went — the storage gate rejected the fourth while naming storage,
+ * so raising the count alone would have changed nothing for video.
+ *
+ * Still generous against what these models produce: durations on offer are
+ * 4, 6 and 8 seconds, and a 4k eight-second clip lands well under 60 MB. An
+ * output that does exceed its reservation is not lost — `AVAILABLE_CAPACITY`
+ * weighs the *actual* size with this job's own reservation excluded, so it
+ * saves whenever the real file fits, and otherwise becomes a 24-hour
+ * temporary result asking for space.
+ */
+export const VIDEO_RESERVATION = 96_000_000;
 /** Whole megabytes: these figures are quota arithmetic, not file sizes. */
 const megabytes = (bytes: number) => `${Math.round(bytes / 1_000_000)} MB`;
 // Stopping tracking releases a job slot, but its temporary bytes still occupy
@@ -15,6 +32,24 @@ const GLOBAL_OCCUPIED_SLOTS = `(SELECT COALESCE(SUM(active_jobs),0) FROM account
   (SELECT COUNT(DISTINCT j.id) FROM account_jobs j JOIN account_assets a ON a.job_id=j.id
    JOIN account_asset_retention r ON r.asset_id=a.id WHERE j.reservation_accounted=0)`;
 const OWNER_OVERFLOW = `SELECT 1 FROM account_assets a JOIN account_asset_retention r ON r.asset_id=a.id WHERE a.user_id=? AND a.deleted=0`;
+/**
+ * Jobs that occupy a slot: the provider or our Worker still owes an answer.
+ *
+ * Counted live from job state rather than read off `account_storage.active_jobs`,
+ * because that counter is one accounting unit with `reserved_bytes` — both are
+ * released together on a terminal transition — so it also counts a job stuck in
+ * `needs_attention`, waiting on a person who may never come back. Those held a
+ * slot indefinitely while nothing was running.
+ *
+ * The counter is deliberately left alone: it still guards the reservation, which
+ * a stuck job genuinely needs, since its result may yet have to be saved.
+ *
+ * The four states mirror `isActiveJob` in `lib/account/job-status.ts`, which is
+ * what the account UI calls active. A slot the UI shows as in flight and a slot
+ * the intake counts must be the same slot.
+ */
+const RUNNING_JOB_COUNT = `SELECT COUNT(*) FROM account_jobs
+  WHERE user_id = ? AND deleted = 0 AND state IN ('queued','submitting','running','saving')`;
 export interface JobRow {
   id: string; user_id: string; provider: CloudJobRequest['provider']; request_json: string; state: CloudJobState;
   connection_id: string | null; connection_revision: number | null; provider_task: string | null;
@@ -51,8 +86,8 @@ export async function acceptJob(env: Env, owner: string, token: string, request:
   await env.DB.batch([
     env.DB.prepare('INSERT OR IGNORE INTO account_storage (user_id) VALUES (?)').bind(owner),
     env.DB.prepare(`INSERT OR IGNORE INTO account_jobs (id,user_id,request_token,request_digest,connection_id,connection_revision,provider,request_json,reservation_bytes,created_at,updated_at)
-      SELECT ?,?,?,?,?,?,?,?,?,?,? FROM account_storage WHERE user_id = ? AND used_bytes + reserved_bytes + ? <= limit_bytes AND active_jobs < ? AND (${GLOBAL_OCCUPIED_SLOTS}) < ${MAX_GLOBAL_ACTIVE_JOBS} AND NOT EXISTS (${OWNER_OVERFLOW}) AND (SELECT COUNT(*) FROM account_uploads WHERE user_id=? AND state='ready' AND expires_at>? AND id IN (SELECT value FROM json_each(?)))=?`)
-      .bind(id, owner, token, digest, connection?.id ?? null, connection?.revision ?? null, request.provider, JSON.stringify(request), reservation, now, now, owner, reservation, MAX_ACTIVE_JOBS, owner, owner, now, references, request.referenceIds.length),
+      SELECT ?,?,?,?,?,?,?,?,?,?,? FROM account_storage WHERE user_id = ? AND used_bytes + reserved_bytes + ? <= limit_bytes AND (${RUNNING_JOB_COUNT}) < ? AND (${GLOBAL_OCCUPIED_SLOTS}) < ${MAX_GLOBAL_ACTIVE_JOBS} AND NOT EXISTS (${OWNER_OVERFLOW}) AND (SELECT COUNT(*) FROM account_uploads WHERE user_id=? AND state='ready' AND expires_at>? AND id IN (SELECT value FROM json_each(?)))=?`)
+      .bind(id, owner, token, digest, connection?.id ?? null, connection?.revision ?? null, request.provider, JSON.stringify(request), reservation, now, now, owner, reservation, owner, MAX_ACTIVE_JOBS, owner, owner, now, references, request.referenceIds.length),
     env.DB.prepare('UPDATE account_storage SET reserved_bytes = reserved_bytes + ?, active_jobs = active_jobs + 1 WHERE user_id = ? AND EXISTS (SELECT 1 FROM account_jobs WHERE id = ? AND reservation_accounted = 0)').bind(reservation, owner, id),
     env.DB.prepare('UPDATE account_jobs SET reservation_accounted = 1 WHERE id = ?').bind(id),
     env.DB.prepare('INSERT OR IGNORE INTO account_job_inputs (job_id,upload_id) SELECT ?,id FROM account_uploads WHERE user_id=? AND id IN (SELECT value FROM json_each(?)) AND EXISTS (SELECT 1 FROM account_jobs WHERE id=?)').bind(id,owner,references,id),
@@ -77,8 +112,14 @@ export async function acceptJob(env: Env, owner: string, token: string, request:
     const account = await env.DB.prepare('SELECT used_bytes, reserved_bytes, active_jobs, limit_bytes FROM account_storage WHERE user_id = ?')
       .bind(owner).first<{ used_bytes: number; reserved_bytes: number; active_jobs: number; limit_bytes: number }>();
     const used = account?.used_bytes ?? 0, held = account?.reserved_bytes ?? 0, limit = account?.limit_bytes ?? 0;
-    if ((account?.active_jobs ?? 0) >= MAX_ACTIVE_JOBS) {
-      throw new AccountError(`This account already has ${MAX_ACTIVE_JOBS} jobs in progress. Wait for one to finish, or cancel or dismiss one on your account page.`, 409, 'active_jobs');
+    // The same live count the guard used, not `account.active_jobs`: that
+    // column includes jobs stuck awaiting a decision, which no longer occupy a
+    // slot, so reading it here would name a limit the intake did not apply.
+    const running = await env.DB.prepare(`SELECT (${RUNNING_JOB_COUNT}) AS running`).bind(owner).first<{ running: number }>();
+    if ((running?.running ?? 0) >= MAX_ACTIVE_JOBS) {
+      // No longer suggests dismissing: a dismissed job was already not counted,
+      // so that advice would send someone to do something that changes nothing.
+      throw new AccountError(`This account already has ${MAX_ACTIVE_JOBS} jobs running. Wait for one to finish, or cancel one on your account page.`, 409, 'active_jobs');
     }
     // What the intake actually weighed: every job in flight holds its whole
     // possible output, so an account can be out of room with nothing saved.

@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import { adapter } from './database';
 import { LOCAL_SCHEMA } from '../src/schema';
-import { acceptJob, dispatchJob, finishJob, FREE_BYTES, getJob, IMAGE_RESERVATION } from '../src/jobs';
+import { acceptJob, dispatchJob, finishJob, FREE_BYTES, getJob, IMAGE_RESERVATION, MAX_ACTIVE_JOBS } from '../src/jobs';
 import type { Env } from '../src/security';
 import type { CloudJobRequest } from '../../lib/account/contracts';
 let db: DatabaseSync, env: Env;
@@ -26,15 +26,49 @@ describe('durable job intake', () => {
     expect(results.filter(r=>r.status==='fulfilled')).toHaveLength(1);
     expect(db.prepare('SELECT reserved_bytes FROM account_storage').get()?.reserved_bytes).toBe(IMAGE_RESERVATION);
   });
-  it('bounds active jobs and releases reservations exactly once', async () => {
+  it('bounds running jobs and releases reservations exactly once', async () => {
+    // Loops to the constant rather than a literal: the bound moved from 3 to 10
+    // and a hardcoded count would have kept passing while testing nothing.
     const jobs=[];
-    for(let i=0;i<3;i++)jobs.push(await acceptJob(env,'owner',`request-token-12345${i}`,request));
+    for(let i=0;i<MAX_ACTIVE_JOBS;i++)jobs.push(await acceptJob(env,'owner',`bound-token-1234${String(i).padStart(2,'0')}`,request));
     // Named for the bound it hit, which is what this test is about: 'capacity'
     // used to cover storage and slots alike and could not tell them apart.
-    await expect(acceptJob(env,'owner','request-token-123459',request)).rejects.toMatchObject({code:'active_jobs'});
+    await expect(acceptJob(env,'owner','bound-token-over12',request)).rejects.toMatchObject({code:'active_jobs'});
     await finishJob(env,jobs[0].id,'failed'); await finishJob(env,jobs[0].id,'failed');
-    expect(db.prepare('SELECT reserved_bytes, active_jobs FROM account_storage').get()).toMatchObject({reserved_bytes:2*IMAGE_RESERVATION,active_jobs:2});
+    expect(db.prepare('SELECT reserved_bytes, active_jobs FROM account_storage').get())
+      .toMatchObject({reserved_bytes:(MAX_ACTIVE_JOBS-1)*IMAGE_RESERVATION,active_jobs:MAX_ACTIVE_JOBS-1});
     expect(await getJob(env,jobs[0].id,'different-owner')).toBeNull();
+  });
+
+  it('does not let a job awaiting a decision hold a slot', async () => {
+    // The point of counting live state instead of `active_jobs`: a job stuck in
+    // needs_attention is waiting on a person who may never come back, and used
+    // to occupy a slot indefinitely while nothing was running.
+    const jobs=[];
+    for(let i=0;i<MAX_ACTIVE_JOBS;i++)jobs.push(await acceptJob(env,'owner',`stuck-token-1234${String(i).padStart(2,'0')}`,request));
+    await expect(acceptJob(env,'owner','stuck-token-over12',request)).rejects.toMatchObject({code:'active_jobs'});
+
+    db.prepare("UPDATE account_jobs SET state='needs_attention' WHERE id=?").run(jobs[0].id);
+
+    // Accepted now, even though `active_jobs` still counts it — the counter is
+    // holding that job's reservation, which it still needs.
+    const extra = await acceptJob(env,'owner','stuck-token-after1',request);
+    expect(extra.id).toBeTruthy();
+    expect(db.prepare('SELECT active_jobs FROM account_storage').get())
+      .toMatchObject({active_jobs:MAX_ACTIVE_JOBS+1});
+  });
+
+  it('fits ten concurrent video jobs inside the free quota', async () => {
+    // The reservation is derived from the job bound, so the two must agree:
+    // at 256 MB the fourth video job was refused for storage while the job
+    // count said there was room.
+    const video: CloudJobRequest = {...request, mediaType:'video'};
+    for(let i=0;i<MAX_ACTIVE_JOBS;i++){
+      await acceptJob(env,'owner',`video-token-1234${String(i).padStart(2,'0')}`,video);
+    }
+    const held = db.prepare('SELECT reserved_bytes FROM account_storage').get()?.reserved_bytes as number;
+    expect(held).toBeLessThanOrEqual(FREE_BYTES);
+    expect(db.prepare('SELECT active_jobs FROM account_storage').get()).toMatchObject({active_jobs:MAX_ACTIVE_JOBS});
   });
   it('persists accepted jobs when dispatch fails, then repairs dispatch', async () => {
     const job=await acceptJob(env,'owner','request-token-123456',request);

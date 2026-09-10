@@ -204,9 +204,15 @@ export default function AccountConsole({
                 <span className="text-[var(--foreground-muted)]">1 GB included</span>
               </div>
               <p className="mt-1.5 text-[11px] text-[var(--foreground-subtle)]">
+                {/* "Unfinished", not "active": this figure is the reservation
+                    counter, which releases only on a terminal state, so it also
+                    counts a job parked in needs_attention. The intake stopped
+                    counting those as slots, and the tab beside this shows only
+                    the running ones — two different numbers called "active" in
+                    one panel is how a reader concludes the page is broken. */}
                 {storage.activeJobs > 0
-                  ? `${storage.activeJobs} active ${storage.activeJobs === 1 ? 'job' : 'jobs'} · ${size(storage.reservedBytes)} reserved`
-                  : `${size(storage.reservedBytes)} reserved for active jobs`}
+                  ? `${storage.activeJobs} unfinished ${storage.activeJobs === 1 ? 'job' : 'jobs'} · ${size(storage.reservedBytes)} reserved`
+                  : `${size(storage.reservedBytes)} reserved for unfinished jobs`}
               </p>
             </>
           ) : (
