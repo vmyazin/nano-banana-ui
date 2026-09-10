@@ -7,7 +7,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useQueryState } from 'nuqs';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CircleDollarSign, CircleUserRound } from 'lucide-react';
+import { CircleDollarSign, CircleUserRound, Volume2, VolumeX } from 'lucide-react';
 import FeatureSelector from '@/components/FeatureSelector';
 import ProviderLogo from '@/components/ProviderLogo';
 import { brand } from '@/lib/brand';
@@ -15,6 +15,7 @@ import { ENGINE_DOCS } from '@/lib/engines/docs';
 import StudioHeader from '@/components/StudioHeader';
 import VideoWorkspace from '@/components/VideoWorkspace';
 import { Feature, FEATURES } from '@/types';
+import { setUiSoundsEnabled } from '@/lib/notify/chime';
 import { useAppStore } from '@/store/useAppStore';
 import { useAccountStore } from '@/store/useAccountStore';
 import { useConnectionsDialog } from '@/store/useConnectionsDialog';
@@ -36,6 +37,7 @@ function Studio() {
 
   // API key lives in the persisted Zustand store (single source of truth).
   const apiKey = useAppStore((s) => s.apiKey);
+  const uiSoundsEnabled = useAppStore((s) => s.uiSoundsEnabled);
   /**
    * The session resolves a moment after paint, so the footer waits for a
    * definite answer before offering to sign anyone in: until then the row reads
@@ -261,6 +263,26 @@ function Studio() {
                 </Link>
               </li>
             </ul>
+          </div>
+
+          {/* A studio preference rather than an account one, so it lives with the
+              page whose sounds it governs. The footer specifically: it is the
+              only place reachable without signing in AND at every width — the
+              header's toggle is `sm:`-gated and the command palette needs a
+              keyboard, which between them left a guest on a phone with no way
+              to silence the studio. */}
+          <div className="mt-5 flex justify-center">
+            <label className="inline-flex cursor-pointer items-center gap-2 text-xs text-[var(--foreground-muted)] transition-colors hover:text-[var(--foreground)]">
+              <input
+                type="checkbox"
+                checked={uiSoundsEnabled}
+                onChange={(event) => setUiSoundsEnabled(event.target.checked)}
+                className="h-3.5 w-3.5 accent-[var(--neon-cyan)]"
+              />
+              {/* Follows the state, the way the header's button already does. */}
+              {uiSoundsEnabled ? <Volume2 size={13} aria-hidden="true" /> : <VolumeX size={13} aria-hidden="true" />}
+              Interface sounds
+            </label>
           </div>
 
           {/* Engines available — capability context, not product identity.

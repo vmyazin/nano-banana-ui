@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { playGenerationChime, resetGenerationChime, setChimeEnabled } from '../../lib/notify/chime';
+import { playGenerationChime, resetGenerationChime, setUiSoundsEnabled } from '../../lib/notify/chime';
 import { useAppStore } from '../../store/useAppStore';
 
 /**
@@ -30,7 +30,7 @@ function stubAudio() {
 
 beforeEach(() => {
   resetGenerationChime();
-  useAppStore.setState({ chimeOnComplete: true });
+  useAppStore.setState({ uiSoundsEnabled: true });
   vi.useFakeTimers();
 });
 
@@ -50,7 +50,7 @@ describe('playGenerationChime', () => {
 
   it('stays silent when the user has muted it', () => {
     const { play } = stubAudio();
-    useAppStore.setState({ chimeOnComplete: false });
+    useAppStore.setState({ uiSoundsEnabled: false });
 
     playGenerationChime();
 
@@ -133,32 +133,32 @@ describe('playGenerationChime', () => {
   });
 });
 
-describe('setChimeEnabled', () => {
+describe('setUiSoundsEnabled', () => {
   it('writes the preference and auditions it on the way on', () => {
     const { play } = stubAudio();
-    useAppStore.setState({ chimeOnComplete: false });
+    useAppStore.setState({ uiSoundsEnabled: false });
 
-    setChimeEnabled(true);
+    setUiSoundsEnabled(true);
 
-    expect(useAppStore.getState().chimeOnComplete).toBe(true);
+    expect(useAppStore.getState().uiSoundsEnabled).toBe(true);
     expect(play).toHaveBeenCalledTimes(1);
   });
 
   it('writes the preference silently on the way off', () => {
     const { play } = stubAudio();
 
-    setChimeEnabled(false);
+    setUiSoundsEnabled(false);
 
-    expect(useAppStore.getState().chimeOnComplete).toBe(false);
+    expect(useAppStore.getState().uiSoundsEnabled).toBe(false);
     expect(play).not.toHaveBeenCalled();
   });
 
   it('writes before it plays, or the audition would gate on the old value', () => {
     const { play } = stubAudio();
-    useAppStore.setState({ chimeOnComplete: false });
+    useAppStore.setState({ uiSoundsEnabled: false });
 
     // Fails if the store write is moved after the play call.
-    setChimeEnabled(true);
+    setUiSoundsEnabled(true);
 
     expect(play).toHaveBeenCalledTimes(1);
   });

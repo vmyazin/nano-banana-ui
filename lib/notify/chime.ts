@@ -47,7 +47,7 @@ function chimeElement(): HTMLAudioElement | null {
  * look like it failed because a sound could not play.
  */
 export function playGenerationChime(): void {
-  if (!useAppStore.getState().chimeOnComplete) return;
+  if (!useAppStore.getState().uiSoundsEnabled) return;
 
   const now = Date.now();
   if (now - lastPlayedAt < COALESCE_MS) return;
@@ -74,8 +74,18 @@ export function playGenerationChime(): void {
  * before the write would test the old one and never ring — and that is exactly
  * the kind of detail that rots when it is copied into three onClick handlers.
  */
-export function setChimeEnabled(enabled: boolean): void {
-  useAppStore.getState().setChimeOnComplete(enabled);
+/**
+ * Turn interface sounds on or off, auditioning the change when switching on —
+ * a sound setting you can only read is one you have to take on trust.
+ *
+ * The preference is general and the audition is specific: the generation chime
+ * is the only sound the studio has, so it stands in for the category. A second
+ * sound would change what this previews, not what it sets.
+ */
+export function setUiSoundsEnabled(enabled: boolean): void {
+  // `useAppStore`'s own action of the same name is the raw write; this is the
+  // one every surface calls, because it also lets you hear the result.
+  useAppStore.getState().setUiSoundsEnabled(enabled);
   if (enabled) playGenerationChime();
 }
 

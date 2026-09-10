@@ -11,7 +11,7 @@ import { BrandWordmark } from '@/components/BrandMark';
 import { CommandPalette } from '@/components/CommandPalette';
 import LibraryOverlay from '@/components/LibraryOverlay';
 import { brand } from '@/lib/brand';
-import { setChimeEnabled } from '@/lib/notify/chime';
+import { setUiSoundsEnabled } from '@/lib/notify/chime';
 import { useAppStore } from '@/store/useAppStore';
 import { useConnectionsDialog } from '@/store/useConnectionsDialog';
 import { usePromptLibraryStore } from '@/store/usePromptLibraryStore';
@@ -92,7 +92,7 @@ export default function StudioHeader({
   const kieApiKey = useAppStore((s) => s.kieApiKey);
   const falApiKey = useAppStore((s) => s.falApiKey);
   const hasHydrated = useAppStore((s) => s.hasHydrated);
-  const chimeOnComplete = useAppStore((s) => s.chimeOnComplete);
+  const uiSoundsEnabled = useAppStore((s) => s.uiSoundsEnabled);
   const hasKey = hasHydrated && !!(apiKey || kieApiKey || falApiKey);
 
   const keyDialogOpen = useConnectionsDialog((s) => s.open);
@@ -212,13 +212,13 @@ export default function StudioHeader({
 
               {showChime && (
                 <button
-                  onClick={() => setChimeEnabled(!chimeOnComplete)}
+                  onClick={() => setUiSoundsEnabled(!uiSoundsEnabled)}
                   className="hidden items-center rounded-[9px] border border-[var(--border)] px-2.5 py-2 text-[var(--foreground-muted)] transition-colors hover:border-[var(--border-hover)] hover:text-[var(--foreground)] sm:inline-flex"
-                  title={chimeOnComplete ? 'Mute the chime when a generation finishes' : 'Play a chime when a generation finishes'}
-                  aria-label={chimeOnComplete ? 'Mute the chime when a generation finishes' : 'Play a chime when a generation finishes'}
-                  aria-pressed={chimeOnComplete}
+                  title={uiSoundsEnabled ? 'Mute interface sounds' : 'Play interface sounds'}
+                  aria-label={uiSoundsEnabled ? 'Mute interface sounds' : 'Play interface sounds'}
+                  aria-pressed={uiSoundsEnabled}
                 >
-                  {chimeOnComplete ? <Volume2 size={13} /> : <VolumeX size={13} />}
+                  {uiSoundsEnabled ? <Volume2 size={13} /> : <VolumeX size={13} />}
                 </button>
               )}
 

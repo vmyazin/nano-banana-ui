@@ -33,7 +33,7 @@ import { FEATURES, type Feature } from '@/types';
 import type { ProviderMode } from '@/lib/providers/types';
 import { useAccountStore } from '@/store/useAccountStore';
 import { useAppStore } from '@/store/useAppStore';
-import { setChimeEnabled } from '@/lib/notify/chime';
+import { setUiSoundsEnabled } from '@/lib/notify/chime';
 
 type LibraryTab = 'results' | 'prompts';
 
@@ -185,7 +185,7 @@ export function CommandPalette({
   const [, setVideoMode] = useQueryState('videoMode', { history: 'push' });
   const router = useRouter();
   const setVideoEngine = useAppStore((state) => state.setVideoEngine);
-  const chimeOnComplete = useAppStore((state) => state.chimeOnComplete);
+  const uiSoundsEnabled = useAppStore((state) => state.uiSoundsEnabled);
   // Mirrors the footer link: only a settled session with nobody in it offers sign-in.
   const accountStatus = useAccountStore((state) => state.status);
   const hasAccount = useAccountStore((state) => Boolean(state.session?.account));
@@ -346,19 +346,19 @@ export function CommandPalette({
             </span>
           </Command.Item>
           <Command.Item
-            value={chimeOnComplete ? 'Mute completion chime' : 'Unmute completion chime'}
-            keywords={['sound', 'audio', 'bell', 'notification', 'silence', 'mute']}
-            onSelect={() => go(() => setChimeEnabled(!chimeOnComplete))}
+            value={uiSoundsEnabled ? 'Mute interface sounds' : 'Unmute interface sounds'}
+            /* `chime` and `bell` stay as search aliases: they are what someone
+               who remembers the sound rather than the setting will type. */
+            keywords={['sound', 'audio', 'bell', 'chime', 'notification', 'silence', 'mute']}
+            onSelect={() => go(() => setUiSoundsEnabled(!uiSoundsEnabled))}
           >
-            {chimeOnComplete ? <Volume2 size={15} /> : <VolumeX size={15} />}
+            {uiSoundsEnabled ? <Volume2 size={15} /> : <VolumeX size={15} />}
             <span className="cmd-item-body">
+              {/* No description. It used to name the one event the sound marks,
+                  which is the specificity this setting is moving away from, and
+                  the title already says what selecting it does. */}
               <span className="cmd-item-title">
-                {chimeOnComplete ? 'Mute completion chime' : 'Unmute completion chime'}
-              </span>
-              <span className="cmd-item-desc">
-                {chimeOnComplete
-                  ? 'Stop the bell when a generation finishes'
-                  : 'Ring a bell when a generation finishes'}
+                {uiSoundsEnabled ? 'Mute interface sounds' : 'Unmute interface sounds'}
               </span>
             </span>
           </Command.Item>

@@ -86,7 +86,13 @@ interface AppState {
    * the jobs it announces run for minutes, and the sound is the point of
    * being able to look away. Persisted so silencing it survives a reload.
    */
-  chimeOnComplete: boolean;
+  /**
+   * Whether the studio plays interface sounds. Named for the category rather
+   * than for the one sound that exists today: it used to be `chimeOnComplete`,
+   * which would have been a misleading gate the moment a second sound was
+   * added. `migrate` below carries the old value across.
+   */
+  uiSoundsEnabled: boolean;
   /**
    * Providers deliberately kept out of the account. Save & close syncs every
    * other key, so without this flag pressing "Remove from account" would be
@@ -110,7 +116,7 @@ interface AppState {
   setProviderModel: (provider: ProviderId, kind: 'image' | 'video', modelId: string) => void;
   setImageFormat: (preference: ImageFormatPreference) => void;
   setConvertLibraryImages: (convert: boolean) => void;
-  setChimeOnComplete: (chime: boolean) => void;
+  setUiSoundsEnabled: (enabled: boolean) => void;
   setAccountKeyOptOut: (provider: ImportableProvider, optedOut: boolean) => void;
   setHasHydrated: (v: boolean) => void;
 }
@@ -180,7 +186,7 @@ export const useAppStore = create<AppState>()(
       accountKeyOptOuts: [],
       imageFormat: 'auto',
       convertLibraryImages: true,
-      chimeOnComplete: true,
+      uiSoundsEnabled: true,
       hasHydrated: false,
       setApiKey: (key) => set({ apiKey: key }),
       setEngine: (engine) => set({ engine }),
@@ -198,7 +204,7 @@ export const useAppStore = create<AppState>()(
         set({ [MODEL_FIELDS[provider][kind]]: modelId } as Partial<AppState>),
       setImageFormat: (preference) => set({ imageFormat: preference }),
       setConvertLibraryImages: (convert) => set({ convertLibraryImages: convert }),
-      setChimeOnComplete: (chime) => set({ chimeOnComplete: chime }),
+      setUiSoundsEnabled: (enabled) => set({ uiSoundsEnabled: enabled }),
       setAccountKeyOptOut: (provider, optedOut) =>
         set((state) => ({
           accountKeyOptOuts: optedOut
@@ -212,6 +218,27 @@ export const useAppStore = create<AppState>()(
     {
       name: STORAGE_KEY,
       storage: createJSONStorage(() => createMigratingStorage()),
+      /**
+       * Bumped when `chimeOnComplete` became `uiSoundsEnabled`. Without this
+       * the rename is silently destructive in the worse direction: the stored
+       * blob has no `uiSoundsEnabled`, so every existing user falls back to the
+       * default `true` and anyone who deliberately silenced the studio starts
+       * hearing it again.
+       *
+       * A blob written before this reports `version: 0` — zustand defaults the
+       * option to 0 and writes it into the payload — so `0 !== 1` is what makes
+       * the migration run for exactly those users. Note it runs only when the
+       * stored version is a *number* that differs: a payload with no `version`
+       * key is skipped, which zustand never produces but a hand-edited
+       * localStorage would.
+       */
+      version: 1,
+      migrate: (persisted, from) => {
+        if (from >= 1 || !persisted || typeof persisted !== 'object') return persisted;
+        const legacy = persisted as { chimeOnComplete?: unknown };
+        if (typeof legacy.chimeOnComplete !== 'boolean') return persisted;
+        return { ...(persisted as object), uiSoundsEnabled: legacy.chimeOnComplete };
+      },
       partialize: (s) => ({
         apiKey: s.apiKey,
         engine: s.engine,
@@ -239,7 +266,7 @@ export const useAppStore = create<AppState>()(
         accountKeyOptOuts: s.accountKeyOptOuts,
         imageFormat: s.imageFormat,
         convertLibraryImages: s.convertLibraryImages,
-        chimeOnComplete: s.chimeOnComplete,
+        uiSoundsEnabled: s.uiSoundsEnabled,
       }),
       skipHydration: true,
       onRehydrateStorage: () => (state) => {
