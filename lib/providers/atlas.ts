@@ -53,11 +53,13 @@ function imageReferenceFields(model: string, images: string[]): Record<string, u
 }
 
 /**
- * Seedance 2.0 renamed the aspect field to `ratio`; Seedance v1 and everything
- * else here still call it `aspect_ratio`.
+ * Seedance 2.0 renamed the aspect field to `ratio` and 2.5 kept that name;
+ * Seedance v1 and everything else here still call it `aspect_ratio`. A name
+ * the model does not know is dropped in silence, so a 2.5 request sent with
+ * the v1 spelling would come back in the wrong shape rather than fail.
  */
 const ratioField = (model: string) =>
-  model.startsWith('bytedance/seedance-2.0') ? 'ratio' : 'aspect_ratio';
+  /^bytedance\/seedance-2\./.test(model) ? 'ratio' : 'aspect_ratio';
 
 /**
  * A first frame with an optional closing frame (`image` / `last_image`), or a

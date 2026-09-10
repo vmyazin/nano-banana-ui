@@ -136,6 +136,7 @@ Comet's catalog is public too: `GET https://api.cometapi.com/api/models`.
 | Runware | `runware:108@22` | image→image (Qwen-Image-Edit-Plus) | $0.0166 / 1024² |
 | Runware | `lightricks:ltx@2.5-fast` | text→video, image→video, first+last frame | $0.09 / s @720p |
 | Runware | `bytedance:seedance@2.0-mini` | text→video, image→video | $0.036/s @480p, $0.081/s @720p |
+| Runware | `bytedance:seedance@2.5` | text→video, image→video, first+last frame, reference→video | $0.102/s @480p, $0.23/s @720p, $0.614/s @1080p |
 | Runware | `pixverse:1@5-fast` | text→video, image→video | $0.094 / 5s @360p |
 | Runware | `alibaba:wan@2.6-flash` | image→video | $0.025 / s @720p |
 | Atlas | `black-forest-labs/flux-schnell` | text→image | $0.003 / image |
@@ -148,6 +149,7 @@ Comet's catalog is public too: `GET https://api.cometapi.com/api/models`.
 | Atlas | `bytedance/seedream-v5.0-pro/edit` | image→image | $0.036 / image (+$0.003 per extra reference) |
 | Atlas | `bytedance/seedance-2.0-mini/{text,image,reference}-to-video` | text→video, image→video, first+last frame, reference→video | $0.011 / s |
 | Atlas | `bytedance/seedance-2.0-fast/{text,image,reference}-to-video` | text→video, image→video, first+last frame, reference→video | $0.027 / s |
+| Atlas | `bytedance/seedance-2.5/{text,image,reference}-to-video` | text→video, image→video, first+last frame, reference→video | $0.134 / s, every resolution |
 | Comet | `gpt-image-2` | text→image | metered |
 | Comet | `qwen-image` | text→image (n must be 1) | metered |
 | Comet | `seedance-2-5`, `doubao-seedance-2-0-mini` | text→video, image→video | metered |
@@ -166,9 +168,35 @@ come from `https://www.atlascloud.ai/models/{model}/llms.txt` — the per-model
 machine-readable reference Atlas publishes for agents, and the one it names as
 authoritative for its own pricing over the vendor blurb on the HTML page.
 
+**2026-09-09 addition:** Seedance 2.5 on both aggregators, read from
+`https://www.atlascloud.ai/models/bytedance/seedance-2.5/{text,image,reference}-to-video/llms.txt`
+and `https://runware.ai/docs/models/bytedance-seedance-2-5`. It is the same
+model at two very different prices, and neither is simple:
+
+- **Atlas quotes one flat $0.134/s for every resolution**, including the `-sr`
+  and `-esr` upscales, so nothing it offers records as unpriced. Of those
+  upscales only `1440p-sr` and `4k-esr` are offered — the rest duplicate a
+  native tier, and `1080p-esr & 60fps` changes the frame rate as well as the
+  size, which the size control has no way to say.
+- **Runware bills per tier** — $0.102/$0.23/$0.614 per second at 480p/720p/1080p
+  — so 480p undercuts Atlas and 720p costs nearly twice as much. It publishes
+  explicit width/height pairs rather than a preset, so its eighteen documented
+  sizes are transcribed verbatim; the rate is found through the leading tier of
+  the label (`sizeRateKey`).
+
+Duration is a genuine 4–30 range on both, not the short stops the 2.0 tiers
+list: the single-pass 30-second clip is what the model is for. References are
+cited in the prompt as `@Image1` (2.0 uses the bare `Image 1`), and a wrong tag
+is ignored rather than rejected, so the syntax is declared per model. Atlas's
+image-to-video endpoint documents `adaptive` as its only `ratio` value — the
+shape comes from the frame — so that entry offers no aspect-ratio control;
+`adaptive` is left out of the other two because declaring `aspectRatios` makes
+the field always sent, and the account Worker's validator accepts real ratios
+only.
+
 Two field names differ from the rest of the Atlas catalog and are handled in the
-adapter: Seedance 2.0 spells the aspect field `ratio` where Seedance v1 spells it
-`aspect_ratio`, and Seedream's editor takes an `images` array where the FLUX
+adapter: Seedance 2.0 and 2.5 spell the aspect field `ratio` where Seedance v1
+spells it `aspect_ratio`, and Seedream's editor takes an `images` array where the FLUX
 endpoints take a single `image`. Seedream also refuses the shared size table —
 it requires 1,048,576–4,194,304 output pixels and every size in that table is
 smaller — so it carries its own.
@@ -238,10 +266,12 @@ clients, catalogs, stores or workspaces, the gallery pipeline, or the auth guard
 
 - Runware: `https://runware.ai/docs/llms.txt`, `/docs/platform/task-polling`,
   `/docs/platform/task-details`, `/docs/models/alibaba-z-image-turbo`,
-  `/docs/models/lightricks-ltx-2-fast`, `/docs/models/alibaba-wan2-6-flash`
+  `/docs/models/lightricks-ltx-2-fast`, `/docs/models/alibaba-wan2-6-flash`,
+  `/docs/models/bytedance-seedance-2-5` (+ its `/guides/multi-reference-production`)
 - Atlas: `https://atlascloud.ai/docs/models/image`, `/docs/models/video`,
   `https://www.atlascloud.ai/models/black-forest-labs/flux-schnell/llms.txt`,
   `https://www.atlascloud.ai/models/bytedance/seedance-v1-pro-fast/image-to-video/llms.txt`,
+  `https://www.atlascloud.ai/models/bytedance/seedance-2.5/{text,image,reference}-to-video/llms.txt`,
   `https://api.atlascloud.ai/api/v1/models`
 - Comet: `https://apidoc.cometapi.com/llms.txt`, `/api/image/openai/images.md`,
   `/api/video/seedance/create.md`, `/api/video/seedance/query.md`,

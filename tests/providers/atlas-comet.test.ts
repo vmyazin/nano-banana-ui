@@ -118,6 +118,25 @@ describe('atlas cloud', () => {
     expect(v2.aspect_ratio).toBeUndefined();
   });
 
+  it('keeps the 2.0 spelling of the aspect field for Seedance 2.5', async () => {
+    const fetchMock = mockFetchSequence([{ payload: { data: { id: 'pred-4b' } } }]);
+
+    await atlasCreateVideo({
+      apiKey: 'at-key',
+      model: 'bytedance/seedance-2.5/text-to-video',
+      prompt: 'a kite over the harbour',
+      aspectRatio: '21:9',
+      durationSeconds: 30,
+      resolution: '1080p',
+    });
+
+    // The v1 spelling would be dropped in silence and the clip would come back
+    // in the model's default shape rather than the one that was asked for.
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+    expect(body).toMatchObject({ ratio: '21:9', duration: 30, resolution: '1080p' });
+    expect(body.aspect_ratio).toBeUndefined();
+  });
+
   it('bookends a Seedance 2.0 clip with a closing frame when a second still is sent', async () => {
     const fetchMock = mockFetchSequence([{ payload: { data: { id: 'pred-6' } } }]);
 

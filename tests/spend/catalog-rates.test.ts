@@ -23,6 +23,10 @@ describe('provider catalog rates', () => {
       'bytedance/seedance-2.0-fast/text-to-video': { usdByResolution: { '480p': 0.027, '720p': 0.0581 }, per: 'second' },
       'bytedance/seedance-2.0-fast/image-to-video': { usdByResolution: { '480p': 0.027, '720p': 0.0581 }, per: 'second' },
       'bytedance/seedance-2.0-fast/reference-to-video': { usdByResolution: { '480p': 0.027, '720p': 0.0581 }, per: 'second' },
+      // Atlas quotes 2.5 at one flat rate for every resolution it offers.
+      'bytedance/seedance-2.5/text-to-video': { usd: 0.134, per: 'second' },
+      'bytedance/seedance-2.5/image-to-video': { usd: 0.134, per: 'second' },
+      'bytedance/seedance-2.5/reference-to-video': { usd: 0.134, per: 'second' },
     });
   });
 
@@ -83,6 +87,37 @@ describe('Atlas billing settings', () => {
     expect(resolveCatalogRate(findModel('atlas', 'bytedance/seedream-v5.0-pro/edit')))
       .toMatchObject({ costUsd: null, confidence: 'unknown' });
   });
+
+  // 2.5 is quoted flat, so unlike the 2.0 tiers there is no size it cannot
+  // price \u2014 including the upscales, which is the whole reason they are offered.
+  it.each(['text-to-video', 'image-to-video', 'reference-to-video'])(
+    'prices a 5-second Seedance 2.5 %s clip at every size it offers',
+    mode => {
+      const model = findModel('atlas', `bytedance/seedance-2.5/${mode}`);
+      for (const size of model?.sizes ?? []) {
+        expect(resolveCatalogRate(model, 5, 1, { size: size.label }))
+          .toMatchObject({ costUsd: 0.67, confidence: 'estimated' });
+      }
+    }
+  );
+});
+
+describe('Runware Seedance 2.5 billing settings', () => {
+  const model = findModel('runware', 'bytedance:seedance@2.5');
+
+  // Runware publishes no preset, so the rate is found through the leading tier
+  // of the label \u2014 every shape inside a tier bills the same per second.
+  it.each([['480p', 0.51], ['720p', 1.15], ['1080p', 3.07]])(
+    'prices a 5-second %s clip at the tier rate whatever its shape',
+    (tier, expected) => {
+      const sizes = (model?.sizes ?? []).filter(size => size.label.startsWith(`${tier} `));
+      expect(sizes.length).toBeGreaterThan(1);
+      for (const size of sizes) {
+        expect(resolveCatalogRate(model, 5, 1, { size: size.label }).costUsd)
+          .toBeCloseTo(Number(expected), 6);
+      }
+    }
+  );
 });
 
 /** Every dollar amount written in a display string. */

@@ -103,6 +103,58 @@ const RUNWARE_MODELS: ProviderModel[] = [
     ],
   },
   {
+    // Read 2026-09-09 from https://runware.ai/docs/models/bytedance-seedance-2-5.
+    id: 'bytedance:seedance@2.5',
+    label: 'Seedance 2.5',
+    fileCode: 'seedance-2_5',
+    kind: 'video',
+    modes: ['text', 'image', 'frames', 'reference'],
+    price: '$0.102 / s @ 480p \u00b7 $0.23 @ 720p \u00b7 $0.614 @ 1080p',
+    rate: { usdByResolution: { '480p': 0.102, '720p': 0.23, '1080p': 0.614 }, per: 'second' },
+    maxInputImages: 30,
+    videoInputs: {
+      image: { field: 'frameImages', maxImages: 1 },
+      frames: { field: 'frameImages', maxImages: 2 },
+      // The vendor takes 30 references (plus reference videos and audio this
+      // studio has no input for). The client cap stays at 5 like Wan 3.0's:
+      // every reference is inlined as a data URL into one request body.
+      reference: {
+        field: 'referenceImages',
+        maxImages: 30,
+        clientMaxImages: 5,
+        promptSyntax: 'at-image-index',
+      },
+    },
+    // Any whole 4-30. The native 30-second clip in a single pass is the reason
+    // to reach for this model, so the control is a range and not 2.0's stops.
+    duration: { type: 'range', min: 4, max: 30, default: 5 },
+    // The vendor's own dimension table, verbatim; anything outside it comes
+    // back as "Unsupported width/height combination for this model
+    // architecture". The 480p and 21:9 pairs are only approximately their
+    // named ratio, which is why they are copied rather than computed.
+    sizes: [
+      { label: '480p \u00b7 16:9', width: 854, height: 480 },
+      { label: '480p \u00b7 9:16', width: 480, height: 854 },
+      { label: '480p \u00b7 1:1', width: 640, height: 640 },
+      { label: '480p \u00b7 4:3', width: 752, height: 560 },
+      { label: '480p \u00b7 3:4', width: 560, height: 752 },
+      { label: '480p \u00b7 21:9', width: 992, height: 432 },
+      { label: '720p \u00b7 16:9', width: 1280, height: 720 },
+      { label: '720p \u00b7 9:16', width: 720, height: 1280 },
+      { label: '720p \u00b7 1:1', width: 960, height: 960 },
+      { label: '720p \u00b7 4:3', width: 1112, height: 834 },
+      { label: '720p \u00b7 3:4', width: 834, height: 1112 },
+      { label: '720p \u00b7 21:9', width: 1470, height: 630 },
+      { label: '1080p \u00b7 16:9', width: 1920, height: 1080 },
+      { label: '1080p \u00b7 9:16', width: 1080, height: 1920 },
+      { label: '1080p \u00b7 1:1', width: 1440, height: 1440 },
+      { label: '1080p \u00b7 4:3', width: 1664, height: 1248 },
+      { label: '1080p \u00b7 3:4', width: 1248, height: 1664 },
+      { label: '1080p \u00b7 21:9', width: 2206, height: 946 },
+    ],
+    note: 'Up to 30 seconds in one pass, with native audio. Address references as @Image1, @Image2. Frame images cannot be combined with references.',
+  },
+  {
     id: 'bytedance:seedance@2.0-mini',
     label: 'Seedance 2.0 Mini',
     fileCode: 'seedance-2_0-mini',
@@ -243,6 +295,87 @@ function seedance20Tier(tier: 'mini' | 'fast'): ProviderModel[] {
   ];
 }
 
+/**
+ * Seedance 2.5, read 2026-09-09 from
+ * `https://www.atlascloud.ai/models/bytedance/seedance-2.5/{mode}/llms.txt`.
+ * Same three-endpoint shape as the 2.0 tiers, so it is written the same way.
+ *
+ * Two things differ from 2.0 and both are load-bearing. Atlas quotes **one
+ * flat per-second price for every resolution**, so this is a `usd` rate rather
+ * than a table and no size can record as unpriced. And the references are
+ * cited with `@Image1` here, not 2.0's `Image 1` \u2014 the model reads the tag,
+ * so the wrong syntax silently ignores the reference instead of failing.
+ */
+function seedance25(): ProviderModel[] {
+  // The API also publishes `-sr`/`-esr` upscales of each native tier. Only the
+  // two that reach a size the native tiers cannot are offered; `1080p-esr &
+  // 60fps` is left out because it changes the frame rate as well as the size,
+  // and this control names sizes only.
+  const shared = {
+    label: 'Seedance 2.5',
+    kind: 'video' as const,
+    price: '$0.134 / s',
+    rate: { usd: 0.134, per: 'second' as const },
+    // Documented as any whole 4\u201330, or -1 to let the model choose. A range,
+    // not 2.0's stops: the single-pass 30-second clip is the point of 2.5.
+    duration: { type: 'range' as const, min: 4, max: 30, default: 5 },
+    sizes: [
+      { label: '480p', preset: '480p' },
+      { label: '720p', preset: '720p' },
+      { label: '1080p', preset: '1080p' },
+      { label: '1440p (upscaled)', preset: '1440p-sr' },
+      { label: '4K (upscaled)', preset: '4k-esr' },
+    ],
+  };
+  // The endpoint also documents `adaptive`, which is what the model does when
+  // no ratio is sent. It is not offered because declaring `aspectRatios` makes
+  // the field always sent, and `adaptive` is not a ratio the account Worker's
+  // validator accepts \u2014 so it would pass in the browser and fail in a
+  // background job.
+  const aspectRatios = ['16:9', '9:16', '1:1', '4:3', '3:4', '21:9'];
+
+  return [
+    {
+      ...shared,
+      id: 'bytedance/seedance-2.5/text-to-video',
+      fileCode: 'seedance-2_5-t2v',
+      modes: ['text'],
+      aspectRatios,
+    },
+    {
+      ...shared,
+      id: 'bytedance/seedance-2.5/image-to-video',
+      fileCode: 'seedance-2_5-i2v',
+      // `last_image` is optional, so one still opens the clip and two bookend it.
+      modes: ['image', 'frames'],
+      maxInputImages: 2,
+      videoInputs: {
+        image: { field: 'frameImages', maxImages: 1 },
+        frames: { field: 'frameImages', maxImages: 2 },
+      },
+      // No `aspectRatios` here on purpose: this endpoint lists `adaptive` as
+      // the only value, because the shape comes from the frame you supply.
+    },
+    {
+      ...shared,
+      id: 'bytedance/seedance-2.5/reference-to-video',
+      fileCode: 'seedance-2_5-r2v',
+      modes: ['reference'],
+      maxInputImages: 30,
+      aspectRatios,
+      videoInputs: {
+        reference: {
+          field: 'referenceImages',
+          maxImages: 30,
+          clientMaxImages: 5,
+          promptSyntax: 'at-image-index',
+        },
+      },
+      note: 'Up to 30 references, cited in the prompt as @Image1, @Image2. Native audio.',
+    },
+  ];
+}
+
 const ATLAS_MODELS: ProviderModel[] = [
   {
     id: 'black-forest-labs/flux-schnell',
@@ -345,6 +478,7 @@ const ATLAS_MODELS: ProviderModel[] = [
   // The only models here with native audio and a character-reference mode.
   ...seedance20Tier('mini'),
   ...seedance20Tier('fast'),
+  ...seedance25(),
 ];
 
 const COMET_MODELS: ProviderModel[] = [

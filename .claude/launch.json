@@ -181,6 +181,13 @@
       "request": "launch",
       "command": "ACCOUNT_WORKER_PORT=8843 DEV_FAKE_GENERATION=1 npm run dev -- --port 3143",
       "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "Seedance 2.5 catalog smoke test",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "ACCOUNT_WORKER_PORT=8847 DEV_FAKE_GENERATION=1 npm run dev -- --port 3147",
+      "cwd": "${workspaceFolder}"
     }
   ]
 }
