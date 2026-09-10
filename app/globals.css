@@ -802,3 +802,107 @@ textarea::placeholder {
   color: var(--foreground-subtle);
   pointer-events: none;
 }
+
+/* ---------------------------------------------------------------------------
+   Video player transport (components/video/Transport.tsx)
+
+   Variant B, "floating scrim" — the bar overlays the frame at both densities.
+   Reference: design-explorations/video-player-B.reference.html, which is what
+   parity is diffed against.
+
+   The scrubber is an <input type="range"> on purpose, not a div with pointer
+   handlers: the element hands us arrow-key seeking, Home/End and correct
+   `slider` ARIA for free, and that is most of the accessibility work a player
+   library would have sold us. Styling it is the whole reason this block exists.
+
+   Note the rule at the top of this file excludes [type='range'] from the shared
+   input styling deliberately — the `min-height: var(--control-h)` it applies
+   would swallow a 4px track.
+--------------------------------------------------------------------------- */
+
+.transport-scrim {
+  /* Dark enough at the bottom for white controls to stay legible over a bright
+     frame, and fully transparent by 45% up so it reads as a gradient over the
+     clip rather than a bar stuck to it. */
+  background: linear-gradient(
+    to top,
+    rgba(8, 17, 19, 0.92),
+    rgba(8, 17, 19, 0.55) 55%,
+    transparent
+  );
+}
+
+.transport-range {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  display: block;
+  width: 100%;
+  margin: 0;
+  cursor: pointer;
+  /* Tracks the thumb, not the track: the element's box has to be tall enough to
+     hold the thumb or the top and bottom of it are clipped. */
+  height: 14px;
+}
+
+/* The played portion is painted by the track itself off --pct, set inline by
+   the component. ::-moz-range-progress and ::-webkit-progress-value are not
+   both available on one input, so a gradient is the only cross-engine fill. */
+.transport-range::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(
+    to right,
+    var(--neon-cyan) 0 var(--pct),
+    rgba(236, 245, 245, 0.28) var(--pct) 100%
+  );
+}
+.transport-range::-moz-range-track {
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(
+    to right,
+    var(--neon-cyan) 0 var(--pct),
+    rgba(236, 245, 245, 0.28) var(--pct) 100%
+  );
+}
+
+.transport-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  background: var(--foreground);
+  border: 2px solid var(--neon-cyan);
+  border-radius: 999px;
+  /* Centres the thumb on a 4px track: (4 - 14) / 2. */
+  margin-top: -5px;
+}
+.transport-range::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  background: var(--foreground);
+  border: 2px solid var(--neon-cyan);
+  border-radius: 999px;
+}
+
+/* The same cyan ring every other field in this file takes on focus, so a
+   scrubber focuses like a text input rather than like a foreign widget. */
+.transport-range:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(0, 255, 249, 0.12);
+  border-radius: 999px;
+}
+
+.transport-scrim[data-density='compact'] .transport-range {
+  height: 12px;
+}
+.transport-scrim[data-density='compact'] .transport-range::-webkit-slider-thumb {
+  width: 12px;
+  height: 12px;
+  margin-top: -4px;
+}
+.transport-scrim[data-density='compact'] .transport-range::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+}

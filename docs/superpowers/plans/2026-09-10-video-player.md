@@ -142,7 +142,11 @@ export interface MediaState {
   buffered: ReadonlyArray<{ start: number; end: number }>;
   ended: boolean;
 }
-export function useMediaState(ref: RefObject<HTMLVideoElement | null>): MediaState;
+// Takes the element, NOT a ref. A ref's `current` is not a valid dependency —
+// mutating it does not re-render, so a subscription keyed on it never moves to
+// a new node — and `react-hooks/refs` rejects reading it during render. The
+// consumer holds the element in state through a callback ref.
+export function useMediaState(element: HTMLVideoElement | null): MediaState;
 
 // components/video/Transport.tsx
 export const COMPACT_MAX_PX = 260;
@@ -176,11 +180,7 @@ Two details that are bugs if missed:
 // `duration` is NaN before metadata and Infinity for an unbounded source.
 // Both must read as "unknown" rather than reaching the bar as a number.
 const readDuration = (el: HTMLVideoElement) =>
-  Number.isFinite(el.duration) ? el.duration : 0;
-
-// The listener set must be re-attached when the element identity changes, not
-// only on mount: CloudAssetGrid swaps `src` to trigger a reload, and
-// TimelinePreview swaps which slot is active.
+  Number.isFinite(el.duration) && el.duration > 0 ? el.duration : 0;
 ```
 
 Also attach a `requestAnimationFrame` loop **only while playing**, because `timeupdate` fires at
@@ -453,7 +453,8 @@ screen. `controls` is **never** set: that is the entire point of the change. For
 
 - [ ] **Step 2: Wire state, hover-play and fullscreen**
 
-`useMediaState(innerRef)` feeds `Transport`. `onToggle` calls `element.play()` / `element.pause()`
+`useMediaState(element)` feeds `Transport`, where `element` is held in state via a callback ref
+(`ref={setElement}`) rather than a `useRef` — see the signature note in Task 2. `onToggle` calls `element.play()` / `element.pause()`
 and sets **no** state. `onSeek` writes `element.currentTime`. `onVolume` writes `element.muted`
 and `element.volume`.
 

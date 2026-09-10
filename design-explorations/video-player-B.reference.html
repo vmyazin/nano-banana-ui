@@ -166,11 +166,14 @@
           <span class="vp-track">
             <input class="transport-range" type="range" min="0" max="0" step="0.01" value="0" style="--pct:0%" aria-label="Playback position" />
           </span>
-          <span class="vp-time">0:00 / &ndash;:&ndash;&ndash;</span>
+          <span class="vp-time">0:00 / &mdash;</span>
         </div>
       </div>
       <p style="font-size:12px;color:#8fa5a7;max-width:520px">The readout holds its width from
-      first paint, so nothing shifts when <code>durationchange</code> lands.</p>
+      first paint, so nothing shifts when <code>durationchange</code> lands. The unknown marker is
+      <code>UNKNOWN_DURATION</code> from <code>lib/timeline/format.ts</code> &mdash; that module
+      exists because three copies of this formatting once disagreed on the value, so the player
+      reuses it rather than inventing a second way to say &ldquo;not known yet&rdquo;.</p>
     </div>
   </div>
 </body>
