@@ -49,7 +49,7 @@ const MODES: ReadonlyArray<{
   /** What the mode needs before it can run, shown as the card's badge. */
   requires: string;
   icon: typeof Type;
-  thumbnail?: StaticImageData;
+  thumbnail?: StaticImageData | string;
   /** Provider-only modes stay hidden when the selected engine cannot run them. */
   needsProviderSupport?: boolean;
 }> = [
@@ -78,6 +78,7 @@ const MODES: ReadonlyArray<{
     thumbnail: bookendThumbnail,
     needsProviderSupport: true,
   },
+  {id: 'edit', thumbnail: '/thumbnails/edit-video.jpg', label: 'Edit video', blurb: 'Replace a character, setting, or style', requires: 'Needs a video', icon: ScanFace, needsProviderSupport: true},
   {
     id: 'reference',
     label: 'Character references',
@@ -117,18 +118,18 @@ export default function VideoWorkspace({
     modelsFor(engine, 'video').some((model) => model.modes.includes('reference'));
 
   const supportsMode = (engine: VideoProvider, mode: ProviderMode) =>
-    mode === 'frames' ? supportsFrames(engine) : mode === 'reference' ? supportsReference(engine) : true;
+    mode === 'edit' ? isProviderId(engine) && modelsFor(engine, 'video').some(model => model.modes.includes('edit')) : mode === 'frames' ? supportsFrames(engine) : mode === 'reference' ? supportsReference(engine) : true;
 
   const framesProviders = supportsFrames(videoEngine);
   const referenceProviders = supportsReference(videoEngine);
   const modes = MODES.filter((mode) => {
     if (!mode.needsProviderSupport) return true;
-    return mode.id === 'frames' ? framesProviders : referenceProviders;
+    return mode.id === 'edit' ? supportsMode(videoEngine, 'edit') : mode.id === 'frames' ? framesProviders : referenceProviders;
   });
   // A deep link lands on the closest flow the current provider does have,
   // rather than passing a provider-only mode into fal or Kie.
   const activeMode: ProviderMode = supportsMode(videoEngine, inputMode) ? inputMode : 'image';
-  const legacyMode: FalInputMode = activeMode === 'reference' ? 'image' : activeMode;
+  const legacyMode: FalInputMode = activeMode === 'reference' || activeMode === 'edit' ? 'image' : activeMode;
 
   const selectEngine = (engine: VideoProvider) => {
     if (!supportsMode(engine, inputMode)) onInputModeChange('image');

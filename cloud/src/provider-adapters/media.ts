@@ -30,9 +30,14 @@ export async function stageImage(env: Env, job: JobRow, base64: string, mimeType
 /** Resolve references from owned R2 keys, never fetch a browser-supplied URL. */
 export async function inlineReferences(env: Env, job: JobRow) {
   const r: CloudJobRequest = JSON.parse(job.request_json);
+  return inlineInputs(env, job, r.referenceIds);
+}
+
+/** Owned job inputs only; bounded before allocating base64 for a local transfer. */
+export async function inlineInputs(env: Env, job: JobRow, ids: string[]) {
   const references: Array<{data:string;mimeType:string}> = [];
   let total = 0;
-  for (const id of r.referenceIds) {
+  for (const id of ids) {
     const row = await env.DB.prepare("SELECT u.object_key,u.expected_bytes,u.mime_type FROM account_uploads u JOIN account_job_inputs i ON i.upload_id=u.id WHERE u.id=? AND u.user_id=? AND u.state='ready' AND i.job_id=?")
       .bind(id,job.user_id,job.id).first<{object_key:string;expected_bytes:number;mime_type:string}>();
     if (!row || (total += row.expected_bytes) > MAX_INLINE_INPUT_BYTES) throw new Error('Inline references unavailable or too large');

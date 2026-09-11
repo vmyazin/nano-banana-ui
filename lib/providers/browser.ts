@@ -37,6 +37,7 @@ export async function submitProviderVideo(args: {
   prompt: string;
   inputMode: ProviderMode;
   images?: string[];
+  sourceVideo?: string;
   durationSeconds?: number;
   /** Label of the model's documented size, resolved to pixels on the server. */
   size?: string;
@@ -52,6 +53,7 @@ export async function getProviderVideoStatus(args: {
   provider: ProviderId;
   apiKey: string;
   taskId: string;
+  sourceVideo?: string;
 }): Promise<ProviderTask> {
   const data = await post({ operation: 'status', ...args });
   if (!data.task) throw new Error('The provider did not return the task status.');

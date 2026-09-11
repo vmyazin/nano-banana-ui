@@ -4,10 +4,11 @@ export interface CloudJobRequest {
   provider: CloudProvider;
   modelId: string;
   mediaType: 'image' | 'video';
-  inputMode: 'text' | 'image' | 'frames' | 'reference';
+  inputMode: 'text' | 'image' | 'frames' | 'reference' | 'edit';
   prompt: string;
   values: Record<string, string | number | boolean>;
   referenceIds: string[];
+  sourceVideoId?: string;
 }
 export type CloudJobState = 'queued' | 'submitting' | 'running' | 'saving' | 'saved' | 'needs_attention' | 'failed' | 'cancelled';
 export interface CloudJobView {
@@ -24,4 +25,9 @@ export interface CloudAsset {
   metadata: CloudJobRequest; jobId: string | null;
   /** Present only for overflow awaiting space in the permanent library. */
   expiresAt?: number;
+}
+
+/** Every temporary input must share the same ownership and retention lifecycle. */
+export function jobInputIds(request: Pick<CloudJobRequest, 'referenceIds' | 'sourceVideoId'>): string[] {
+  return [...request.referenceIds, ...(request.sourceVideoId ? [request.sourceVideoId] : [])];
 }

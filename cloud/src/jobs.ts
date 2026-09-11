@@ -1,5 +1,7 @@
+import { jobInputIds } from '../../lib/account/contracts';
+import { isEditVideoMime } from '../../lib/providers/video-edit';
 import type { CloudJobRequest, CloudJobState, CloudJobView } from '../../lib/account/contracts';
-import { hash, type Env } from './security';
+import { hash, isLocal, type Env } from './security';
 import type { Provider } from './vault';
 import { MAX_INLINE_INPUT_BYTES } from './limits';
 export const FREE_BYTES = 1_000_000_000;
@@ -70,14 +72,21 @@ export async function getJob(env: Env, id: string, owner?: string) {
 }
 export async function acceptJob(env: Env, owner: string, token: string, request: CloudJobRequest): Promise<JobRow> {
   if (!/^[a-zA-Z0-9_-]{16,128}$/.test(token)) throw new AccountError('Invalid submission token.', 400, 'invalid_token');
-  if(new Set(request.referenceIds).size!==request.referenceIds.length)throw new AccountError('Duplicate references are not supported.',400,'invalid_references');
-  const references=JSON.stringify(request.referenceIds);
+  const inputIds=jobInputIds(request);
+  if(new Set(inputIds).size!==inputIds.length)throw new AccountError('Duplicate references are not supported.',400,'invalid_references');
+  const references=JSON.stringify(inputIds);
   const digest = await hash(canonical(request));
   const existing = await env.DB.prepare('SELECT * FROM account_jobs WHERE user_id = ? AND request_token = ?').bind(owner, token).first<JobRow>();
   if (existing) { if (existing.request_digest !== digest || existing.deleted) throw new AccountError('Submission token already used.', 409, 'token_conflict'); return existing; }
-  if (request.provider === 'gemini' || request.provider === 'comet') {
+  const uploads=await env.DB.prepare('SELECT id,mime_type FROM account_uploads WHERE user_id=? AND id IN (SELECT value FROM json_each(?))').bind(owner,references).all<{id:string;mime_type:string}>();
+  for(const upload of uploads.results){
+    const source=upload.id===request.sourceVideoId;
+    if(source ? request.inputMode!=='edit'||!isEditVideoMime(upload.mime_type) : !upload.mime_type.startsWith('image/'))throw new AccountError('Source video and reference images must match their input roles.',400,'invalid_references');
+  }
+  const localEdit = isLocal(env) && env.DEV_FAKE_GENERATION !== '1' && request.provider === 'runware' && request.inputMode === 'edit';
+  if (request.provider === 'gemini' || request.provider === 'comet' || localEdit) {
     const inputs = await env.DB.prepare('SELECT COALESCE(SUM(expected_bytes),0) AS bytes FROM account_uploads WHERE user_id=? AND id IN (SELECT value FROM json_each(?))').bind(owner,references).first<{bytes:number}>();
-    if ((inputs?.bytes ?? 0) > MAX_INLINE_INPUT_BYTES) throw new AccountError('This provider accepts up to 12 MB of reference images per background job. Use smaller images.',400,'inline_input_size');
+    if ((inputs?.bytes ?? 0) > MAX_INLINE_INPUT_BYTES) throw new AccountError(localEdit ? 'Local background edits accept up to 12 MB of source video and images. Use a smaller clip or switch to in-browser.' : 'This provider accepts up to 12 MB of reference images per background job. Use smaller images.',400,'inline_input_size');
   }
   const connection = request.provider === 'local-test' ? null : await env.DB.prepare('SELECT id, revision FROM account_connections WHERE user_id = ? AND provider = ?').bind(owner, request.provider as Provider).first<{ id: string; revision: number }>();
   if (!connection && request.provider !== 'local-test') throw new AccountError('Save this provider connection in your account first.', 409, 'connection_required');
@@ -87,7 +96,7 @@ export async function acceptJob(env: Env, owner: string, token: string, request:
     env.DB.prepare('INSERT OR IGNORE INTO account_storage (user_id) VALUES (?)').bind(owner),
     env.DB.prepare(`INSERT OR IGNORE INTO account_jobs (id,user_id,request_token,request_digest,connection_id,connection_revision,provider,request_json,reservation_bytes,created_at,updated_at)
       SELECT ?,?,?,?,?,?,?,?,?,?,? FROM account_storage WHERE user_id = ? AND used_bytes + reserved_bytes + ? <= limit_bytes AND (${RUNNING_JOB_COUNT}) < ? AND (${GLOBAL_OCCUPIED_SLOTS}) < ${MAX_GLOBAL_ACTIVE_JOBS} AND NOT EXISTS (${OWNER_OVERFLOW}) AND (SELECT COUNT(*) FROM account_uploads WHERE user_id=? AND state='ready' AND expires_at>? AND id IN (SELECT value FROM json_each(?)))=?`)
-      .bind(id, owner, token, digest, connection?.id ?? null, connection?.revision ?? null, request.provider, JSON.stringify(request), reservation, now, now, owner, reservation, owner, MAX_ACTIVE_JOBS, owner, owner, now, references, request.referenceIds.length),
+      .bind(id, owner, token, digest, connection?.id ?? null, connection?.revision ?? null, request.provider, JSON.stringify(request), reservation, now, now, owner, reservation, owner, MAX_ACTIVE_JOBS, owner, owner, now, references, inputIds.length),
     env.DB.prepare('UPDATE account_storage SET reserved_bytes = reserved_bytes + ?, active_jobs = active_jobs + 1 WHERE user_id = ? AND EXISTS (SELECT 1 FROM account_jobs WHERE id = ? AND reservation_accounted = 0)').bind(reservation, owner, id),
     env.DB.prepare('UPDATE account_jobs SET reservation_accounted = 1 WHERE id = ?').bind(id),
     env.DB.prepare('INSERT OR IGNORE INTO account_job_inputs (job_id,upload_id) SELECT ?,id FROM account_uploads WHERE user_id=? AND id IN (SELECT value FROM json_each(?)) AND EXISTS (SELECT 1 FROM account_jobs WHERE id=?)').bind(id,owner,references,id),
@@ -101,11 +110,11 @@ export async function acceptJob(env: Env, owner: string, token: string, request:
     // which is the only figure the account page shows prominently, and rarely
     // the one that actually stopped the job. A reader with an almost empty
     // library was being sent to delete files that were never the problem.
-    if (request.referenceIds.length) {
+    if (inputIds.length) {
       const ready = await env.DB.prepare(`SELECT COUNT(*) AS ready FROM account_uploads
         WHERE user_id=? AND state='ready' AND expires_at>? AND id IN (SELECT value FROM json_each(?))`)
         .bind(owner, now, references).first<{ ready: number }>();
-      if ((ready?.ready ?? 0) !== request.referenceIds.length) {
+      if ((ready?.ready ?? 0) !== inputIds.length) {
         throw new AccountError('A reference image is no longer available. Attach it again and start the job.', 409, 'reference_unavailable');
       }
     }

@@ -16,12 +16,17 @@ const post=(body:unknown):RequestInit=>({method:'POST',headers:{'Content-Type':'
 /** Upload bytes straight to the scoped Worker URL, never through Vercel's body limit. */
 export async function uploadAccountReferences(files:File[],signal?:AbortSignal,owner?:string):Promise<string[]> {
   const ids:string[]=[];
+  const epoch=useAccountStore.getState().epoch;
+  const assertOwner=()=>{const state=useAccountStore.getState();if(owner&&(state.epoch!==epoch||state.session?.account?.id!==owner))throw new Error('Your account changed. Choose the files again.');};
   try{
     for(const file of files){
+      assertOwner();
       const upload=await accountRequest<{id:string;url:string}>('uploads',{...post({bytes:file.size,mimeType:file.type}),signal,headers:{'Content-Type':'application/json',...(owner?{'X-Account-Id':owner}:{})}});
       ids.push(upload.id);
+      assertOwner();
       const response=await fetch(upload.url,{method:'PUT',headers:{'Content-Type':file.type},body:file,signal,credentials:'omit',referrerPolicy:'no-referrer'});
       if(!response.ok)throw new Error('Could not upload this reference. Please try again.');
+      assertOwner();
     }
     return ids;
   }catch(error){

@@ -1,7 +1,7 @@
 import { piapiCreateImage, piapiCreateVideo, piapiPollTask } from '../../../lib/providers/piapi';
 import { findModel, resolveDuration, resolveSize, resolveVideoInput } from '../../../lib/providers/catalog';
 import { atlasCreateImage, atlasCreateVideo, atlasPollVideo } from '../../../lib/providers/atlas';
-import { runwareCreateImage, runwareCreateVideo, runwarePollImage, runwarePollVideo } from '../../../lib/providers/runware';
+import { runwareCreateImage, runwareCreateVideo, runwarePollImage, runwarePollVideo, runwareStoreMedia, runwareDeleteMedia } from '../../../lib/providers/runware';
 import { cometGenerateImage, cometCreateVideo, cometPollVideo } from '../../../lib/providers/comet';
 import type { ProviderId } from '../../../lib/providers/types';
 import type { CloudJobRequest } from '../../../lib/account/contracts';
@@ -9,7 +9,9 @@ import type { GenerationAdapter } from '../providers';
 import { AccountError } from '../jobs';
 import { inputUrls } from '../uploads';
 import { credentials } from './queued';
-import { inlineReferences, recoverStagedImage, stageImage } from './media';
+import { inlineReferences, inlineInputs, recoverStagedImage, stageImage } from './media';
+import { isLocal } from '../security';
+import { jobInputIds } from '../../../lib/account/contracts';
 
 /** Each rejection names what was wrong. One shared sentence hid which of a
  *  dozen checks fired, which sent people hunting through the wrong settings —
@@ -23,6 +25,13 @@ export function validateAggregatorRequest(r: CloudJobRequest) {
   if (model.kind !== r.mediaType) return invalid(`${model.label} makes ${model.kind}s, not ${r.mediaType}s. Pick a ${r.mediaType} model.`);
   if (!model.modes.includes(r.inputMode)) return invalid(`${model.label} does not offer ${describeMode(r.inputMode)}. Pick another model or input mode.`);
   const count = r.referenceIds.length;
+  if (r.inputMode === 'edit') {
+    if (!model.videoEdit || !r.sourceVideoId) return invalid('Choose a source video to edit.');
+    if (count > model.videoEdit.maxImages) return invalid(`Add up to ${model.videoEdit.maxImages} replacement images.`);
+    if (Object.keys(r.values).some(key => key !== 'size') || !model.videoEdit.sizes.some(s => s.label === r.values.size)) return invalid('Edits inherit source duration and aspect ratio. Choose 480p or 720p.');
+    return;
+  }
+  if (r.sourceVideoId) return invalid('Source video is only accepted in Edit video mode.');
   if (r.inputMode === 'text' && count !== 0) return invalid('A text-only run cannot include images. Remove them or switch to an image input mode.');
   if (r.inputMode !== 'text' && count === 0) return invalid(`${describeMode(r.inputMode, true)} needs at least one image.`);
   if (r.mediaType === 'image') {
@@ -80,6 +89,24 @@ export const aggregatorAdapter: GenerationAdapter = {
       const result = await create({...common, imageInput: model.imageInput, ...(provider === 'piapi' ? {resolution: r.values.resolution as string | undefined} : {})});
       return {handle: {id: result.taskId}};
     }
+    if (r.inputMode === 'edit') {
+      // inputUrls keeps the source last, matching jobInputIds; it is never an image.
+      let sourceVideo = common.images.pop();
+      let sourceMedia: string | undefined;
+      if (isLocal(env)) {
+        // The provider cannot fetch localhost capabilities. Transfer owned bytes
+        // to its media store first; production retains scoped HTTPS R2 URLs.
+        const inputs = await inlineInputs(env, job, jobInputIds(r));
+        const source = inputs.pop()!;
+        sourceMedia = await runwareStoreMedia(common.apiKey, `data:${source.mimeType};base64,${source.data}`);
+        sourceVideo = sourceMedia;
+        common.images = inputs.map(input => `data:${input.mimeType};base64,${input.data}`);
+      }
+      // The durable job ID remains available even when submission throws, so
+      // getTaskDetails can diagnose the attempt without another paid request.
+      const result = await runwareCreateVideo({...common, sourceVideo, inputMode: 'edit', resolution: String(r.values.size)}, job.id);
+      return {handle: {id: result.taskId, ...(sourceMedia ? {sourceMedia} : {})}};
+    }
     const size = resolveSize(provider, r.modelId, r.values.size as string | undefined);
     const create = provider === 'piapi' ? piapiCreateVideo : provider === 'runware' ? runwareCreateVideo : provider === 'comet' ? cometCreateVideo : atlasCreateVideo;
     const result = await create({
@@ -94,6 +121,9 @@ export const aggregatorAdapter: GenerationAdapter = {
     const r: CloudJobRequest = JSON.parse(job.request_json);
     const poll = job.provider === 'piapi' ? piapiPollTask : job.provider === 'atlas' ? atlasPollVideo : job.provider === 'comet' ? cometPollVideo : r.mediaType === 'image' ? runwarePollImage : runwarePollVideo;
     const result = await poll({apiKey: await credentials(env, job), taskId: handle.id});
+    if (handle.sourceMedia && (result.state === 'success' || result.state === 'error')) {
+      await runwareDeleteMedia(await credentials(env, job), handle.sourceMedia).catch(() => {});
+    }
     if (result.state === 'error') return {state: 'failed'};
     if (result.state !== 'success') return {state: 'running'};
     if (!result.urls.length) throw new Error('Missing output');

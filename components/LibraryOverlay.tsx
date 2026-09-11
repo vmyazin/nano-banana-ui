@@ -22,6 +22,7 @@ interface LibraryOverlayProps {
   onOpenChange: (open: boolean) => void;
   purpose?: 'browse' | 'pick-image' | 'pick-clip';
   referenceLimit?: number;
+  onPickVideo?: (file: File) => Promise<void>;
   /**
    * Fired after a clip lands on the timeline. The timeline's own picker only
    * closes; the main library also switches to the timeline workspace, which is
@@ -55,6 +56,7 @@ export default function LibraryOverlay({
   purpose = 'browse',
   referenceLimit,
   onAddedToTimeline,
+  onPickVideo,
 }: LibraryOverlayProps) {
   const account = useAccountStore(state => state.status === 'ready' ? state.session?.account : null);
   const [source, setSource] = useState<'auto' | 'browser' | 'cloud'>('auto');
@@ -270,16 +272,16 @@ export default function LibraryOverlay({
             )}
 
             {cloud && account && (isPicker || tab === 'results') ? (
-              <AccountLibrary key={account.id} ownerId={account.id} mode={isClipPicker ? 'pick-clip' : isImagePicker ? 'pick-image' : 'browse'} referenceLimit={referenceLimit} onUsedReference={close} onAddedToTimeline={onAddedToTimeline} onCounts={onCloudCounts} />
+              <AccountLibrary key={account.id} ownerId={account.id} mode={isClipPicker ? 'pick-clip' : isImagePicker ? 'pick-image' : 'browse'} referenceLimit={referenceLimit} onUsedReference={close} onAddedToTimeline={onAddedToTimeline} onPickVideo={onPickVideo} onCounts={onCloudCounts} />
             ) : isPicker ? (
               <GalleryGrid
                 mode={isClipPicker ? 'pick-clip' : 'pick-image'}
                 onUsedReference={close}
-                onAddedToTimeline={onAddedToTimeline}
+                onAddedToTimeline={onAddedToTimeline} onPickVideo={onPickVideo}
                 referenceLimit={referenceLimit}
               />
             ) : tab === 'results' ? (
-              <GalleryGrid onUsedReference={close} onAddedToTimeline={onAddedToTimeline} />
+              <GalleryGrid onUsedReference={close} onAddedToTimeline={onAddedToTimeline} onPickVideo={onPickVideo} />
             ) : (
               <PromptLibraryList onInserted={close} />
             )}

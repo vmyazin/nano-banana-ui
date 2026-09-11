@@ -23,7 +23,7 @@ export const RUNWARE_API = 'https://api.runware.ai/v1';
 
 interface RunwareEnvelope {
   data?: Array<Record<string, unknown>>;
-  errors?: Array<{ code?: string; message?: string; parameter?: string }>;
+  errors?: Array<{ code?: string; message?: string; parameter?: string; additionalDetails?: {responseContent?: string} }>;
 }
 
 /**
@@ -50,7 +50,8 @@ async function runwareFetch(apiKey: string, tasks: Array<Record<string, unknown>
   // alone never tells you whether the work happened.
   const firstError = payload.errors?.[0];
   if (!response.ok || firstError) {
-    const raw = firstError?.message ?? `Runware returned ${response.status}.`;
+    const detail = firstError?.additionalDetails?.responseContent;
+    const raw = [firstError?.message, typeof detail === 'string' ? detail : undefined].filter(Boolean).join(' ') || `Runware returned ${response.status}.`;
     throw new ProviderError(
       readableProviderError('runware', response.status, raw),
       response.ok ? 400 : response.status,
@@ -111,8 +112,17 @@ export async function runwareGenerateImage(request: ImageRequest): Promise<Image
   return { url, cost: typeof first.cost === 'number' ? first.cost : undefined };
 }
 
-export async function runwareCreateVideo(request: VideoRequest): Promise<{ taskId: string }> {
-  const uuid = taskUUID();
+export async function runwareCreateVideo(request: VideoRequest, uuid = taskUUID()): Promise<{ taskId: string }> {
+  if (request.inputMode === 'edit') {
+    if (request.model !== 'bytedance:seedance@2.5' || !request.sourceVideo || !['480p', '720p'].includes(request.resolution ?? '')) throw new ProviderError('Invalid video edit settings.', 400, 'runware');
+    await runwareFetch(request.apiKey, [{
+      taskType: 'videoInference', taskUUID: uuid, model: request.model,
+      positivePrompt: request.prompt, inputs: {video: request.sourceVideo, ...(request.images?.length ? {referenceImages: request.images} : {})},
+      settings: {operation: 'edit'}, duration: 'auto', resolution: request.resolution,
+      deliveryMethod: 'async', includeCost: true, outputFormat: 'MP4',
+    }]);
+    return {taskId: uuid};
+  }
   // Video models publish a table of exact sizes and reject anything outside it,
   // so the caller's resolved pair wins over any ratio-derived guess.
   const [width, height] =
@@ -203,3 +213,15 @@ export const runwareAdapter: ProviderAdapter = {
   createVideo: runwareCreateVideo,
   pollVideo: runwarePollVideo,
 };
+
+/** Best-effort cleanup after a terminal edit; never delete while a job is pending. */
+export async function runwareDeleteMedia(apiKey: string, media: string): Promise<void> {
+  await runwareFetch(apiKey, [{taskType: 'mediaStorage', taskUUID: taskUUID(), operation: 'delete', media}]);
+}
+
+export async function runwareStoreMedia(apiKey: string, media: string): Promise<string> {
+  const payload = await runwareFetch(apiKey, [{taskType: 'mediaStorage', taskUUID: taskUUID(), operation: 'upload', media}]);
+  const id = payload.data?.[0]?.mediaUUID;
+  if (typeof id !== 'string' || !/^[a-f\d-]{36}$/i.test(id)) throw new ProviderError('Runware did not return a source video ID.', 502, 'runware');
+  return id;
+}

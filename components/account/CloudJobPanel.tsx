@@ -18,11 +18,11 @@ import JobElapsed from '@/components/JobElapsed';
 import CloudJobList from './CloudJobList';
 import { AccountSurface } from './AccountSurface';
 import TemporaryAssetNotice from './TemporaryAssetNotice';
-export default function CloudJobPanel({provider,modelId,mediaType,inputMode,onContinueFromFrame}:Pick<CloudJobRequest,'provider'|'modelId'|'mediaType'|'inputMode'> & {onContinueFromFrame?:()=>void}) {
+export default function CloudJobPanel({provider,modelId,mediaType,inputMode,onContinueFromFrame,resultJobId}:Pick<CloudJobRequest,'provider'|'modelId'|'mediaType'|'inputMode'> & {onContinueFromFrame?:()=>void;resultJobId?:string}) {
   const allJobs=useAccountStore(state=>state.jobs),allAssets=useAccountStore(state=>state.assets);
   const [error,setError]=useState<string|null>(null),[downloading,setDownloading]=useState<string|null>(null);
   const jobs=allJobs.filter(j=>j.provider===provider&&j.request.modelId===modelId&&j.request.mediaType===mediaType&&j.request.inputMode===inputMode);
-  const assets=allAssets.filter(a=>a.metadata.provider===provider&&a.metadata.modelId===modelId&&a.kind===mediaType&&a.metadata.inputMode===inputMode);
+  const assets=allAssets.filter(a=>a.metadata.provider===provider&&a.metadata.modelId===modelId&&a.kind===mediaType&&a.metadata.inputMode===inputMode&&(!resultJobId||a.jobId===resultJobId));
   const pending=useRef(false),[busy,setBusy]=useState(false);
   // `isActiveJob` rather than a fourth copy of the state list: the timer needs
   // the running job itself, and two answers to "is this in flight" on one line

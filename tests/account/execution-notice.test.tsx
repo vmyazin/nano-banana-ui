@@ -25,6 +25,11 @@ function workspaceOn(cloud: boolean) {
 }
 
 describe('CloudExecutionNotice', () => {
+  it('identifies fixture generation before a simulated run', () => {
+    render(<CloudExecutionNotice workspace={{...workspaceOn(true), fakeGeneration:true}} />);
+    expect(screen.getByText(/Local simulation.*test fixture, not a transformation/)).toBeInTheDocument();
+    expect(screen.queryByText('Runs in the background · saves to your account')).not.toBeInTheDocument();
+  });
   it('says what going in-browser costs before the switch is taken', () => {
     render(<CloudExecutionNotice workspace={workspaceOn(true)} />);
 

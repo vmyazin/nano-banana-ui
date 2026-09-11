@@ -7,6 +7,10 @@ import { useCloudWorkspace } from '@/lib/account/useCloudWorkspace';
 import CloudExecutionNotice from '@/components/account/CloudExecutionNotice';
 import CloudJobPanel from '@/components/account/CloudJobPanel';
 
+import VideoSourceInput, { type SourceVideo } from '@/components/VideoSourceInput';
+import { useAccountStore } from '@/store/useAccountStore';
+import { EDIT_PROMPTS } from '@/lib/providers/video-edit';
+import { uploadRunwareVideo } from '@/lib/providers/upload-video';
 import LastFrameActions from '@/components/LastFrameActions';
 import AutoExpandingPrompt from '@/components/AutoExpandingPrompt';
 import PromptPanel from '@/components/PromptPanel';
@@ -208,8 +212,16 @@ export default function ProviderVideoWorkspace({
     [inputMode, provider]
   );
   const selectedModel = models.find((model) => model.id === preference) ?? models[0];
-  const modelKey = `${provider}:${selectedModel?.id ?? 'none'}`;
-  const fields = useMemo(() => controlFieldsFor(selectedModel), [selectedModel]);
+  const modelKey = `${provider}:${inputMode}:${selectedModel?.id ?? 'none'}`;
+  const isEdit = inputMode === 'edit';
+  const fields = useMemo(() => controlFieldsFor(isEdit && selectedModel?.videoEdit ? {...selectedModel, duration: undefined, durations: undefined, sizes: selectedModel.videoEdit.sizes, aspectRatios: undefined, supportsAudio: false} : selectedModel), [selectedModel, isEdit]);
+  const epoch = useAccountStore(state => state.epoch);
+  const [selectedSource, setSelectedSource] = useState<SourceVideo | null>(null);
+  const source = selectedSource?.epoch === epoch ? selectedSource : null;
+  const [submittedEditJob, setSubmittedEditJob] = useState<{jobId: string; epoch: number} | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const uploadedSource = useRef<{file: File; key: string; id: string} | null>(null);
+  const submitFlight = useRef(false);
 
   const prompt = useDraftStore((state) => state.prompt);
   const setPrompt = useDraftStore((state) => state.setPrompt);
@@ -242,12 +254,13 @@ export default function ProviderVideoWorkspace({
   const mountedRef = useRef(true);
   const isFrames = inputMode === 'frames';
   const isReference = inputMode === 'reference';
+  const imageReferencesOnly = isReference || isEdit;
   const inputCapability = inputMode === 'text' ? undefined : selectedModel?.videoInputs?.[inputMode];
   // Reference arrays can be larger at the provider, but data-URI requests stay
   // practical at five views. The server still enforces the documented hard max.
   const maxInputImages = isFrames
     ? 2
-    : isReference
+    : imageReferencesOnly
       ? (inputCapability?.clientMaxImages ?? Math.min(inputCapability?.maxImages ?? 5, 5))
       : (inputCapability?.maxImages ?? selectedModel?.maxInputImages ?? 1);
   const referenceToken = (index: number) =>
@@ -269,7 +282,7 @@ export default function ProviderVideoWorkspace({
 
   // Claim a frame handed over by "Continue from last frame".
   useEffect(() => {
-    if (inputMode === 'text' || isReference) return;
+    if (inputMode === 'text' || isReference || isEdit) return;
     const seed = useSeedFrameStore.getState().takeSeedFrame();
     if (!seed) return;
     const draft = useDraftStore.getState();
@@ -281,7 +294,7 @@ export default function ProviderVideoWorkspace({
     if (!draft.prompt) {
       draft.setPrompt(`Continue the scene from ${seed.sourceLabel.replace(/-/g, ' ')}.`);
     }
-  }, [inputMode, isReference]);
+  }, [inputMode, isReference, isEdit]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -335,18 +348,18 @@ export default function ProviderVideoWorkspace({
    */
   const estimate = resolveCatalogRate(
     selectedModel,
-    typeof values.duration === 'number' ? values.duration : undefined,
+    isEdit ? source?.durationSeconds : typeof values.duration === 'number' ? values.duration : undefined,
     1,
-    { size: typeof values.size === 'string' ? values.size : undefined, audio: values.audio === true }
+    { inputMode, size: typeof values.size === 'string' ? values.size : undefined, audio: values.audio === true }
   );
 
-  useAutoAspect(references[0], sizeCandidates, (value) => {
+  useAutoAspect(isEdit ? undefined : references[0], sizeCandidates, (value) => {
     if (value !== values.size) updateValues('size', value);
   }, typeof values.size === 'string' ? values.size : undefined);
 
   const addReferences = async (files: File[]) => {
     const usable = files.filter((file) =>
-      isReference ? file.type.startsWith('image/') : file.type.startsWith('image/') || isVideoFile(file)
+      imageReferencesOnly ? file.type.startsWith('image/') : file.type.startsWith('image/') || isVideoFile(file)
     );
     if (usable.length === 0) {
       setError(
@@ -450,6 +463,7 @@ export default function ProviderVideoWorkspace({
           provider,
           apiKey,
           taskId: job.taskId as string,
+          sourceVideo: job.sourceVideoId,
         });
         patchJob(job.id, {
           state: task.state,
@@ -529,6 +543,7 @@ export default function ProviderVideoWorkspace({
   };
 
   const submit = async () => {
+    if (submitFlight.current) return;
     // Says why, as the fal and Kie workspaces already do. This was the only
     // submit guard here that could return without a word, and a press that
     // produces nothing at all reads as a broken button rather than a wait.
@@ -553,6 +568,7 @@ export default function ProviderVideoWorkspace({
       setError('Add the image this clip should start from.');
       return;
     }
+    if (isEdit && !source) { setError('Choose a source video to edit.'); return; }
     if (isReference && references.length === 0) {
       setError('Add at least one character view.');
       return;
@@ -564,18 +580,32 @@ export default function ProviderVideoWorkspace({
 
     setError(null);
     setIsSubmitting(true);
+    submitFlight.current = true;
     try {
       if (cloudWorkspace.cloud) {
-        await cloudWorkspace.submit({modelId:selectedModel.id, mediaType:'video', inputMode, prompt:prompt.trim(), values:{
-          ...(typeof values.duration === 'number' ? {durationSeconds:values.duration} : {}),
+        const job = await cloudWorkspace.submit({modelId:selectedModel.id, mediaType:'video', inputMode, prompt:prompt.trim(), values:{
+          ...(!isEdit && typeof values.duration === 'number' ? {durationSeconds:values.duration} : {}),
           ...(typeof values.size === 'string' ? {size:values.size} : {}),
           ...(selectedModel?.supportsAudio ? {audio:values.audio === true} : {}),
           ...(selectedModel?.aspectRatios ? {aspectRatio:String(values.aspectRatio)} : {}),
-        }}, inputMode === 'text' ? [] : references.map(reference => reference.file));
+        }}, inputMode === 'text' ? [] : references.map(reference => reference.file), prompt.trim(), isEdit ? source?.file : undefined);
+        if (isEdit && source) setSubmittedEditJob({epoch: source.epoch, jobId: job.id});
         autoRetry.reset();
         return;
       }
+      let sourceVideo: string | undefined;
+      if (isEdit && source) {
+        if (uploadedSource.current?.file !== source.file || uploadedSource.current.key !== apiKey) {
+          setUploadProgress(0);
+          const id = await uploadRunwareVideo(source.file, apiKey, setUploadProgress);
+          uploadedSource.current = {file: source.file, key: apiKey, id};
+        }
+        sourceVideo = uploadedSource.current.id;
+        setUploadProgress(null);
+        if (!mountedRef.current || useAccountStore.getState().epoch !== epoch) throw new Error('Your session changed. Review the edit before submitting.');
+      }
       const images = provider === 'piapi' && inputMode === 'text' ? [] : await Promise.all(references.map((reference) => fileAsDataUrl(reference.file)));
+      if (isEdit && (!mountedRef.current || useAccountStore.getState().epoch !== epoch || useAppStore.getState().runwareApiKey !== apiKey)) throw new Error('Your session changed. Review the edit before submitting.');
       const submittedPrompt = prompt.trim();
       const taskId = await submitProviderVideo({
         provider,
@@ -584,7 +614,8 @@ export default function ProviderVideoWorkspace({
         prompt: submittedPrompt,
         inputMode,
         images,
-        durationSeconds: typeof values.duration === 'number' ? values.duration : undefined,
+        sourceVideo,
+        durationSeconds: isEdit ? undefined : typeof values.duration === 'number' ? values.duration : undefined,
         size: typeof values.size === 'string' ? values.size : undefined,
         ...(selectedModel?.supportsAudio ? {audio:values.audio === true} : {}),
         ...(selectedModel?.aspectRatios ? {aspectRatio:String(values.aspectRatio)} : {}),
@@ -594,12 +625,14 @@ export default function ProviderVideoWorkspace({
         provider,
         taskId,
         modelId: selectedModel.id,
+        ...(sourceVideo ? {sourceVideoId: sourceVideo} : {}),
         prompt: submittedPrompt,
         inputMode,
         controlValues: values,
         state: 'queued',
         urls: [],
       });
+      if (isEdit) uploadedSource.current = null;
       // Runs alongside the generation so the name is ready before the result is.
       void attachSlug(jobId, submittedPrompt);
       const started = useProviderJobsStore.getState().jobs.find((job) => job.id === jobId);
@@ -615,10 +648,11 @@ export default function ProviderVideoWorkspace({
       // Sent again only when the request never reached a decision — a bad key or
       // an empty balance would fail identically five more times, and the retry
       // would only bury the sentence explaining why.
-      const retrying = !cloudWorkspace.cloud && isRetryableFailure(submissionError) && autoRetry.schedule(() => void submit());
+      const retrying = !isEdit && !cloudWorkspace.cloud && isRetryableFailure(submissionError) && autoRetry.schedule(() => void submit());
       toast.error(retrying ? `${message} Retrying in ${AUTO_RETRY_DELAY_SECONDS}s.` : message);
     } finally {
-      if (mountedRef.current) setIsSubmitting(false);
+      submitFlight.current = false;
+      if (mountedRef.current) { setIsSubmitting(false); setUploadProgress(null); }
     }
   };
 
@@ -635,7 +669,7 @@ export default function ProviderVideoWorkspace({
                 <ProviderLogo provider={provider} size={13} /> {label}
               </div>
               <h2 className="display text-lg font-semibold text-[var(--foreground)] sm:text-xl">
-                {isFrames
+                {isEdit ? 'Edit video' : isFrames
                   ? 'First & last frame to video'
                   : isReference
                     ? 'Character references'
@@ -694,7 +728,7 @@ export default function ProviderVideoWorkspace({
                 rows={(matchingModels.length > 0 ? matchingModels : models).map((model) => ({
                   id: model.id,
                   label: model.label,
-                  cells: providerVideoSpecs(model),
+                  cells: providerVideoSpecs(model, inputMode),
                 }))}
                 value={selectedModel?.id}
                 onChange={(id) => {
@@ -705,25 +739,26 @@ export default function ProviderVideoWorkspace({
               {selectedModel && (
                 <p className="px-0.5 text-sm leading-relaxed text-[var(--foreground-muted)]">
                   <span className="font-medium text-[var(--foreground)]">{selectedModel.label}:</span>{' '}
-                  {selectedModel.note ??
+                  {isEdit ? 'Edit the source clip with optional reference images. Duration and aspect ratio follow the source; changes are guided by your prompt.' : selectedModel.note ??
                     `Billed to your ${label} account at ${selectedModel.price && selectedModel.price !== 'metered' ? selectedModel.price : 'the vendor’s rates'}.`}
                 </p>
               )}
             </div>
           </section>
 
+          {isEdit && <VideoSourceInput source={source} onChange={setSelectedSource} disabled={isSubmitting} />}
           {inputMode !== 'text' && (
             <section className="glass-card space-y-3 p-3.5 md:p-4">
               <div>
                 <h3 className="display text-base font-semibold">
-                  {isFrames
+                  {isEdit ? 'Replacement images (optional)' : isFrames
                     ? 'First and last frame'
                     : isReference
                       ? 'Add character views'
                       : `Reference image${maxInputImages === 1 ? '' : 's'}`}
                 </h3>
                 <p className="mt-0.5 text-xs text-[var(--foreground-muted)]">
-                  {isFrames
+                  {isEdit ? 'Add a character, product, or setting to guide the edit. Address images as @Image1, @Image2, and so on.' : isFrames
                     ? 'Two images, in order: the frame the clip opens on, then the one it ends on. The model builds the motion between them.'
                     : isReference
                       ? `Add up to ${maxInputImages} front, three-quarter, or profile views. Their order becomes ${referenceToken(0)}, ${referenceToken(1)}, and so on in your prompt.`
@@ -733,7 +768,7 @@ export default function ProviderVideoWorkspace({
               <input
                 ref={fileInputRef}
                 type="file"
-                accept={isReference ? 'image/*' : 'image/*,video/*'}
+                accept={imageReferencesOnly ? 'image/*' : 'image/*,video/*'}
                 multiple={maxInputImages > 1}
                 className="hidden"
                 onChange={(event) => {
@@ -760,8 +795,8 @@ export default function ProviderVideoWorkspace({
                         ? 'Fetching dropped image…'
                         : isDragging
                           ? 'Drop to use as a source'
-                          : isReference
-                            ? 'Drop, upload, or paste character views'
+                          : imageReferencesOnly
+                            ? 'Drop, upload, or paste reference images'
                             : 'Drop, upload, or paste an image or video'}
                   </button>
                   {references.length < maxInputImages && (
@@ -776,7 +811,7 @@ export default function ProviderVideoWorkspace({
                 items={references.map((reference, index) => ({
                   id: reference.id,
                   src: reference.previewUrl,
-                  caption: isFrames ? frameSlotLabel(index) : isReference ? referenceToken(index) : undefined,
+                  caption: isFrames ? frameSlotLabel(index) : isEdit ? `@Image${index + 1}` : isReference ? referenceToken(index) : undefined,
                   alt: isFrames
                     ? frameSlotLabel(index)
                     : isReference
@@ -811,7 +846,7 @@ export default function ProviderVideoWorkspace({
               <div>
                 <h3 className="display text-base font-semibold">Model controls</h3>
                 <p className="mt-0.5 text-xs text-[var(--foreground-muted)]">
-                  Only the lengths and sizes {selectedModel?.label} publishes are offered.
+                  {isEdit ? 'Duration and aspect ratio match the source video.' : `Only the lengths and sizes ${selectedModel?.label} publishes are offered.`}
                 </p>
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
@@ -842,11 +877,11 @@ export default function ProviderVideoWorkspace({
           >
             {isSubmitting ? (
               <>
-                <Loader2 className="animate-spin" size={21} /> Starting…
+                <Loader2 className="animate-spin" size={21} /> {uploadProgress !== null ? `Uploading source… ${uploadProgress}%` : 'Starting…'}
               </>
             ) : (
               <>
-                <Sparkles size={21} /> Generate video
+                <Sparkles size={21} /> {isEdit ? 'Generate edit' : 'Generate video'}
                 {estimate.costUsd !== null && (
                   <span className="font-normal opacity-80">{` · ~$${estimate.costUsd.toFixed(2)}`}</span>
                 )}
@@ -865,7 +900,7 @@ export default function ProviderVideoWorkspace({
               <label htmlFor="provider-video-prompt" className="display block text-base font-semibold">
                 Prompt
               </label>
-              <button
+              {!isEdit && <button
                 type="button"
                 onClick={() => void generateExample()}
                 disabled={isGeneratingExample}
@@ -878,17 +913,19 @@ export default function ProviderVideoWorkspace({
                   <Sparkles size={14} />
                 )}
                 {isGeneratingExample ? 'Thinking…' : 'Gen Example'}
-              </button>
+              </button>}
             </div>
+            {isEdit && <div className="flex flex-wrap gap-2">{Object.entries(EDIT_PROMPTS).map(([label, text]) => <button key={label} type="button" className="btn-secondary px-2.5 py-1.5 text-xs" onClick={() => setPrompt(text)}>{label}</button>)}</div>}
             <AutoExpandingPrompt
               id="provider-video-prompt"
               value={prompt}
               onChange={(event) => setPrompt(event.target.value)}
-              placeholder="Describe the motion, camera, mood, and scene…"
+              placeholder={isEdit ? "Describe what to change in @Video1 and what to keep…" : "Describe the motion, camera, mood, and scene…"}
             />
           </PromptPanel>
         }
-        results={cloudWorkspace.cloud ? <CloudJobPanel provider={provider} modelId={selectedModel?.id ?? ''} mediaType="video" inputMode={inputMode} onContinueFromFrame={onContinueFromFrame} /> :
+        results={<>
+          {cloudWorkspace.cloud ? <CloudJobPanel provider={provider} modelId={selectedModel?.id ?? ''} mediaType="video" inputMode={inputMode} resultJobId={isEdit && submittedEditJob?.epoch === epoch ? submittedEditJob.jobId : undefined} onContinueFromFrame={onContinueFromFrame} /> :
           <section className="glass-card flex min-h-[420px] flex-col gap-4 p-3.5 md:p-4">
           <div className="flex items-start justify-between gap-3">
             <div>
@@ -948,6 +985,7 @@ export default function ProviderVideoWorkspace({
             ) : latestJob?.state === 'error' ? (
               <p className="max-w-sm p-5 text-center text-sm text-red-300">
                 {latestJob.error || `${label} could not complete this task. It was not resubmitted.`}
+                {latestJob.taskId && <span className="mt-2 block break-all font-mono text-xs">Provider task: {latestJob.taskId}</span>}
               </p>
             ) : (
               <div className="p-5 text-center text-[var(--foreground-muted)]">
@@ -979,7 +1017,8 @@ export default function ProviderVideoWorkspace({
               onContinue={onContinueFromFrame}
             />
           )}
-          </section>
+          </section>}
+          </>
         }
       />
       </ConnectionGate>

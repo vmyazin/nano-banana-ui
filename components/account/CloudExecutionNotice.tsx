@@ -8,7 +8,7 @@ import type { useCloudWorkspace } from '@/lib/account/useCloudWorkspace';
 export default function CloudExecutionNotice({workspace}:{workspace:ReturnType<typeof useCloudWorkspace>}) {
   if(!workspace.signedIn&&!workspace.uncertain)return null;
   const status=workspace.uncertain&&workspace.cloud?'Account status unavailable'
-    :workspace.cloud?(workspace.enabled?'Runs in the background · saves to your account':'Background generation unavailable for this provider')
+    :workspace.cloud?(workspace.fakeGeneration?'Local simulation · returns a test fixture, not a transformation':workspace.enabled?'Runs in the background · saves to your account':'Background generation unavailable for this provider')
     :'Runs in this tab · keep it open';
   /** What the switch costs and buys, in the same breath as the offer to take
    *  it. Named for the destination, not the current mode: 'Switch to

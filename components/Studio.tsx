@@ -51,7 +51,7 @@ export default function Studio() {
   const [videoMode, setVideoMode] = useQueryState('videoMode', { history: 'push' });
   const activeWorkspace = workspace === 'video' ? 'video' : 'image';
   const activeVideoMode =
-    videoMode === 'image' || videoMode === 'frames' || videoMode === 'reference'
+    videoMode === 'image' || videoMode === 'frames' || videoMode === 'reference' || videoMode === 'edit'
       ? videoMode
       : 'text';
   const selectedFeature: Feature | null =

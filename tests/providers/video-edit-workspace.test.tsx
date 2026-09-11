@@ -1,0 +1,56 @@
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { beforeEach, afterEach, it, expect, vi } from 'vitest';
+import ProviderVideoWorkspace from '@/components/ProviderVideoWorkspace';
+import VideoSourceInput from '@/components/VideoSourceInput';
+import { useAccountStore } from '@/store/useAccountStore';
+import { useAppStore } from '@/store/useAppStore';
+import { useDraftStore } from '@/store/useDraftStore';
+import { useProviderJobsStore } from '@/store/useProviderJobsStore';
+import { probeDimensions } from '@/lib/timeline/probe';
+import { uploadRunwareVideo } from '@/lib/providers/upload-video';
+import { submitProviderVideo } from '@/lib/providers/browser';
+vi.mock('@/lib/timeline/probe',()=>({probeDimensions:vi.fn().mockResolvedValue({width:1280,height:720,durationSeconds:4})}));
+vi.mock('@/lib/providers/upload-video',()=>({uploadRunwareVideo:vi.fn().mockResolvedValue('989ba605-1449-4e1e-b462-cd83ec9c1a67')}));
+vi.mock('@/lib/providers/browser',()=>({submitProviderVideo:vi.fn().mockResolvedValue('task'),getProviderVideoStatus:vi.fn(),pollDelayMs:()=>100000}));
+vi.mock('@/lib/micro-ai/browser',()=>({requestPromptSlug:vi.fn().mockResolvedValue(null),requestExamplePrompt:vi.fn()}));
+vi.mock('sonner',()=>({toast:{success:vi.fn(),error:vi.fn()}}));
+beforeEach(()=>{
+  useAccountStore.setState({status:'ready',session:null,epoch:0,jobs:[],assets:[]});
+  useAppStore.setState({runwareApiKey:'test',runwareVideoModel:'bytedance:seedance@2.5'});
+  useDraftStore.setState({prompt:'',references:[],controlValues:{duration:15,size:'1080p · 16:9'}});
+  useProviderJobsStore.getState().clearJobs();
+  vi.stubGlobal('URL',Object.assign(URL,{createObjectURL:vi.fn(()=> 'blob:source'),revokeObjectURL:vi.fn()}));
+});
+afterEach(()=>{vi.clearAllMocks();vi.unstubAllGlobals();});
+it('requires a source, permits no reference images, and submits without stale duration controls',async()=>{
+  render(<ProviderVideoWorkspace provider="runware" label="Runware" inputMode="edit" onBack={()=>{}} onOpenConnections={()=>{}}/>);
+  expect(screen.queryByRole('spinbutton',{name:/Duration/})).toBeNull();
+  fireEvent.click(screen.getByRole('button',{name:'Change scene'}));
+  fireEvent.click(screen.getByRole('button',{name:/Generate edit/}));
+  expect(screen.getByText('Choose a source video to edit.')).toBeInTheDocument();
+  fireEvent.change(screen.getByLabelText('Upload source video'),{target:{files:[new File(['clip'],'source.mp4',{type:'video/mp4'})]}});
+  await screen.findByText(/source.mp4/);
+  fireEvent.click(screen.getByRole('button',{name:/Generate edit/}));
+  await waitFor(()=>expect(submitProviderVideo).toHaveBeenCalled());
+  expect(uploadRunwareVideo).toHaveBeenCalledTimes(1);
+  expect(vi.mocked(submitProviderVideo).mock.calls[0][0]).toMatchObject({inputMode:'edit',images:[],sourceVideo:'989ba605-1449-4e1e-b462-cd83ec9c1a67',size:'720p',durationSeconds:undefined});
+  expect(screen.queryByText('Original for comparison')).not.toBeInTheDocument();
+});
+it('discards a video whose inspection finishes after the account changes',async()=>{
+  let resolve!:(value:{width:number;height:number;durationSeconds:number})=>void;
+  vi.mocked(probeDimensions).mockImplementationOnce(()=>new Promise(r=>{resolve=r;}));
+  const onChange=vi.fn();
+  render(<VideoSourceInput source={null} onChange={onChange} disabled={false}/>);
+  fireEvent.change(screen.getByLabelText('Upload source video'),{target:{files:[new File(['clip'],'source.mp4',{type:'video/mp4'})]}});
+  useAccountStore.setState({epoch:1}); resolve({width:1280,height:720,durationSeconds:4});
+  expect(await screen.findByRole('alert')).toHaveTextContent('Your account changed');
+  expect(onChange).not.toHaveBeenCalled();
+});
+it.each([{width:320,height:180},{width:640,height:360}])('rejects an undersized source before upload: $width × $height',async dimensions=>{
+  vi.mocked(probeDimensions).mockResolvedValueOnce({...dimensions,durationSeconds:4});
+  const onChange=vi.fn();
+  render(<VideoSourceInput source={null} onChange={onChange} disabled={false}/>);
+  fireEvent.change(screen.getByLabelText('Upload source video'),{target:{files:[new File(['clip'],'small.mp4',{type:'video/mp4'})]}});
+  expect(await screen.findByRole('alert')).toHaveTextContent(/pixels/);
+  expect(onChange).not.toHaveBeenCalled();
+});

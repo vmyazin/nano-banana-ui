@@ -28,6 +28,7 @@ interface GalleryGridProps {
   /** Fired after a stored clip lands on the timeline, so the host can close. */
   onAddedToTimeline?: () => void;
   referenceLimit?: number;
+  onPickVideo?: (file: File) => Promise<void>;
 }
 
 function titleOf(record: GalleryRecord) {
@@ -79,6 +80,7 @@ export default function GalleryGrid({
   mode = 'browse',
   onUsedReference,
   onAddedToTimeline,
+  onPickVideo,
   referenceLimit = REFERENCE_LIMIT,
 }: GalleryGridProps) {
   const records = useGalleryStore((state) => state.records);
@@ -309,10 +311,13 @@ export default function GalleryGrid({
               ) : mode === 'pick-clip' ? (
                 <button
                   type="button"
-                  onClick={() => addToTimeline(record)}
+                  onClick={() => {
+                    if (onPickVideo && record.blob) void onPickVideo(new File([record.blob], `${fallbackFilenameBase(record.prompt, 'video')}.${extensionForMedia('video', record.blob.type || record.mimeType)}`, {type: record.blob.type || record.mimeType})).catch(error => toast.error(error instanceof Error ? error.message : 'Could not select video.'));
+                    else addToTimeline(record);
+                  }}
                   className="btn-secondary flex items-center gap-1.5 px-2 py-1 text-xs"
                 >
-                  <Film size={13} /> Add to timeline
+                  <Film size={13} /> {onPickVideo ? 'Use video' : 'Add to timeline'}
                 </button>
               ) : (
                 <>
@@ -339,10 +344,13 @@ export default function GalleryGrid({
                   {record.kind === 'video' && stored && (
                     <button
                       type="button"
-                      onClick={() => addToTimeline(record)}
+                      onClick={() => {
+                    if (onPickVideo && record.blob) void onPickVideo(new File([record.blob], `${fallbackFilenameBase(record.prompt, 'video')}.${extensionForMedia('video', record.blob.type || record.mimeType)}`, {type: record.blob.type || record.mimeType})).catch(error => toast.error(error instanceof Error ? error.message : 'Could not select video.'));
+                    else addToTimeline(record);
+                  }}
                       className="btn-secondary flex items-center gap-1.5 px-2 py-1 text-xs"
                     >
-                      <Film size={13} /> Add to timeline
+                      <Film size={13} /> {onPickVideo ? 'Use video' : 'Add to timeline'}
                     </button>
                   )}
                   {/* An imported clip was never generated, so it carries no prompt

@@ -1,3 +1,4 @@
+import { runwareDeleteMedia } from '@/lib/providers/runware';
 import { NextRequest, NextResponse } from 'next/server';
 
 import { getAdapter, isProviderId } from '@/lib/providers';
@@ -24,7 +25,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function isProviderMode(value: unknown): value is ProviderMode {
-  return value === 'text' || value === 'image' || value === 'frames' || value === 'reference';
+  return value === 'text' || value === 'image' || value === 'frames' || value === 'reference' || value === 'edit';
 }
 
 function failure(error: unknown, fallback: string) {
@@ -57,6 +58,7 @@ export async function POST(request: NextRequest) {
     }
     try {
       const task = await adapter.pollVideo({ apiKey, taskId: body.taskId });
+      if(body.provider==='runware' && (task.state==='success'||task.state==='error') && typeof body.sourceVideo==='string' && /^[a-f\d-]{36}$/i.test(body.sourceVideo)) await runwareDeleteMedia(apiKey,body.sourceVideo).catch(()=>{});
       return NextResponse.json({ success: true, task });
     } catch (error) {
       return failure(error, `${adapter.label} could not report this task.`);
@@ -104,6 +106,18 @@ export async function POST(request: NextRequest) {
       { status: 400 }
     );
   }
+  if (inputMode === 'edit') {
+    const capability = modelRecord?.videoEdit;
+    if (!capability || body.provider !== 'runware' || typeof body.sourceVideo !== 'string' || !/^[a-f\d-]{36}$/i.test(body.sourceVideo)) return NextResponse.json({success: false, error: 'Upload a source video for this editing model.'}, {status: 400});
+    if (body.durationSeconds !== undefined || body.aspectRatio !== undefined || body.width !== undefined || body.height !== undefined) return NextResponse.json({success: false, error: 'Edits inherit source duration and aspect ratio.'}, {status: 400});
+    const size = capability.sizes.find(size => size.label === body.size);
+    if (!size || images.length > capability.maxImages) return NextResponse.json({success: false, error: 'Choose 480p or 720p and up to five reference images.'}, {status: 400});
+    try {
+      const {taskId} = await adapter.createVideo({apiKey, model, prompt, inputMode, sourceVideo: body.sourceVideo, images, resolution: size.preset});
+      return NextResponse.json({success: true, taskId});
+    } catch (error) { return failure(error, 'Could not start this video edit.'); }
+  }
+  if (body.sourceVideo !== undefined) return NextResponse.json({success: false, error: 'Source video requires Edit video mode.'}, {status: 400});
   const videoInput = resolveVideoInput(body.provider, model, inputMode);
   if (hasExplicitInputMode && inputMode !== 'text') {
     if (!videoInput) {

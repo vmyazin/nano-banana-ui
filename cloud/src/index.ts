@@ -58,7 +58,7 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
     if (path === '/health' && request.method === 'GET') return json({ ok: true });
     if (path === '/api/account/session' && request.method === 'GET') {
       const account=await currentAccount(request,env);
-      return json({account,googleEnabled:googleEnabled(env),localSignIn:isLocal(env)&&Boolean(env.DEV_ACCOUNT_EMAIL),providers:enabledProviders(env),connections:account?await listConnections(env,account.id):[]});
+      return json({account,googleEnabled:googleEnabled(env),localSignIn:isLocal(env)&&Boolean(env.DEV_ACCOUNT_EMAIL),fakeGeneration:isLocal(env)&&env.DEV_FAKE_GENERATION==='1',providers:enabledProviders(env),connections:account?await listConnections(env,account.id):[]});
     }
     if (path === '/api/account/sign-out' && request.method === 'POST') {
       await revokeSession(request, env);

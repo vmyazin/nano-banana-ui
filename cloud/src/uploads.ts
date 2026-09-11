@@ -1,3 +1,5 @@
+import { jobInputIds } from '../../lib/account/contracts';
+import { MAX_EDIT_VIDEO_BYTES, isEditVideoMime } from '../../lib/providers/video-edit';
 import { AccountError, type JobRow } from './jobs';
 import { writeOutput } from './assets';
 import { mediaAccess, mediaCors, mediaOrigin, mediaToken, readMedia } from './media';
@@ -10,7 +12,7 @@ const INPUT_TTL=86_400_000;
 interface Upload {id:string;user_id:string;object_key:string;mime_type:string;expected_bytes:number;state:string;expires_at:number}
 export async function reserveUpload(env:Env,owner:string,bytes:number,mime:string) {
   mediaOrigin(env);
-  if(!Number.isSafeInteger(bytes)||bytes<=0||bytes>MAX_INPUT_BYTES||!/^image\/(png|jpeg|webp|avif)$/.test(mime))throw new AccountError('Use a PNG, JPEG, WebP or AVIF image up to 20 MB.',400,'invalid_upload');
+  if(!Number.isSafeInteger(bytes)||bytes<=0||bytes>(isEditVideoMime(mime)?MAX_EDIT_VIDEO_BYTES:MAX_INPUT_BYTES)||(!isEditVideoMime(mime)&&!/^image\/(png|jpeg|webp|avif)$/.test(mime)))throw new AccountError('Use an image up to 20 MB or an MP4, MOV or WebM video up to 100 MB.',400,'invalid_upload');
   const id=crypto.randomUUID(),key=`accounts/${owner}/inputs/${id}`,now=Date.now();
   const inserted=await env.DB.prepare(`INSERT INTO account_uploads (id,user_id,object_key,mime_type,expected_bytes,created_at,expires_at)
     SELECT ?,?,?,?,?,?,? WHERE (SELECT COALESCE(SUM(expected_bytes),0) FROM account_uploads WHERE user_id=? AND state!='deleted')+?<=?
@@ -25,9 +27,9 @@ export async function reserveUpload(env:Env,owner:string,bytes:number,mime:strin
   return {id,...await mediaAccess(env,owner,id,'upload')};
 }
 export async function inputUrls(env:Env,job:JobRow):Promise<string[]> {
-  const request=JSON.parse(job.request_json) as {referenceIds:string[]};
+  const request=JSON.parse(job.request_json) as {referenceIds:string[];sourceVideoId?:string};
   const urls:string[]=[];
-  for(const id of request.referenceIds){
+  for(const id of jobInputIds(request)){
     const row=await env.DB.prepare("SELECT u.id FROM account_uploads u JOIN account_job_inputs i ON i.upload_id=u.id WHERE u.id=? AND u.user_id=? AND u.state='ready' AND i.job_id=?").bind(id,job.user_id,job.id).first();
     if(!row)throw new Error('Reference unavailable');
     urls.push((await mediaAccess(env,job.user_id,id,'input',job.id)).url);

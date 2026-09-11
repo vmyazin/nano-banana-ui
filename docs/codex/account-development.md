@@ -70,6 +70,16 @@ downloads, and an idempotent import of the 68-byte PNG fixture:
 node scripts/seed-account-demo.mjs
 ```
 
+The execution notice explicitly labels fake generation as a local simulation.
+For a real Edit video test, set `DEV_FAKE_GENERATION=0` in `cloud/.dev.vars`,
+restart, and replace the seed's dummy connection with a real Runware key.
+Local background edits transfer the owned source to Runware media storage before
+inference: Runware cannot fetch a localhost capability URL. The source and image
+references together are capped at 12 MB for this local transfer to bound Worker
+memory; larger clips can use in-browser generation. Production continues to send
+scoped HTTPS input URLs. The local provider copy is removed after a terminal
+result; uncertain submissions retain it because a provider may still be using it.
+
 ## Real Google sign-in for local development
 
 Verified on 2026-09-05 using the Google Cloud project

@@ -6,6 +6,7 @@ export interface AccountConnection { id:string;provider:string;revision:number;h
 export interface AccountSession {
   account:AccountIdentity|null;googleEnabled:boolean;localSignIn:boolean;
   providers:CloudProvider[];connections:AccountConnection[];
+  fakeGeneration?:boolean;
 }
 interface AccountState {
   session:AccountSession|null;

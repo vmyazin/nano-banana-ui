@@ -108,7 +108,8 @@ const RUNWARE_MODELS: ProviderModel[] = [
     label: 'Seedance 2.5',
     fileCode: 'seedance-2_5',
     kind: 'video',
-    modes: ['text', 'image', 'frames', 'reference'],
+    modes: ['text', 'image', 'frames', 'reference', 'edit'],
+    videoEdit: { sizes: [{label: '720p', preset: '720p'}, {label: '480p', preset: '480p'}], rate: {per: 'second', usdByResolution: {'480p': 0.131, '720p': 0.295}}, maxImages: 5 },
     price: '$0.102 / s @ 480p \u00b7 $0.23 @ 720p \u00b7 $0.614 @ 1080p',
     rate: { usdByResolution: { '480p': 0.102, '720p': 0.23, '1080p': 0.614 }, per: 'second' },
     maxInputImages: 30,
@@ -753,7 +754,7 @@ export function resolveVideoInput(
   modelId: string,
   mode: ProviderMode
 ): ProviderVideoInputCapability | undefined {
-  if (mode === 'text') return undefined;
+  if (mode === 'text' || mode === 'edit') return undefined;
   const model = findModel(provider, modelId);
   if (!model || model.kind !== 'video' || !model.modes.includes(mode)) return undefined;
   const declared = model.videoInputs?.[mode];

@@ -8,7 +8,7 @@ import { refreshAccount } from './session';
 import { submitAccountJob, uploadAccountReferences } from './client';
 import type { CloudJobRequest, CloudJobView, CloudProvider } from './contracts';
 
-interface Pending { owner:string;signature:string;files:File[];token:string;request:CloudJobRequest }
+interface Pending { owner:string;signature:string;files:File[];sourceVideo?:File;token:string;request:CloudJobRequest }
 export function useCloudWorkspace(provider:CloudProvider) {
   const session=useAccountStore(state=>state.session);
   const status=useAccountStore(state=>state.status);
@@ -30,20 +30,27 @@ export function useCloudWorkspace(provider:CloudProvider) {
   // libraryPrompt is what the prompt library remembers once the job is accepted.
   // It defaults to the request prompt, but the image workspace wraps feature
   // instructions around what was typed and only the typed text belongs in history.
-  async function perform(request:Omit<CloudJobRequest,'provider'|'referenceIds'>,files:File[],libraryPrompt:string) {
+  async function perform(request:Omit<CloudJobRequest,'provider'|'referenceIds'|'sourceVideoId'>,files:File[],libraryPrompt:string,sourceVideo?:File) {
     if(!owner||!cloud)throw new Error('Your account changed. Review the generation before starting it.');
+    const epoch=useAccountStore.getState().epoch;
+    const assertOwner=()=>{const state=useAccountStore.getState();if(state.epoch!==epoch||state.session?.account?.id!==owner)throw new Error('Your account changed. Review the generation before starting it.');};
     const current=await refreshAccount();
+    assertOwner();
     if(current.account?.id!==owner)throw new Error('Your account changed. Review the generation before starting it.');
     if(!current.providers.includes(provider))throw new Error('Background generation is not available for this provider yet. You can explicitly choose browser-only generation below.');
     if(!current.connections.some(c=>c.provider===provider))throw new Error('Save this provider connection in your account before starting a background job.');
     const signature=JSON.stringify(request);
     let attempt=pending.current;
-    if(!attempt||attempt.owner!==owner||attempt.signature!==signature||attempt.files.length!==files.length||files.some((file,i)=>file!==attempt!.files[i])){
-      const ids=await uploadAccountReferences(files,undefined,owner);
-      attempt={owner,signature,files:[...files],token:crypto.randomUUID(),request:{...request,provider,referenceIds:ids}};
+    if(!attempt||attempt.owner!==owner||attempt.signature!==signature||attempt.sourceVideo!==sourceVideo||attempt.files.length!==files.length||files.some((file,i)=>file!==attempt!.files[i])){
+      const ids=await uploadAccountReferences([...files,...(sourceVideo?[sourceVideo]:[])],undefined,owner);
+      assertOwner();
+      const sourceVideoId=sourceVideo?ids.pop():undefined;
+      attempt={owner,signature,files:[...files],sourceVideo,token:crypto.randomUUID(),request:{...request,provider,referenceIds:ids,...(sourceVideoId?{sourceVideoId}:{})}};
       pending.current=attempt;
     }
+    assertOwner();
     const {job}=await submitAccountJob(attempt.token,attempt.request,undefined,owner);
+    assertOwner();
     // Same moment as every guest path: the provider has accepted the job. Before
     // this lived here, each workspace's cloud branch returned before its own
     // remember() call and signed-in prompts vanished from the library.
@@ -55,11 +62,11 @@ export function useCloudWorkspace(provider:CloudProvider) {
     pending.current=null;
     return job;
   }
-  function submit(request:Omit<CloudJobRequest,'provider'|'referenceIds'>,files:File[],libraryPrompt:string=request.prompt){
+  function submit(request:Omit<CloudJobRequest,'provider'|'referenceIds'|'sourceVideoId'>,files:File[],libraryPrompt:string=request.prompt,sourceVideo?:File){
     if(flight.current)return flight.current;
-    const promise=perform(request,files,libraryPrompt).finally(()=>{flight.current=null;});
+    const promise=perform(request,files,libraryPrompt,sourceVideo).finally(()=>{flight.current=null;});
     flight.current=promise;return promise;
   }
-  return {signedIn,cloud,enabled,connected,hasJobs,uncertain,checking:status==='loading'||uncertain&&!choseBrowser,unavailable:status==='unavailable',
+  return {signedIn,cloud,enabled,connected,hasJobs,uncertain,fakeGeneration:Boolean(session?.fakeGeneration),checking:status==='loading'||uncertain&&!choseBrowser,unavailable:status==='unavailable',
     useBrowser:()=>choose(owner,provider,'browser'),useCloud:()=>choose(owner,provider,'cloud'),submit};
 }

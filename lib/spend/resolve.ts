@@ -69,9 +69,9 @@ export function resolveCatalogRate(
   model: ProviderModel | undefined,
   durationSeconds?: number,
   outputImages = 1,
-  controls: { size?: string; inputImages?: number; audio?: boolean } = {}
+  controls: { size?: string; inputImages?: number; audio?: boolean; inputMode?: string } = {}
 ): SpendFigure {
-  const rate = model?.rate;
+  const rate = controls.inputMode === 'edit' ? model?.videoEdit?.rate : model?.rate;
   if (!rate) return unknownFigure('catalog-rate');
   // Only search when a size was actually given. `size.preset === undefined`
   // is true for every size that has no preset, so with no size chosen this
@@ -79,7 +79,7 @@ export function resolveCatalogRate(
   // fallback the rate type forbids. Latent while every size had a preset.
   const chosen = controls.size === undefined
     ? undefined
-    : model?.sizes?.find(size => size.label === controls.size || size.preset === controls.size);
+    : (controls.inputMode === 'edit' ? model?.videoEdit?.sizes : model?.sizes)?.find(size => size.label === controls.size || size.preset === controls.size);
   // Preset first, then the label's leading tier: Atlas keys its table by API
   // preset, Runware publishes only labels — see sizeRateKey.
   const resolution = chosen ? sizeRateKey(chosen) : undefined;

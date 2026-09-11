@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import ImageLightbox from '@/components/ImageLightbox';
 import LastFrameActions from '@/components/LastFrameActions';
+import { videoFileFromAccount } from '@/lib/account/video-source';
 import { accountRequest } from '@/lib/account/client';
 import type { CloudAsset } from '@/lib/account/contracts';
 import { downloadAccountAsset } from '@/lib/account/download';
@@ -20,7 +21,7 @@ import { useTimelineStore } from '@/store/useTimelineStore';
 import VideoPlayer from '@/components/video/VideoPlayer';
 import TemporaryAssetNotice from './TemporaryAssetNotice';
 
-export default function CloudAssetGrid({assets,ownerId,mode='browse',referenceLimit=8,columns=2,onUsedReference,onAddedToTimeline,onChanged}: {
+export default function CloudAssetGrid({assets,ownerId,mode='browse',referenceLimit=8,columns=2,onUsedReference,onAddedToTimeline,onPickVideo,onChanged}: {
   assets:CloudAsset[];ownerId:string;mode?:'browse'|'pick-image'|'pick-clip';referenceLimit?:number;
   /** Widest column count at desktop. The overlay stays at two because it sits
    *  in a narrow sheet; the account console goes to four. */
@@ -29,6 +30,7 @@ export default function CloudAssetGrid({assets,ownerId,mode='browse',referenceLi
   /** Fired after a cloud clip lands on the timeline, so the host can close the
    *  picker and — from the browse library — switch to the timeline workspace. */
   onAddedToTimeline?:()=>void;
+  onPickVideo?:(file:File)=>Promise<void>;
   onChanged:()=>void;
 }) {
   const [busy,setBusy]=useState<string|null>(null);
@@ -99,7 +101,7 @@ export default function CloudAssetGrid({assets,ownerId,mode='browse',referenceLi
           {/* The action this grid existed without: a finished cloud clip had no
               route into the editor at all, so the only way to cut one was to
               download it and re-upload it through "Add files from your device". */}
-          {asset.kind==='video'&&mode!=='pick-image'&&<button type="button" disabled={busy!==null} onClick={()=>void addToTimeline(asset)} aria-label={dense?'Add to timeline':undefined} className="btn-secondary gap-1.5 px-2 py-1 text-xs">{busy===asset.id?<Loader2 size={13} className="animate-spin motion-reduce:animate-none" aria-hidden="true"/>:<Film size={13} aria-hidden="true"/>}{dense?'Timeline':'Add to timeline'}</button>}
+          {asset.kind==='video'&&mode!=='pick-image'&&<button type="button" disabled={busy!==null} onClick={()=>void (onPickVideo ? run(asset,async()=>{const file=await videoFileFromAccount(asset,ownerId);assertOwner();await onPickVideo(file);}) : addToTimeline(asset))} aria-label={dense?'Add to timeline':undefined} className="btn-secondary gap-1.5 px-2 py-1 text-xs">{busy===asset.id?<Loader2 size={13} className="animate-spin motion-reduce:animate-none" aria-hidden="true"/>:<Film size={13} aria-hidden="true"/>}{onPickVideo?'Use video':dense?'Timeline':'Add to timeline'}</button>}
           {mode==='browse'&&<>
             <button type="button" onClick={()=>restore(asset)} aria-label={dense?`Restore settings from ${asset.metadata.prompt||'cloud asset'}`:undefined} title={dense?'Restore settings':undefined} className={`btn-secondary py-1 text-xs ${dense?'gap-0 px-1.5':'gap-1.5 px-2'}`}><Wand2 size={13} aria-hidden="true"/>{!dense&&'Restore settings'}</button>
             <button type="button" disabled={busy!==null} onClick={()=>void run(asset,()=>downloadAccountAsset(asset))} aria-label={`Download ${asset.metadata.prompt||'cloud asset'}`} title="Download" className={`btn-secondary py-1 text-xs ${dense?'px-1.5':'px-2'}`}><Download size={13} aria-hidden="true"/></button>

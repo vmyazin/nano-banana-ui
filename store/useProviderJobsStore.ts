@@ -12,6 +12,7 @@ export interface ProviderJob {
   prompt: string;
   /** Which shape of input produced it: prompt, one image, or first-and-last. */
   inputMode: ProviderMode;
+  sourceVideoId?: string;
   state: TaskState;
   progress?: number;
   urls: string[];

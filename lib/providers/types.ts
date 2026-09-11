@@ -16,7 +16,7 @@ export type ProviderId = 'runware' | 'atlas' | 'comet' | 'piapi';
 export type MediaKind = 'image' | 'video';
 
 /** What a model can be fed. Mirrors the video workspace's own mode names. */
-export type ProviderMode = 'text' | 'image' | 'frames' | 'reference';
+export type ProviderMode = 'text' | 'image' | 'frames' | 'reference' | 'edit';
 
 export type VideoInputField = 'frameImages' | 'referenceImages';
 export type VideoPromptSyntax = 'image-index' | 'at-image-index' | 'at-image-underscore-index';
@@ -97,6 +97,7 @@ export interface ProviderModel {
    * cover only verified tiers; unsupported settings record as unknown.
    */
   rate?: ProviderRate;
+  videoEdit?: { sizes: ProviderSize[]; rate: ProviderRate; maxImages: number };
   /** Max reference images the model accepts, when the vendor documents one. */
   maxInputImages?: number;
   /** Per-mode video input contracts, when a model has more than the legacy frame input. */
@@ -156,6 +157,7 @@ export interface ImageResult {
 }
 
 export interface VideoRequest {
+  sourceVideo?: string;
   audio?: boolean;
   apiKey: string;
   model: string;

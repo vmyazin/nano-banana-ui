@@ -20,7 +20,7 @@ function request(job: JobRow): CloudJobRequest { return JSON.parse(job.request_j
 /** Validate before reserving quota or entering the non-retrying submit step. */
 export function validateQueuedRequest(r: CloudJobRequest) {
   const references=r.referenceIds.map(id=>`https://reference.invalid/${id}`);
-  if(r.inputMode==='reference'||r.provider==='kie'&&r.inputMode==='frames')throw new AccountError('This reference mode is not supported by the selected provider.',400,'invalid_settings');
+  if(r.inputMode==='edit'||r.inputMode==='reference'||r.provider==='kie'&&r.inputMode==='frames')throw new AccountError('This reference mode is not supported by the selected provider.',400,'invalid_settings');
   try {
     if (r.provider === 'fal') {
       const variant = resolveFalVariant(r.modelId, r.mediaType, r.inputMode);
