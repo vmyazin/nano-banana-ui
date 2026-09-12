@@ -1298,45 +1298,6 @@ export default function GenerationInterface({ feature, apiKey, onBack, onOpenCon
                   </div>
             </motion.div>
 
-            {/* Generate Button */}
-            <button
-              onClick={handleGenerate}
-              disabled={isGenerating || cloudWorkspace.checking}
-              className="btn-primary w-full py-3 text-base flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isGenerating ? (
-                <>
-                  <Loader2 className="animate-spin" size={24} />
-                  Generating Magic...
-                </>
-              ) : (
-                <>
-                  <Wand2 size={24} />
-                  Generate Image
-                </>
-              )}
-            </button>
-
-            <p className="mt-2 text-center text-xs text-[var(--foreground-subtle)]">
-              {costLine}
-            </p>
-
-            <CloudExecutionNotice workspace={cloudWorkspace} />
-
-            {/* Error Display */}
-            <AnimatePresence>
-              {displayError && (
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  className="glass-card p-4 bg-red-500/10 border-red-500/30 text-red-300 whitespace-pre-wrap"
-                >
-                  {displayError}
-                  <RetryCountdown retry={autoRetry.pending} onCancel={autoRetry.cancel} />
-                </motion.div>
-              )}
-            </AnimatePresence>
           </>
         }
         prompt={
@@ -1419,6 +1380,49 @@ export default function GenerationInterface({ feature, apiKey, onBack, onOpenCon
               </div>
             )}
           </PromptPanel>
+        }
+        actions={
+          <>
+            {/* Generate Button */}
+            <button
+              onClick={handleGenerate}
+              disabled={isGenerating || cloudWorkspace.checking}
+              className="btn-primary w-full py-3 text-base flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isGenerating ? (
+                <>
+                  <Loader2 className="animate-spin" size={24} />
+                  Generating Magic...
+                </>
+              ) : (
+                <>
+                  <Wand2 size={24} />
+                  Generate Image
+                </>
+              )}
+            </button>
+
+            <p className="mt-2 text-center text-xs text-[var(--foreground-subtle)]">
+              {costLine}
+            </p>
+
+            <CloudExecutionNotice workspace={cloudWorkspace} />
+
+            {/* Error Display */}
+            <AnimatePresence>
+              {displayError && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="glass-card p-4 bg-red-500/10 border-red-500/30 text-red-300 whitespace-pre-wrap"
+                >
+                  {displayError}
+                  <RetryCountdown retry={autoRetry.pending} onCancel={autoRetry.cancel} />
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </>
         }
         results={
           cloudWorkspace.cloud ? <CloudJobPanel provider={activeEngine.id} modelId={cloudModelId} mediaType="image" inputMode={cloudInputMode} /> : <motion.div

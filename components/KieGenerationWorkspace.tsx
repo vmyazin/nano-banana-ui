@@ -590,24 +590,6 @@ export default function KieGenerationWorkspace({
               />
             </div>
           </section>
-
-          <button
-            type="button"
-            onClick={() => {
-              // A deliberate press is a fresh start: it drops any queued attempt
-              // and hands back the full retry budget.
-              autoRetry.reset();
-              void submit();
-            }}
-            disabled={isSubmitting || cloudWorkspace.checking}
-            className="btn-primary flex w-full items-center justify-center gap-2 py-3 text-base disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {isSubmitting ? <><Loader2 className="animate-spin" size={21} /> Uploading & starting…</> : <><Sparkles size={21} /> Generate {mediaType}</>}
-          </button>
-          <CloudExecutionNotice workspace={cloudWorkspace} />
-          {error && (
-            <SubmissionError message={error} retry={autoRetry.pending} onCancelRetry={autoRetry.cancel} />
-          )}
           </>
         }
         prompt={
@@ -632,6 +614,27 @@ export default function KieGenerationWorkspace({
               placeholder={mediaType === 'video' ? 'Describe the motion, camera, mood, and scene…' : 'Describe the image you want to create…'}
             />
           </PromptPanel>
+        }
+        actions={
+          <>
+            <button
+              type="button"
+              onClick={() => {
+                // A deliberate press is a fresh start: it drops any queued attempt
+                // and hands back the full retry budget.
+                autoRetry.reset();
+                void submit();
+              }}
+              disabled={isSubmitting || cloudWorkspace.checking}
+              className="btn-primary flex w-full items-center justify-center gap-2 py-3 text-base disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isSubmitting ? <><Loader2 className="animate-spin" size={21} /> Uploading & starting…</> : <><Sparkles size={21} /> Generate {mediaType}</>}
+            </button>
+            <CloudExecutionNotice workspace={cloudWorkspace} />
+            {error && (
+              <SubmissionError message={error} retry={autoRetry.pending} onCancelRetry={autoRetry.cancel} />
+            )}
+          </>
         }
         results={cloudWorkspace.cloud ? <CloudJobPanel provider="kie" modelId={selectedModel.id} mediaType={mediaType} inputMode={inputMode} onContinueFromFrame={onContinueFromFrame} /> :
           <section className="glass-card flex min-h-[420px] flex-col gap-4 p-3.5 md:p-4">

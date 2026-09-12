@@ -859,39 +859,6 @@ export default function ProviderVideoWorkspace({
               </div>
             </section>
           )}
-
-          <button
-            type="button"
-            onClick={() => {
-              // A deliberate press is a fresh start: it drops any queued attempt
-              // and hands back the full retry budget.
-              autoRetry.reset();
-              void submit();
-            }}
-            disabled={isSubmitting || cloudWorkspace.checking}
-            // A disabled control has to carry its own reason: the guard above
-            // can only be reached programmatically, so for a pointer this
-            // button going dead is the whole of the explanation on offer.
-            title={cloudWorkspace.checking ? 'Still checking your account.' : undefined}
-            className="btn-primary flex w-full items-center justify-center gap-2 py-3 text-base disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {isSubmitting ? (
-              <>
-                <Loader2 className="animate-spin" size={21} /> {uploadProgress !== null ? `Uploading source… ${uploadProgress}%` : 'Starting…'}
-              </>
-            ) : (
-              <>
-                <Sparkles size={21} /> {isEdit ? 'Generate edit' : 'Generate video'}
-                {estimate.costUsd !== null && (
-                  <span className="font-normal opacity-80">{` · ~$${estimate.costUsd.toFixed(2)}`}</span>
-                )}
-              </>
-            )}
-          </button>
-          <CloudExecutionNotice workspace={cloudWorkspace} />
-          {error && (
-            <SubmissionError message={error} retry={autoRetry.pending} onCancelRetry={autoRetry.cancel} />
-          )}
           </>
         }
         prompt={
@@ -923,6 +890,42 @@ export default function ProviderVideoWorkspace({
               placeholder={isEdit ? "Describe what to change in @Video1 and what to keep…" : "Describe the motion, camera, mood, and scene…"}
             />
           </PromptPanel>
+        }
+        actions={
+          <>
+            <button
+              type="button"
+              onClick={() => {
+                // A deliberate press is a fresh start: it drops any queued attempt
+                // and hands back the full retry budget.
+                autoRetry.reset();
+                void submit();
+              }}
+              disabled={isSubmitting || cloudWorkspace.checking}
+              // A disabled control has to carry its own reason: the guard above
+              // can only be reached programmatically, so for a pointer this
+              // button going dead is the whole of the explanation on offer.
+              title={cloudWorkspace.checking ? 'Still checking your account.' : undefined}
+              className="btn-primary flex w-full items-center justify-center gap-2 py-3 text-base disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="animate-spin" size={21} /> {uploadProgress !== null ? `Uploading source… ${uploadProgress}%` : 'Starting…'}
+                </>
+              ) : (
+                <>
+                  <Sparkles size={21} /> {isEdit ? 'Generate edit' : 'Generate video'}
+                  {estimate.costUsd !== null && (
+                    <span className="font-normal opacity-80">{` · ~$${estimate.costUsd.toFixed(2)}`}</span>
+                  )}
+                </>
+              )}
+            </button>
+            <CloudExecutionNotice workspace={cloudWorkspace} />
+            {error && (
+              <SubmissionError message={error} retry={autoRetry.pending} onCancelRetry={autoRetry.cancel} />
+            )}
+          </>
         }
         results={<>
           {cloudWorkspace.cloud ? <CloudJobPanel provider={provider} modelId={selectedModel?.id ?? ''} mediaType="video" inputMode={inputMode} resultJobId={isEdit && submittedEditJob?.epoch === epoch ? submittedEditJob.jobId : undefined} onContinueFromFrame={onContinueFromFrame} /> :

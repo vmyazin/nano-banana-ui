@@ -850,23 +850,6 @@ function FalGenerationWorkspaceSession({
               />
             </div>
           </section>
-
-          <button
-            type="button"
-            disabled={isSubmitting || cloudWorkspace.checking}
-            onClick={() => {
-              // A deliberate press is a fresh start: it drops any queued attempt
-              // and hands back the full retry budget.
-              autoRetry.reset();
-              void submit();
-            }}
-            className="btn-primary flex w-full items-center justify-center gap-2 py-3 text-base disabled:cursor-not-allowed disabled:opacity-50">
-            {isSubmitting ? <><Loader2 className="animate-spin" size={21} /> Uploading & starting…</> : <><Sparkles size={21} /> Generate video<FalRunCost modelId={selectedModel.id} mediaType="video" inputMode={inputMode} resolution={values.resolution} audio={values.generate_audio} duration={values.duration} /></>}
-          </button>
-          <CloudExecutionNotice workspace={cloudWorkspace} />
-          {error && (
-            <SubmissionError message={error} retry={autoRetry.pending} onCancelRetry={autoRetry.cancel} />
-          )}
           </>
         }
         prompt={
@@ -893,6 +876,26 @@ function FalGenerationWorkspaceSession({
               placeholder="Describe the motion, camera, mood, and scene…"
             />
           </PromptPanel>
+        }
+        actions={
+          <>
+            <button
+              type="button"
+              disabled={isSubmitting || cloudWorkspace.checking}
+              onClick={() => {
+                // A deliberate press is a fresh start: it drops any queued attempt
+                // and hands back the full retry budget.
+                autoRetry.reset();
+                void submit();
+              }}
+              className="btn-primary flex w-full items-center justify-center gap-2 py-3 text-base disabled:cursor-not-allowed disabled:opacity-50">
+              {isSubmitting ? <><Loader2 className="animate-spin" size={21} /> Uploading & starting…</> : <><Sparkles size={21} /> Generate video<FalRunCost modelId={selectedModel.id} mediaType="video" inputMode={inputMode} resolution={values.resolution} audio={values.generate_audio} duration={values.duration} /></>}
+            </button>
+            <CloudExecutionNotice workspace={cloudWorkspace} />
+            {error && (
+              <SubmissionError message={error} retry={autoRetry.pending} onCancelRetry={autoRetry.cancel} />
+            )}
+          </>
         }
         results={cloudWorkspace.cloud ? <CloudJobPanel provider="fal" modelId={selectedModel.id} mediaType="video" inputMode={inputMode} onContinueFromFrame={onContinueFromFrame} /> :
           <section className="glass-card min-h-[420px] space-y-3 p-3.5 md:p-4">
