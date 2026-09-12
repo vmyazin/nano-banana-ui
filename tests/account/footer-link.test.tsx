@@ -43,7 +43,7 @@ describe('the footer account link', () => {
 
     renderHome();
 
-    expect(screen.getByRole('link', { name: 'Account' })).toHaveAttribute('href', '/account');
+    expect(screen.getByRole('link', { name: /Account.*v@example\.test/ })).toHaveAttribute('href', '/account');
     expect(screen.queryByRole('link', { name: 'Sign in' })).not.toBeInTheDocument();
   });
 
