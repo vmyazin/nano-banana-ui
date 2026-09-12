@@ -216,6 +216,13 @@
       "request": "launch",
       "command": "ACCOUNT_WORKER_PORT=8853 DEV_FAKE_GENERATION=1 npm run dev -- --port 3153",
       "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "Selected approach border smoke test",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "ACCOUNT_WORKER_PORT=8861 DEV_FAKE_GENERATION=1 npm run dev -- --port 3161",
+      "cwd": "${workspaceFolder}"
     }
   ]
 }

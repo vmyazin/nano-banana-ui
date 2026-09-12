@@ -15,11 +15,11 @@ import type { ReactNode } from 'react';
  */
 const ACCENTS = {
   cyan: {
-    selectedCard: 'border-[var(--neon-cyan)]/60 shadow-[var(--glow-cyan)]',
+    selectedCard: '[--media-card-accent:var(--neon-cyan)] shadow-[var(--glow-cyan)]',
     check: 'bg-[var(--neon-cyan)]',
   },
   purple: {
-    selectedCard: 'border-[var(--neon-purple)]/60 shadow-[var(--glow-purple)]',
+    selectedCard: '[--media-card-accent:var(--neon-purple)] shadow-[var(--glow-purple)]',
     check: 'bg-[var(--neon-purple)]',
   },
 } as const;
@@ -74,7 +74,7 @@ export default function MediaCard({
       // flex-col opts out of the native button centering: grid rows stretch
       // every card to the tallest one, and a plain button vertically centers
       // its content in the extra space, knocking cards out of alignment.
-      className={`glass-card group relative flex cursor-pointer flex-col overflow-hidden p-3 text-left sm:p-3.5 ${selected ? tone.selectedCard : ''}`}
+      className={`glass-card media-card group relative flex cursor-pointer flex-col overflow-hidden p-3 text-left sm:p-3.5 ${selected ? tone.selectedCard : ''}`}
       whileHover={{ y: -2 }}
       whileTap={{ scale: 0.99 }}
     >

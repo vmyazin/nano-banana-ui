@@ -146,6 +146,17 @@ body::after {
   background: var(--surface-hover);
 }
 
+/* Reserve the selected border's width so choosing a card never shifts its
+   content. Keep this above the generic glass hover state in specificity. */
+.glass-card.media-card {
+  border-width: 2px;
+}
+
+.glass-card.media-card[aria-pressed='true'] {
+  border-color: var(--media-card-accent);
+}
+
+
 /* Dialog surface — a solid, quiet panel. Modals are read, not admired: no
    hover lift, no translucency, and enough contrast to sit above the canvas. */
 .dialog-panel {
