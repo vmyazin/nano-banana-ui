@@ -63,3 +63,20 @@ it('validates mode, source and settings before reserving or submitting',()=>{
  const r=request('source');expect(validateRequest(env,r)).toEqual(r);
  for(const change of [{sourceVideoId:undefined},{provider:'atlas'},{values:{size:'720p',durationSeconds:5}},{values:{size:'1080p'}},{referenceIds:Array(6).fill('image')}])expect(()=>validateRequest(env,{...r,...change})).toThrow();
 });
+
+it.each([false,true])('submits P-Video-Edit cloud draft=%s with a scoped source URL',async draft=>{
+ env.APP_ORIGIN='https://studio.example.test';env.PUBLIC_WORKER_ORIGIN='https://media.example.test';
+ const source=await upload(),image=await upload('owner','image/png');
+ const r={...request(source),modelId:'prunaai:p-video@edit',referenceIds:[image],values:{draft}};
+ expect(validateRequest(env,r)).toEqual(r);
+ const job=await acceptJob(env,'owner','pvideo-cloud-test-token',r);
+ const fetch=vi.fn().mockResolvedValue(Response.json({data:[{}]}));vi.stubGlobal('fetch',fetch);
+ await adapterFor(env,'runware').submit(env,job);
+ const [task]=JSON.parse(fetch.mock.calls[0][1].body);
+ expect(task).toEqual({taskType:'videoInference',taskUUID:job.id,model:r.modelId,positivePrompt:r.prompt,inputs:{video:expect.stringContaining('/media/'),referenceImages:[expect.stringContaining('/media/')]},settings:{draft},deliveryMethod:'async',includeCost:true,outputFormat:'MP4'});
+});
+it('rejects P-Video-Edit settings that would spend money on an invalid request',()=>{
+ const r={...request('source'),modelId:'prunaai:p-video@edit',values:{}};
+ expect(validateRequest(env,r)).toEqual(r);
+ for(const change of [{values:{size:'480p'}},{values:{draft:'true'}},{values:{durationSeconds:5}},{referenceIds:Array(5).fill('image')}]) expect(()=>validateRequest(env,{...r,...change})).toThrow();
+});

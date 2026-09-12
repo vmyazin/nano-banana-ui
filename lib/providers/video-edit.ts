@@ -1,3 +1,4 @@
+import type { ProviderModel } from './types';
 /** Application bounds for the first editing release, not vendor storage quotas. */
 export const MAX_EDIT_VIDEO_BYTES = 100_000_000;
 export const EDIT_VIDEO_MIMES = ['video/mp4', 'video/quicktime', 'video/webm'] as const;
@@ -14,3 +15,21 @@ export const EDIT_PROMPTS = {
   'Change scene': 'Edit @Video1: replace the background with a snowy forest. Keep the person, clothing, movement, timing, and camera framing unchanged.',
   Restyle: 'Edit @Video1: restyle the clip as a clay animation. Preserve the subjects, composition, movement, camera, and timing.',
 };
+
+/** Validate only model-owned settings; fixed-output models must not receive stale resolution. */
+export function editSettingsError(capability: NonNullable<ProviderModel['videoEdit']>, values: Record<string, unknown>): string | undefined {
+  const allowed = [...(capability.sizes.length ? ['size'] : []), ...(capability.draftRate ? ['draft'] : [])];
+  if (Object.keys(values).some(key => values[key] !== undefined && !allowed.includes(key))) return 'Unsupported edit setting. Duration and aspect ratio follow the source.';
+  if (capability.sizes.length && !capability.sizes.some(size => size.label === values.size)) return 'Choose a supported edit resolution.';
+  if (values.draft !== undefined && typeof values.draft !== 'boolean') return 'Draft must be on or off.';
+}
+
+export function validateEditSource(source: {durationSeconds: number; width: number; height: number}, capability: NonNullable<ProviderModel['videoEdit']>): void {
+  const {durationSeconds: duration, width, height} = source;
+  if (!Number.isFinite(duration) || duration <= 0 || duration < (capability.minSeconds ?? 0) || duration > capability.maxSeconds || !Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) throw new Error(`Choose a readable clip ${capability.minSeconds ? `between ${capability.minSeconds} and ${capability.maxSeconds}` : `up to ${capability.maxSeconds}`} seconds long.`);
+  const bounds = capability.sourceBounds;
+  if (!bounds) return;
+  if (width < bounds.minEdge || height < bounds.minEdge || width > bounds.maxEdge || height > bounds.maxEdge) throw new Error(`Source width and height must be between ${bounds.minEdge} and ${bounds.maxEdge} pixels.`);
+  if (width * height < bounds.minPixels) throw new Error(`This model requires at least ${bounds.minPixels.toLocaleString('en-US')} source pixels. Resize the clip before uploading.`);
+  if (width / height < bounds.minRatio || width / height > bounds.maxRatio) throw new Error('Choose a source aspect ratio between 1:2.5 and 2.5:1.');
+}

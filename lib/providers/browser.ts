@@ -42,6 +42,7 @@ export async function submitProviderVideo(args: {
   /** Label of the model's documented size, resolved to pixels on the server. */
   size?: string;
   audio?: boolean;
+  draft?: boolean;
   aspectRatio?: string;
 }): Promise<string> {
   const data = await post({ operation: 'create', ...args });

@@ -97,7 +97,15 @@ export interface ProviderModel {
    * cover only verified tiers; unsupported settings record as unknown.
    */
   rate?: ProviderRate;
-  videoEdit?: { sizes: ProviderSize[]; rate: ProviderRate; maxImages: number };
+  videoEdit?: {
+    sizes: ProviderSize[]; rate: ProviderRate; maxImages: number;
+    draftRate?: ProviderRate;
+    maxSeconds: number; minSeconds?: number;
+    sourceBounds?: { minEdge: number; maxEdge: number; minPixels: number; minRatio: number; maxRatio: number };
+    outputLabel?: string;
+    promptSyntax?: VideoPromptSyntax;
+    note?: string;
+  };
   /** Max reference images the model accepts, when the vendor documents one. */
   maxInputImages?: number;
   /** Per-mode video input contracts, when a model has more than the legacy frame input. */
@@ -157,6 +165,7 @@ export interface ImageResult {
 }
 
 export interface VideoRequest {
+  draft?: boolean;
   sourceVideo?: string;
   audio?: boolean;
   apiKey: string;

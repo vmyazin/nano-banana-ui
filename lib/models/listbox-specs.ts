@@ -225,7 +225,7 @@ function lengthCell(seconds: number | undefined, whenMissing: SpecCell): SpecCel
 
 /** Aggregator video rows: Max · Up to · Shapes · From. */
 export function providerVideoSpecs(model: ProviderModel, inputMode?: string): SpecCell[] {
-  if (inputMode === 'edit' && model.videoEdit) return [text('source'), text(topTier(model.videoEdit.sizes) ?? '—'), text('source'), fromCell({rate:model.videoEdit.rate})];
+  if (inputMode === 'edit' && model.videoEdit) return [text(`${model.videoEdit.maxSeconds}s`), text(model.videoEdit.outputLabel ?? topTier(model.videoEdit.sizes) ?? '—'), text('source'), fromCell({rate:model.videoEdit.draftRate ?? model.videoEdit.rate})];
   return [
     // A video model with no seconds control fixes its own length (LTX 2.3 counts frames).
     lengthCell(maxSeconds(model), text('fixed', 'subtle')),

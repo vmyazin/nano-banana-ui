@@ -69,9 +69,9 @@ export function resolveCatalogRate(
   model: ProviderModel | undefined,
   durationSeconds?: number,
   outputImages = 1,
-  controls: { size?: string; inputImages?: number; audio?: boolean; inputMode?: string } = {}
+  controls: { size?: string; inputImages?: number; audio?: boolean; draft?: boolean; inputMode?: string } = {}
 ): SpendFigure {
-  const rate = controls.inputMode === 'edit' ? model?.videoEdit?.rate : model?.rate;
+  const rate = controls.inputMode === 'edit' ? (controls.draft ? model?.videoEdit?.draftRate : model?.videoEdit?.rate) : model?.rate;
   if (!rate) return unknownFigure('catalog-rate');
   // Only search when a size was actually given. `size.preset === undefined`
   // is true for every size that has no preset, so with no size chosen this

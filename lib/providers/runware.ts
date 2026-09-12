@@ -113,8 +113,19 @@ export async function runwareGenerateImage(request: ImageRequest): Promise<Image
 }
 
 export async function runwareCreateVideo(request: VideoRequest, uuid = taskUUID()): Promise<{ taskId: string }> {
+  if (request.inputMode === 'edit' && request.model === 'prunaai:p-video@edit') {
+    if (!request.sourceVideo || request.resolution !== undefined || request.durationSeconds !== undefined || request.width !== undefined || request.height !== undefined || request.aspectRatio !== undefined || request.audio !== undefined || (request.draft !== undefined && typeof request.draft !== 'boolean') || (request.images?.length ?? 0) > 4) throw new ProviderError('Invalid P-Video-Edit settings.', 400, 'runware');
+    await runwareFetch(request.apiKey, [{
+      taskType: 'videoInference', taskUUID: uuid, model: request.model,
+      positivePrompt: request.prompt,
+      inputs: {video: request.sourceVideo, ...(request.images?.length ? {referenceImages: request.images} : {})},
+      settings: {draft: request.draft === true},
+      deliveryMethod: 'async', includeCost: true, outputFormat: 'MP4',
+    }]);
+    return {taskId: uuid};
+  }
   if (request.inputMode === 'edit') {
-    if (request.model !== 'bytedance:seedance@2.5' || !request.sourceVideo || !['480p', '720p'].includes(request.resolution ?? '')) throw new ProviderError('Invalid video edit settings.', 400, 'runware');
+    if (request.draft !== undefined || request.model !== 'bytedance:seedance@2.5' || !request.sourceVideo || !['480p', '720p'].includes(request.resolution ?? '')) throw new ProviderError('Invalid video edit settings.', 400, 'runware');
     await runwareFetch(request.apiKey, [{
       taskType: 'videoInference', taskUUID: uuid, model: request.model,
       positivePrompt: request.prompt, inputs: {video: request.sourceVideo, ...(request.images?.length ? {referenceImages: request.images} : {})},

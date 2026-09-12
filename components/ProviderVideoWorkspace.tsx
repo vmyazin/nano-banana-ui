@@ -9,7 +9,7 @@ import CloudJobPanel from '@/components/account/CloudJobPanel';
 
 import VideoSourceInput, { type SourceVideo } from '@/components/VideoSourceInput';
 import { useAccountStore } from '@/store/useAccountStore';
-import { EDIT_PROMPTS } from '@/lib/providers/video-edit';
+import { EDIT_PROMPTS, validateEditSource } from '@/lib/providers/video-edit';
 import { uploadRunwareVideo } from '@/lib/providers/upload-video';
 import LastFrameActions from '@/components/LastFrameActions';
 import AutoExpandingPrompt from '@/components/AutoExpandingPrompt';
@@ -214,7 +214,12 @@ export default function ProviderVideoWorkspace({
   const selectedModel = models.find((model) => model.id === preference) ?? models[0];
   const modelKey = `${provider}:${inputMode}:${selectedModel?.id ?? 'none'}`;
   const isEdit = inputMode === 'edit';
-  const fields = useMemo(() => controlFieldsFor(isEdit && selectedModel?.videoEdit ? {...selectedModel, duration: undefined, durations: undefined, sizes: selectedModel.videoEdit.sizes, aspectRatios: undefined, supportsAudio: false} : selectedModel), [selectedModel, isEdit]);
+  const fields = useMemo(() => {
+    if (!isEdit || !selectedModel?.videoEdit) return controlFieldsFor(selectedModel);
+    const fields = controlFieldsFor({...selectedModel, duration: undefined, durations: undefined, sizes: selectedModel.videoEdit.sizes, aspectRatios: undefined, supportsAudio: false});
+    if (selectedModel.videoEdit.draftRate) fields.push({key: 'draft', label: 'Draft mode', type: 'boolean', defaultValue: false, description: 'Faster, lower-quality preview at a lower price. Turn off for Standard quality.'});
+    return fields;
+  }, [selectedModel, isEdit]);
   const epoch = useAccountStore(state => state.epoch);
   const [selectedSource, setSelectedSource] = useState<SourceVideo | null>(null);
   const source = selectedSource?.epoch === epoch ? selectedSource : null;
@@ -258,7 +263,7 @@ export default function ProviderVideoWorkspace({
   const inputCapability = inputMode === 'text' ? undefined : selectedModel?.videoInputs?.[inputMode];
   // Reference arrays can be larger at the provider, but data-URI requests stay
   // practical at five views. The server still enforces the documented hard max.
-  const maxInputImages = isFrames
+  const maxInputImages = isEdit ? (selectedModel?.videoEdit?.maxImages ?? 0) : isFrames
     ? 2
     : imageReferencesOnly
       ? (inputCapability?.clientMaxImages ?? Math.min(inputCapability?.maxImages ?? 5, 5))
@@ -350,7 +355,7 @@ export default function ProviderVideoWorkspace({
     selectedModel,
     isEdit ? source?.durationSeconds : typeof values.duration === 'number' ? values.duration : undefined,
     1,
-    { inputMode, size: typeof values.size === 'string' ? values.size : undefined, audio: values.audio === true }
+    { inputMode, draft: values.draft === true, size: typeof values.size === 'string' ? values.size : undefined, audio: values.audio === true }
   );
 
   useAutoAspect(isEdit ? undefined : references[0], sizeCandidates, (value) => {
@@ -582,12 +587,14 @@ export default function ProviderVideoWorkspace({
     setIsSubmitting(true);
     submitFlight.current = true;
     try {
+      if (isEdit && source && selectedModel.videoEdit) validateEditSource(source, selectedModel.videoEdit);
       if (cloudWorkspace.cloud) {
         const job = await cloudWorkspace.submit({modelId:selectedModel.id, mediaType:'video', inputMode, prompt:prompt.trim(), values:{
           ...(!isEdit && typeof values.duration === 'number' ? {durationSeconds:values.duration} : {}),
-          ...(typeof values.size === 'string' ? {size:values.size} : {}),
-          ...(selectedModel?.supportsAudio ? {audio:values.audio === true} : {}),
-          ...(selectedModel?.aspectRatios ? {aspectRatio:String(values.aspectRatio)} : {}),
+          ...((!isEdit || selectedModel.videoEdit?.sizes.length) && typeof values.size === 'string' ? {size:values.size} : {}),
+          ...(isEdit && selectedModel.videoEdit?.draftRate ? {draft:values.draft === true} : {}),
+          ...(!isEdit && selectedModel?.supportsAudio ? {audio:values.audio === true} : {}),
+          ...(!isEdit && selectedModel?.aspectRatios ? {aspectRatio:String(values.aspectRatio)} : {}),
         }}, inputMode === 'text' ? [] : references.map(reference => reference.file), prompt.trim(), isEdit ? source?.file : undefined);
         if (isEdit && source) setSubmittedEditJob({epoch: source.epoch, jobId: job.id});
         autoRetry.reset();
@@ -616,9 +623,10 @@ export default function ProviderVideoWorkspace({
         images,
         sourceVideo,
         durationSeconds: isEdit ? undefined : typeof values.duration === 'number' ? values.duration : undefined,
-        size: typeof values.size === 'string' ? values.size : undefined,
-        ...(selectedModel?.supportsAudio ? {audio:values.audio === true} : {}),
-        ...(selectedModel?.aspectRatios ? {aspectRatio:String(values.aspectRatio)} : {}),
+        size: (!isEdit || selectedModel.videoEdit?.sizes.length) && typeof values.size === 'string' ? values.size : undefined,
+        ...(isEdit && selectedModel.videoEdit?.draftRate ? {draft:values.draft === true} : {}),
+        ...(!isEdit && selectedModel?.supportsAudio ? {audio:values.audio === true} : {}),
+        ...(!isEdit && selectedModel?.aspectRatios ? {aspectRatio:String(values.aspectRatio)} : {}),
       });
       usePromptLibraryStore.getState().remember(submittedPrompt);
       const jobId = useProviderJobsStore.getState().startJob({
@@ -739,14 +747,14 @@ export default function ProviderVideoWorkspace({
               {selectedModel && (
                 <p className="px-0.5 text-sm leading-relaxed text-[var(--foreground-muted)]">
                   <span className="font-medium text-[var(--foreground)]">{selectedModel.label}:</span>{' '}
-                  {isEdit ? 'Edit the source clip with optional reference images. Duration and aspect ratio follow the source; changes are guided by your prompt.' : selectedModel.note ??
+                  {isEdit ? selectedModel.videoEdit?.note ?? 'Edit the source clip with optional reference images. Duration and aspect ratio follow the source; changes are guided by your prompt.' : selectedModel.note ??
                     `Billed to your ${label} account at ${selectedModel.price && selectedModel.price !== 'metered' ? selectedModel.price : 'the vendor’s rates'}.`}
                 </p>
               )}
             </div>
           </section>
 
-          {isEdit && <VideoSourceInput source={source} onChange={setSelectedSource} disabled={isSubmitting} />}
+          {isEdit && <VideoSourceInput capability={selectedModel!.videoEdit!} source={source} onChange={setSelectedSource} disabled={isSubmitting} />}
           {inputMode !== 'text' && (
             <section className="glass-card space-y-3 p-3.5 md:p-4">
               <div>
@@ -758,7 +766,7 @@ export default function ProviderVideoWorkspace({
                       : `Reference image${maxInputImages === 1 ? '' : 's'}`}
                 </h3>
                 <p className="mt-0.5 text-xs text-[var(--foreground-muted)]">
-                  {isEdit ? 'Add a character, product, or setting to guide the edit. Address images as @Image1, @Image2, and so on.' : isFrames
+                  {isEdit ? `Add up to ${maxInputImages} character, product, or setting images to guide the edit. Address images as ${selectedModel?.videoEdit?.promptSyntax === 'image-index' ? 'image 1, image 2' : '@Image1, @Image2'}, and so on.` : isFrames
                     ? 'Two images, in order: the frame the clip opens on, then the one it ends on. The model builds the motion between them.'
                     : isReference
                       ? `Add up to ${maxInputImages} front, three-quarter, or profile views. Their order becomes ${referenceToken(0)}, ${referenceToken(1)}, and so on in your prompt.`
@@ -811,7 +819,7 @@ export default function ProviderVideoWorkspace({
                 items={references.map((reference, index) => ({
                   id: reference.id,
                   src: reference.previewUrl,
-                  caption: isFrames ? frameSlotLabel(index) : isEdit ? `@Image${index + 1}` : isReference ? referenceToken(index) : undefined,
+                  caption: isFrames ? frameSlotLabel(index) : isEdit ? (selectedModel?.videoEdit?.promptSyntax === 'image-index' ? `Image ${index + 1}` : `@Image${index + 1}`) : isReference ? referenceToken(index) : undefined,
                   alt: isFrames
                     ? frameSlotLabel(index)
                     : isReference
@@ -882,7 +890,7 @@ export default function ProviderVideoWorkspace({
                 {isGeneratingExample ? 'Thinking…' : 'Gen Example'}
               </button>}
             </div>
-            {isEdit && <div className="flex flex-wrap gap-2">{Object.entries(EDIT_PROMPTS).map(([label, text]) => <button key={label} type="button" className="btn-secondary px-2.5 py-1.5 text-xs" onClick={() => setPrompt(text)}>{label}</button>)}</div>}
+            {isEdit && <div className="flex flex-wrap gap-2">{Object.entries(EDIT_PROMPTS).map(([label, text]) => <button key={label} type="button" className="btn-secondary px-2.5 py-1.5 text-xs" onClick={() => setPrompt(selectedModel?.videoEdit?.promptSyntax === 'image-index' ? text.replace('@Video1', 'the source video').replace(/@Image(\d+)/g, 'image $1') : text)}>{label}</button>)}</div>}
             <AutoExpandingPrompt
               id="provider-video-prompt"
               value={prompt}
@@ -914,8 +922,8 @@ export default function ProviderVideoWorkspace({
                 </>
               ) : (
                 <>
-                  <Sparkles size={21} /> {isEdit ? 'Generate edit' : 'Generate video'}
-                  {estimate.costUsd !== null && (
+                  <Sparkles size={21} /> {cloudWorkspace.cloud && cloudWorkspace.fakeGeneration ? 'Run simulation · test video only' : isEdit ? 'Generate edit' : 'Generate video'}
+                  {!(cloudWorkspace.cloud && cloudWorkspace.fakeGeneration) && estimate.costUsd !== null && (
                     <span className="font-normal opacity-80">{` · ~$${estimate.costUsd.toFixed(2)}`}</span>
                   )}
                 </>

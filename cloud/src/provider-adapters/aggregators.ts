@@ -1,3 +1,4 @@
+import { editSettingsError } from '../../../lib/providers/video-edit';
 import { piapiCreateImage, piapiCreateVideo, piapiPollTask } from '../../../lib/providers/piapi';
 import { findModel, resolveDuration, resolveSize, resolveVideoInput } from '../../../lib/providers/catalog';
 import { atlasCreateImage, atlasCreateVideo, atlasPollVideo } from '../../../lib/providers/atlas';
@@ -28,7 +29,8 @@ export function validateAggregatorRequest(r: CloudJobRequest) {
   if (r.inputMode === 'edit') {
     if (!model.videoEdit || !r.sourceVideoId) return invalid('Choose a source video to edit.');
     if (count > model.videoEdit.maxImages) return invalid(`Add up to ${model.videoEdit.maxImages} replacement images.`);
-    if (Object.keys(r.values).some(key => key !== 'size') || !model.videoEdit.sizes.some(s => s.label === r.values.size)) return invalid('Edits inherit source duration and aspect ratio. Choose 480p or 720p.');
+    const settingsError = editSettingsError(model.videoEdit, r.values);
+    if (settingsError) return invalid(settingsError);
     return;
   }
   if (r.sourceVideoId) return invalid('Source video is only accepted in Edit video mode.');
@@ -104,7 +106,7 @@ export const aggregatorAdapter: GenerationAdapter = {
       }
       // The durable job ID remains available even when submission throws, so
       // getTaskDetails can diagnose the attempt without another paid request.
-      const result = await runwareCreateVideo({...common, sourceVideo, inputMode: 'edit', resolution: String(r.values.size)}, job.id);
+      const result = await runwareCreateVideo({...common, sourceVideo, inputMode: 'edit', resolution: typeof r.values.size === 'string' ? r.values.size : undefined, ...(model.videoEdit?.draftRate ? {draft: r.values.draft === true} : {})}, job.id);
       return {handle: {id: result.taskId, ...(sourceMedia ? {sourceMedia} : {})}};
     }
     const size = resolveSize(provider, r.modelId, r.values.size as string | undefined);

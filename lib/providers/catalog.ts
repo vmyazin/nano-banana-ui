@@ -103,13 +103,24 @@ const RUNWARE_MODELS: ProviderModel[] = [
     ],
   },
   {
+    // Verified 2026-09-11: https://runware.ai/docs/models/prunaai-p-video-edit
+    id: 'prunaai:p-video@edit', label: 'P-Video-Edit', fileCode: 'p-video-edit',
+    kind: 'video', modes: ['edit'],
+    videoEdit: {
+      sizes: [], maxImages: 4, maxSeconds: 15,
+      rate: {per: 'second', usd: 0.045}, draftRate: {per: 'second', usd: 0.025},
+      outputLabel: '848px', promptSyntax: 'image-index',
+      note: 'Duration and aspect ratio follow the source. Output is 25 fps with fixed dimensions up to 848px on the long edge (848×480 landscape, 624×624 square). Draft is faster and lower quality.',
+    },
+  },
+  {
     // Read 2026-09-09 from https://runware.ai/docs/models/bytedance-seedance-2-5.
     id: 'bytedance:seedance@2.5',
     label: 'Seedance 2.5',
     fileCode: 'seedance-2_5',
     kind: 'video',
     modes: ['text', 'image', 'frames', 'reference', 'edit'],
-    videoEdit: { sizes: [{label: '720p', preset: '720p'}, {label: '480p', preset: '480p'}], rate: {per: 'second', usdByResolution: {'480p': 0.131, '720p': 0.295}}, maxImages: 5 },
+    videoEdit: { minSeconds: 4, maxSeconds: 30, sourceBounds: {minEdge: 300, maxEdge: 6000, minPixels: 407696, minRatio: 0.4, maxRatio: 2.5}, sizes: [{label: '720p', preset: '720p'}, {label: '480p', preset: '480p'}], rate: {per: 'second', usdByResolution: {'480p': 0.131, '720p': 0.295}}, maxImages: 5 },
     price: '$0.102 / s @ 480p \u00b7 $0.23 @ 720p \u00b7 $0.614 @ 1080p',
     rate: { usdByResolution: { '480p': 0.102, '720p': 0.23, '1080p': 0.614 }, per: 'second' },
     maxInputImages: 30,
