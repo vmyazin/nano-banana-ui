@@ -2,6 +2,11 @@
 'use client';
 
 import Link from 'next/link';
+import { useEffect } from 'react';
+import { useAccountSpendTotals } from '@/lib/account/use-spend-totals';
+import { formatUsdTotal } from '@/lib/spend/format';
+import { totals } from '@/lib/spend/rollup';
+import { useSpendStore } from '@/store/useSpendStore';
 import { CircleDollarSign, CircleUserRound, Volume2, VolumeX } from 'lucide-react';
 
 import { setUiSoundsEnabled } from '@/lib/notify/chime';
@@ -16,6 +21,23 @@ import { useAppStore } from '@/store/useAppStore';
  * matches the markup.
  */
 
+function AccountSpendValue({ ownerId }: { ownerId: string }) {
+  const spend = useAccountSpendTotals(ownerId);
+  if (spend.totals?.costUsd === 0) return null;
+  return <span title={spend.error ?? 'All-time account spend'}>{spend.totals ? formatUsdTotal(spend.totals.costUsd) : '—'}</span>;
+}
+
+function BrowserSpendValue() {
+  const entries = useSpendStore(state => state.entries);
+  const hydrated = useSpendStore(state => state.hasHydrated);
+  useEffect(() => {
+    if (!useSpendStore.getState().hasHydrated) void useSpendStore.persist.rehydrate();
+  }, []);
+  const costUsd = totals(entries).costUsd;
+  if (hydrated && costUsd === 0) return null;
+  return <span title="All-time browser spend">{hydrated ? formatUsdTotal(costUsd) : '—'}</span>;
+}
+
 export function FooterLinks() {
   /**
    * The session resolves a moment after paint, so the footer waits for a
@@ -24,6 +46,7 @@ export function FooterLinks() {
    * sign-in anyway. Nobody sees a broken link, and nobody already signed in
    * watches the row flip out from under them.
    */
+  const account = useAccountStore(s => s.session?.account);
   const signedOut = useAccountStore((s) => s.status === 'ready' && !s.session?.account);
 
   return (
@@ -31,19 +54,23 @@ export function FooterLinks() {
       <li>
         <Link
           href="/spend"
-          className="inline-flex items-center gap-2 text-[var(--neon-cyan)] hover:text-[var(--neon-purple)] transition-colors hover:underline"
+          className="inline-flex max-w-full items-center gap-2 text-[var(--neon-cyan)] hover:text-[var(--neon-purple)] transition-colors"
         >
           <CircleDollarSign size={15} aria-hidden="true" />
           Spend
+          {account ? <AccountSpendValue ownerId={account.id} /> : signedOut ? <BrowserSpendValue /> : <span>—</span>}
         </Link>
       </li>
       <li>
         <Link
           href={signedOut ? '/sign-in' : '/account'}
-          className="inline-flex items-center gap-2 text-[var(--neon-cyan)] hover:text-[var(--neon-purple)] transition-colors hover:underline"
+          className="inline-flex max-w-full items-center gap-2 text-[var(--neon-cyan)] hover:text-[var(--neon-purple)] transition-colors"
         >
-          <CircleUserRound size={15} aria-hidden="true" />
-          {signedOut ? 'Sign in' : 'Account'}
+          <CircleUserRound className="shrink-0" size={15} aria-hidden="true" />
+          <span className="min-w-0">
+            {signedOut ? 'Sign in' : 'Account'}
+            {account?.email && <span className="ml-2 font-normal text-[var(--foreground-muted)] [overflow-wrap:anywhere]">{' '}{account.email}</span>}
+          </span>
         </Link>
       </li>
     </ul>
